@@ -7,7 +7,7 @@
 ## Install
 
 ```bash
-git clone https://github.com/yhryzy/academic-writing-toolkit.git my-thesis
+git clone https://github.com/yha9806/academic-writing-toolkit.git my-thesis
 cd my-thesis
 codex
 ```

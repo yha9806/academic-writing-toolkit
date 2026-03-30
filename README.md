@@ -29,7 +29,7 @@ Clone the repo and start your agent. Skills are discovered automatically.
 **Claude Code** (recommended):
 
 ```bash
-git clone https://github.com/yhryzy/academic-writing-toolkit.git my-thesis
+git clone https://github.com/yha9806/academic-writing-toolkit.git my-thesis
 cd my-thesis
 claude
 # Skills auto-discovered. Type /read to start.
@@ -38,7 +38,7 @@ claude
 **Codex CLI**:
 
 ```bash
-git clone https://github.com/yhryzy/academic-writing-toolkit.git my-thesis
+git clone https://github.com/yha9806/academic-writing-toolkit.git my-thesis
 cd my-thesis
 codex
 # Skills loaded from .agents/skills/
@@ -47,7 +47,7 @@ codex
 **Gemini CLI**:
 
 ```bash
-git clone https://github.com/yhryzy/academic-writing-toolkit.git my-thesis
+git clone https://github.com/yha9806/academic-writing-toolkit.git my-thesis
 cd my-thesis
 gemini
 # Skills loaded from .agents/skills/

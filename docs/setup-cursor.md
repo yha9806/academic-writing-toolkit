@@ -8,7 +8,7 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yhryzy/academic-writing-toolkit.git my-thesis
+   git clone https://github.com/yha9806/academic-writing-toolkit.git my-thesis
    ```
 2. Open the `my-thesis` folder in Cursor.
 
