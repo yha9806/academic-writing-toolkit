@@ -1,0 +1,31 @@
+---
+description: "Academic writing conventions — reading notes format, chapter structure, consistency rules"
+alwaysApply: true
+---
+
+## Notes Format
+
+Reading notes use a standardised template (`literature/reading_notes/_template_NOTES.md`) with required fields:
+- **Status**: `reading` | `complete` | `revisiting`
+- **Relevance**: chapter and section reference (e.g. "Ch3 S3.2 — supports argument about X")
+- **Thesis Connections** table: maps note points to chapters, sections, and connection types (supports / challenges / extends)
+- **Key Terms** table: term, translation (if applicable), definition in context
+- Direct quotes must include page numbers: `> "quote" (p.N)`
+
+## Chapter Structure
+
+- Chapters live in `chapters/`, named `ch{N}_{slug}.md`
+- Sections numbered hierarchically: `## N.1`, `### N.1.1`
+- Each chapter ends with a `## References` section (Harvard style)
+- Template available at `chapters/_template.md`
+
+## Writing Principles
+
+- **Read first, write later** — complete reading notes for all sources before editing chapter text
+- **British English** throughout thesis text (favour, analyse, behaviour, programme)
+- **One notes file per source** — every PDF/text gets its own `_NOTES.md` in `literature/reading_notes/`
+- Max 15 pages per read invocation; max 90 pages per conversation
+
+## Cursor Note
+
+For full skill functionality (/read, /note, /verify, etc.), use Claude Code, Codex CLI, or Gemini CLI. Cursor rules provide baseline writing conventions only.
