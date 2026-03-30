@@ -1,0 +1,7 @@
+.DS_Store
+Thumbs.db
+*.docx
+*.pdf
+*.zip
+__pycache__/
+.env
