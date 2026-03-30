@@ -1,0 +1,64 @@
+# Setup: Codex CLI
+
+## Prerequisites
+
+- [Codex CLI](https://github.com/openai/codex) installed and authenticated
+
+## Install
+
+```bash
+git clone https://github.com/yhryzy/academic-writing-toolkit.git my-thesis
+cd my-thesis
+codex
+```
+
+Skills are loaded from `.agents/skills/` (symlinked to `.claude/skills/`).
+
+## Verify
+
+Ask Codex: "What skills are available?"
+
+You should see the 8 academic writing skills: read, note, verify, integrate, audit, export, map, progress.
+
+## Available Skills
+
+| Skill     | Purpose                              |
+|-----------|--------------------------------------|
+| read      | Guided reading with page-by-page PDF extraction |
+| note      | Record structured reading notes      |
+| verify    | Fact-check claims against sources    |
+| integrate | Weave reading notes into chapter drafts |
+| audit     | Pre-submission consistency check     |
+| export    | Export chapters to Word/PDF          |
+| map       | View literature coverage matrix      |
+| progress  | Writing progress dashboard           |
+
+## Configuration
+
+Codex reads `AGENTS.md` as its project instruction file. Edit it to set your:
+
+- Word count targets per chapter
+- Reading pace limits
+- Directory paths for literature and chapters
+
+## Skill Invocation
+
+Codex CLI may use different syntax for invoking skills. Check the
+[Codex documentation](https://github.com/openai/codex) for whether skills
+are invoked as `/skill-name`, `$skill-name`, or by natural language reference.
+
+The skill definitions in `.agents/skills/*/SKILL.md` are plain Markdown
+and compatible with any agent that reads instruction files.
+
+## Usage Examples
+
+```
+read literature/my-paper.pdf         # Start reading a paper
+note                                  # Record notes from reading
+verify Panofsky fled in 1933         # Fact-check a claim
+map                                   # See literature coverage matrix
+integrate                             # Weave notes into chapters
+audit                                 # Pre-submission consistency check
+progress                              # View writing dashboard
+export chapters en-only              # Export chapters to Word
+```
