@@ -79,6 +79,8 @@ Eight skills covering the full research-to-submission pipeline.
 | `/progress` | Reading + writing progress dashboard | Tracking |
 | `/export` | Markdown to Word + ZIP packaging | Delivery |
 
+**New to skills?** Read the [Skills Guide](docs/skills/) for detailed walkthroughs, internal logic, and practical examples for each skill.
+
 ---
 
 ## The Pipeline
@@ -94,7 +96,7 @@ When you `/read` a PDF, the agent produces structured output. `/note` writes it 
 | assemblage | Ch5 | S5.2 | extends |
 ```
 
-This table is what `/map` scans to build a literature-to-chapter matrix, and what `/integrate` consumes when weaving sources into chapter drafts. The `Status` field at the top of each notes file (`reading` / `complete`) is what `/progress` reads to calculate your coverage.
+This table is what `/map` scans to build a literature-to-chapter matrix, and what `/integrate` consumes when weaving sources into chapter drafts. The `Status` field at the top of each notes file (`reading` / `completed`) is what `/progress` reads to calculate your coverage.
 
 The result: every skill reads from and writes to the same file structure, so nothing falls through the cracks.
 
