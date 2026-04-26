@@ -1,5 +1,7 @@
 # Academic Writing Project
 
+<!-- GENERATED FROM CLAUDE.md — do not edit. Run `make sync` after editing CLAUDE.md. -->
+
 Configuration for Gemini CLI.
 
 ## Skill Discovery
