@@ -28,6 +28,9 @@ else
     for n in "${SKILL_NAMES[@]}"; do
         if ! { test -L ".agents/skills/$n" && \
                [[ "$(readlink ".agents/skills/$n")" == "../../.claude/skills/$n" ]]; }; then
+            if [[ -e ".agents/skills/$n" && ! -L ".agents/skills/$n" ]]; then
+                warn ".agents/skills/$n exists but is not a symlink; replacing"
+            fi
             rm -rf ".agents/skills/$n"
             ln -s "../../.claude/skills/$n" ".agents/skills/$n"
             rebuilt=$((rebuilt+1))
