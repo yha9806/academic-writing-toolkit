@@ -1,5 +1,9 @@
 # Academic Writing Project
 
+<!-- This is the canonical project config. Do not edit AGENTS.md or GEMINI.md
+     directly — they are generated from this file. After editing here, run:
+       make sync -->
+
 <!-- SHARED:START -->
 ## Project Overview
 This project uses the academic-writing-toolkit skills for structured research and thesis writing.
