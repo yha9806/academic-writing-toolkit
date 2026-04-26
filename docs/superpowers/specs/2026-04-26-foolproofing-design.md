@@ -181,39 +181,45 @@ Skills are located in `.agents/skills/`. Each `.md` file in that directory defin
 
 ```bash
 #!/usr/bin/env bash
-# scripts/sync-config.sh
+# scripts/sync-config.sh [INPUT_FILE] [OUTPUT_DIR]
+#   INPUT_FILE  — defaults to CLAUDE.md
+#   OUTPUT_DIR  — defaults to . (repo root); pass a tmpdir for read-only diff use
 set -euo pipefail
 source scripts/lib.sh
 
-CLAUDE_MD="CLAUDE.md"
-SHARED_START="<!-- SHARED:START -->"
-SHARED_END="<!-- SHARED:END -->"
+INPUT="${1:-CLAUDE.md}"
+OUTDIR="${2:-.}"
 
 # 0. Validate prerequisites
-[[ -f "$CLAUDE_MD" ]] || die "CLAUDE.md not found in repo root"
+[[ -f "$INPUT" ]] || die "input not found: $INPUT"
+[[ -d "$OUTDIR" ]] || die "output dir not found: $OUTDIR"
 [[ -f templates/agents-preamble.md ]] || die "templates/agents-preamble.md missing — reinstall toolkit"
 [[ -f templates/gemini-preamble.md ]] || die "templates/gemini-preamble.md missing — reinstall toolkit"
 
-# 1. Validate exactly one marker pair
-start_count=$(grep -c -F "$SHARED_START" "$CLAUDE_MD" || true)
-end_count=$(grep -c -F "$SHARED_END" "$CLAUDE_MD" || true)
+# 1. Validate exactly one marker pair (markers MUST appear alone on their own line — no leading/trailing whitespace, not inside code fences)
+start_count=$(awk '$0 == "<!-- SHARED:START -->" {n++} END {print n+0}' "$INPUT")
+end_count=$(awk '$0 == "<!-- SHARED:END -->" {n++} END {print n+0}' "$INPUT")
 [[ "$start_count" -eq 1 && "$end_count" -eq 1 ]] || \
-  die "expected exactly one $SHARED_START and one $SHARED_END in $CLAUDE_MD (found start=$start_count end=$end_count)"
+  die "expected exactly one <!-- SHARED:START --> and one <!-- SHARED:END --> as standalone lines in $INPUT (found start=$start_count end=$end_count)"
 
-# 2. Extract SHARED block
-shared=$(awk "/$SHARED_START/{flag=1;next} /$SHARED_END/{flag=0} flag" "$CLAUDE_MD")
-[[ -n "$shared" ]] || die "SHARED block is empty in $CLAUDE_MD"
+# 2. Extract SHARED block (anchored line-equality match excludes markers inside code blocks)
+shared=$(awk '$0 == "<!-- SHARED:START -->" {flag=1; next} $0 == "<!-- SHARED:END -->" {flag=0} flag' "$INPUT")
+[[ -n "$shared" ]] || die "SHARED block is empty in $INPUT"
 
 # 3. Generate AGENTS.md atomically
-{ cat templates/agents-preamble.md; echo "$shared"; } > AGENTS.md.new
-mv AGENTS.md.new AGENTS.md
+{ cat templates/agents-preamble.md; printf '%s\n' "$shared"; } > "$OUTDIR/AGENTS.md.new"
+mv "$OUTDIR/AGENTS.md.new" "$OUTDIR/AGENTS.md"
 
 # 4. Generate GEMINI.md atomically
-{ cat templates/gemini-preamble.md; echo "$shared"; } > GEMINI.md.new
-mv GEMINI.md.new GEMINI.md
+{ cat templates/gemini-preamble.md; printf '%s\n' "$shared"; } > "$OUTDIR/GEMINI.md.new"
+mv "$OUTDIR/GEMINI.md.new" "$OUTDIR/GEMINI.md"
 
-ok "Synced AGENTS.md and GEMINI.md from CLAUDE.md"
+ok "Synced AGENTS.md and GEMINI.md from $INPUT into $OUTDIR"
 ```
+
+**Marker constraint** — both `<!-- SHARED:START -->` and `<!-- SHARED:END -->` MUST appear on their own line, with no leading or trailing whitespace, and never inside a markdown code fence. The anchored `$0 == "..."` check enforces this; markers appearing inside fenced code blocks (e.g. examples in this spec) are correctly ignored.
+
+**Path parameters** — `sync-config.sh` accepts optional positional args so the same script powers both `make sync` (in-place, default args) and `make doctor`'s check (iv) (which writes to a `mktemp -d` for non-mutating diff). No separate dry-run mode needed.
 
 ### Properties
 
@@ -224,8 +230,8 @@ ok "Synced AGENTS.md and GEMINI.md from CLAUDE.md"
 
 ### Sync ↔ Doctor coupling
 
-- `make sync` writes files
-- `make doctor` check (iv): re-run sync into `$(mktemp -d)`, `diff -q` against existing AGENTS.md / GEMINI.md; mismatch → red, hint `make sync`
+- `make sync` invokes `scripts/sync-config.sh` with default args (in-place write)
+- `make doctor` check (iv): `tmp=$(mktemp -d) && scripts/sync-config.sh CLAUDE.md "$tmp" && diff -q AGENTS.md "$tmp/AGENTS.md" && diff -q GEMINI.md "$tmp/GEMINI.md"`; either diff returning non-zero → red, hint `make sync`; trap removes tmpdir on exit
 - `make repair` for (iv): invoke `make sync` directly
 
 ### Explicitly rejected (kept simple)
@@ -245,7 +251,7 @@ Each check is a small bash function paired with a same-named fix function. `lib.
 
 | ID | Check | Implementation | Fix | Exit |
 |----|-------|----------------|-----|------|
-| **i+ii** | `.agents/skills/<8 names>` are symlinks pointing to `../../.claude/skills/<name>` | `for n in audit export ... ; do test -L .agents/skills/$n && [[ "$(readlink .agents/skills/$n)" == "../../.claude/skills/$n" ]] ; done` | `rm -rf .agents/skills/$n && ln -s ../../.claude/skills/$n .agents/skills/$n` | 0 / 1 |
+| **i+ii** | `.agents/skills/<8 names>` are symlinks pointing to `../../.claude/skills/<name>` | Loop accumulates failures so a broken early symlink is not masked by good later ones: `local_fails=0; for n in audit export integrate map note progress read verify; do if ! { test -L ".agents/skills/$n" && [[ "$(readlink ".agents/skills/$n")" == "../../.claude/skills/$n" ]]; }; then fail "skill symlink broken: $n"; local_fails=$((local_fails+1)); fi; done; [[ $local_fails -eq 0 ]] && pass "symlinks intact"` | `for n in <8 names>; do rm -rf ".agents/skills/$n"; ln -s "../../.claude/skills/$n" ".agents/skills/$n"; done` | 0 / 1 |
 | **iii** | `git config core.fileMode == false` | `[[ "$(git config --get core.fileMode)" == "false" ]]` (empty value treated as failure) | `git config core.fileMode false` (local repo only, never `--global`) | 0 / 1 |
 | **iv** | CLAUDE.md ↔ AGENTS.md / GEMINI.md in sync | sync to `$(mktemp -d)`, `diff -q` against on-disk files | invoke `scripts/sync-config.sh` | 0 / 1 |
 | **v** | `pandoc`, `python3`, `python3 -c "import docx"` available | `command -v` plus one import test | **No auto-install**; print OS-specific install hints (macOS: `brew install pandoc && pip install python-docx`; Debian: `apt install pandoc && pip install python-docx`) | 0 / 1 |
@@ -351,15 +357,15 @@ Non-TTY environments (CI) ignore colour codes naturally; no detection logic adde
 
 ### Migration of the existing repo (one-shot, performed during implementation)
 
-Current `AGENTS.md` and `GEMINI.md` each carry ~5 lines of content not in `CLAUDE.md` (Skill Discovery, etc.). The migration is:
+Current `AGENTS.md` and `GEMINI.md` carry platform preamble content (header + Skill Discovery section) that is not in `CLAUDE.md`. Exact line counts vary, so the migration extracts by **structural marker**, not by line number:
 
-1. Manually copy `AGENTS.md` top 5 lines into `templates/agents-preamble.md`
-2. Manually copy `GEMINI.md` top 5 lines into `templates/gemini-preamble.md`
-3. Insert `<!-- SHARED:START -->` above `## Project Overview` in `CLAUDE.md` and `<!-- SHARED:END -->` after the last line of `## Writing Principles`
-4. Run `make sync` — `AGENTS.md` and `GEMINI.md` are overwritten
-5. `git diff` to verify changes are sensible → commit
+1. From `AGENTS.md`, copy **everything from the start of file up to (but not including) the line `## Project Overview`** into `templates/agents-preamble.md`. Add the `<!-- GENERATED FROM CLAUDE.md ... -->` notice as shown in §3.
+2. From `GEMINI.md`, do the same: copy up to the `## Project Overview` line into `templates/gemini-preamble.md`.
+3. In `CLAUDE.md`: insert `<!-- SHARED:START -->` on its own line immediately **above** `## Project Overview`; insert `<!-- SHARED:END -->` on its own line immediately **after** the last line of `## Writing Principles`. (Both markers must be standalone-line per §3 marker constraint.)
+4. Run `scripts/sync-config.sh` — `AGENTS.md` and `GEMINI.md` are overwritten.
+5. `git diff` to verify the only changes are: CLAUDE.md gains markers, AGENTS.md/GEMINI.md preambles unchanged + body now matches CLAUDE.md SHARED block, two new template files added → commit.
 
-This migration is performed by the implementer, not by an end-user `make` command. It runs once.
+This migration is performed by the implementer once, not by an end-user `make` command.
 
 ### CI / automation usage
 
@@ -440,6 +446,14 @@ D does not add CI infrastructure (that belongs to A). D provides:
 - ❌ Multi-language templates (→ future)
 
 ---
+
+## §7 Implementation notes (from external review)
+
+These do not change the design but should be applied during implementation:
+
+1. **Per-target `mktemp` for atomicity** — instead of `> AGENTS.md.new` literal name (which can collide with stale files from a crashed prior run), use `mktemp` per target file inside `$OUTDIR` and `mv` to the final name. Already partially folded into §3 algorithm; implementer should verify the trap-cleanup semantics on early exit.
+2. **Explicit git-repo guard for check (iii)** — §5 says "not in a git repo → skip (iii)" but §4 algorithm does not encode the guard. Implement check (iii) as: first `git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { warn "not a git repo, skipping core.fileMode check"; return 0; }`, then proceed with the `git config` test.
+3. **Derive 8 skill names from `.claude/skills/` instead of hard-coding** — the loop in check (i+ii) and in repair currently lists `audit export integrate map note progress read verify` literally. When sub-project B adds a new skill, this list must be hand-edited or coverage silently drops. Replace with: `mapfile -t SKILL_NAMES < <(cd .claude/skills && find . -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sort)` (or `ls -1 .claude/skills/` with safe parsing). This makes foolproofing self-extending.
 
 ## Roadmap context
 
