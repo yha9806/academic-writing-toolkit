@@ -18,7 +18,7 @@ setup:  ## One-time setup after clone (sets git config, syncs configs, runs doct
 	@bash scripts/sync-config.sh
 	@bash scripts/doctor.sh
 
-init:  ## Open CLAUDE.md in $$EDITOR for first-time customisation, then sync
+init:  ## Open CLAUDE.md in $EDITOR for first-time customisation, then sync
 	@if [ ! -t 0 ]; then \
 		printf "error: make init requires a tty (cannot run in CI)\n" >&2; \
 		exit 1; \
