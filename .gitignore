@@ -5,3 +5,6 @@ Thumbs.db
 *.zip
 __pycache__/
 .env
+
+# Local worktrees (created by superpowers:using-git-worktrees skill)
+.worktrees/
