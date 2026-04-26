@@ -1,0 +1,11 @@
+# Force LF line endings on all text files. Defends against CRLF noise from
+# Windows users who clone via Git Bash / WSL without `core.autocrlf=input`.
+# Binary files are auto-detected and left alone by `text=auto`.
+* text=auto eol=lf
+
+# Mark all bash scripts and the python helper as text explicitly,
+# in case `text=auto` misclassifies them.
+*.sh   text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+Makefile text eol=lf
