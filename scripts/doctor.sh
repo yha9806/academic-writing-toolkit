@@ -21,18 +21,23 @@ while IFS= read -r -d '' name; do
 done < <(find .claude/skills -maxdepth 1 -mindepth 1 -type d -print0 | sort -z)
 
 # --- Check (i+ii): symlinks intact -------------------------------------------
-local_fails=0
-for n in "${SKILL_NAMES[@]}"; do
-    if ! { test -L ".agents/skills/$n" && \
-           [[ "$(readlink ".agents/skills/$n")" == "../../.claude/skills/$n" ]]; }; then
-        fail "skill symlink broken: .agents/skills/$n"
-        local_fails=$((local_fails+1))
-    fi
-done
-if [[ $local_fails -eq 0 ]]; then
-    pass "symlinks intact (.agents/skills/* -> ../../.claude/skills/*)"
+if [[ ${#SKILL_NAMES[@]} -eq 0 ]]; then
+    fail ".claude/skills/ has no skill subdirectories"
+    hint "reinstall the toolkit"
 else
-    hint "make repair"
+    local_fails=0
+    for n in "${SKILL_NAMES[@]}"; do
+        if ! { test -L ".agents/skills/$n" && \
+               [[ "$(readlink ".agents/skills/$n")" == "../../.claude/skills/$n" ]]; }; then
+            fail "skill symlink broken: .agents/skills/$n"
+            local_fails=$((local_fails+1))
+        fi
+    done
+    if [[ $local_fails -eq 0 ]]; then
+        pass "symlinks intact (.agents/skills/* -> ../../.claude/skills/*)"
+    else
+        hint "make repair"
+    fi
 fi
 
 # --- Check (iii): git core.fileMode is false ---------------------------------
