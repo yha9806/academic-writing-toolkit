@@ -217,6 +217,12 @@ test_T15() {
     ! grep -rq 'compile_pdf.py' "$REPO_ROOT/docs/skills/" "$REPO_ROOT/README.md"
 }
 
+# --- T16: no PDF export claim in setup docs ---------------------------------
+test_T16() {
+    # No "Word/PDF" or "to Word and PDF" in setup docs — /export only produces .docx + .zip
+    ! grep -lE '(Word/PDF|to Word and PDF)' "$REPO_ROOT"/docs/setup-*.md 2>/dev/null | grep -q .
+}
+
 # --- T17: Python 3.8 import safety ------------------------------------------
 test_T17() {
     local script="$REPO_ROOT/.claude/skills/export/scripts/convert_to_docx.py"
@@ -249,6 +255,7 @@ run_test "T12 no export_output in skill files"   test_T12
 run_test "T13 no revisiting status enum"         test_T13
 run_test "T14 no deprecated vocab in /map+/note" test_T14
 run_test "T15 no compile_pdf.py references"      test_T15
+run_test "T16 no PDF export claim in setup docs" test_T16
 run_test "T17 Python 3.8 import safety"           test_T17
 
 header ""

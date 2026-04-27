@@ -41,7 +41,7 @@ You should see the 8 academic writing skills: read, note, verify, integrate, aud
 | verify    | Fact-check claims against sources    |
 | integrate | Weave reading notes into chapter drafts |
 | audit     | Pre-submission consistency check     |
-| export    | Export chapters to Word/PDF          |
+| export    | Export chapters to Word (.docx) + ZIP |
 | map       | View literature coverage matrix      |
 | progress  | Writing progress dashboard           |
 
