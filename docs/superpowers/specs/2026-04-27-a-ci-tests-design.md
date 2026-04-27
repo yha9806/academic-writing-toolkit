@@ -299,6 +299,6 @@ The implementation plan T3 step 2 + T6 step 4 step list were patched to match.
 
 - Predecessor specs: [docs/superpowers/specs/2026-04-26-foolproofing-design.md](../specs/2026-04-26-foolproofing-design.md), [docs/superpowers/specs/2026-04-27-c-emergency-design.md](../specs/2026-04-27-c-emergency-design.md)
 - Predecessor plans: [docs/superpowers/plans/2026-04-26-foolproofing-implementation.md](../plans/2026-04-26-foolproofing-implementation.md), [docs/superpowers/plans/2026-04-27-c-emergency-implementation.md](../plans/2026-04-27-c-emergency-implementation.md)
-- Test harness (current): `scripts/test-foolproofing.sh` (will become `scripts/test.sh`)
+- Test harness: `scripts/test.sh`
 - GitHub Actions docs: <https://docs.github.com/en/actions> (do not deep-link; spec stays version-agnostic)
 - Roadmap memory: `D → C-emergency → A → C-rest → B`
