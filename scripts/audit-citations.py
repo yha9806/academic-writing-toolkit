@@ -95,6 +95,34 @@ CITATION_STYLES: Dict[str, dict] = {
         "source_sample": "Smith, John, and Kim Jones. *Title in Title Case*. Publisher, 2024.",
         "accepts_cjk_punct": False,
     },
+    "ieee": {
+        "name": "IEEE",
+        "mode": "numeric",
+        "intext_paren_punct": "n/a",
+        "etal_threshold": 7,
+        "etal_first_cite_only": False,
+        "multi_author_connectors": ["and"],
+        "source_pattern": (
+            r"^\*\*Source\*\*:\s+\[(?P<num>\d+)\]\s+.+,\s*(?P<year>\d{4}[a-z]?)\.?\s*$"
+        ),
+        "source_sample": "[1] J. Smith and K. Jones, \"Title in title case,\" *Journal*, vol. 12, no. 3, pp. 45-67, 2024.",
+        "accepts_cjk_punct": False,
+        "numeric_bracket_pattern": r"\[(?P<num>\d+)\]",
+    },
+    "vancouver": {
+        "name": "Vancouver",
+        "mode": "numeric",
+        "intext_paren_punct": "n/a",
+        "etal_threshold": 7,
+        "etal_first_cite_only": False,
+        "multi_author_connectors": ["and"],
+        "source_pattern": (
+            r"^\*\*Source\*\*:\s+(?P<num>\d+)\.\s+.+\.\s*(?P<year>\d{4}[a-z]?).*$"
+        ),
+        "source_sample": "1. Smith J, Jones K. Title in sentence case. Journal. 2024;12(3):45-67.",
+        "accepts_cjk_punct": False,
+        "numeric_bracket_pattern": r"\[(\d+)\]|\((\d+)\)",
+    },
     "gb-t-7714-2015": {
         "name": "GB/T 7714-2015 (Author-Year)",
         "mode": "author-year",
