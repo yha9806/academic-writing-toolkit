@@ -27,7 +27,7 @@ Examples:
 
 ## Workflow
 
-1. **Check dependencies.** Verify that `pandoc` or `pypandoc` is available. If not, fall back to `python-docx` + `markdown`. Report which conversion method is being used.
+1. **Check dependencies.** Verify that `pypandoc` is installed AND a working `pandoc` binary is on PATH (the script smoke-probes via `pypandoc.get_pandoc_version()`). If pypandoc/pandoc are unavailable, fall back to `python-docx` + `markdown`. Report which conversion method is being used.
 
    **Run from the project root.**
 

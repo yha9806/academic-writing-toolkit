@@ -53,7 +53,8 @@ This skill activates **only** on: `/export`. It has `disable-model-invocation: t
 User says "/export chapters en-only"
 │
 ├─ 1. Check dependencies
-│     Preferred: pandoc / pypandoc
+│     Preferred: pypandoc + working `pandoc` binary on PATH
+│                (smoke-probed via pypandoc.get_pandoc_version())
 │     Fallback: python-docx + markdown library
 │     Report which method is being used
 │
@@ -122,11 +123,10 @@ Conversion method: pandoc
 
 | Method | Priority | Requirements | Quality |
 |--------|----------|-------------|---------|
-| pandoc | Preferred | `pandoc` installed on system | Best — handles tables, footnotes, cross-references |
-| pypandoc | Fallback 1 | `pip install pypandoc` | Same as pandoc (Python wrapper) |
-| python-docx + markdown | Fallback 2 | `pip install python-docx markdown` | Adequate — may lose complex table formatting |
+| pypandoc + pandoc | Preferred | `pip install pypandoc` AND `pandoc` binary on PATH | Best — handles tables, footnotes, cross-references |
+| python-docx + markdown | Fallback | `pip install python-docx markdown` | Adequate — may lose complex table formatting |
 
-The agent checks for each method in order and uses the first available. It reports which method was used so you know what to expect.
+The agent checks for the preferred method first (pypandoc calling the pandoc binary) and falls back to python-docx if either is unavailable. It reports which method was used so you know what to expect.
 
 ---
 
