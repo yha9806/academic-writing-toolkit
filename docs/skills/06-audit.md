@@ -60,9 +60,13 @@ User says "/audit"
 │        "see Table 4.2" → check Table 4.2 exists
 │        "Chapter 6 will show..." → check Chapter 6 fulfils this
 │
-│     D. Citations — find all (Author, Year) references
-│        "Goodman (1968)" in Ch2 vs "Goodman (1969)" in Ch3 → flag
-│        Same author cited with different co-author lists → flag
+│     D. Citations — invoke scripts/audit-citations.py (registry-driven, 7 styles)
+│        Tier 0: lint **Source**: lines in literature/reading_notes/*_NOTES.md
+│        Tier 1: phantom (cited but no Source) / unused (Source but uncited)
+│        Tier 2: style mode detection (mixed-style outliers)
+│        Tier 3: per-style format check against CLAUDE.md `Citation style:`
+│        Supports: harvard | apa | chicago-author-date | mla | ieee |
+│                  vancouver | gb-t-7714-2015
 │
 ├─ 3. Classify by severity
 │     Critical: contradictory data
@@ -105,7 +109,8 @@ User says "/audit"
 | 5 | High | Terminology | Ch2, Ch5 | Abbreviation "VLM" not defined | Used without definition in Ch5 | Define on first use |
 | 6 | Medium | Terminology | Ch3, Ch6 | "pseudo-understanding" vs "false understanding" | Both used | Pick one term |
 | 7 | Medium | Terminology | Ch4, Ch7 | "evaluation rubric" vs "scoring rubric" | Both used | Pick one term |
-| 8 | Medium | Citation | Ch2, Ch5 | "Radford et al. (2021)" vs "Radford and Kim (2021)" | Inconsistent author list | Use consistent format |
+| 8 | High | Citation (Tier 1 phantom) | Ch2, Ch5 | "(Radford 2021)" not in any reading_notes/*_NOTES.md | Cited but no Source | Add notes file or remove citation |
+| 8b | Low | Citation (Tier 3 format-comma) | Ch3 | "(Smith, 2024)" but Citation style: harvard | Comma not allowed in Harvard | Remove comma → "(Smith 2024)" |
 | 9 | Medium | Numerical | Ch1, Ch8 | "8 cultural traditions" vs "9 traditions" | Differs by 1 | Verify correct count |
 
 ### Recommendations

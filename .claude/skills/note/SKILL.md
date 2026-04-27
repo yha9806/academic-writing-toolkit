@@ -31,7 +31,7 @@ This is the data contract shared across all skills (`/read`, `/note`, `/integrat
 ```markdown
 # Reading Notes: {Author} -- {Title} ({Year})
 
-**Source**: {full citation in Harvard style}
+**Source**: {single-line citation in the project's declared style — see `literature/reading_notes/_template_NOTES.md` for per-style examples; the active style is `Citation style:` in `CLAUDE.md`}
 **Date read**: {YYYY-MM-DD}
 **Status**: reading
 **Relevance**: {which chapter/section this maps to}

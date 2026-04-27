@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (15 automated tests: T2/T3/T4/T5/T8/T9/T10 + T11-T18) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (28 automated tests: T2-T18 toolkit + T19-T31 citation) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -242,6 +242,61 @@ test_T18() {
     return 0
 }
 
+# --- Citation tests (T19-T31): C-rest /audit citation enhancement ----------
+# Each test invokes scripts/audit-citations.py against a fixture under
+# tests/citation/fixtures/<name>/ and asserts on the JSON output's exit
+# code + at least one issue with the expected `kind`. Stdlib only.
+
+# Helper: run audit-citations.py and assert (exit code, kind) — prints
+# nothing on success; non-zero return propagates failure to run_test.
+_assert_citation() {
+    local fixture="$1"
+    local style_arg="$2"   # may be empty string when --style omitted
+    local expected_exit="$3"
+    local expected_kind="$4"
+    local out rc
+    if [[ -n "$style_arg" ]]; then
+        out=$(python3 scripts/audit-citations.py \
+            --base-dir "tests/citation/fixtures/$fixture" \
+            --style "$style_arg" --json 2>&1)
+    else
+        out=$(python3 scripts/audit-citations.py \
+            --base-dir "tests/citation/fixtures/$fixture" --json 2>&1)
+    fi
+    rc=$?
+    if [[ "$rc" -ne "$expected_exit" ]]; then
+        echo "  expected exit $expected_exit, got $rc for fixture $fixture" >&2
+        echo "$out" >&2
+        return 1
+    fi
+    if [[ -n "$expected_kind" ]]; then
+        echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+kind = sys.argv[1]
+issues = [i for i in d['issues'] if i['kind'] == kind]
+if not issues:
+    print('expected kind=' + kind + ', got kinds=' + str(sorted(set(i['kind'] for i in d['issues']))), file=sys.stderr)
+    sys.exit(1)
+" "$expected_kind" || return 1
+    fi
+    return 0
+}
+
+test_T19() { _assert_citation phantom harvard 1 phantom; }
+test_T20() { _assert_citation unused harvard 1 unused; }
+test_T21() { _assert_citation mixed_style "" 1 style-outlier; }
+test_T22() { _assert_citation format_apa_in_harvard_project harvard 1 format-comma; }
+test_T23() { _assert_citation format_harvard_in_apa_project apa 1 format-comma; }
+test_T24() { _assert_citation source_lint_fail harvard 1 notes-source-malformed; }
+test_T25() { _assert_citation multi_author_etal apa 1 format-etal-threshold; }
+test_T26() { _assert_citation clean_chicago_ad chicago-author-date 0 ""; }
+test_T27() { _assert_citation unused_mla mla 1 unused; }
+test_T28() { _assert_citation numeric_gap ieee 1 numeric-gap; }
+test_T29() { _assert_citation clean_vancouver vancouver 0 ""; }
+test_T30() { _assert_citation clean_gb_2015 gb-t-7714-2015 0 ""; }
+test_T31() { _assert_citation multi_author_etal harvard 1 format-etal-threshold; }
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -267,6 +322,19 @@ run_test "T15 no compile_pdf.py references"      test_T15
 run_test "T16 no PDF export claim in setup docs" test_T16
 run_test "T17 Python 3.8 import safety"           test_T17
 run_test "T18 allowed-tools sanity (/map+/verify)" test_T18
+run_test "T19 phantom citation (Harvard)"          test_T19
+run_test "T20 unused citation (Harvard)"           test_T20
+run_test "T21 style-outlier (mixed)"               test_T21
+run_test "T22 format-comma (APA in Harvard)"       test_T22
+run_test "T23 format-comma (Harvard in APA)"       test_T23
+run_test "T24 notes-source-malformed (Tier 0)"     test_T24
+run_test "T25 etal threshold (APA 3 authors)"      test_T25
+run_test "T26 clean Chicago Author-Date"           test_T26
+run_test "T27 MLA unused (lastname pair)"          test_T27
+run_test "T28 numeric-gap (IEEE [3] missing)"      test_T28
+run_test "T29 clean Vancouver"                     test_T29
+run_test "T30 clean GB/T 7714-2015 (CJK punct)"    test_T30
+run_test "T31 etal threshold (Harvard 4 authors)"  test_T31
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
