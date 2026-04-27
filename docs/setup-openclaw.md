@@ -52,8 +52,9 @@ Things to set:
 - OpenClaw natively uses `SOUL.md` for agent personality, but is fully
   compatible with the `SKILL.md` format used in `.agents/skills/`.
 - Skills are discovered from `.agents/skills/*/SKILL.md` at startup.
-- The `AGENTS.md` config file follows the same convention as Codex CLI
-  and Gemini CLI, so no extra setup is needed.
+- The `AGENTS.md` config file (auto-generated from `CLAUDE.md` — see
+  Configuration above) follows the same convention as Codex CLI and
+  Gemini CLI, so no extra setup is needed.
 
 ## Usage Examples
 
