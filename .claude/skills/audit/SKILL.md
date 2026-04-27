@@ -1,7 +1,7 @@
 ---
 name: audit
 description: Audit the thesis for data consistency — numbers, percentages, terminology, cross-references between chapters. Use before submission.
-allowed-tools: Read, Glob, Grep
+allowed-tools: Read, Glob, Grep, Bash
 ---
 
 # /audit — Thesis Consistency Audit Skill
@@ -35,8 +35,20 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    - Forward references ("Chapter 6 will show...") must be fulfilled.
 
    **D. Citation consistency**
-   - The same work must be cited with the same author list and year throughout.
-   - In-text citations must match the reference list format.
+
+   Run `python3 scripts/audit-citations.py --base-dir . --style $(grep -oP '(?<=Citation style: )\S+' CLAUDE.md) --json` and parse the JSON output. The script implements four tiers:
+
+   - **Tier 0** — Source-line lint over `literature/reading_notes/*_NOTES.md`. Flags missing or malformed `**Source**:` lines. Severity `medium` (`notes-source-missing`) or `medium` (`notes-source-malformed`).
+   - **Tier 1** — Pairing. Every in-text citation must match a `**Source**:` entry; every Source must be cited at least once. Three modes:
+     - Author-Year (Harvard, APA, Chicago Author-Date, GB/T 7714-2015): pair on `(lastname, year)`. Phantom and unused → severity `high`.
+     - Author-Page (MLA): pair on `lastname` only.
+     - Numeric (IEEE, Vancouver): pair on count balance + integer-gap detection.
+   - **Tier 2** — Style mode detection across all in-text citations. Flags outliers when the manuscript drifts (e.g. mixed `(Smith 2024)` and `(Smith, 2024)`). Severity `medium`.
+   - **Tier 3** — Per-style format validation against the declared `Citation style:` in `CLAUDE.md`. Flags wrong-comma, et al. threshold violations, wrong multi-author connector. Severity `low`.
+
+   The script's exit code is `0` (no issues), `1` (issues at any tier), or `2` (invalid arguments). Add the script's issues to the `Issues` table below as new rows; severity vocabulary maps directly (`critical | high | medium | low | info`).
+
+   See `docs/superpowers/specs/2026-04-27-c-rest-citation-design.md` for the JSON schema and the registry of supported styles.
 
 3. **Output the audit report** using the format below.
 

@@ -40,4 +40,7 @@ This project uses the academic-writing-toolkit skills for structured research an
 - Use British English for thesis text
 - Notes files follow the standardised format (see `literature/reading_notes/_template_NOTES.md`)
 
+## Citation
+- Citation style: harvard
+
 <!-- SHARED:END -->
