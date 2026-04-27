@@ -68,6 +68,9 @@ test_T3() {
         bash scripts/sync-config.sh >/dev/null 2>&1
         local restored_ok=0
         if diff -q AGENTS.md "$agents_backup" >/dev/null; then restored_ok=1; fi
+        # Belt-and-braces: ensure backup state is on disk regardless of sync's
+        # success, so a future sync regression cannot leave AGENTS.md corrupted.
+        cp "$agents_backup" AGENTS.md
         rm -f "$agents_backup"
         [[ $restored_ok -eq 1 ]]
         return $?
@@ -86,11 +89,21 @@ test_T4() {
     # Use a marker that's unlikely to collide with real content
     local sentinel="T4_TEST_TOKEN_$$"
     echo "<!-- $sentinel -->" >> CLAUDE.md
-    # Move sentinel into the SHARED block: place it just before SHARED:END
-    awk -v s="<!-- $sentinel -->" '
+    # Move sentinel into the SHARED block: place it just before SHARED:END.
+    # On awk failure the && short-circuits the mv, but we must still clean
+    # up CLAUDE.md.tmp ourselves — otherwise it lingers as untracked junk
+    # and the next doctor/sync run trips on it.
+    if awk -v s="<!-- $sentinel -->" '
         $0 == "<!-- SHARED:END -->" { print s }
         { print }
-    ' "$backup" > CLAUDE.md.tmp && mv CLAUDE.md.tmp CLAUDE.md
+    ' "$backup" > CLAUDE.md.tmp; then
+        mv CLAUDE.md.tmp CLAUDE.md
+    else
+        rm -f CLAUDE.md.tmp
+        cp "$backup" CLAUDE.md
+        rm -f "$backup"
+        return 1
+    fi
 
     bash scripts/sync-config.sh >/dev/null 2>&1
     local agents_has gemini_has
