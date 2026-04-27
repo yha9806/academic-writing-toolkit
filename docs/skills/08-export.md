@@ -61,7 +61,7 @@ User says "/export chapters en-only"
 ├─ 2. Run conversion script
 │     python .claude/skills/export/scripts/convert_to_docx.py \
 │       --base-dir {project_root} \
-│       --output-dir {project_root}/export_output \
+│       --output-dir {project_root}/final_output \
 │       --scope chapters \
 │       --lang-filter en-only
 │
@@ -97,8 +97,8 @@ User says "/export chapters en-only"
 |------|-------|
 | Files converted | 8 |
 | Files skipped (language filter) | 0 |
-| Output directory | export_output/ |
-| ZIP archive | export_output/thesis_2026-03-30.zip |
+| Output directory | final_output/ |
+| ZIP archive | final_output/thesis_2026-03-30.zip |
 | Total size | 2.4 MB |
 
 Conversion method: pandoc

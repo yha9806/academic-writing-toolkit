@@ -35,7 +35,7 @@ Examples:
    ```
    python .claude/skills/export/scripts/convert_to_docx.py \
      --base-dir {project_root} \
-     --output-dir {project_root}/export_output \
+     --output-dir {project_root}/final_output \
      --scope {scope} \
      --lang-filter {lang_filter}
    ```
