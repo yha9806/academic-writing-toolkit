@@ -58,7 +58,7 @@ User says "/export chapters en-only"
 │     Report which method is being used
 │
 ├─ 2. Run conversion script
-│     python ${CLAUDE_SKILL_DIR}/scripts/convert_to_docx.py \
+│     python .claude/skills/export/scripts/convert_to_docx.py \
 │       --base-dir {project_root} \
 │       --output-dir {project_root}/export_output \
 │       --scope chapters \

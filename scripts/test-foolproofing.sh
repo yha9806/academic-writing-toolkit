@@ -171,6 +171,16 @@ test_T10() {
     [[ "$after" == "false" ]]
 }
 
+# --- T11: no CLAUDE_SKILL_DIR in skill files --------------------------------
+test_T11() {
+  # No CLAUDE_SKILL_DIR references in skill prose or user docs
+  if grep -rq 'CLAUDE_SKILL_DIR' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"; then
+    fail "T11" "found CLAUDE_SKILL_DIR in skill files (Bug #1 should remove all instances)"
+    return 1
+  fi
+  pass "T11"
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -188,6 +198,7 @@ run_test "T5  missing marker aborts sync"         test_T5
 run_test "T8  sync is idempotent"                 test_T8
 run_test "T9  make init aborts without tty"       test_T9
 run_test "T10 core.fileMode auto-fix"             test_T10
+run_test "T11 no CLAUDE_SKILL_DIR in skill files" test_T11
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

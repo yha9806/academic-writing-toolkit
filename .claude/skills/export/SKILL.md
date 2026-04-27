@@ -29,9 +29,11 @@ Examples:
 
 1. **Check dependencies.** Verify that `pandoc` or `pypandoc` is available. If not, fall back to `python-docx` + `markdown`. Report which conversion method is being used.
 
+   **Run from the project root.**
+
 2. **Run the conversion script.**
    ```
-   python ${CLAUDE_SKILL_DIR}/scripts/convert_to_docx.py \
+   python .claude/skills/export/scripts/convert_to_docx.py \
      --base-dir {project_root} \
      --output-dir {project_root}/export_output \
      --scope {scope} \
