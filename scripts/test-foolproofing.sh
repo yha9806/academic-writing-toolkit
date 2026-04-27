@@ -2,7 +2,12 @@
 # scripts/test-foolproofing.sh — runs spec §6 acceptance tests T2-T10.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
-set -uo pipefail
+# Note: pipefail is intentionally NOT enabled. Several tests assert that a
+# command exits non-zero (doctor on drift, sync on missing markers, make
+# init without a tty) and then grep for the expected error message. Under
+# pipefail the command's non-zero exit would trump grep's success and the
+# pipeline would always evaluate as failure.
+set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib.sh"
