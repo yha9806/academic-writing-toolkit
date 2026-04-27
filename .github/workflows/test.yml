@@ -1,0 +1,33 @@
+name: test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+      - name: Verify python3.8 binary on PATH
+        run: python3.8 --version
+      - name: Install conversion backend (T17 smoke-import dependency)
+        run: pip install python-docx markdown
+      - name: Install pandoc (system binary; make doctor probes for it)
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - name: Configure git core.fileMode false (make doctor expects this)
+        run: git config core.fileMode false
+      - run: make doctor
+      - run: make test

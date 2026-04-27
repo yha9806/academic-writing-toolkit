@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test-foolproofing.sh — runs spec §6 acceptance tests T2-T10.
+# scripts/test.sh — runs the regression test suite (15 automated tests: T2/T3/T4/T5/T8/T9/T10 + T11-T18) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a

@@ -2,7 +2,7 @@
 # Run `make` (or `make help`) to see available targets.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup init sync doctor repair
+.PHONY: help setup init sync doctor repair test
 
 EDITOR ?= vi
 
@@ -34,3 +34,6 @@ doctor:  ## Run all read-only health checks (CI-suitable, exit 0/1)
 
 repair:  ## Apply idempotent fixes for issues doctor flags
 	@bash scripts/repair.sh
+
+test:  ## Run the full regression test suite (15 automated tests)
+	@bash scripts/test.sh

@@ -12,6 +12,8 @@
 
 ---
 
+> **Rename note (2026-04-27, sub-project A)**: The script referenced below as `scripts/test-foolproofing.sh` was renamed to `scripts/test.sh` in sub-project A. The body of this document is preserved as-shipped to keep the historical record honest; readers acting on the instructions today should substitute the new name.
+
 ## File Inventory
 
 **Created** (7 new bash + 2 new templates):
