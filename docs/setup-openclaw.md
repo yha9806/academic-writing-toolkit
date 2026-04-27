@@ -35,7 +35,13 @@ You should see the 8 academic writing skills: read, note, verify, integrate, aud
 
 ## Configuration
 
-OpenClaw reads `AGENTS.md` as its project instruction file. Edit it to set your:
+OpenClaw reads `AGENTS.md` as its project instruction file, but **`AGENTS.md` is auto-generated** from `CLAUDE.md` by sub-project D's tooling. To customise:
+
+1. Edit `CLAUDE.md` (the canonical source — the SHARED block is what gets regenerated).
+2. Run `make sync` to regenerate `AGENTS.md` (and `GEMINI.md`).
+3. Verify with `make doctor`.
+
+Things to set:
 
 - Word count targets per chapter
 - Reading pace limits
