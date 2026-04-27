@@ -182,7 +182,7 @@ Other PDF mentions in the same files refer to `/read` consuming PDFs as **input*
 
 > | Expecting PDF output | `/export` produces .docx + ZIP. There is no PDF export path; convert the .docx to PDF in Word or LibreOffice if you need PDF. |
 
-**Acceptance.** Regression test T15 (no `compile_pdf.py` in `docs/` or `README.md`).
+**Acceptance.** Regression test T15 (no `compile_pdf.py` in `docs/skills/` or `README.md`). Scoped to user-facing skill docs because `docs/superpowers/specs/` and `docs/superpowers/plans/` legitimately mention `compile_pdf.py` as the bug being fixed.
 
 ### 4.7 Bug #7 — Vocabulary drift (MINOR) — expanded per codex review
 
@@ -298,7 +298,7 @@ Append the following to `scripts/test-foolproofing.sh` using the existing `pass`
 | T12 | No `export_output` in `.claude/skills/` or `docs/skills/` | #4 | grep -F |
 | T13 | No `\brevisiting\b` anywhere in repo | #3 | Narrowed per R7 — `complete` half dropped, manual review covers it |
 | T14 | No deprecated vocab `\b(argue\|cite\|data\|method)\b` in matrix-cell context (lines containing `\|`) within `.claude/skills/map/`, `docs/skills/04-map.md`, `docs/skills/02-note.md` | #7 | Strengthened per R8 — scopes to table cells to skip prose false positives like "data consistency" or "must cite the source" |
-| T15 | No `compile_pdf.py` references in `docs/` or `README.md` | #6 | grep -F |
+| T15 | No `compile_pdf.py` references in `docs/skills/` or `README.md` | #6 | grep -F |
 | T16 | No `Word/PDF` or `to Word and PDF` in `docs/setup-*.md` | #5 | grep -E |
 | T17 | `from __future__ import annotations` present in `convert_to_docx.py`; if `python3.8` is on PATH, `python3.8 -c "import importlib.util; ..."` smoke succeeds | #8 | Two-tier: cheap grep guard + optional 3.8 smoke |
 | T18 | `/map` SKILL.md `allowed-tools` includes `Write`; `/verify` SKILL.md `allowed-tools` includes `Read` | #9, #10 | Two grep -E lines |

@@ -637,8 +637,10 @@ EOF
 
 ```bash
 test_T15() {
-    # No compile_pdf.py references — that script does not exist
-    ! grep -rq 'compile_pdf.py' "$REPO_ROOT/docs/" "$REPO_ROOT/README.md"
+    # No compile_pdf.py references — that script does not exist.
+    # Scoped to user-facing skill docs; docs/superpowers/{specs,plans}/
+    # legitimately mention compile_pdf.py while documenting Bug #6.
+    ! grep -rq 'compile_pdf.py' "$REPO_ROOT/docs/skills/" "$REPO_ROOT/README.md"
 }
 ```
 
