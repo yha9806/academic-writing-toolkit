@@ -573,8 +573,10 @@ All steps should be green. If any step fails, do not proceed to T7 — diagnose 
 
 Spec §6.3 Rehearsal A. Proves CI catches a vocab-drift regression and propagates the failure to the GHA UI.
 
-**Files (rehearsal only — reverted in step 5):**
-- Modify: `.claude/skills/note/SKILL.md` (add a forbidden token, then revert)
+**Files (rehearsal only — reverted in step 6):**
+- Modify: `docs/skills/02-note.md` (add a backtick-wrapped forbidden token, then revert)
+
+**Why this file**: `test_T14` (in `scripts/test.sh`) actually scans two surfaces — table-cell vocab in `/map` skill files (`.claude/skills/map/SKILL.md` and `docs/skills/04-map.md`), and backtick-wrapped tokens in `docs/skills/02-note.md`. The cheapest deterministic injection is the backtick form in `02-note.md`, because its regex `` `(argue|cite|data|method)` `` triggers on a single backticked token anywhere in the file (no table-cell context required).
 
 - [ ] **Step 1: Confirm baseline T14 is green**
 
@@ -584,15 +586,15 @@ make test 2>&1 | grep T14
 
 Expected: `[✓] T14 no deprecated vocab in /map+/note`. If it's already failing, T14 is broken before A landed — investigate.
 
-- [ ] **Step 2: Inject a forbidden vocab token**
+- [ ] **Step 2: Inject a forbidden backtick-wrapped token**
 
-Append the token `argue` somewhere in the body of `.claude/skills/note/SKILL.md`. The simplest deterministic injection:
+Append a backtick-wrapped `` `argue` `` token to `docs/skills/02-note.md`. Use this command (deterministic, doesn't depend on file contents):
 
 ```bash
-printf "\n\n<!-- T14 rehearsal: should argue with this -->\n" >> .claude/skills/note/SKILL.md
+printf "\n\n<!-- T14 rehearsal: should \`argue\` with this -->\n" >> docs/skills/02-note.md
 ```
 
-(The HTML comment is a real T14 violation because T14 greps for the literal token `argue` regardless of context. Safer than editing prose.)
+The HTML comment ensures the token doesn't pollute rendered docs; the literal backticks around `argue` make the regex `` `(argue|cite|data|method)` `` match.
 
 - [ ] **Step 3: Confirm T14 fails locally before pushing**
 
@@ -605,7 +607,7 @@ Expected: a `[✗] T14 no deprecated vocab in /map+/note` line and a final summa
 - [ ] **Step 4: Push the deliberately-broken commit**
 
 ```bash
-git add .claude/skills/note/SKILL.md
+git add docs/skills/02-note.md
 git commit -m "rehearsal(A): T14 vocab-drift regression check (will revert)"
 git push
 ```
