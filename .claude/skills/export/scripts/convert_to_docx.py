@@ -27,23 +27,35 @@ USE_PANDOC = False
 
 try:
     import pypandoc
-
+    # Smoke probe: get_pandoc_version() shells out to `pandoc --version`
+    # internally and raises if the binary is missing or broken
+    # (Snap isolation, missing libs, broken wrapper).
+    pypandoc.get_pandoc_version()
     USE_PANDOC = True
+except (ImportError, OSError, RuntimeError):
+    pass
+
+# Always try to import python-docx — needed both as primary path when
+# USE_PANDOC=False, and as runtime fallback when pypandoc fails on a
+# specific file (see convert_file / create_cover try/except below).
+HAS_DOCX = False
+try:
+    import markdown
+    from docx import Document
+    from docx.shared import Inches, Pt
+    HAS_DOCX = True
 except ImportError:
     pass
 
-if not USE_PANDOC:
-    try:
-        import markdown
-        from docx import Document
-        from docx.shared import Inches, Pt
-    except ImportError:
-        sys.exit(
-            "Error: Neither pypandoc nor (python-docx + markdown) are installed.\n"
-            "Install one of:\n"
-            "  pip install pypandoc\n"
-            "  pip install python-docx markdown"
-        )
+if not USE_PANDOC and not HAS_DOCX:
+    sys.exit(
+        "Error: No conversion backend available.\n"
+        "  - pypandoc is installed but `pandoc` binary is missing/broken on PATH.\n"
+        "  - python-docx + markdown fallback is also missing.\n"
+        "Install one of:\n"
+        "  pip install pypandoc       (also requires `pandoc` binary on PATH)\n"
+        "  pip install python-docx markdown"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -82,18 +94,25 @@ def convert_file(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
 
     if USE_PANDOC:
-        pypandoc.convert_file(
-            str(src),
-            "docx",
-            outputfile=str(dst),
-            extra_args=["--wrap=none"],
-        )
-    else:
-        _convert_with_docx(src, dst)
+        try:
+            pypandoc.convert_file(
+                str(src),
+                "docx",
+                outputfile=str(dst),
+                extra_args=["--wrap=none"],
+            )
+            return
+        except (OSError, RuntimeError) as exc:
+            print(f"  Warning: pandoc failed on {src.name}: {exc}; falling back to python-docx")
+    _convert_with_docx(src, dst)
 
 
 def _convert_with_docx(src: Path, dst: Path) -> None:
     """Fallback converter using python-docx + markdown."""
+    if not HAS_DOCX:
+        raise RuntimeError(
+            "python-docx fallback not available; install python-docx + markdown"
+        )
     md_text = src.read_text(encoding="utf-8")
     html = markdown.markdown(
         md_text,
@@ -246,30 +265,38 @@ def create_cover(metadata: dict, out: Path) -> Path:
     dst.parent.mkdir(parents=True, exist_ok=True)
 
     if USE_PANDOC:
-        # Build a simple markdown cover and convert
-        cover_md = f"# {metadata.get('title', 'Thesis')}\n\n"
-        cover_md += f"**Author**: {metadata.get('author', 'Unknown')}\n\n"
-        cover_md += f"**Date**: {metadata.get('date', datetime.now().strftime('%Y-%m-%d'))}\n\n"
-        cover_md += f"**Institution**: {metadata.get('institution', '')}\n\n"
-        if metadata.get("abstract"):
-            cover_md += f"## Abstract\n\n{metadata['abstract']}\n"
-        # Write temp file
-        tmp = out / "_cover_tmp.md"
-        tmp.write_text(cover_md, encoding="utf-8")
-        pypandoc.convert_file(str(tmp), "docx", outputfile=str(dst))
-        tmp.unlink()
-    else:
-        doc = Document()
-        doc.add_heading(metadata.get("title", "Thesis"), level=0)
-        doc.add_paragraph(f"Author: {metadata.get('author', 'Unknown')}")
-        doc.add_paragraph(
-            f"Date: {metadata.get('date', datetime.now().strftime('%Y-%m-%d'))}"
-        )
-        doc.add_paragraph(f"Institution: {metadata.get('institution', '')}")
-        if metadata.get("abstract"):
-            doc.add_heading("Abstract", level=1)
-            doc.add_paragraph(metadata["abstract"])
-        doc.save(str(dst))
+        try:
+            cover_md = f"# {metadata.get('title', 'Thesis')}\n\n"
+            cover_md += f"**Author**: {metadata.get('author', 'Unknown')}\n\n"
+            cover_md += f"**Date**: {metadata.get('date', datetime.now().strftime('%Y-%m-%d'))}\n\n"
+            cover_md += f"**Institution**: {metadata.get('institution', '')}\n\n"
+            if metadata.get("abstract"):
+                cover_md += f"## Abstract\n\n{metadata['abstract']}\n"
+            tmp = out / "_cover_tmp.md"
+            tmp.write_text(cover_md, encoding="utf-8")
+            pypandoc.convert_file(str(tmp), "docx", outputfile=str(dst))
+            tmp.unlink()
+            return dst
+        except (OSError, RuntimeError) as exc:
+            print(f"  Warning: pandoc failed on cover: {exc}; falling back to python-docx")
+            tmp_path = out / "_cover_tmp.md"
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+    # Fallback path
+    if not HAS_DOCX:
+        raise RuntimeError("python-docx fallback not available")
+    doc = Document()
+    doc.add_heading(metadata.get("title", "Thesis"), level=0)
+    doc.add_paragraph(f"Author: {metadata.get('author', 'Unknown')}")
+    doc.add_paragraph(
+        f"Date: {metadata.get('date', datetime.now().strftime('%Y-%m-%d'))}"
+    )
+    doc.add_paragraph(f"Institution: {metadata.get('institution', '')}")
+    if metadata.get("abstract"):
+        doc.add_heading("Abstract", level=1)
+        doc.add_paragraph(metadata["abstract"])
+    doc.save(str(dst))
 
     return dst
 
