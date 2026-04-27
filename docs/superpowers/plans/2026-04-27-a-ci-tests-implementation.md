@@ -252,9 +252,15 @@ jobs:
         run: python3.8 --version
       - name: Install conversion backend (T17 smoke-import dependency)
         run: pip install python-docx markdown
+      - name: Install pandoc (system binary; make doctor probes for it)
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - name: Configure git core.fileMode false (make doctor expects this)
+        run: git config core.fileMode false
       - run: make doctor
       - run: make test
 ```
+
+(The pandoc apt install + git config steps were added in v3 of the spec/plan after T6's first dry-run on PR #2 surfaced the make-doctor-in-CI environment gap. ubuntu-latest does not ship pandoc; `actions/checkout@v4` leaves `core.fileMode=true` whereas D's doctor expects `false`. Both are one-step fixes and preserve doctor's diagnostic value in CI.)
 
 - [ ] **Step 3: Sanity-check the YAML locally**
 
@@ -553,11 +559,13 @@ Open the workflow run; verify the step list:
 3. `Run actions/setup-python@v5`
 4. `Verify python3.8 binary on PATH` — log shows `Python 3.8.x`
 5. `Install conversion backend (T17 smoke-import dependency)` — log shows `Successfully installed markdown-... python-docx-...`
-6. `Run make doctor` — log shows the doctor passes
-7. `Run make test` — log ends with `all 15 tests passed.`
-8. `Complete job` (implicit)
+6. `Install pandoc (system binary; make doctor probes for it)` — log shows `apt-get install pandoc` success
+7. `Configure git core.fileMode false (make doctor expects this)` — exit 0, no log output
+8. `Run make doctor` — all health checks pass (symlinks, sync, pandoc found, python3, python-docx, fileMode false)
+9. `Run make test` — log ends with `all 15 tests passed.`
+10. `Complete job` (implicit)
 
-All steps should be green. If any step fails, do not proceed to T7 — diagnose first (likely candidates: missing `python3.8` symlink → bug in `actions/setup-python@v5`'s '3.8' resolution; pip install fails → check action version).
+All steps should be green. If any step fails, do not proceed to T7 — diagnose first (likely candidates: missing `python3.8` symlink → bug in `actions/setup-python@v5`'s '3.8' resolution; pip install fails → check action version; apt-get update fails → transient mirror; doctor fails on a check beyond the two patched in v3 → flag for follow-up).
 
 ---
 

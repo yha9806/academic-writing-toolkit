@@ -1,6 +1,6 @@
 # A: CI & Tests for Skills
 
-**Status**: draft v2 (post triple-reviewer pass; awaiting user sign-off)
+**Status**: draft v3 (T6 dry-run on PR #2 caught make-doctor CI environment gap; v3 patches workflow to install pandoc + set git core.fileMode false)
 **Date**: 2026-04-27
 **Sub-project**: A (toolkit roadmap)
 **Predecessors**: D — foolproofing & multi-platform robustness (shipped `981d28f`, 2026-04-27); C-emergency — R2 audit bug fixes (shipped `9092294`, 2026-04-27)
@@ -139,6 +139,10 @@ jobs:
         run: python3.8 --version
       - name: Install conversion backend (T17 smoke-import dependency)
         run: pip install python-docx markdown
+      - name: Install pandoc (system binary; make doctor probes for it)
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - name: Configure git core.fileMode false (make doctor expects this)
+        run: git config core.fileMode false
       - run: make doctor
       - run: make test
 ```
@@ -151,13 +155,15 @@ Design notes:
 - **`make doctor` then `make test` as separate steps** — unambiguous failure attribution in the GHA UI; matches Q5's orthogonality decision.
 - **`actions/setup-python@v5` with `'3.8'`** — quoted string `'3.8'` (an unquoted `3.8` would parse as YAML float, which `setup-python` may interpret as `python-version: 3.80` or otherwise mis-resolve depending on the action version). The `setup-python@v5` action installs CPython 3.8 with both `python` and `python3.8` symlinks on `ubuntu-latest`; the explicit `python3.8 --version` step fails fast if that binary name is missing (T17 internally guards on `command -v python3.8`, so a missing symlink would silently no-op the smoke tier).
 - **`pip install python-docx markdown`** — required for T17's smoke import. `convert_to_docx.py:50-58` calls `sys.exit(...)` at module-load time if neither `pypandoc` (with `pandoc` binary) nor `python-docx + markdown` is importable. The CI runner installs only the latter pair; the former path is exercised by users in production. C-emergency Bug #8 is the regression T17 protects against (Python 3.8 SyntaxError on annotations); installing a backend is what makes the smoke tier actually exercise the file.
+- **`apt-get install pandoc`** — `make doctor` (D's environment health check) probes for the system `pandoc` binary; without it doctor fails. The doctor's pandoc check exists for the local-dev `/export` path that uses `pypandoc → pandoc CLI`; in CI it's vestigial but cheap to satisfy (apt install is ~10 s on ubuntu-latest, no manual key import or repo add). This is the "minimal CI satisfaction" of a doctor check originally written for a developer laptop. (Discovered during T6 dry-run — added in v3 patch.)
+- **`git config core.fileMode false`** — `make doctor` checks that `core.fileMode == false` because the toolkit's `make setup` sets it that way (D shipped this default on macOS, where filesystem permissions don't carry git mode-bit info). On a fresh GHA `actions/checkout@v4`, git defaults `core.fileMode` to `true`. Without this line, doctor fails. The fix is one line, repo-local config (does not affect master or origin). (Discovered during T6 dry-run — added in v3 patch.)
 - **`actions/checkout@v4` and `setup-python@v5` are tag-pinned, not SHA-pinned** — single-user thesis-tooling repo; supply-chain attack surface is low and the user explicitly trades action SHA pinning for readability. If this assumption changes (e.g. the toolkit gains contributors, or starts handling secrets), revisit.
 
 ### 4.4 What runs in CI on each trigger
 
 | Trigger | What runs |
 |---|---|
-| `pull_request` against `master` (opened, ready_for_review) | full job (4 setup steps + 2 shell steps; see §6) |
+| `pull_request` against `master` (opened, ready_for_review) | full job (6 setup steps + 2 shell steps; see §6) |
 | `pull_request` against `master` (synchronized — new commits pushed to PR head) | same; previous run cancelled by concurrency rule |
 | `pull_request` against any base **other than `master`** | nothing |
 | `push` to `master` | full job |
@@ -208,7 +214,9 @@ These are **not** code changes and **not** part of the spec's file changes; they
 | Check | Expected |
 |---|---|
 | `test` workflow appears as a status check on the PR | yes |
-| GHA UI shows the expected step list | 6 steps: `Set up job` (implicit), `Run actions/checkout@v4`, `Run actions/setup-python@v5`, `Verify python3.8 binary on PATH`, `Install conversion backend`, `Run make doctor`, `Run make test`, `Complete job` (implicit). Specifically the two custom shell steps `Run make doctor` and `Run make test` are both green. |
+| GHA UI shows the expected step list | 8 visible steps: `Set up job` (implicit), `Run actions/checkout@v4`, `Run actions/setup-python@v5`, `Verify python3.8 binary on PATH`, `Install conversion backend (T17 smoke-import dependency)`, `Install pandoc (system binary; make doctor probes for it)`, `Configure git core.fileMode false (make doctor expects this)`, `Run make doctor`, `Run make test`, `Complete job` (implicit). Specifically the two custom shell steps `Run make doctor` and `Run make test` are both green. |
+| `pandoc` install step | `apt-get install pandoc` succeeds; `pandoc --version` available afterwards |
+| `git core.fileMode` step | `git config core.fileMode false` exit 0 |
 | `python3.8 --version` step | prints `Python 3.8.x`; exit 0 |
 | `pip install python-docx markdown` step | prints `Successfully installed ...`; exit 0 |
 | `make test` step prints | `all 15 tests passed`; exit 0 (T17 smoke import path actually runs because both `python3.8` and a backend are present) |
@@ -272,6 +280,20 @@ Triage outcomes encoded into v2:
 - NITs (calibration, scope-bend ack, format consistency, action SHA pinning) — accepted as-is or added §7 row noting the tradeoff.
 
 User sign-off required before transitioning to `superpowers:writing-plans`.
+
+### v3 patch (2026-04-27, post-T6 dry-run)
+
+T6 (push + observe CI) opened PR #2 and the first GHA run exposed two MAKE-DOCTOR-IN-CI gaps not surfaced by reviewers (D's doctor was designed for a developer laptop, not a fresh ubuntu-latest GHA runner):
+
+- **`pandoc not found`** — doctor probes the system pandoc binary; ubuntu-latest does not ship it by default. Spec previously assumed "no pip install" implied "no system installs"; that conflated package-manager scope. Workflow now adds `sudo apt-get update && sudo apt-get install -y pandoc` (~10 s).
+- **`git core.fileMode is 'true'`** — doctor expects `false` (D's `make setup` sets it on macOS where filesystem permission bits don't carry git mode info). `actions/checkout@v4` leaves git default `true`. Workflow now adds `git config core.fileMode false` (one line, repo-local, no side effects).
+
+Triage decision was option A from a 3-way choice (workflow patch vs doctor refactor vs drop doctor from CI). Rationale:
+- Smallest change; preserves the spec §4.3 "orthogonal two-step" design.
+- Doesn't touch D's already-shipped `scripts/doctor.sh` (option B would have broadened the sub-project scope and required another reviewer pass).
+- Keeps doctor's diagnostic value in CI (option C would have given that up).
+
+The implementation plan T3 step 2 + T6 step 4 step list were patched to match.
 
 ## 9. References
 
