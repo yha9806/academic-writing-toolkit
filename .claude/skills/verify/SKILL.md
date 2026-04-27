@@ -38,7 +38,7 @@ This skill activates on: `verify`, `check this`, `fact-check`, `is this correct`
 |------|----------|----------|
 | {specific fact} | {as claimed} | {as verified} |
 
-**Source**: [{source name}]({URL})
+**Source**: {single-line citation in the project's declared style — see `literature/reading_notes/_template_NOTES.md` for per-style examples; the active style is `Citation style:` in `CLAUDE.md`. Append the URL after the citation if the source is web-only}
 **Confidence**: High | Medium | Low
 **Notes**: {any additional context, e.g., "Date varies by edition" or "Multiple conflicting sources"}
 ```
