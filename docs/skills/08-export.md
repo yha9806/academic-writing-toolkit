@@ -166,7 +166,7 @@ The conversion script lives at `.claude/skills/export/scripts/convert_to_docx.py
 
 1. **Run `/audit` before `/export`.** Export produces the files you submit. Make sure they're consistent first.
 
-2. **Check the conversion method.** Pandoc produces the best results. If you see "python-docx fallback," consider installing pandoc for better table formatting.
+2. **Check the conversion method.** The pypandoc + pandoc backend produces the best results. If you see "python-docx fallback," install both `pypandoc` (`pip install pypandoc`) AND the `pandoc` binary on PATH for better table formatting.
 
 3. **Use `chapters` scope for submissions.** Supervisors and examiners typically want chapters, not your reading notes.
 
@@ -183,7 +183,7 @@ The conversion script lives at `.claude/skills/export/scripts/convert_to_docx.py
 | Exporting without auditing first | Run `/audit` before `/export`. Inconsistencies in the Word docs are harder to spot. |
 | Expecting PDF output | `/export` produces .docx + ZIP. For PDF, use your own Markdown-to-PDF pipeline (e.g., `compile_pdf.py`). |
 | Running `/export` expecting it to auto-trigger | This skill is user-invoked only. You must type `/export` explicitly. |
-| Not checking which conversion method was used | If pandoc isn't installed, tables may look different in the fallback method. |
+| Not checking which conversion method was used | If pypandoc or the pandoc binary is unavailable, tables may look different in the python-docx fallback. |
 
 ---
 
