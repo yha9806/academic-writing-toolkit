@@ -444,10 +444,10 @@ Expected: identical pass output to step 2; exit 0.
 - [ ] **Step 4: `make help` lists `test`**
 
 ```bash
-make help | grep -E '^\s*test\b'
+make help | sed 's/\x1b\[[0-9;]*m//g' | grep -E '^\s*test\b'
 ```
 
-Expected: one matching line containing `test` and the doc-comment description.
+Expected: one matching line containing `test` and the doc-comment description. The `sed` strips ANSI color escape codes — the existing `make help` body uses `\033[36m` cyan codes around target names, which would otherwise prevent the `^\s*test\b` regex from matching.
 
 - [ ] **Step 5: Forward-looking grep is clean**
 
@@ -458,25 +458,18 @@ echo "exit=$?"
 
 Expected: no output; `exit=1` (grep's "no matches found" exit). If any line is printed, find and fix the leftover reference before continuing.
 
-- [ ] **Step 6: Historical refs preserved (body byte-identical)**
+- [ ] **Step 6: Historical refs preserved (body byte-identical) — exclude A's own spec+plan**
 
 ```bash
 grep -rn test-foolproofing docs/superpowers/specs/ docs/superpowers/plans/ \
+  --exclude='*2026-04-27-a-ci-tests-*' \
   | grep -v 'Rename note (2026-04-27, sub-project A)' \
   | wc -l
 ```
 
-Expected: `73`. (Compare against `master @ 9092294` if you want a sanity baseline: `git show master:docs/superpowers/specs/2026-04-26-foolproofing-design.md | grep -c test-foolproofing` — and the same for the other three files — should add up to 73.)
+Expected: `73`. The `--exclude='*2026-04-27-a-ci-tests-*'` filters out A's own spec and plan: those files intentionally contain `test-foolproofing` references (they document the rename), and they are NOT what this contract is policing. The body-integrity contract is about the four shipped historical docs (D + C-emergency × spec + plan), which together contributed 73 references on `master @ 9092294`. Sanity baseline: `for f in docs/superpowers/specs/2026-04-2{6,7}-{foolproofing,c-emergency}-{design,*-implementation}.md docs/superpowers/plans/2026-04-2{6,7}-*.md; do git show master:"$f" | grep -c test-foolproofing 2>/dev/null; done | paste -sd + | bc` should sum to 73.
 
-- [ ] **Step 7: Preamble inserted exactly once per historical doc**
-
-```bash
-grep -rln 'Rename note (2026-04-27, sub-project A)' docs/superpowers/specs/ docs/superpowers/plans/ | wc -l
-```
-
-Expected: `4`.
-
-- [ ] **Step 8: YAML permission scope is minimal**
+- [ ] **Step 7: YAML permission scope is minimal**
 
 ```bash
 grep -E '^\s+contents:\s+read' .github/workflows/test.yml
@@ -484,7 +477,7 @@ grep -E '^\s+contents:\s+read' .github/workflows/test.yml
 
 Expected: matches once (the line `      contents: read` inside the `permissions:` block).
 
-- [ ] **Step 9: Each historical doc's preamble is in the first 25 lines**
+- [ ] **Step 8: Each historical doc's preamble is in the first 25 lines (the durable check)**
 
 ```bash
 for f in \

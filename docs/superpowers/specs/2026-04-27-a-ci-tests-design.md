@@ -94,7 +94,7 @@ Insert this exact block (Markdown blockquote) after the document's title heading
 The implementing plan must confirm all four checks (verbatim commands recorded in the implementation log):
 
 - `grep -rn test-foolproofing scripts/ .github/ Makefile README.md CLAUDE.md AGENTS.md GEMINI.md .cursor/ docs/setup-*.md docs/skills/` → exits with no matches (i.e. `grep` returns 1).
-- `grep -rn test-foolproofing docs/superpowers/specs/ docs/superpowers/plans/` → returns the historical hits (8 spec + 65 plan = 73 total on `master @ 9092294`; the count must not decrease, and only the count of `Rename note` lines may increase — exactly +4, one per historical doc).
+- `grep -rn test-foolproofing docs/superpowers/specs/ docs/superpowers/plans/ --exclude='*2026-04-27-a-ci-tests-*'` → returns the historical hits (8 spec + 65 plan = 73 total on `master @ 9092294`; the count must not decrease, and only the count of `Rename note` lines may increase — exactly +4, one per historical doc). The `--exclude` filters out A's own spec and plan, which intentionally contain `test-foolproofing` references (they document the rename itself).
 - For each of the four historical docs: `head -25 <file> | grep -q "Rename note (2026-04-27, sub-project A)"` returns 0.
 - This A spec's own `test-foolproofing` mentions are intentional (the spec documents the rename) and are excluded from the zero-hit contract by the explicit path enumeration.
 
@@ -197,10 +197,9 @@ These are **not** code changes and **not** part of the spec's file changes; they
 | Rename succeeded | `test -f scripts/test.sh && ! test -f scripts/test-foolproofing.sh` | exits 0 |
 | Harness still runs | `bash scripts/test.sh` | prints `all 15 tests passed`; exit 0 |
 | `make test` is the same | `make test` | identical pass output, exit 0 |
-| `make help` lists target | `make help \| grep -E '^\s*test\b'` | one line, doc-comment visible |
+| `make help` lists target | `make help \| sed 's/\x1b\[[0-9;]*m//g' \| grep -E '^\s*test\b'` | one line, doc-comment visible (the `sed` strips ANSI color codes that the existing `make help` uses) |
 | Forward-looking grep is clean | `grep -rn test-foolproofing scripts/ .github/ Makefile README.md CLAUDE.md AGENTS.md GEMINI.md .cursor/ docs/setup-*.md docs/skills/` | exits 1 (no matches) |
-| Historical refs preserved (body unchanged) | `grep -rn test-foolproofing docs/superpowers/specs/ docs/superpowers/plans/ \| grep -v 'Rename note (2026-04-27, sub-project A)'` | exactly 73 lines (8 spec + 65 plan, byte-identical to `master @ 9092294`) |
-| Preamble inserted exactly once per historical doc | `grep -rln 'Rename note (2026-04-27, sub-project A)' docs/superpowers/specs/ docs/superpowers/plans/ \| wc -l` | exactly 4 |
+| Historical refs preserved (body unchanged) — exclude A's own spec+plan, which intentionally document the rename | `grep -rn test-foolproofing docs/superpowers/specs/ docs/superpowers/plans/ --exclude='*2026-04-27-a-ci-tests-*' \| grep -v 'Rename note (2026-04-27, sub-project A)'` | exactly 73 lines (8 spec + 65 plan, byte-identical to `master @ 9092294`) |
 | All four historical docs have preamble | for each of D-spec, C-emergency-spec, D-plan, C-emergency-plan: `head -25 <file> \| grep -q 'Rename note (2026-04-27, sub-project A)'` | all 4 exit 0 |
 | YAML permission scope is minimal | `grep -E '^\s+contents:\s+read' .github/workflows/test.yml` | matches once |
 
