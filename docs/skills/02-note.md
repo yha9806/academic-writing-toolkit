@@ -241,6 +241,3 @@ reading ──────► completed ──────► integrated
 ```
 
 The notes file is the hub. `/note` writes it; three other skills read it.
-
-
-<!-- T14 rehearsal: `argue` -->
