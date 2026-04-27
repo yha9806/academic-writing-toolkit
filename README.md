@@ -120,7 +120,7 @@ When you `/read` a PDF, the agent produces structured output. `/note` writes it 
 | assemblage | Ch5 | S5.2 | extends |
 ```
 
-This table is what `/map` scans to build a literature-to-chapter matrix, and what `/integrate` consumes when weaving sources into chapter drafts. The `Status` field at the top of each notes file (`reading` / `completed`) is what `/progress` reads to calculate your coverage.
+This table is what `/map` scans to build a literature-to-chapter matrix, and what `/integrate` consumes when weaving sources into chapter drafts. The `Status` field at the top of each notes file (`reading` / `completed` / `integrated`) is what `/progress` reads to calculate your coverage.
 
 The result: every skill reads from and writes to the same file structure, so nothing falls through the cracks.
 
@@ -209,7 +209,7 @@ All skills share a standardised notes format. This is the data contract that mak
 
 Key fields in every notes file:
 
-- **Status**: `reading` or `complete` — tracked by `/progress`
+- **Status**: `reading` | `completed` | `integrated` — tracked by `/progress`
 - **Relevance**: Which chapter and section this source matters for
 - **Thesis Connections table**: Structured mapping consumed by `/map` and `/integrate`
 

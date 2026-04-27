@@ -6,7 +6,7 @@ alwaysApply: true
 ## Notes Format
 
 Reading notes use a standardised template (`literature/reading_notes/_template_NOTES.md`) with required fields:
-- **Status**: `reading` | `complete` | `revisiting`
+- **Status**: `reading` | `completed` | `integrated`
 - **Relevance**: chapter and section reference (e.g. "Ch3 S3.2 — supports argument about X")
 - **Thesis Connections** table: maps note points to chapters, sections, and connection types (supports / challenges / extends)
 - **Key Terms** table: term, translation (if applicable), definition in context
