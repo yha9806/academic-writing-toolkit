@@ -81,6 +81,20 @@ CITATION_STYLES: Dict[str, dict] = {
         "source_sample": "Smith, John, and Kim Jones. 2024. *Title in Title Case*. Publisher.",
         "accepts_cjk_punct": False,
     },
+    "mla": {
+        "name": "MLA 9",
+        "mode": "author-page",
+        "intext_paren_punct": "n/a",
+        "etal_threshold": 3,
+        "etal_first_cite_only": False,
+        "multi_author_connectors": ["and"],
+        "source_pattern": (
+            r"^\*\*Source\*\*:\s+(?P<authors>[\wÀ-ɏ一-鿿\-'][\wÀ-ɏ一-鿿\-' ,.]*?)"
+            r"\.\s+\*[^*]+\*\.\s+.+,\s*(?P<year>\d{4}[a-z]?)\.?\s*$"
+        ),
+        "source_sample": "Smith, John, and Kim Jones. *Title in Title Case*. Publisher, 2024.",
+        "accepts_cjk_punct": False,
+    },
     "gb-t-7714-2015": {
         "name": "GB/T 7714-2015 (Author-Year)",
         "mode": "author-year",
