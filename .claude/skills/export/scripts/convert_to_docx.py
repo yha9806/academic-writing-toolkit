@@ -50,7 +50,7 @@ except ImportError:
 if not USE_PANDOC and not HAS_DOCX:
     sys.exit(
         "Error: No conversion backend available.\n"
-        "  - pypandoc is installed but `pandoc` binary is missing/broken on PATH.\n"
+        "  - pypandoc is unavailable (not installed, or `pandoc` binary missing/broken on PATH).\n"
         "  - python-docx + markdown fallback is also missing.\n"
         "Install one of:\n"
         "  pip install pypandoc       (also requires `pandoc` binary on PATH)\n"
@@ -279,9 +279,8 @@ def create_cover(metadata: dict, out: Path) -> Path:
             return dst
         except (OSError, RuntimeError) as exc:
             print(f"  Warning: pandoc failed on cover: {exc}; falling back to python-docx")
-            tmp_path = out / "_cover_tmp.md"
-            if tmp_path.exists():
-                tmp_path.unlink()
+            if tmp.exists():
+                tmp.unlink()
 
     # Fallback path
     if not HAS_DOCX:
