@@ -27,7 +27,33 @@ RE_FLAGS = re.UNICODE
 
 # --- Registry ----------------------------------------------------------------
 # Each row populated incrementally as tasks T3-T9 add styles.
-CITATION_STYLES: Dict[str, dict] = {}
+# Lastname character class: Latin + Latin Extended (À-ɏ) + CJK Unified
+# Ideographs (一-鿿) + hyphen + apostrophe. Used by every author regex.
+LASTNAME_CLASS = r"[\wÀ-ɏ一-鿿\-']"
+
+# Permissive Source-line lint used when --style is absent: requires the
+# **Source**: prefix, single line, and at least one 4-digit year.
+PERMISSIVE_SOURCE_RE = re.compile(
+    r"^\*\*Source\*\*:\s+.+\b\d{4}\b.+$",
+    RE_FLAGS,
+)
+
+CITATION_STYLES: Dict[str, dict] = {
+    "harvard": {
+        "name": "Harvard",
+        "mode": "author-year",
+        "intext_paren_punct": "no-comma",
+        "etal_threshold": 4,
+        "etal_first_cite_only": False,
+        "multi_author_connectors": ["and", "&"],
+        "source_pattern": (
+            r"^\*\*Source\*\*:\s+(?P<authors>[" + r"\wÀ-ɏ一-鿿\-'" + r"][\wÀ-ɏ一-鿿\-' ,&.]*?)"
+            r"\s+\((?P<year>\d{4}[a-z]?)\)\s+.+\*[^*]+\*\.?\s*$"
+        ),
+        "source_sample": "Smith, J. and Jones, K. (2024) Title in sentence case. *Publisher*.",
+        "accepts_cjk_punct": False,
+    },
+}
 
 
 # --- Main --------------------------------------------------------------------
@@ -73,6 +99,73 @@ def discover_files(base_dir: Path, glob: str) -> List[Path]:
         p for p in base_dir.glob(glob)
         if p.is_file() and p.name != "_template_NOTES.md"
     )
+
+
+def relpath(path: Path, base_dir: Path) -> str:
+    """Best-effort relative path string for issue locations; falls back to
+    the absolute path if the file is outside base_dir."""
+    try:
+        return str(path.relative_to(base_dir))
+    except ValueError:
+        return str(path)
+
+
+# --- Tier 0: source-line lint -----------------------------------------------
+
+def find_source_line(notes_path: Path) -> Optional[Tuple[int, str]]:
+    """Return (line_number, line_text) for the first **Source**: line in
+    notes_path, or None if absent. Line numbers are 1-based."""
+    try:
+        text = notes_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    for idx, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("**Source**:"):
+            return (idx, line)
+    return None
+
+
+def tier0_lint(
+    notes_files: List[Path],
+    style_row: Optional[dict],
+    base_dir: Path,
+) -> List[dict]:
+    """Per-style **Source**: format lint over notes files. When style_row is
+    None, fall back to a permissive single-line + year check; mismatches at
+    that level are still flagged as `notes-source-malformed`."""
+    issues: List[dict] = []
+    if style_row is not None:
+        style_re = re.compile(style_row["source_pattern"], RE_FLAGS)
+    else:
+        style_re = PERMISSIVE_SOURCE_RE
+    for notes_path in notes_files:
+        loc = find_source_line(notes_path)
+        rel = relpath(notes_path, base_dir)
+        if loc is None:
+            issues.append({
+                "tier": 0,
+                "kind": "notes-source-missing",
+                "severity": "high",
+                "location": rel,
+                "message": "no **Source**: line in notes file",
+                "context": "",
+            })
+            continue
+        line_num, line = loc
+        if not style_re.match(line):
+            issues.append({
+                "tier": 0,
+                "kind": "notes-source-malformed",
+                "severity": "medium",
+                "location": "{}:{}".format(rel, line_num),
+                "message": (
+                    "**Source**: line does not match style "
+                    + (style_row["name"] if style_row else "(permissive)")
+                    + " pattern"
+                ),
+                "context": line.strip(),
+            })
+    return issues
 
 
 def emit(issues: List[dict], style_key: Optional[str], mode: Optional[str], emit_json: bool) -> None:
@@ -136,10 +229,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     issues: List[dict] = []
     mode = style_row["mode"] if style_row else None
 
-    # Tier 0/1/2/3 hooks land in later tasks. With an empty registry and no
-    # logic wired up, the script is a no-op that returns clean.
+    # Tier 0: source-line lint over notes files.
+    issues.extend(tier0_lint(notes, style_row, base_dir))
+
+    # Tier 1/2/3 land in later tasks.
     _ = chapters
-    _ = notes
 
     emit(issues, style_key, mode, args.emit_json)
     return EXIT_ISSUES if issues else EXIT_OK
