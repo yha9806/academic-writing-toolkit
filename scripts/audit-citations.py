@@ -67,6 +67,34 @@ CITATION_STYLES: Dict[str, dict] = {
         "source_sample": "Smith, J., & Jones, K. (2024). Title in sentence case. *Publisher*. https://doi.org/...",
         "accepts_cjk_punct": False,
     },
+    "chicago-author-date": {
+        "name": "Chicago Author-Date (17th)",
+        "mode": "author-year",
+        "intext_paren_punct": "no-comma",
+        "etal_threshold": 4,
+        "etal_first_cite_only": False,
+        "multi_author_connectors": ["and"],
+        "source_pattern": (
+            r"^\*\*Source\*\*:\s+(?P<authors>[\wÀ-ɏ一-鿿\-'][\wÀ-ɏ一-鿿\-' ,.]*?)"
+            r"\.\s+(?P<year>\d{4}[a-z]?)\.\s+.+$"
+        ),
+        "source_sample": "Smith, John, and Kim Jones. 2024. *Title in Title Case*. Publisher.",
+        "accepts_cjk_punct": False,
+    },
+    "gb-t-7714-2015": {
+        "name": "GB/T 7714-2015 (Author-Year)",
+        "mode": "author-year",
+        "intext_paren_punct": "comma",
+        "etal_threshold": 4,
+        "etal_first_cite_only": False,
+        "multi_author_connectors": ["and"],
+        "source_pattern": (
+            r"^\*\*Source\*\*:\s+(?P<authors>[\wÀ-ɏ一-鿿\-'][\wÀ-ɏ一-鿿\-' ,.]*?)"
+            r"\.\s+.+\[[A-Z]\]\.\s*\*?[^*]+\*?,?\s*(?P<year>\d{4}[a-z]?).*$"
+        ),
+        "source_sample": "Smith J, Jones K. Title in sentence case[J]. *Journal*, 2024, 12(3): 45-67.",
+        "accepts_cjk_punct": True,
+    },
 }
 
 
@@ -233,31 +261,52 @@ def collect_intext_author_year(
 
 # --- Source line author-year parsing ----------------------------------------
 
-SOURCE_AUTHOR_YEAR_RE = re.compile(
-    r"^\*\*Source\*\*:\s+(?P<authors>[\wÀ-ɏ一-鿿\-'][\wÀ-ɏ一-鿿\-' ,&.]*?)"
-    r"[\s.]*\(?(?P<year>\d{4})(?P<suffix>[a-z]?)\)?",
+# Lead-author regex: capture the first lastname token at the start of a
+# Source line. Works for "Smith, J. ..." (Western), "Smith John ..." and
+# bare "王 J. ..." (CJK). Uses LASTNAME_CLASS for the unicode-friendly
+# character class.
+SOURCE_LEAD_AUTHOR_RE = re.compile(
+    r"^\*\*Source\*\*:\s+(?:\[\d+\]\s+)?(?P<lastname>[\wÀ-ɏ一-鿿\-']+)",
+    RE_FLAGS,
+)
+
+# Year-in-parens (Western: "(2024)" or "(2024a)"). Used as the strong
+# signal for author-year sources where the year sits in parentheses.
+SOURCE_PAREN_YEAR_RE = re.compile(
+    r"\((?P<year>\d{4})(?P<suffix>[a-z]?)\)",
+    RE_FLAGS,
+)
+
+# Bare four-digit year, used as a fallback (Chicago "2024." form, GB/T
+# "..., 2024,..." form, MLA "..., 2024." form). Picks the FIRST four-digit
+# year on the line — Source lines for thesis sources are dominated by the
+# publication year up front.
+SOURCE_BARE_YEAR_RE = re.compile(
+    r"\b(?P<year>\d{4})(?P<suffix>[a-z]?)\b",
     RE_FLAGS,
 )
 
 
 def parse_source_author_year(notes_files: List[Path]) -> List[dict]:
     """Parse each notes file's **Source**: line and return a list of dicts:
-    {lastname, year_int, year_suffix, location}. Files without a Source
-    line, or whose Source line lacks an extractable lastname+year, are
-    skipped (Tier 0 already flags them)."""
+    {lastname, year_int, year_suffix, location}. Tries paren-year first
+    (Harvard, APA), falls back to bare year (Chicago, GB/T 7714)."""
     out: List[dict] = []
     for notes_path in notes_files:
         loc = find_source_line(notes_path)
         if loc is None:
             continue
         line_num, line = loc
-        m = SOURCE_AUTHOR_YEAR_RE.match(line)
-        if not m:
+        author_m = SOURCE_LEAD_AUTHOR_RE.match(line)
+        if not author_m:
+            continue
+        year_m = SOURCE_PAREN_YEAR_RE.search(line) or SOURCE_BARE_YEAR_RE.search(line)
+        if not year_m:
             continue
         out.append({
-            "lastname": _first_lastname(m.group("authors")),
-            "year_int": int(m.group("year")),
-            "year_suffix": m.group("suffix") or "",
+            "lastname": author_m.group("lastname"),
+            "year_int": int(year_m.group("year")),
+            "year_suffix": year_m.group("suffix") or "",
             "location": "{}:{}".format(notes_path.name, line_num),
             "notes_path": notes_path,
         })
@@ -566,19 +615,19 @@ def tier3_author_year_format(
     for occ in in_text:
         if occ["form"] == "narrative":
             continue
-        # Punctuation check.
-        if expected_punct == "comma" and occ["form"] == "parens-no-comma":
-            issues.append({
-                "tier": 3,
-                "kind": "format-comma",
-                "severity": "low",
-                "location": occ["location"],
-                "message": "{} requires a comma between author and year".format(style_row["name"]),
-                "context": occ["raw"],
-            })
-        elif expected_punct == "no-comma" and occ["form"] == "parens-comma":
-            # GB/T 7714-2015 accepts both; bypass.
-            if not accepts_cjk:
+        # Punctuation check. Styles with `accepts_cjk_punct` (GB/T 7714-2015)
+        # accept both comma and no-comma forms, so skip the punct check.
+        if not accepts_cjk:
+            if expected_punct == "comma" and occ["form"] == "parens-no-comma":
+                issues.append({
+                    "tier": 3,
+                    "kind": "format-comma",
+                    "severity": "low",
+                    "location": occ["location"],
+                    "message": "{} requires a comma between author and year".format(style_row["name"]),
+                    "context": occ["raw"],
+                })
+            elif expected_punct == "no-comma" and occ["form"] == "parens-comma":
                 issues.append({
                     "tier": 3,
                     "kind": "format-comma",
