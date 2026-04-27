@@ -8,6 +8,8 @@
 
 ---
 
+> **Rename note (2026-04-27, sub-project A)**: The script referenced below as `scripts/test-foolproofing.sh` was renamed to `scripts/test.sh` in sub-project A. The body of this document is preserved as-shipped to keep the historical record honest; readers acting on the instructions today should substitute the new name.
+
 ## 1. Context
 
 The 2026-04-26 R2 codex audit of `academic-writing-toolkit` flagged seven bugs — two BLOCKERs, three MAJORs, two MINORs — affecting skill contracts and user-facing documentation. Verification on 2026-04-27 confirmed all seven remained unfixed.
