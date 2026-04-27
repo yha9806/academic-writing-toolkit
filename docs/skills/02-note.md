@@ -208,9 +208,6 @@ reading ──────► completed ──────► integrated
    - `supports` — source provides evidence for your argument
    - `challenges` — source contradicts or complicates your argument
    - `extends` — source adds a new dimension to your argument
-   - `cite` — source is referenced but not deeply engaged
-   - `data` — source provides data or examples
-   - `method` — source informs methodology
 
 6. **One file per source, always.** Even if you read a source across 10 sessions, all notes go in the same file. The file accumulates over time.
 

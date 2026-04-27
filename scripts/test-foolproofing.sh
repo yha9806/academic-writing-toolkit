@@ -192,6 +192,24 @@ test_T13() {
     ! grep -rqE '\brevisiting\b' "$REPO_ROOT/README.md" "$REPO_ROOT/.cursor/" "$REPO_ROOT/docs/skills/" "$REPO_ROOT/.claude/skills/" 2>/dev/null
 }
 
+# --- T14: no deprecated vocab in /map+/note ---------------------------------
+test_T14() {
+    # No deprecated vocab (argue|cite|data|method) in matrix-cell context
+    # within /map skill files and the /note user doc's standard-types section.
+    local files=(
+        "$REPO_ROOT/.claude/skills/map/SKILL.md"
+        "$REPO_ROOT/docs/skills/04-map.md"
+    )
+    # Scope to lines containing | (table-cell delimiter) to skip prose like
+    # "data consistency" or "must cite the source"; exclude header rows.
+    if grep -nE '\|.*\b(argue|cite|data|method)\b' "${files[@]}" 2>/dev/null \
+        | grep -vE '^[^:]+:[0-9]+:\s*\|\s*Term\s*\|' | grep -q .; then
+        return 1
+    fi
+    # Also check the /note user doc for the 6-element list as "standard types"
+    ! grep -qE '`(argue|cite|data|method)`' "$REPO_ROOT/docs/skills/02-note.md"
+}
+
 # --- T15: no compile_pdf.py references --------------------------------------
 test_T15() {
     # No compile_pdf.py references in user-facing docs — that script does not exist.
@@ -230,6 +248,7 @@ run_test "T10 core.fileMode auto-fix"             test_T10
 run_test "T11 no CLAUDE_SKILL_DIR in skill files" test_T11
 run_test "T12 no export_output in skill files"   test_T12
 run_test "T13 no revisiting status enum"         test_T13
+run_test "T14 no deprecated vocab in /map+/note" test_T14
 run_test "T15 no compile_pdf.py references"      test_T15
 run_test "T17 Python 3.8 import safety"           test_T17
 

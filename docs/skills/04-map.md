@@ -6,7 +6,7 @@ Build a matrix showing which sources support which thesis chapters. Identify cov
 
 ## What It Does
 
-`/map` scans every notes file and every chapter, then builds a cross-reference matrix. Rows are sources, columns are chapters. Each cell shows the connection type (supports, challenges, extends, cite, data, method).
+`/map` scans every notes file and every chapter, then builds a cross-reference matrix. Rows are sources, columns are chapters. Each cell shows the connection type (supports, challenges, extends).
 
 It also flags **under-covered chapters** — chapters with fewer than 3 mapped sources.
 
@@ -73,12 +73,12 @@ User says "/map"
 
 | Source | Status | Ch1 | Ch2 | Ch3 | Ch4 | Ch5 | Ch6 | Ch7 | Ch8 |
 |--------|--------|-----|-----|-----|-----|-----|-----|-----|-----|
-| Bennett (2010) | integrated | | | argue | | supports | | | |
-| Goodman (1968) | integrated | cite | argue | argue | cite | | | | |
-| Hui (2017) | completed | | | argue | | | cite | | cite |
-| Panofsky (1939) | integrated | cite | argue | argue | | | | | |
-| Parsons (1987) | completed | | cite | argue | | | | | |
-| Steyerl (2023) | completed | | | | | | argue | cite | |
+| Bennett (2010) | integrated | | | supports | | supports | | | |
+| Goodman (1968) | integrated | extends | supports | supports | extends | | | | |
+| Hui (2017) | completed | | | supports | | | challenges | | challenges |
+| Panofsky (1939) | integrated | extends | supports | supports | | | | | |
+| Parsons (1987) | completed | | extends | supports | | | | | |
+| Steyerl (2023) | completed | | | | | | supports | extends | |
 
 ### Coverage Summary
 

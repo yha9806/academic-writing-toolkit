@@ -25,7 +25,7 @@ This skill activates on: `map`, `show mapping`, `coverage`, `which sources`, `/m
 2. **Scan chapter files** in `chapters/` to get the list of chapters and their section headings.
 
 3. **Build the mapping matrix.** Rows are sources (sorted alphabetically by author), columns are chapters (Ch1 through Ch8 or however many exist).
-   - Mark each cell with the connection type if a mapping exists (e.g., `cite`, `argue`, `data`, `method`).
+   - Mark each cell with the connection type if a mapping exists (e.g., `supports`, `challenges`, `extends`).
    - Leave cells empty if no connection.
 
 4. **Identify coverage gaps.** Flag any chapter that has fewer than 3 mapped sources as "under-covered".
@@ -41,9 +41,9 @@ This skill activates on: `map`, `show mapping`, `coverage`, `which sources`, `/m
 
 | Source | Status | Ch1 | Ch2 | Ch3 | Ch4 | Ch5 | Ch6 | Ch7 | Ch8 |
 |--------|--------|-----|-----|-----|-----|-----|-----|-----|-----|
-| Bennett (2010) | integrated | | argue | argue | | | | | |
-| Goodman (1968) | integrated | cite | argue | argue | cite | | | | |
-| Hui (2017) | completed | | | argue | | | cite | | cite |
+| Bennett (2010) | integrated | | supports | supports | | | | | |
+| Goodman (1968) | integrated | extends | supports | supports | extends | | | | |
+| Hui (2017) | completed | | | supports | | | challenges | | challenges |
 
 ### Coverage Summary
 
