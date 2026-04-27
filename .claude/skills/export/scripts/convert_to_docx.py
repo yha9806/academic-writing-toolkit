@@ -9,6 +9,7 @@ Conversion priority:
     1. pypandoc (if available)
     2. python-docx + markdown (fallback)
 """
+from __future__ import annotations
 
 import argparse
 import os

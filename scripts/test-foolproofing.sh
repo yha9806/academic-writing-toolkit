@@ -178,6 +178,16 @@ test_T11() {
     ! grep -rq 'CLAUDE_SKILL_DIR' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"
 }
 
+# --- T17: Python 3.8 import safety ------------------------------------------
+test_T17() {
+    local script="$REPO_ROOT/.claude/skills/export/scripts/convert_to_docx.py"
+    grep -q '^from __future__ import annotations$' "$script" || return 1
+    if command -v python3.8 >/dev/null 2>&1; then
+        python3.8 -c "import importlib.util as u; s=u.spec_from_file_location('m','$script'); m=u.module_from_spec(s); s.loader.exec_module(m)" 2>/dev/null || return 1
+    fi
+    return 0
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -196,6 +206,7 @@ run_test "T8  sync is idempotent"                 test_T8
 run_test "T9  make init aborts without tty"       test_T9
 run_test "T10 core.fileMode auto-fix"             test_T10
 run_test "T11 no CLAUDE_SKILL_DIR in skill files" test_T11
+run_test "T17 Python 3.8 import safety"           test_T17
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
