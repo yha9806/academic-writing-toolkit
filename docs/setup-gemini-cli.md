@@ -14,6 +14,18 @@ gemini
 
 Skills are loaded from `.agents/skills/` (symlinked to `.claude/skills/`).
 
+## Setup
+
+After cloning, run:
+
+```bash
+make setup
+```
+
+This sets `git config core.fileMode false` (avoids mode-bit noise commits), regenerates `AGENTS.md` / `GEMINI.md` from `CLAUDE.md`, and runs `make doctor` to verify the environment.
+
+If `make doctor` reports anything red, run `make repair` to fix what it can.
+
 ## Verify
 
 Ask Gemini: "What skills are available?"
@@ -35,11 +47,13 @@ You should see the 8 academic writing skills: read, note, verify, integrate, aud
 
 ## Configuration
 
-Gemini CLI reads `GEMINI.md` as its project instruction file. Edit it to set your:
+Gemini CLI reads `GEMINI.md` as its project instruction file, but `GEMINI.md` is auto-generated from `CLAUDE.md` (the canonical config). Edit `CLAUDE.md` to set your:
 
 - Word count targets per chapter
 - Reading pace limits
 - Directory paths for literature and chapters
+
+Then run `make sync` to regenerate `GEMINI.md` from your changes.
 
 ## Skill Discovery
 

@@ -185,7 +185,9 @@ Skills are located in `.agents/skills/`. Each `.md` file in that directory defin
 #   INPUT_FILE  — defaults to CLAUDE.md
 #   OUTPUT_DIR  — defaults to . (repo root); pass a tmpdir for read-only diff use
 set -euo pipefail
-source scripts/lib.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$SCRIPT_DIR/lib.sh"
 
 INPUT="${1:-CLAUDE.md}"
 OUTDIR="${2:-.}"
@@ -193,8 +195,8 @@ OUTDIR="${2:-.}"
 # 0. Validate prerequisites
 [[ -f "$INPUT" ]] || die "input not found: $INPUT"
 [[ -d "$OUTDIR" ]] || die "output dir not found: $OUTDIR"
-[[ -f templates/agents-preamble.md ]] || die "templates/agents-preamble.md missing — reinstall toolkit"
-[[ -f templates/gemini-preamble.md ]] || die "templates/gemini-preamble.md missing — reinstall toolkit"
+[[ -f "$REPO_ROOT/templates/agents-preamble.md" ]] || die "$REPO_ROOT/templates/agents-preamble.md missing — reinstall toolkit"
+[[ -f "$REPO_ROOT/templates/gemini-preamble.md" ]] || die "$REPO_ROOT/templates/gemini-preamble.md missing — reinstall toolkit"
 
 # 1. Validate exactly one marker pair (markers MUST appear alone on their own line — no leading/trailing whitespace, not inside code fences)
 start_count=$(awk '$0 == "<!-- SHARED:START -->" {n++} END {print n+0}' "$INPUT")
@@ -207,15 +209,17 @@ shared=$(awk '$0 == "<!-- SHARED:START -->" {flag=1; next} $0 == "<!-- SHARED:EN
 [[ -n "$shared" ]] || die "SHARED block is empty in $INPUT"
 
 # 3. Generate AGENTS.md atomically
-{ cat templates/agents-preamble.md; printf '%s\n' "$shared"; } > "$OUTDIR/AGENTS.md.new"
+{ cat "$REPO_ROOT/templates/agents-preamble.md"; printf '%s\n' "$shared"; } > "$OUTDIR/AGENTS.md.new"
 mv "$OUTDIR/AGENTS.md.new" "$OUTDIR/AGENTS.md"
 
 # 4. Generate GEMINI.md atomically
-{ cat templates/gemini-preamble.md; printf '%s\n' "$shared"; } > "$OUTDIR/GEMINI.md.new"
+{ cat "$REPO_ROOT/templates/gemini-preamble.md"; printf '%s\n' "$shared"; } > "$OUTDIR/GEMINI.md.new"
 mv "$OUTDIR/GEMINI.md.new" "$OUTDIR/GEMINI.md"
 
 ok "Synced AGENTS.md and GEMINI.md from $INPUT into $OUTDIR"
 ```
+
+`SCRIPT_DIR` and `REPO_ROOT` are derived from `BASH_SOURCE`, so the script resolves `templates/` against its own location rather than the caller's cwd. This lets `make doctor` invoke it from any directory (it writes to a `mktemp -d` for read-only diffs) and guarantees correct behaviour even when the script is symlinked or invoked with absolute paths.
 
 **Marker constraint** — both `<!-- SHARED:START -->` and `<!-- SHARED:END -->` MUST appear on their own line, with no leading or trailing whitespace, and never inside a markdown code fence. The anchored `$0 == "..."` check enforces this; markers appearing inside fenced code blocks (e.g. examples in this spec) are correctly ignored.
 

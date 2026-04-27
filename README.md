@@ -24,6 +24,8 @@
 
 ## Quick Start
 
+> ⚠️ **Use `git clone`, not GitHub's "Download ZIP".** This repo uses symlinks under `.agents/skills/` for cross-platform skill discovery. ZIP downloads silently replace symlinks with copies, breaking Codex / Gemini / OpenClaw integrations. If you must use ZIP, run `make repair` after extracting.
+
 Clone the repo and start your agent. Skills are discovered automatically.
 
 **Claude Code** (recommended):
@@ -61,6 +63,28 @@ gemini
 3. Rules auto-loaded from .cursor/rules/
 Note: Cursor supports rules only. For full skill invocation, pair with a CLI agent.
 ```
+
+---
+
+## First Run Checklist
+
+After cloning, run these once:
+
+```bash
+make setup     # sets git config, syncs configs, runs health check
+make init      # opens CLAUDE.md in $EDITOR — fill in your project parameters
+```
+
+Then start your AI agent (`claude`, `codex`, or `gemini`) and use `/read` on your first PDF.
+
+Anytime later:
+
+| Command | When to run |
+|---------|-------------|
+| `make doctor` | Sanity-check the environment (read-only, fast) |
+| `make repair` | Fix anything `doctor` flags red |
+| `make sync`   | After editing `CLAUDE.md` (regenerates `AGENTS.md` / `GEMINI.md`) |
+| `make help`   | List all targets |
 
 ---
 
@@ -142,7 +166,7 @@ my-thesis/
 
 ## Configuration
 
-Edit `CLAUDE.md` (or `AGENTS.md` / `GEMINI.md` depending on your platform) to set your project parameters.
+Edit `CLAUDE.md` to set your project parameters. `CLAUDE.md` is the canonical config — `AGENTS.md` and `GEMINI.md` are auto-generated from it. Run `make sync` after editing to propagate changes to all platform files.
 
 Key configurable items:
 
