@@ -181,7 +181,7 @@ The conversion script lives at `.claude/skills/export/scripts/convert_to_docx.py
 | Mistake | Fix |
 |---------|-----|
 | Exporting without auditing first | Run `/audit` before `/export`. Inconsistencies in the Word docs are harder to spot. |
-| Expecting PDF output | `/export` produces .docx + ZIP. For PDF, use your own Markdown-to-PDF pipeline (e.g., `compile_pdf.py`). |
+| Expecting PDF output | `/export` produces .docx + ZIP. There is no PDF export path; convert the .docx to PDF in Word or LibreOffice if you need PDF. |
 | Running `/export` expecting it to auto-trigger | This skill is user-invoked only. You must type `/export` explicitly. |
 | Not checking which conversion method was used | If pypandoc or the pandoc binary is unavailable, tables may look different in the python-docx fallback. |
 

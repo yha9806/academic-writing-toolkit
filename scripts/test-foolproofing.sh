@@ -184,6 +184,14 @@ test_T12() {
     ! grep -rq 'export_output' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"
 }
 
+# --- T15: no compile_pdf.py references --------------------------------------
+test_T15() {
+    # No compile_pdf.py references in user-facing docs — that script does not exist.
+    # docs/superpowers/ contains internal design specs that may legitimately describe
+    # the bug; only skill docs and README are user-facing.
+    ! grep -rq 'compile_pdf.py' "$REPO_ROOT/docs/skills/" "$REPO_ROOT/README.md"
+}
+
 # --- T17: Python 3.8 import safety ------------------------------------------
 test_T17() {
     local script="$REPO_ROOT/.claude/skills/export/scripts/convert_to_docx.py"
@@ -213,6 +221,7 @@ run_test "T9  make init aborts without tty"       test_T9
 run_test "T10 core.fileMode auto-fix"             test_T10
 run_test "T11 no CLAUDE_SKILL_DIR in skill files" test_T11
 run_test "T12 no export_output in skill files"   test_T12
+run_test "T15 no compile_pdf.py references"      test_T15
 run_test "T17 Python 3.8 import safety"           test_T17
 
 header ""
