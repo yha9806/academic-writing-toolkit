@@ -201,9 +201,8 @@ test_T14() {
         "$REPO_ROOT/docs/skills/04-map.md"
     )
     # Scope to lines containing | (table-cell delimiter) to skip prose like
-    # "data consistency" or "must cite the source"; exclude header rows.
-    if grep -nE '\|.*\b(argue|cite|data|method)\b' "${files[@]}" 2>/dev/null \
-        | grep -vE '^[^:]+:[0-9]+:\s*\|\s*Term\s*\|' | grep -q .; then
+    # "data consistency" or "must cite the source".
+    if grep -E '\|.*\b(argue|cite|data|method)\b' "${files[@]}" 2>/dev/null | grep -q .; then
         return 1
     fi
     # Also check the /note user doc for the 6-element list as "standard types"
