@@ -1,7 +1,7 @@
 ---
 name: map
 description: Show or update the mapping between literature and thesis chapters — which sources support which arguments. Use for tracking coverage.
-allowed-tools: Read, Glob, Grep, Edit
+allowed-tools: Read, Glob, Grep, Edit, Write
 ---
 
 # /map — Literature-Thesis Mapping Skill

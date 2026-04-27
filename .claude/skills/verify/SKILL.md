@@ -1,7 +1,7 @@
 ---
 name: verify
 description: Fact-check claims encountered during reading — dates, names, events, citations. Use when encountering historical facts or disputed claims.
-allowed-tools: WebSearch, WebFetch, Edit
+allowed-tools: WebSearch, WebFetch, Read, Edit
 ---
 
 # /verify — Fact Verification Skill

@@ -233,6 +233,15 @@ test_T17() {
     return 0
 }
 
+# --- T18: allowed-tools sanity (/map + /verify) -----------------------------
+test_T18() {
+    # /map needs Write (line 62 says "use Write if creating new")
+    grep -qE '^allowed-tools:.*\bWrite\b' "$REPO_ROOT/.claude/skills/map/SKILL.md" || return 1
+    # /verify needs Read (Edit requires prior Read per harness contract)
+    grep -qE '^allowed-tools:.*\bRead\b' "$REPO_ROOT/.claude/skills/verify/SKILL.md" || return 1
+    return 0
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -257,6 +266,7 @@ run_test "T14 no deprecated vocab in /map+/note" test_T14
 run_test "T15 no compile_pdf.py references"      test_T15
 run_test "T16 no PDF export claim in setup docs" test_T16
 run_test "T17 Python 3.8 import safety"           test_T17
+run_test "T18 allowed-tools sanity (/map+/verify)" test_T18
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
