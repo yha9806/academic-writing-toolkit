@@ -668,13 +668,15 @@ cp ".claude/skills/$SKILL/SKILL.md" ".agents/skills/$SKILL/SKILL.md"
 
 This recreates the corruption pattern that T2 detects: a directory containing a copy instead of a symlink to the canonical source.
 
-- [ ] **Step 3: Confirm T2 fails locally**
+- [ ] **Step 3: Confirm `make doctor` fails locally (T2 itself self-heals)**
 
 ```bash
-bash scripts/test.sh 2>&1 | grep -E 'T2 |tests'
+make doctor 2>&1 | grep -E 'symlink|fix:'; echo "doctor exit=$?"
 ```
 
-Expected: `[✗] T2  symlink corruption + repair`; final summary indicates a failure. Exit 1.
+Expected: doctor reports `[✗] skill symlink broken: .agents/skills/$SKILL`, suggests `fix: make repair`, and exits non-zero (`doctor exit=1`).
+
+**Why not `bash scripts/test.sh`**: T2 is a *self-healing* test. Its body breaks the symlink, runs `doctor` (expecting failure), runs `repair`, then asserts the symlink is back. Running the harness on already-broken state means T2 just executes its full cycle and reports `[✓]` — the corruption isn't visible to the harness alone. The CI catches it via the orthogonal `make doctor` step that runs *before* `make test`. This is exactly why spec §4.3 Q5 chose to keep doctor and test as **separate** GHA steps — they cover complementary failure modes.
 
 - [ ] **Step 4: Push the broken state**
 
