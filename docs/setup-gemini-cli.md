@@ -14,6 +14,18 @@ gemini
 
 Skills are loaded from `.agents/skills/` (symlinked to `.claude/skills/`).
 
+## Setup
+
+After cloning, run:
+
+```bash
+make setup
+```
+
+This sets `git config core.fileMode false` (avoids mode-bit noise commits), regenerates `AGENTS.md` / `GEMINI.md` from `CLAUDE.md`, and runs `make doctor` to verify the environment.
+
+If `make doctor` reports anything red, run `make repair` to fix what it can.
+
 ## Verify
 
 Ask Gemini: "What skills are available?"

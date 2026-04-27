@@ -14,6 +14,18 @@ claude
 
 Skills are auto-discovered from `.claude/skills/`. Type `/read` to verify.
 
+## Setup
+
+After cloning, run:
+
+```bash
+make setup
+```
+
+This sets `git config core.fileMode false` (avoids mode-bit noise commits), regenerates `AGENTS.md` / `GEMINI.md` from `CLAUDE.md`, and runs `make doctor` to verify the environment.
+
+If `make doctor` reports anything red, run `make repair` to fix what it can.
+
 ## Verify
 
 Ask Claude: "What skills are available?"
