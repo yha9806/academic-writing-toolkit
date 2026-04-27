@@ -49,13 +49,10 @@ run_test "T2  symlink corruption + repair"        test_T2
 Add the T11 test function above the runners section (around line 158, after `test_T10`):
 
 ```bash
+# Match T2-T10 harness style: function returns 0/1; run_test handles printing.
 test_T11() {
-  # No CLAUDE_SKILL_DIR references in skill prose or user docs
-  if grep -rq 'CLAUDE_SKILL_DIR' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"; then
-    fail "T11" "found CLAUDE_SKILL_DIR in skill files (Bug #1 should remove all instances)"
-    return 1
-  fi
-  pass "T11"
+    # No CLAUDE_SKILL_DIR references in skill prose or user docs
+    ! grep -rq 'CLAUDE_SKILL_DIR' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"
 }
 ```
 
@@ -155,21 +152,14 @@ EOF
 Add the T17 test function (after `test_T11`):
 
 ```bash
+# Match T2-T10 harness style: function returns 0/1; run_test handles printing.
 test_T17() {
-  # Python 3.8 safety: convert_to_docx.py must have `from __future__ import annotations`
-  # Two-tier: cheap grep guard always; if python3.8 available, run actual import smoke.
-  local script="$REPO_ROOT/.claude/skills/export/scripts/convert_to_docx.py"
-  if ! grep -q '^from __future__ import annotations$' "$script"; then
-    fail "T17" "convert_to_docx.py missing 'from __future__ import annotations' (Bug #8)"
-    return 1
-  fi
-  if command -v python3.8 >/dev/null 2>&1; then
-    if ! python3.8 -c "import importlib.util as u; s=u.spec_from_file_location('m','$script'); m=u.module_from_spec(s); s.loader.exec_module(m)" 2>/dev/null; then
-      fail "T17" "convert_to_docx.py fails to import on Python 3.8"
-      return 1
+    local script="$REPO_ROOT/.claude/skills/export/scripts/convert_to_docx.py"
+    grep -q '^from __future__ import annotations$' "$script" || return 1
+    if command -v python3.8 >/dev/null 2>&1; then
+        python3.8 -c "import importlib.util as u; s=u.spec_from_file_location('m','$script'); m=u.module_from_spec(s); s.loader.exec_module(m)" 2>/dev/null || return 1
     fi
-  fi
-  pass "T17"
+    return 0
 }
 ```
 
@@ -578,12 +568,8 @@ EOF
 
 ```bash
 test_T12() {
-  # No export_output references in skill prose or user docs
-  if grep -rq 'export_output' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"; then
-    fail "T12" "found export_output in skill files (Bug #4: should be final_output)"
-    return 1
-  fi
-  pass "T12"
+    # No export_output references in skill prose or user docs
+    ! grep -rq 'export_output' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"
 }
 ```
 
@@ -651,12 +637,8 @@ EOF
 
 ```bash
 test_T15() {
-  # No compile_pdf.py references — that script does not exist
-  if grep -rq 'compile_pdf.py' "$REPO_ROOT/docs/" "$REPO_ROOT/README.md"; then
-    fail "T15" "found compile_pdf.py reference (Bug #6: script does not exist)"
-    return 1
-  fi
-  pass "T15"
+    # No compile_pdf.py references — that script does not exist
+    ! grep -rq 'compile_pdf.py' "$REPO_ROOT/docs/" "$REPO_ROOT/README.md"
 }
 ```
 
@@ -724,12 +706,8 @@ EOF
 
 ```bash
 test_T13() {
-  # No `revisiting` status anywhere — only `reading | completed | integrated`
-  if grep -rqE '\brevisiting\b' "$REPO_ROOT/README.md" "$REPO_ROOT/.cursor/" "$REPO_ROOT/docs/" "$REPO_ROOT/.claude/skills/" 2>/dev/null; then
-    fail "T13" "found 'revisiting' status (Bug #3: enum is reading|completed|integrated)"
-    return 1
-  fi
-  pass "T13"
+    # No `revisiting` status anywhere — only `reading | completed | integrated`
+    ! grep -rqE '\brevisiting\b' "$REPO_ROOT/README.md" "$REPO_ROOT/.cursor/" "$REPO_ROOT/docs/" "$REPO_ROOT/.claude/skills/" 2>/dev/null
 }
 ```
 
@@ -826,25 +804,20 @@ EOF
 
 ```bash
 test_T14() {
-  # No deprecated vocab (argue|cite|data|method) in matrix-cell context
-  # within /map skill files and the /note user doc's standard-types section.
-  # Scope to lines containing | (table-cell delimiter) to avoid prose false positives.
-  local files=(
-    "$REPO_ROOT/.claude/skills/map/SKILL.md"
-    "$REPO_ROOT/docs/skills/04-map.md"
-  )
-  local hits
-  hits=$(grep -nE '\|.*\b(argue|cite|data|method)\b' "${files[@]}" 2>/dev/null | grep -vE '^\s*\|\s*Term\s*\|' || true)
-  if [ -n "$hits" ]; then
-    fail "T14" "deprecated vocab in matrix cells (Bug #7):"$'\n'"$hits"
-    return 1
-  fi
-  # Also check /note user doc for the 6-element list as "standard types"
-  if grep -qE '`(argue|cite|data|method)`' "$REPO_ROOT/docs/skills/02-note.md"; then
-    fail "T14" "deprecated vocab still listed in docs/skills/02-note.md (Bug #7)"
-    return 1
-  fi
-  pass "T14"
+    # No deprecated vocab (argue|cite|data|method) in matrix-cell context
+    # within /map skill files and the /note user doc's standard-types section.
+    local files=(
+        "$REPO_ROOT/.claude/skills/map/SKILL.md"
+        "$REPO_ROOT/docs/skills/04-map.md"
+    )
+    # Scope to lines containing | (table-cell delimiter) to skip prose like
+    # "data consistency" or "must cite the source"; exclude header rows.
+    if grep -nE '\|.*\b(argue|cite|data|method)\b' "${files[@]}" 2>/dev/null \
+        | grep -vE '^[^:]+:[0-9]+:\s*\|\s*Term\s*\|' | grep -q .; then
+        return 1
+    fi
+    # Also check the /note user doc for the 6-element list as "standard types"
+    ! grep -qE '`(argue|cite|data|method)`' "$REPO_ROOT/docs/skills/02-note.md"
 }
 ```
 
@@ -992,12 +965,8 @@ EOF
 
 ```bash
 test_T16() {
-  # No "Word/PDF" or "to Word and PDF" in setup docs — /export only produces .docx + .zip
-  if grep -lE '(Word/PDF|to Word and PDF)' "$REPO_ROOT"/docs/setup-*.md 2>/dev/null | grep -q .; then
-    fail "T16" "setup docs claim PDF export (Bug #5: only .docx + .zip exist)"
-    return 1
-  fi
-  pass "T16"
+    # No "Word/PDF" or "to Word and PDF" in setup docs — /export only produces .docx + .zip
+    ! grep -lE '(Word/PDF|to Word and PDF)' "$REPO_ROOT"/docs/setup-*.md 2>/dev/null | grep -q .
 }
 ```
 
@@ -1059,17 +1028,11 @@ EOF
 
 ```bash
 test_T18() {
-  # /map needs Write (line 62 says "use Write if creating new")
-  if ! grep -qE '^allowed-tools:.*\bWrite\b' "$REPO_ROOT/.claude/skills/map/SKILL.md"; then
-    fail "T18" "/map SKILL.md allowed-tools missing Write (Bug #9)"
-    return 1
-  fi
-  # /verify needs Read (Edit requires prior Read per harness contract)
-  if ! grep -qE '^allowed-tools:.*\bRead\b' "$REPO_ROOT/.claude/skills/verify/SKILL.md"; then
-    fail "T18" "/verify SKILL.md allowed-tools missing Read (Bug #10)"
-    return 1
-  fi
-  pass "T18"
+    # /map needs Write (line 62 says "use Write if creating new")
+    grep -qE '^allowed-tools:.*\bWrite\b' "$REPO_ROOT/.claude/skills/map/SKILL.md" || return 1
+    # /verify needs Read (Edit requires prior Read per harness contract)
+    grep -qE '^allowed-tools:.*\bRead\b' "$REPO_ROOT/.claude/skills/verify/SKILL.md" || return 1
+    return 0
 }
 ```
 

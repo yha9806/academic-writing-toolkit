@@ -173,12 +173,9 @@ test_T10() {
 
 # --- T11: no CLAUDE_SKILL_DIR in skill files --------------------------------
 test_T11() {
-  # No CLAUDE_SKILL_DIR references in skill prose or user docs
-  if grep -rq 'CLAUDE_SKILL_DIR' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"; then
-    fail "T11" "found CLAUDE_SKILL_DIR in skill files (Bug #1 should remove all instances)"
-    return 1
-  fi
-  pass "T11"
+    # No CLAUDE_SKILL_DIR references in skill prose or user docs.
+    # Return 0/1 (run_test handles output) to match T2-T10 style.
+    ! grep -rq 'CLAUDE_SKILL_DIR' "$REPO_ROOT/.claude/skills/" "$REPO_ROOT/docs/skills/"
 }
 
 # ----------------------------------------------------------------------------
