@@ -47,11 +47,13 @@ You should see the 8 academic writing skills: read, note, verify, integrate, aud
 
 ## Configuration
 
-Codex reads `AGENTS.md` as its project instruction file. Edit it to set your:
+Codex reads `AGENTS.md` as its project instruction file, but `AGENTS.md` is auto-generated from `CLAUDE.md` (the canonical config). Edit `CLAUDE.md` to set your:
 
 - Word count targets per chapter
 - Reading pace limits
 - Directory paths for literature and chapters
+
+Then run `make sync` to regenerate `AGENTS.md` from your changes.
 
 ## Skill Invocation
 

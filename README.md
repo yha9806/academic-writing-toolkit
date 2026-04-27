@@ -166,7 +166,7 @@ my-thesis/
 
 ## Configuration
 
-Edit `CLAUDE.md` (or `AGENTS.md` / `GEMINI.md` depending on your platform) to set your project parameters.
+Edit `CLAUDE.md` to set your project parameters. `CLAUDE.md` is the canonical config — `AGENTS.md` and `GEMINI.md` are auto-generated from it. Run `make sync` after editing to propagate changes to all platform files.
 
 Key configurable items:
 
