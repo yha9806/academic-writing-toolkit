@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (28 automated tests: T2-T18 toolkit + T19-T31 citation) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (29 automated tests: T2-T18 toolkit + T19-T32 citation/env) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -29,31 +29,50 @@ run_test() {
     fi
 }
 
+_make_tmp_repo() {
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    cp -R \
+        "$REPO_ROOT/scripts" \
+        "$REPO_ROOT/templates" \
+        "$REPO_ROOT/.claude" \
+        "$REPO_ROOT/.agents" \
+        "$REPO_ROOT/CLAUDE.md" \
+        "$REPO_ROOT/AGENTS.md" \
+        "$REPO_ROOT/GEMINI.md" \
+        "$tmp" || return 1
+    printf '%s\n' "$tmp"
+}
+
 # --- T2: symlink corruption recovery ----------------------------------------
 test_T2() {
-    local skill
-    skill=$(find .claude/skills -maxdepth 1 -mindepth 1 -type d | head -1 | xargs basename)
+    local tmp skill
+    tmp=$(_make_tmp_repo) || return 1
+    skill=$(find "$tmp/.claude/skills" -maxdepth 1 -mindepth 1 -type d | head -1 | xargs basename)
     [[ -z "$skill" ]] && return 1
 
-    rm -rf ".agents/skills/$skill"
-    mkdir -p ".agents/skills/$skill"
-    cp ".claude/skills/$skill/SKILL.md" ".agents/skills/$skill/SKILL.md" 2>/dev/null || true
+    rm -rf "$tmp/.agents/skills/$skill"
+    mkdir -p "$tmp/.agents/skills/$skill"
+    cp "$tmp/.claude/skills/$skill/SKILL.md" "$tmp/.agents/skills/$skill/SKILL.md" 2>/dev/null || true
 
     # doctor should fail (we expect non-zero exit)
-    if bash scripts/doctor.sh >/dev/null 2>&1; then
-        # restore before returning failure
-        rm -rf ".agents/skills/$skill"
-        ln -s "../../.claude/skills/$skill" ".agents/skills/$skill"
+    if (cd "$tmp" && bash scripts/doctor.sh >/dev/null 2>&1); then
+        rm -rf "$tmp"
         return 1
     fi
 
-    bash scripts/repair.sh >/dev/null 2>&1
+    if ! (cd "$tmp" && bash scripts/repair.sh >/dev/null 2>&1); then
+        rm -rf "$tmp"
+        return 1
+    fi
 
     # doctor should now pass — note: only the symlink check matters; if deps fail, that's not a T2 failure
-    if test -L ".agents/skills/$skill" && \
-       [[ "$(readlink ".agents/skills/$skill")" == "../../.claude/skills/$skill" ]]; then
+    if test -L "$tmp/.agents/skills/$skill" && \
+       [[ "$(readlink "$tmp/.agents/skills/$skill")" == "../../.claude/skills/$skill" ]]; then
+        rm -rf "$tmp"
         return 0
     fi
+    rm -rf "$tmp"
     return 1
 }
 
@@ -297,6 +316,28 @@ test_T29() { _assert_citation clean_vancouver vancouver 0 ""; }
 test_T30() { _assert_citation clean_gb_2015 gb-t-7714-2015 0 ""; }
 test_T31() { _assert_citation multi_author_etal harvard 1 format-etal-threshold; }
 
+# --- T32: repair reports unwritable .agents clearly -------------------------
+test_T32() {
+    local tmp skill out rc
+    tmp=$(_make_tmp_repo) || return 1
+    skill=$(find "$tmp/.claude/skills" -maxdepth 1 -mindepth 1 -type d | head -1 | xargs basename)
+    [[ -z "$skill" ]] && return 1
+
+    rm -rf "$tmp/.agents/skills/$skill"
+    mkdir -p "$tmp/.agents/skills/$skill"
+    cp "$tmp/.claude/skills/$skill/SKILL.md" "$tmp/.agents/skills/$skill/SKILL.md" 2>/dev/null || true
+    chmod 555 "$tmp/.agents" "$tmp/.agents/skills"
+
+    out=$(cd "$tmp" && bash scripts/repair.sh 2>&1)
+    rc=$?
+
+    chmod 755 "$tmp/.agents" "$tmp/.agents/skills" 2>/dev/null || true
+    rm -rf "$tmp"
+
+    [[ "$rc" -eq 2 ]] || return 1
+    echo "$out" | grep -q "cannot repair broken skill symlinks"
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -335,6 +376,7 @@ run_test "T28 numeric-gap (IEEE [3] missing)"      test_T28
 run_test "T29 clean Vancouver"                     test_T29
 run_test "T30 clean GB/T 7714-2015 (CJK punct)"    test_T30
 run_test "T31 etal threshold (Harvard 4 authors)"  test_T31
+run_test "T32 repair clear error on unwritable .agents" test_T32
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

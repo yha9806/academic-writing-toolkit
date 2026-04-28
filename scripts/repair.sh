@@ -12,6 +12,21 @@ if [[ ! -d .claude/skills ]]; then
     die ".claude/skills/ directory missing — are you in the toolkit root?"
 fi
 
+symlink_ok() {
+    local name="$1"
+    test -L ".agents/skills/$name" && \
+        [[ "$(readlink ".agents/skills/$name")" == "../../.claude/skills/$name" ]]
+}
+
+agents_tree_writable() {
+    local probe
+    mkdir -p .agents/skills 2>/dev/null || return 1
+    probe=".agents/skills/.repair-probe-$$"
+    touch "$probe" >/dev/null 2>&1 || return 1
+    rm -f "$probe"
+    return 0
+}
+
 # Derive skill names (matches doctor.sh)
 SKILL_NAMES=()
 while IFS= read -r -d '' name; do
@@ -19,27 +34,41 @@ while IFS= read -r -d '' name; do
 done < <(find .claude/skills -maxdepth 1 -mindepth 1 -type d -print0 | sort -z)
 
 # --- Fix (i+ii): rebuild any broken symlinks ---------------------------------
-mkdir -p .agents/skills
 if [[ ${#SKILL_NAMES[@]} -eq 0 ]]; then
     warn ".claude/skills/ has no skill subdirectories — nothing to symlink"
     hint "reinstall the toolkit"
 else
-    rebuilt=0
+    broken=0
     for n in "${SKILL_NAMES[@]}"; do
-        if ! { test -L ".agents/skills/$n" && \
-               [[ "$(readlink ".agents/skills/$n")" == "../../.claude/skills/$n" ]]; }; then
+        if ! symlink_ok "$n"; then
+            broken=$((broken+1))
+        fi
+    done
+
+    if [[ $broken -gt 0 ]]; then
+        if ! agents_tree_writable; then
+            die ".agents/skills is not writable in this environment; cannot repair broken skill symlinks"
+        fi
+
+        rebuilt=0
+        for n in "${SKILL_NAMES[@]}"; do
+            if symlink_ok "$n"; then
+                continue
+            fi
             if [[ -e ".agents/skills/$n" && ! -L ".agents/skills/$n" ]]; then
                 warn ".agents/skills/$n exists but is not a symlink; replacing"
             fi
             rm -rf ".agents/skills/$n"
             ln -s "../../.claude/skills/$n" ".agents/skills/$n"
             rebuilt=$((rebuilt+1))
-        fi
-    done
-    if [[ $rebuilt -gt 0 ]]; then
+        done
         ok "rebuilt $rebuilt skill symlink(s)"
     else
-        ok "symlinks already intact (no action)"
+        if agents_tree_writable; then
+            ok "symlinks already intact (no action)"
+        else
+            warn ".agents/skills is not writable in this environment; symlinks are already intact, so rebuild was skipped"
+        fi
     fi
 fi
 
