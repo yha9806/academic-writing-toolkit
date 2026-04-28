@@ -5,7 +5,7 @@ Structured local agent skills for academic reading, writing, reference checking,
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-Standard-blue.svg)](https://agentskills.io)
 
-This repository is a public toolkit. It contains reusable skills, scripts, templates, and tests only. Put your own chapters, PDFs, notes, and private project material in your clone.
+This repository is a public toolkit. It contains reusable local agent skills, scripts, templates, and tests only. Put your own chapters, PDFs, notes, and private project material in your clone.
 
 ```
 /read -> /note -> /map -> /integrate -> /audit -> /style -> /logic-review -> /export
@@ -17,7 +17,7 @@ This repository is a public toolkit. It contains reusable skills, scripts, templ
         /progress
 ```
 
-## Installation
+## Quick Start
 
 Use `git clone`, not GitHub's "Download ZIP". This repository uses symlinks under `.agents/skills/` so Codex, Gemini, and other local agent hosts can discover the same skills as Claude Code.
 
@@ -25,9 +25,14 @@ Use `git clone`, not GitHub's "Download ZIP". This repository uses symlinks unde
 git clone https://github.com/yha9806/academic-writing-toolkit.git my-writing-project
 cd my-writing-project
 make setup
+make doctor
 ```
 
-Then open the folder in a local agent runtime:
+Then open the folder in a local agent runtime and ask what skills are available. You should see the public academic writing skills listed below.
+
+The intended use is the same as local Superpowers-style skills: install the toolkit into a project folder, let the agent discover the skills from local files, and drive the workflow from natural language or slash commands.
+
+## Agent Runtime Support
 
 | Runtime | Local discovery path |
 |---------|----------------------|
@@ -36,7 +41,7 @@ Then open the folder in a local agent runtime:
 | Gemini CLI | `.agents/skills/` |
 | Cursor | `.cursor/rules/` baseline rules |
 
-The intended use is the same as local Superpowers-style skills: install the toolkit into a project folder, let the agent discover the skills, and drive the workflow from natural language or slash commands.
+Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [`docs/setup-codex-cli.md`](docs/setup-codex-cli.md), [`docs/setup-gemini-cli.md`](docs/setup-gemini-cli.md), and [`docs/setup-cursor.md`](docs/setup-cursor.md).
 
 ## Skills
 
@@ -50,11 +55,31 @@ The intended use is the same as local Superpowers-style skills: install the tool
 | `/audit` | Check numbers, terminology, cross-references, and citations |
 | `/style` | Check and safely fix British English spellings |
 | `/logic-review` | Review paragraph flow, transitions, and argument continuity |
-| `/verify-refs` | Validate BibTeX reference records offline, with room for explicit online checks |
+| `/verify-refs` | Validate BibTeX records offline or with explicit metadata checks |
 | `/progress` | Show reading, writing, and coverage progress |
 | `/export` | Convert Markdown outputs to `.docx` and ZIP packages |
 
 Detailed guides live in [`docs/skills/`](docs/skills/).
+
+## Quality Checks
+
+Agent-facing skills call deterministic scripts so checks are repeatable in CI and easy to run manually:
+
+```bash
+python3 scripts/audit-citations.py --base-dir . --style harvard --json
+python3 scripts/audit-citations.py --base-dir . --style harvard --fix-safe --apply
+
+python3 scripts/audit-british-english.py --base-dir . --json
+python3 scripts/audit-british-english.py --base-dir . --fix
+
+python3 scripts/audit-logic.py --base-dir . --json
+
+python3 scripts/verify-refs.py --bib references.bib --json
+python3 scripts/verify-refs.py --bib references.bib --json --online
+python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
+```
+
+Safe fixers are intentionally narrow. Citation fixes only apply conservative formatting changes such as Harvard comma normalisation; British English fixes only apply whole-word spelling replacements from the built-in map. Paragraph logic and reference metadata checks report findings for agent or user review.
 
 ## Project Layout
 

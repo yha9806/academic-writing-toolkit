@@ -18,7 +18,7 @@ Skills are loaded from `.agents/skills/` (symlinked to `.claude/skills/`).
 
 Ask OpenClaw: "What skills are available?"
 
-You should see the 8 academic writing skills: read, note, verify, integrate, audit, export, map, progress.
+You should see the 11 public academic writing skills: read, note, verify, map, integrate, audit, style, logic-review, verify-refs, progress, export.
 
 ## Available Skills
 
@@ -27,11 +27,14 @@ You should see the 8 academic writing skills: read, note, verify, integrate, aud
 | read      | Guided reading with page-by-page PDF extraction |
 | note      | Record structured reading notes      |
 | verify    | Fact-check claims against sources    |
+| map       | View literature coverage matrix      |
 | integrate | Weave reading notes into chapter drafts |
 | audit     | Pre-submission consistency check     |
-| export    | Export chapters to Word (.docx) + ZIP |
-| map       | View literature coverage matrix      |
+| style     | Check British English consistency    |
+| logic-review | Review paragraph flow and transitions |
+| verify-refs | Check BibTeX records and metadata |
 | progress  | Writing progress dashboard           |
+| export    | Export chapters to Word (.docx) + ZIP |
 
 ## Configuration
 
@@ -65,6 +68,9 @@ verify Smith published the article in 2020  # Fact-check a claim
 map                                   # See literature coverage matrix
 integrate                             # Weave notes into chapters
 audit                                 # Pre-submission consistency check
+style                                 # Check British English consistency
+logic-review                          # Review paragraph flow
+verify-refs references.bib            # Check BibTeX records
 progress                              # View writing dashboard
 export chapters en-only              # Export chapters to Word
 ```

@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Audit the thesis for data consistency — numbers, percentages, terminology, cross-references between chapters. Use before submission.
+description: Use when checking a thesis draft before submission for inconsistent numbers, terminology, cross-references, or citation problems.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
@@ -48,7 +48,7 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
 
    The script's exit code is `0` (no issues), `1` (issues at any tier), or `2` (invalid arguments). Add the script's issues to the `Issues` table below as new rows; severity vocabulary maps directly (`critical | high | medium | low | info`).
 
-   See `docs/superpowers/specs/2026-04-27-c-rest-citation-design.md` for the JSON schema and the registry of supported styles.
+   See `docs/skills/06-audit.md` and `python3 scripts/audit-citations.py --help` for the public citation-audit interface and supported styles.
 
 3. **Output the audit report** using the format below.
 

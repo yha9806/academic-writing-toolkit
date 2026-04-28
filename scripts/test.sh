@@ -482,7 +482,15 @@ test_T43() {
     grep -q "/verify-refs" "$REPO_ROOT/README.md" || return 1
     grep -q "/style" "$REPO_ROOT/README.md" || return 1
     grep -q "/logic-review" "$REPO_ROOT/README.md" || return 1
-    grep -q "local agent skill" "$REPO_ROOT/README.md"
+    grep -q "local agent skill" "$REPO_ROOT/README.md" || return 1
+    grep -q "scripts/audit-citations.py --base-dir" "$REPO_ROOT/README.md" || return 1
+    grep -q "scripts/audit-british-english.py --base-dir" "$REPO_ROOT/README.md" || return 1
+    grep -q "scripts/audit-logic.py --base-dir" "$REPO_ROOT/README.md" || return 1
+    grep -q "scripts/verify-refs.py --bib" "$REPO_ROOT/README.md" || return 1
+    grep -q -- "--metadata-dir" "$REPO_ROOT/README.md" || return 1
+    ! grep -q "room for explicit online checks" "$REPO_ROOT/README.md" || return 1
+    ! grep -R -q "docs/superpowers" "$REPO_ROOT/README.md" "$REPO_ROOT/docs" "$REPO_ROOT/.claude/skills" || return 1
+    ! grep -R -q "8 academic writing skills" "$REPO_ROOT/docs" || return 1
 }
 
 test_T44() {
