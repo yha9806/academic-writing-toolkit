@@ -8,6 +8,8 @@
 
 ---
 
+> **Test-count note (2026-04-28, sub-project C-rest)**: After A merged, C-rest extended the harness with T19–T31 (citation auditor), bringing the total to **28 automated tests** (T2–T31). The body of this document references "15 automated tests" because that was the count when A landed. The body is preserved as-shipped to keep the historical record honest; readers checking current behaviour should substitute 28.
+
 ## 1. Context
 
 D shipped a regression test harness (`scripts/test-foolproofing.sh`, 7 automated acceptance tests T2/T3/T4/T5/T8/T9/T10; T1/T6/T7 documented as manual-only because they require separate clones or PATH mutation that conflicts with parallel runs). C-emergency extended it with 8 more tests (T11–T18, covering status enum drift, vocab drift, allowed-tools sanity, Python 3.8 import safety, stale doc references). The harness now runs **15 automated tests on every invocation** and prints `all 15 tests passed` on `master @ 9092294`.
