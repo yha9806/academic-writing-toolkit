@@ -35,5 +35,5 @@ doctor:  ## Run all read-only health checks (CI-suitable, exit 0/1)
 repair:  ## Apply idempotent fixes for issues doctor flags
 	@bash scripts/repair.sh
 
-test:  ## Run the full regression test suite (15 automated tests)
+test:  ## Run the full regression test suite (28 automated tests)
 	@bash scripts/test.sh
