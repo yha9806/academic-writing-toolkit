@@ -1,235 +1,117 @@
 # academic-writing-toolkit
 
-***Structured skills for reading, writing, and managing academic research with AI agents.***
+Structured local agent skills for academic reading, writing, reference checking, and export.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-Standard-blue.svg)](https://agentskills.io)
-[![Works with](https://img.shields.io/badge/Works_with-Claude_Code_|_Codex_CLI_|_Gemini_CLI_|_Cursor-purple.svg)](#platform-compatibility)
+
+This repository is a public toolkit. It contains reusable skills, scripts, templates, and tests only. Put your own chapters, PDFs, notes, and private project material in your clone.
 
 ```
-  /read --> /note --> /map --> /integrate --> /audit --> /export
-              ^                                           ^
-           /verify                                    /progress
+/read -> /note -> /map -> /integrate -> /audit -> /style -> /logic-review -> /export
+             |                         |
+             v                         v
+        /verify                  /verify-refs
+             |
+             v
+        /progress
 ```
 
-| Without toolkit | With toolkit |
-|-----------------|--------------|
-| Ad-hoc prompts, different every time | Structured pipeline with 8 specialised skills |
-| Scattered notes across files and chats | Standardised notes format — one file per source |
-| Manual Word conversion | One-command Markdown to Word + ZIP |
-| "Did I cite this already?" | Automated cross-chapter consistency audit |
-| No idea what you've read | Progress dashboard: sources, words, coverage |
+## Installation
 
----
-
-## Quick Start
-
-> ⚠️ **Use `git clone`, not GitHub's "Download ZIP".** This repo uses symlinks under `.agents/skills/` for cross-platform skill discovery. ZIP downloads silently replace symlinks with copies, breaking Codex / Gemini / OpenClaw integrations. If you must use ZIP, run `make repair` after extracting.
-
-Clone the repo and start your agent. Skills are discovered automatically.
-
-**Claude Code** (recommended):
+Use `git clone`, not GitHub's "Download ZIP". This repository uses symlinks under `.agents/skills/` so Codex, Gemini, and other local agent hosts can discover the same skills as Claude Code.
 
 ```bash
-git clone https://github.com/yha9806/academic-writing-toolkit.git my-thesis
-cd my-thesis
-claude
-# Skills auto-discovered. Type /read to start.
+git clone https://github.com/yha9806/academic-writing-toolkit.git my-writing-project
+cd my-writing-project
+make setup
 ```
 
-**Codex CLI**:
+Then open the folder in a local agent runtime:
 
-```bash
-git clone https://github.com/yha9806/academic-writing-toolkit.git my-thesis
-cd my-thesis
-codex
-# Skills loaded from .agents/skills/
-```
+| Runtime | Local discovery path |
+|---------|----------------------|
+| Claude Code | `.claude/skills/` |
+| Codex | `.agents/skills/` |
+| Gemini CLI | `.agents/skills/` |
+| Cursor | `.cursor/rules/` baseline rules |
 
-**Gemini CLI**:
+The intended use is the same as local Superpowers-style skills: install the toolkit into a project folder, let the agent discover the skills, and drive the workflow from natural language or slash commands.
 
-```bash
-git clone https://github.com/yha9806/academic-writing-toolkit.git my-thesis
-cd my-thesis
-gemini
-# Skills loaded from .agents/skills/
-```
+## Skills
 
-**Cursor**:
+| Skill | Purpose |
+|-------|---------|
+| `/read` | Read academic PDFs page by page with structured output |
+| `/note` | Record reading notes in the shared notes format |
+| `/verify` | Fact-check factual claims during reading |
+| `/map` | Map sources to chapters and coverage gaps |
+| `/integrate` | Propose and apply approved note-to-chapter integrations |
+| `/audit` | Check numbers, terminology, cross-references, and citations |
+| `/style` | Check and safely fix British English spellings |
+| `/logic-review` | Review paragraph flow, transitions, and argument continuity |
+| `/verify-refs` | Validate BibTeX reference records offline, with room for explicit online checks |
+| `/progress` | Show reading, writing, and coverage progress |
+| `/export` | Convert Markdown outputs to `.docx` and ZIP packages |
 
-```
-1. Clone the repo
-2. Open in Cursor
-3. Rules auto-loaded from .cursor/rules/
-Note: Cursor supports rules only. For full skill invocation, pair with a CLI agent.
-```
+Detailed guides live in [`docs/skills/`](docs/skills/).
 
----
+## Project Layout
 
-## First Run Checklist
-
-After cloning, run these once:
-
-```bash
-make setup     # sets git config, syncs configs, runs health check
-make init      # opens CLAUDE.md in $EDITOR — fill in your project parameters
-```
-
-Then start your AI agent (`claude`, `codex`, or `gemini`) and use `/read` on your first PDF.
-
-Anytime later:
-
-| Command | When to run |
-|---------|-------------|
-| `make doctor` | Sanity-check the environment (read-only, fast) |
-| `make repair` | Fix anything `doctor` flags red |
-| `make sync`   | After editing `CLAUDE.md` (regenerates `AGENTS.md` / `GEMINI.md`) |
-| `make help`   | List all targets |
-
----
-
-## Skills Overview
-
-Eight skills covering the full research-to-submission pipeline.
-
-| Skill | Purpose | Phase |
-|-------|---------|-------|
-| `/read` | Page-by-page PDF reading with structured output | Reading |
-| `/note` | Record notes to standardised files | Reading |
-| `/verify` | Fact-check claims against online sources | Reading |
-| `/map` | Literature-to-chapter mapping matrix | Analysis |
-| `/integrate` | Weave reading notes into thesis chapters | Writing |
-| `/audit` | Cross-chapter consistency check | Quality |
-| `/progress` | Reading + writing progress dashboard | Tracking |
-| `/export` | Markdown to Word + ZIP packaging | Delivery |
-
-**New to skills?** Read the [Skills Guide](docs/skills/) for detailed walkthroughs, internal logic, and practical examples for each skill.
-
----
-
-## The Pipeline
-
-All skills share a standardised notes file format. This is the data contract that connects the pipeline.
-
-When you `/read` a PDF, the agent produces structured output. `/note` writes it into a notes file following the template. Each notes file contains a **Thesis Connections** table:
-
-```markdown
-| Note Point | Chapter | Section | Connection Type |
-|------------|---------|---------|-----------------|
-| thing-power | Ch3 | S3.4 | supports |
-| assemblage | Ch5 | S5.2 | extends |
-```
-
-This table is what `/map` scans to build a literature-to-chapter matrix, and what `/integrate` consumes when weaving sources into chapter drafts. The `Status` field at the top of each notes file (`reading` / `completed` / `integrated`) is what `/progress` reads to calculate your coverage.
-
-The result: every skill reads from and writes to the same file structure, so nothing falls through the cracks.
-
----
-
-## Platform Compatibility
-
-| Platform | Config File | Skills Directory | Support Level |
-|----------|-------------|------------------|---------------|
-| Claude Code | `CLAUDE.md` | `.claude/skills/` | Full |
-| Codex CLI | `AGENTS.md` | `.agents/skills/` | Full |
-| Gemini CLI | `GEMINI.md` | `.agents/skills/` | Full |
-| Cursor | `.cursor/rules/` | — | Rules only |
-| OpenClaw | `AGENTS.md` | `.agents/skills/` | Compatible |
-| VS Code Copilot | — | `.agents/skills/` | Full |
-
-Skills follow the [Agent Skills](https://agentskills.io) open standard. Write once, run on any supporting agent.
-
-See `docs/` for platform-specific setup guides.
-
----
-
-## Project Template
-
-Clone the repo and you get a ready-to-use thesis directory:
-
-```
-my-thesis/
-├── .claude/skills/          8 structured skills (Claude Code)
-├── .agents/skills/          Same 8 skills (Codex / Gemini / Copilot)
-├── .cursor/rules/           Rules file (Cursor)
-├── chapters/                Your thesis chapters (template included)
+```text
+my-writing-project/
+├── .claude/skills/          Claude Code skills
+├── .agents/skills/          Symlinks for Codex, Gemini, and compatible agents
+├── .cursor/rules/           Cursor baseline rules
+├── chapters/                Your chapter drafts
 ├── literature/
-│   └── reading_notes/       One notes file per source (template included)
-├── final_output/            Exported Word / ZIP files
-├── docs/                    Platform setup guides
-├── CLAUDE.md                Config for Claude Code
-├── AGENTS.md                Config for Codex CLI / OpenClaw
-└── GEMINI.md                Config for Gemini CLI
+│   └── reading_notes/       One notes file per source
+├── final_output/            Exported documents
+├── scripts/                 Deterministic helper checks
+├── CLAUDE.md                Canonical project configuration
+├── AGENTS.md                Generated local-agent configuration
+└── GEMINI.md                Generated Gemini configuration
 ```
-
----
 
 ## Configuration
 
-Edit `CLAUDE.md` to set your project parameters. `CLAUDE.md` is the canonical config — `AGENTS.md` and `GEMINI.md` are auto-generated from it. Run `make sync` after editing to propagate changes to all platform files.
+Edit `CLAUDE.md` for project-specific settings, then run:
 
-Key configurable items:
-
-**Word count targets** — total and per-chapter:
-
-```markdown
-## Targets
-- Total word count target: 80,000
-
-| Chapter | Title | Target Words |
-|---------|-------|-------------|
-| Ch1 | Introduction | 5,000 |
-| Ch2 | Background | 10,000 |
-...
+```bash
+make sync
 ```
 
-**Reading page limits** — prevents the agent from reading too much in one session:
+`AGENTS.md` and `GEMINI.md` are generated from the shared block in `CLAUDE.md`; do not edit them directly.
 
-```markdown
-## Reading Constraints
-- Max pages per read invocation: 15
-- Max pages per conversation: 90
+Key settings include:
+
+- chapter, literature, notes, and export directories
+- reading page limits
+- British English writing policy
+- citation style (`harvard`, `apa`, `chicago-author-date`, `mla`, `ieee`, `vancouver`, `gb-t-7714-2015`)
+
+## Testing And Maintenance
+
+```bash
+make doctor   # read-only environment check
+make repair   # repair symlinks and generated configs where possible
+make test     # full regression suite
+make sync     # regenerate AGENTS.md and GEMINI.md
 ```
 
-**Directory paths** — change these if your project structure differs:
+The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, and offline reference verification.
 
-```markdown
-## Directories
-- Chapters: `chapters/`
-- Literature PDFs: `literature/`
-- Reading notes: `literature/reading_notes/`
-- Export output: `final_output/`
-```
+## Reference Verification
 
----
+`/verify-refs` uses a deterministic offline core by default:
 
-## Notes File Format
+- parse BibTeX from `.bib` files or Markdown code fences
+- check required fields by entry type
+- detect duplicate keys
+- validate DOI, URL, and arXiv identifier shape
 
-All skills share a standardised notes format. This is the data contract that makes the pipeline work.
-
-Key fields in every notes file:
-
-- **Status**: `reading` | `completed` | `integrated` — tracked by `/progress`
-- **Relevance**: Which chapter and section this source matters for
-- **Thesis Connections table**: Structured mapping consumed by `/map` and `/integrate`
-
-See the full template: [`literature/reading_notes/_template_NOTES.md`](literature/reading_notes/_template_NOTES.md)
-
----
-
-## Built With
-
-- [Agent Skills](https://agentskills.io) open standard
-- Tested on a real 60,000-word PhD thesis with 52 sources across 8 theoretical traditions
-
----
-
-## Contributing
-
-Contributions welcome. Please open an issue first to discuss what you'd like to change.
-
----
+When an agent has explicit network permission, the same workflow can use CrossRef, Semantic Scholar, and arXiv as external metadata sources. Project-specific self-citation rules are intentionally excluded from this public toolkit.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

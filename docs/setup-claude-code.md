@@ -66,7 +66,7 @@ cp -r .claude/skills/* ~/.claude/skills/
 ```
 /read literature/my-paper.pdf        # Start reading a paper
 /note                                 # Record notes from reading
-/verify Panofsky fled in 1933        # Fact-check a claim
+/verify Smith published the article in 2020  # Fact-check a claim
 /map                                  # See literature coverage matrix
 /integrate                            # Weave notes into chapters
 /audit                                # Pre-submission consistency check

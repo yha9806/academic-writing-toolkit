@@ -15,7 +15,7 @@ This skill does **not** handle page reading -- that is `/read`. If the user says
 ## Workflow
 
 1. **Identify the current literature** from conversation context -- author, title, year, and the page(s) just discussed.
-2. **Locate or create the notes file** at `literature/reading_notes/{Author}_{ShortTitle}_NOTES.md`. Use Glob to check if the file already exists. The `{Author}` is the last name of the first author. `{ShortTitle}` uses underscores, title case, and omits articles (e.g., `Bennett_Vibrant_Matter_NOTES.md`).
+2. **Locate or create the notes file** at `literature/reading_notes/{Author}_{ShortTitle}_NOTES.md`. Use Glob to check if the file already exists. The `{Author}` is the last name of the first author. `{ShortTitle}` uses underscores, title case, and omits articles (e.g., `Smith_Methods_NOTES.md`).
 3. **Append content** to the correct section of the notes file. Never overwrite existing content.
 4. **Update the `Last updated` timestamp** at the bottom of the file to today's date.
 5. **Confirm** with a one-line summary: `Recorded: {brief description} -> {filename}`

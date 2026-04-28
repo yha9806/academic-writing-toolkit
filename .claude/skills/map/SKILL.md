@@ -41,9 +41,9 @@ This skill activates on: `map`, `show mapping`, `coverage`, `which sources`, `/m
 
 | Source | Status | Ch1 | Ch2 | Ch3 | Ch4 | Ch5 | Ch6 | Ch7 | Ch8 |
 |--------|--------|-----|-----|-----|-----|-----|-----|-----|-----|
-| Bennett (2010) | integrated | | supports | supports | | | | | |
-| Goodman (1968) | integrated | extends | supports | supports | extends | | | | |
-| Hui (2017) | completed | | | supports | | | challenges | | challenges |
+| Smith (2024) | integrated | | supports | supports | | | | | |
+| Jones (2021) | integrated | extends | supports | supports | extends | | | | |
+| Lee (2019) | completed | | | supports | | | challenges | | challenges |
 
 ### Coverage Summary
 

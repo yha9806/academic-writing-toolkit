@@ -26,7 +26,7 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    - Counts (e.g., "42 models") must match between chapters.
 
    **B. Terminological consistency**
-   - The same concept must use the same term throughout. Flag cases where synonyms are used inconsistently (e.g., "pseudo-understanding" vs "false comprehension" for the same concept).
+   - The same concept must use the same term throughout. Flag cases where synonyms are used inconsistently (e.g., "structured review" vs "systematic review" for the same concept).
    - Abbreviations must be defined on first use in each chapter.
 
    **C. Cross-reference validity**
@@ -67,7 +67,7 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
 
 | # | Severity | Category | Location | Issue | Current | Expected |
 |---|----------|----------|----------|-------|---------|----------|
-| 1 | Critical | Numerical | Ch3 s3.2, Ch5 s5.4 | PUR value differs | 22.5% (Ch3) vs 23.1% (Ch5) | Should be consistent |
+| 1 | Critical | Numerical | Ch3 s3.2, Ch5 s5.4 | Sample size differs | 120 (Ch3) vs 125 (Ch5) | Should be consistent |
 | 2 | High | Cross-ref | Ch4 s4.1 | Ref to "Section 3.7" | Section 3.7 | Section does not exist |
 
 ### Recommendations

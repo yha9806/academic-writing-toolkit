@@ -757,6 +757,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="literature/reading_notes/*_NOTES.md",
         help="Override notes discovery glob (default: literature/reading_notes/*_NOTES.md).",
     )
+    parser.add_argument(
+        "--fix-safe",
+        action="store_true",
+        help="Propose safe mechanical citation fixes for supported Tier 3 issues.",
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply --fix-safe replacements in chapter files.",
+    )
     return parser
 
 
@@ -836,7 +846,59 @@ def tier0_lint(
     return issues
 
 
-def emit(issues: List[dict], style_key: Optional[str], mode: Optional[str], emit_json: bool) -> None:
+def _safe_replacement(issue: dict, style_row: Optional[dict]) -> Optional[str]:
+    if style_row is None or issue.get("kind") != "format-comma":
+        return None
+    raw = issue.get("context", "")
+    if style_row["intext_paren_punct"] == "no-comma":
+        return re.sub(r",\s+(\d{4}[a-z]?\))", r" \1", raw)
+    if style_row["intext_paren_punct"] == "comma":
+        return re.sub(r"\s+(\d{4}[a-z]?\))", r", \1", raw, count=1)
+    return None
+
+
+def build_safe_fixes(issues: List[dict], style_row: Optional[dict]) -> List[dict]:
+    fixes: List[dict] = []
+    for issue in issues:
+        replacement = _safe_replacement(issue, style_row)
+        if replacement and replacement != issue.get("context", ""):
+            fixes.append({
+                "location": issue["location"],
+                "kind": issue["kind"],
+                "current": issue["context"],
+                "replacement": replacement,
+            })
+    return fixes
+
+
+def apply_safe_fixes(base_dir: Path, fixes: List[dict]) -> List[str]:
+    changed: List[str] = []
+    by_file: Dict[str, List[dict]] = {}
+    for fix in fixes:
+        file_part = fix["location"].split(":", 1)[0]
+        by_file.setdefault(file_part, []).append(fix)
+    for rel, file_fixes in by_file.items():
+        path = base_dir / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        new_text = text
+        for fix in file_fixes:
+            new_text = new_text.replace(fix["current"], fix["replacement"], 1)
+        if new_text != text:
+            path.write_text(new_text, encoding="utf-8")
+            changed.append(rel)
+    return changed
+
+
+def emit(
+    issues: List[dict],
+    style_key: Optional[str],
+    mode: Optional[str],
+    emit_json: bool,
+    fixes: Optional[List[dict]] = None,
+    changed: Optional[List[str]] = None,
+) -> None:
     summary = {
         "tier0_notes_lint": sum(1 for i in issues if i["tier"] == 0),
         "tier1_phantom": sum(1 for i in issues if i.get("kind") == "phantom"),
@@ -852,6 +914,8 @@ def emit(issues: List[dict], style_key: Optional[str], mode: Optional[str], emit
         "mode": mode,
         "summary": summary,
         "issues": issues,
+        "fixes": fixes or [],
+        "changed": changed or [],
     }
     if emit_json:
         json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
@@ -949,7 +1013,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                 bracket_pattern=style_row["numeric_bracket_pattern"],
             ))
 
-    emit(issues, style_key, mode, args.emit_json)
+    fixes: List[dict] = []
+    changed: List[str] = []
+    if args.fix_safe:
+        fixes = build_safe_fixes(issues, style_row)
+        if args.apply:
+            changed = apply_safe_fixes(base_dir, fixes)
+
+    emit(issues, style_key, mode, args.emit_json, fixes=fixes, changed=changed)
+    if args.apply and changed and len(fixes) == len(issues):
+        return EXIT_OK
     return EXIT_ISSUES if issues else EXIT_OK
 
 

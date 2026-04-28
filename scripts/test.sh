@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (29 automated tests: T2-T18 toolkit + T19-T32 citation/env) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (41 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -338,6 +338,157 @@ test_T32() {
     echo "$out" | grep -q "cannot repair broken skill symlinks"
 }
 
+# --- T33-T44: public toolkit cleanup + writing-quality utilities ------------
+
+test_T33() {
+    python3 scripts/audit-public-content.py --base-dir . --json >/dev/null
+}
+
+test_T34() {
+    [[ ! -e "$REPO_ROOT/docs/superpowers" ]]
+}
+
+test_T35() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter
+
+The color of this programme will analyze behavior.
+EOF
+    out=$(python3 scripts/audit-british-english.py --base-dir "$tmp" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert {i['current'] for i in d['issues']} >= {'color','analyze','behavior'}"
+}
+
+test_T36() {
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter
+
+The color of this programme will analyze behavior.
+EOF
+    python3 scripts/audit-british-english.py --base-dir "$tmp" --fix >/dev/null || { rm -rf "$tmp"; return 1; }
+    grep -q "colour" "$tmp/chapters/ch01.md" || { rm -rf "$tmp"; return 1; }
+    grep -q "analyse" "$tmp/chapters/ch01.md" || { rm -rf "$tmp"; return 1; }
+    grep -q "behaviour" "$tmp/chapters/ch01.md" || { rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+}
+
+test_T37() {
+    local out rc
+    out=$(python3 scripts/audit-citations.py \
+        --base-dir tests/citation/fixtures/format_apa_in_harvard_project \
+        --style harvard --fix-safe --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('fixes'); assert any(f['replacement'] == '(Smith 2024)' for f in d['fixes'])"
+}
+
+test_T38() {
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    cp -R tests/citation/fixtures/format_apa_in_harvard_project/. "$tmp/"
+    python3 scripts/audit-citations.py --base-dir "$tmp" --style harvard --fix-safe --apply --json >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    grep -q "(Smith 2024)" "$tmp/chapters/ch01.md"
+    local ok=$?
+    rm -rf "$tmp"
+    return "$ok"
+}
+
+test_T39() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter
+
+This is a short paragraph.
+
+Furthermore, this paragraph starts with a transition but gives no clear topic sentence.
+
+Furthermore, this paragraph repeats the same transition and remains isolated from the previous point.
+EOF
+    out=$(python3 scripts/audit-logic.py --base-dir "$tmp" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'short-paragraph' in kinds and 'repeated-transition' in kinds"
+}
+
+test_T40() {
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/refs"
+    cat > "$tmp/refs/paper.bib" <<'EOF'
+@article{smith2024,
+  title = {A Generic Toolkit Study},
+  author = {Smith, Jane},
+  year = {2024},
+  journal = {Journal of Tools},
+  doi = {10.1000/example}
+}
+EOF
+    python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --json >/dev/null
+    local ok=$?
+    rm -rf "$tmp"
+    return "$ok"
+}
+
+test_T41() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/refs"
+    cat > "$tmp/refs/bad.bib" <<'EOF'
+@article{smith2024,
+  title = {A Generic Toolkit Study},
+  author = {Smith, Jane},
+  year = {2024},
+  journal = {Journal of Tools},
+  arxiv_id = {bad-id}
+}
+
+@article{smith2024,
+  title = {Duplicate Key},
+  author = {Jones, Alex},
+  year = {2024},
+  journal = {Journal of Tools}
+}
+EOF
+    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/bad.bib" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'duplicate-key' in kinds and 'arxiv-invalid' in kinds"
+}
+
+test_T42() {
+    for skill in style logic-review verify-refs; do
+        [[ -f "$REPO_ROOT/.claude/skills/$skill/SKILL.md" ]] || return 1
+        [[ -L "$REPO_ROOT/.agents/skills/$skill" ]] || return 1
+        [[ "$(readlink "$REPO_ROOT/.agents/skills/$skill")" == "../../.claude/skills/$skill" ]] || return 1
+    done
+}
+
+test_T43() {
+    grep -q "/verify-refs" "$REPO_ROOT/README.md" || return 1
+    grep -q "/style" "$REPO_ROOT/README.md" || return 1
+    grep -q "/logic-review" "$REPO_ROOT/README.md" || return 1
+    grep -q "local agent skill" "$REPO_ROOT/README.md"
+}
+
+test_T44() {
+    python3 scripts/audit-public-content.py --base-dir "$REPO_ROOT" >/dev/null
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -377,6 +528,18 @@ run_test "T29 clean Vancouver"                     test_T29
 run_test "T30 clean GB/T 7714-2015 (CJK punct)"    test_T30
 run_test "T31 etal threshold (Harvard 4 authors)"  test_T31
 run_test "T32 repair clear error on unwritable .agents" test_T32
+run_test "T33 public content scan is clean"        test_T33
+run_test "T34 internal Superpowers plans removed"  test_T34
+run_test "T35 British English audit detects US forms" test_T35
+run_test "T36 British English fixer applies safe replacements" test_T36
+run_test "T37 citation safe-fix proposes Harvard comma fix" test_T37
+run_test "T38 citation safe-fix applies to temp project" test_T38
+run_test "T39 logic audit detects paragraph issues" test_T39
+run_test "T40 verify-refs accepts valid BibTeX offline" test_T40
+run_test "T41 verify-refs flags duplicate/arXiv issues" test_T41
+run_test "T42 new skills have Claude dirs and Agent symlinks" test_T42
+run_test "T43 README documents new local agent skills" test_T43
+run_test "T44 no private/project-specific content in public surfaces" test_T44
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
