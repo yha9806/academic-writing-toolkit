@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (41 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (46 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -489,6 +489,123 @@ test_T44() {
     python3 scripts/audit-public-content.py --base-dir "$REPO_ROOT" >/dev/null
 }
 
+test_T45() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/refs" "$tmp/meta/crossref" "$tmp/meta/semantic-scholar"
+    cat > "$tmp/refs/paper.bib" <<'EOF'
+@article{smith2024,
+  title = {A Generic Toolkit Study},
+  author = {Smith, Jane and Jones, Alex},
+  year = {2024},
+  journal = {Journal of Tools},
+  doi = {10.1000/example}
+}
+EOF
+    cat > "$tmp/meta/crossref/10.1000_example.json" <<'EOF'
+{"message":{"title":["A Generic Toolkit Study"],"author":[{"family":"Smith"},{"family":"Jones"}],"published-print":{"date-parts":[[2024]]},"container-title":["Journal of Tools"]}}
+EOF
+    cat > "$tmp/meta/semantic-scholar/10.1000_example.json" <<'EOF'
+{"title":"A Generic Toolkit Study","authors":[{"name":"Jane Smith"},{"name":"Alex Jones"}],"year":2024,"venue":"Journal of Tools"}
+EOF
+    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['metadata_checks']; assert d['verified'][0]['entry']=='smith2024'"
+}
+
+test_T46() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/refs" "$tmp/meta/crossref" "$tmp/meta/semantic-scholar"
+    cat > "$tmp/refs/paper.bib" <<'EOF'
+@article{smith2024,
+  title = {A Generic Toolkit Study},
+  author = {Smith, Jane},
+  year = {2024},
+  journal = {Journal of Tools},
+  doi = {10.1000/example}
+}
+EOF
+    cat > "$tmp/meta/crossref/10.1000_example.json" <<'EOF'
+{"message":{"title":["A Completely Different Article"],"author":[{"family":"Smith"}],"published-print":{"date-parts":[[2024]]},"container-title":["Journal of Tools"]}}
+EOF
+    cat > "$tmp/meta/semantic-scholar/10.1000_example.json" <<'EOF'
+{"title":"A Generic Toolkit Study","authors":[{"name":"Jane Smith"}],"year":2024,"venue":"Journal of Tools"}
+EOF
+    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind']=='metadata-title-low-similarity' for i in d['issues'])"
+}
+
+test_T47() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/refs" "$tmp/meta/crossref" "$tmp/meta/semantic-scholar"
+    cat > "$tmp/refs/paper.bib" <<'EOF'
+@article{smith2024,
+  title = {A Generic Toolkit Study},
+  author = {Smith, Jane},
+  year = {2024},
+  journal = {Journal of Tools},
+  doi = {10.1000/example}
+}
+EOF
+    cat > "$tmp/meta/crossref/10.1000_example.json" <<'EOF'
+{"message":{"title":["A Generic Toolkit Study"],"author":[{"family":"Smith"}],"published-print":{"date-parts":[[2020]]},"container-title":["Journal of Tools"]}}
+EOF
+    cat > "$tmp/meta/semantic-scholar/10.1000_example.json" <<'EOF'
+{"title":"A Generic Toolkit Study","authors":[{"name":"Jane Smith"}],"year":2024,"venue":"Journal of Tools"}
+EOF
+    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind']=='metadata-year-mismatch' for i in d['issues'])"
+}
+
+test_T48() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/refs" "$tmp/meta/arxiv" "$tmp/meta/semantic-scholar"
+    cat > "$tmp/refs/paper.bib" <<'EOF'
+@misc{smith2024,
+  title = {A Generic Preprint Study},
+  author = {Smith, Jane},
+  year = {2024},
+  eprint = {2401.12345}
+}
+EOF
+    cat > "$tmp/meta/arxiv/2401.12345.xml" <<'EOF'
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2401.12345v1</id>
+    <title>A Generic Preprint Study</title>
+    <published>2024-01-02T00:00:00Z</published>
+    <author><name>Jane Smith</name></author>
+  </entry>
+</feed>
+EOF
+    cat > "$tmp/meta/semantic-scholar/2401.12345.json" <<'EOF'
+{"title":"A Generic Preprint Study","authors":[{"name":"Jane Smith"}],"year":2024,"venue":"arXiv"}
+EOF
+    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(v['source']=='arxiv' for v in d['verified'])"
+}
+
+test_T49() {
+    python3 scripts/verify-refs.py --help | grep -q -- "--online" || return 1
+    python3 scripts/verify-refs.py --help | grep -q -- "--metadata-dir"
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -540,6 +657,11 @@ run_test "T41 verify-refs flags duplicate/arXiv issues" test_T41
 run_test "T42 new skills have Claude dirs and Agent symlinks" test_T42
 run_test "T43 README documents new local agent skills" test_T43
 run_test "T44 no private/project-specific content in public surfaces" test_T44
+run_test "T45 verify-refs Crossref fixture verifies metadata" test_T45
+run_test "T46 verify-refs flags Crossref title mismatch" test_T46
+run_test "T47 verify-refs flags Crossref year mismatch" test_T47
+run_test "T48 verify-refs arXiv fixture verifies metadata" test_T48
+run_test "T49 verify-refs documents online flags" test_T49
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

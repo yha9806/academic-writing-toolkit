@@ -99,7 +99,7 @@ make test     # full regression suite
 make sync     # regenerate AGENTS.md and GEMINI.md
 ```
 
-The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, and offline reference verification.
+The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, and offline plus fixture-backed reference verification.
 
 ## Reference Verification
 
@@ -110,7 +110,9 @@ The regression suite covers local skill discovery, config sync, export assumptio
 - detect duplicate keys
 - validate DOI, URL, and arXiv identifier shape
 
-When an agent has explicit network permission, the same workflow can use CrossRef, Semantic Scholar, and arXiv as external metadata sources. Project-specific self-citation rules are intentionally excluded from this public toolkit.
+For explicit metadata verification, run with `--online`. The script checks CrossRef for DOI records, Semantic Scholar as a secondary DOI/arXiv source, and arXiv for preprint identifiers. Tests use `--metadata-dir` fixtures so CI stays deterministic; live network calls are only attempted when `--online` is set and no matching fixture is present.
+
+Project-specific self-citation rules are intentionally excluded from this public toolkit.
 
 ## License
 

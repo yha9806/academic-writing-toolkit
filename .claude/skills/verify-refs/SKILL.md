@@ -1,6 +1,6 @@
 ---
 name: verify-refs
-description: Verify academic reference records from BibTeX using offline structural checks and optional external metadata sources.
+description: Use when checking BibTeX reference records for missing fields, malformed identifiers, duplicate keys, or metadata mismatches before submission.
 allowed-tools: Read, Glob, Bash, WebFetch
 ---
 
@@ -20,7 +20,10 @@ This skill activates on: `verify refs`, `verify references`, `reference check`, 
 2. Run:
    `python3 scripts/verify-refs.py --bib {path} --json`
 3. Report issues by entry key and severity.
-4. For future online verification, use CrossRef for DOI metadata, Semantic Scholar as a secondary metadata source, and arXiv for preprint identifiers. Online checks must be explicit because they depend on network availability.
+4. For explicit metadata verification, run:
+   `python3 scripts/verify-refs.py --bib {path} --json --online`
+5. Use CrossRef for DOI metadata, Semantic Scholar as a secondary metadata source, and arXiv for preprint identifiers. Online checks must be explicit because they depend on network availability.
+6. In tests or offline review, use `--metadata-dir {dir}` to read CrossRef JSON, Semantic Scholar JSON, and arXiv Atom fixtures instead of live network calls.
 
 ## Constraints
 
