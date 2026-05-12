@@ -1,0 +1,49 @@
+{
+  "name": "academic-writing-toolkit",
+  "version": "0.1.0",
+  "description": "Academic reading, thesis writing, citation auditing, British English checking, reference verification, and export skills for Codex.",
+  "author": {
+    "name": "Yu, Haorui",
+    "email": "yuhaorui48@gmail.com",
+    "url": "https://github.com/yha9806"
+  },
+  "homepage": "https://github.com/yha9806/academic-writing-toolkit",
+  "repository": "https://github.com/yha9806/academic-writing-toolkit",
+  "license": "MIT",
+  "keywords": [
+    "academic-writing",
+    "thesis",
+    "citations",
+    "research",
+    "british-english",
+    "references"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Academic Writing Toolkit",
+    "shortDescription": "Structured research, thesis writing, citation, style, and export workflows.",
+    "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, integrating arguments, auditing citations and consistency, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
+    "developerName": "Yu, Haorui",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Review"
+    ],
+    "websiteURL": "https://github.com/yha9806/academic-writing-toolkit",
+    "privacyPolicyURL": "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/privacy.md",
+    "termsOfServiceURL": "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/terms.md",
+    "defaultPrompt": [
+      "Read this paper and extract thesis connections.",
+      "Audit my chapter citations and consistency.",
+      "Check my thesis draft for British English."
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "screenshots": [
+      "./assets/screenshot-workflow.png",
+      "./assets/screenshot-progress.png"
+    ]
+  }
+}

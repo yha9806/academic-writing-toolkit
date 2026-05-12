@@ -122,7 +122,11 @@ make doctor   # read-only environment check
 make repair   # repair symlinks and generated configs where possible
 make test     # full regression suite
 make sync     # regenerate AGENTS.md and GEMINI.md
+make plugin-sync   # regenerate the Codex plugin skills from .claude/skills
+make plugin-check  # validate plugin metadata, sync state, and bundled helpers
 ```
+
+For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md).
 
 The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, and offline plus fixture-backed reference verification.
 

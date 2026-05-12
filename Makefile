@@ -2,7 +2,7 @@
 # Run `make` (or `make help`) to see available targets.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup init sync doctor repair test
+.PHONY: help setup init sync plugin-sync plugin-check doctor repair test
 
 EDITOR ?= vi
 
@@ -29,11 +29,17 @@ init:  ## Open CLAUDE.md in $EDITOR for first-time customisation, then sync
 sync:  ## Regenerate AGENTS.md and GEMINI.md from CLAUDE.md
 	@bash scripts/sync-config.sh
 
+plugin-sync:  ## Regenerate the Codex plugin skills from .claude/skills
+	@bash scripts/sync-plugin.sh
+
+plugin-check:  ## Validate the Codex plugin package and sync state
+	@bash scripts/check-plugin.sh
+
 doctor:  ## Run all read-only health checks (CI-suitable, exit 0/1)
 	@bash scripts/doctor.sh
 
 repair:  ## Apply idempotent fixes for issues doctor flags
 	@bash scripts/repair.sh
 
-test:  ## Run the full regression test suite (46 automated tests)
+test:  ## Run the full regression test suite (50 automated tests)
 	@bash scripts/test.sh
