@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (48 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T51 plugin packaging) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (50 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -622,6 +622,21 @@ test_T51() {
     bash scripts/check-plugin.sh >/dev/null
 }
 
+test_T52() {
+    local cache rc
+    cache="$REPO_ROOT/.claude/skills/export/scripts/__pycache__"
+    mkdir -p "$cache"
+    printf 'bytecode cache fixture\n' > "$cache/convert_to_docx.cpython-38.pyc"
+    bash scripts/sync-plugin.sh --check >/dev/null 2>&1
+    rc=$?
+    rm -rf "$cache"
+    return "$rc"
+}
+
+test_T53() {
+    ! grep -Rq 'removeprefix' "$REPO_ROOT/scripts/check-plugin.sh" "$REPO_ROOT/scripts/sync-plugin.sh"
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -680,6 +695,8 @@ run_test "T48 verify-refs arXiv fixture verifies metadata" test_T48
 run_test "T49 verify-refs documents online flags" test_T49
 run_test "T50 plugin skills are synced" test_T50
 run_test "T51 plugin package validates" test_T51
+run_test "T52 plugin sync ignores bytecode caches" test_T52
+run_test "T53 plugin checks are Python 3.8 compatible" test_T53
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

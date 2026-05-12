@@ -99,7 +99,8 @@ interface = plugin["interface"]
 assets = [interface["composerIcon"], interface["logo"], *interface["screenshots"]]
 
 for asset in assets:
-    path = plugin_root / asset.removeprefix("./")
+    relative_asset = asset[2:] if asset.startswith("./") else asset
+    path = plugin_root / relative_asset
     if not path.is_file():
         raise SystemExit(f"missing asset: {asset}")
     data = path.read_bytes()

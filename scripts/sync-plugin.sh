@@ -29,11 +29,18 @@ copy_helper() {
     cp "$source" "$dest"
 }
 
+remove_python_caches() {
+    local root="$1"
+    find "$root" -type d -name "__pycache__" -prune -exec rm -rf {} +
+    find "$root" -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete
+}
+
 generate_skills() {
     local dest="$1"
     rm -rf "$dest"
     mkdir -p "$dest"
     cp -R "$SOURCE_SKILLS/." "$dest/"
+    remove_python_caches "$dest"
 
     copy_helper "$REPO_ROOT/scripts/audit-citations.py" "$dest/audit/scripts/audit-citations.py"
     copy_helper "$REPO_ROOT/scripts/audit-british-english.py" "$dest/style/scripts/audit-british-english.py"
