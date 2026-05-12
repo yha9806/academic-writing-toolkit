@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (46 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (48 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T51 plugin packaging) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -614,6 +614,14 @@ test_T49() {
     python3 scripts/verify-refs.py --help | grep -q -- "--metadata-dir"
 }
 
+test_T50() {
+    bash scripts/sync-plugin.sh --check >/dev/null
+}
+
+test_T51() {
+    bash scripts/check-plugin.sh >/dev/null
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -670,6 +678,8 @@ run_test "T46 verify-refs flags Crossref title mismatch" test_T46
 run_test "T47 verify-refs flags Crossref year mismatch" test_T47
 run_test "T48 verify-refs arXiv fixture verifies metadata" test_T48
 run_test "T49 verify-refs documents online flags" test_T49
+run_test "T50 plugin skills are synced" test_T50
+run_test "T51 plugin package validates" test_T51
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
