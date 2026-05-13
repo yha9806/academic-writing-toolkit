@@ -89,6 +89,15 @@ export function createHttpApp({ host = process.env.HOST || "127.0.0.1" } = {}) {
     });
   });
 
+  app.get("/.well-known/openai-apps-challenge", (_req, res) => {
+    const challenge = process.env.OPENAI_APPS_CHALLENGE;
+    if (!challenge) {
+      res.status(404).type("text/plain").send("OpenAI Apps challenge is not configured.");
+      return;
+    }
+    res.type("text/plain").send(challenge);
+  });
+
   app.post("/mcp", async (req, res) => {
     const server = createMcpServer();
     const transport = new StreamableHTTPServerTransport({
