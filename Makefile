@@ -2,7 +2,7 @@
 # Run `make` (or `make help`) to see available targets.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup init sync plugin-sync plugin-check doctor repair test
+.PHONY: help setup init sync plugin-sync plugin-check chatgpt-app-check doctor repair test
 
 EDITOR ?= vi
 
@@ -34,6 +34,9 @@ plugin-sync:  ## Regenerate the Codex plugin skills from .claude/skills
 
 plugin-check:  ## Validate the Codex plugin package and sync state
 	@bash scripts/check-plugin.sh
+
+chatgpt-app-check:  ## Run the ChatGPT App MCP server checks
+	@npm --prefix apps/chatgpt-academic-writing-toolkit test
 
 doctor:  ## Run all read-only health checks (CI-suitable, exit 0/1)
 	@bash scripts/doctor.sh

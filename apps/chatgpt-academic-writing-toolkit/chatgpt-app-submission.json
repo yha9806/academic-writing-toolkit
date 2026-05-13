@@ -1,0 +1,140 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Academic Writing Toolkit",
+    "subtitle": "Review academic drafts",
+    "description": "Academic Writing Toolkit helps users review pasted academic writing materials in ChatGPT. It can audit citation consistency between draft prose and reading-note source lines, check conservative British English spelling, flag paragraph-level logic issues, validate BibTeX records offline, and create a standard reading-notes Markdown template.",
+    "category": "EDUCATION"
+  },
+  "tools": {
+    "audit_citations": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Computes citation audit findings from user-provided text and writes only temporary files during the tool call.",
+        "open_world_justification": "Does not write to public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform irreversible actions."
+      }
+    },
+    "check_british_english": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Computes spelling findings and optional preview text from user-provided text without modifying user files.",
+        "open_world_justification": "Does not write to public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform irreversible actions."
+      }
+    },
+    "review_paragraph_logic": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Computes paragraph-level review findings from user-provided text only.",
+        "open_world_justification": "Does not write to public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform irreversible actions."
+      }
+    },
+    "verify_bibtex_references": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs offline validation of user-provided BibTeX and does not contact external metadata APIs.",
+        "open_world_justification": "Does not write to public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform irreversible actions."
+      }
+    },
+    "create_reading_note_template": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Generates a Markdown template from user-provided source metadata without storing it.",
+        "open_world_justification": "Does not write to public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or perform irreversible actions."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Audit Harvard citation consistency between pasted chapter text and reading-note source lines.",
+      "user_prompt": "Check this draft citation against my reading note: chapter text 'Smith (2024) argues that archives shape interpretation.' reading note '**Source**: Jones, J. (2024) Title in sentence case. *Publisher*.'",
+      "file_attachment_urls": null,
+      "tools_triggered": "audit_citations",
+      "expected_output": "Returns citation audit findings that identify the unmatched in-text citation and the unused source.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Check British English spelling in pasted thesis prose.",
+      "user_prompt": "Please check this sentence for British English spelling: 'The color center helps analyze behavior.'",
+      "file_attachment_urls": null,
+      "tools_triggered": "check_british_english",
+      "expected_output": "Returns conservative replacement suggestions such as color to colour, center to centre, analyze to analyse, and behavior to behaviour.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Review paragraph logic for short paragraphs and repeated transitions.",
+      "user_prompt": "Review paragraph logic in this draft: 'However, this matters.\\n\\nHowever, it also matters.'",
+      "file_attachment_urls": null,
+      "tools_triggered": "review_paragraph_logic",
+      "expected_output": "Returns paragraph logic findings for short paragraphs and repeated adjacent transition wording.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Validate BibTeX records offline.",
+      "user_prompt": "Verify this BibTeX: @article{smith2024, title={Incomplete article}, year={2024}}",
+      "file_attachment_urls": null,
+      "tools_triggered": "verify_bibtex_references",
+      "expected_output": "Returns offline BibTeX validation findings, including missing required article fields.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Create a standard reading-note template for a source.",
+      "user_prompt": "Create a Harvard reading note template for Smith, J., Test Article, 2024, relevant to Ch2 S2.1.",
+      "file_attachment_urls": null,
+      "tools_triggered": "create_reading_note_template",
+      "expected_output": "Returns a Markdown reading notes template with Source, Date read, Status, Relevance, Key Arguments, Detailed Notes, Key Terms, Thesis Connections, and Questions sections.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not trigger for general essay writing without a request for toolkit checks.",
+      "user_prompt": "Write a new essay about Renaissance literature.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because the user is asking ChatGPT to draft new prose rather than run an academic writing toolkit check.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for live web citation lookup.",
+      "user_prompt": "Search the web for the newest articles about climate policy.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because it does not perform web search or online metadata lookup.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for local file operations.",
+      "user_prompt": "Open my local thesis folder and rewrite chapter 3.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because it only processes text the user provides in ChatGPT and does not access local files.",
+      "expected_output_url": null
+    }
+  ]
+}

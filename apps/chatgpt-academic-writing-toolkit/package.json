@@ -1,0 +1,16 @@
+{
+  "name": "chatgpt-academic-writing-toolkit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tool-only ChatGPT App MCP server for academic writing checks.",
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "express": "^5.1.0",
+    "zod": "^4.1.12"
+  }
+}
