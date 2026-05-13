@@ -5,6 +5,8 @@ Thumbs.db
 *.zip
 __pycache__/
 .env
+node_modules/
+.playwright-mcp/
 
 # Local worktrees (created by superpowers:using-git-worktrees skill)
 .worktrees/

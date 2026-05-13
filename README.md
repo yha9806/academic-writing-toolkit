@@ -7,6 +7,8 @@ Structured local agent skills for academic reading, writing, reference checking,
 
 This repository is a public toolkit. It contains reusable local agent skills, scripts, templates, and tests only. Put your own chapters, PDFs, notes, and private project material in your clone.
 
+The repository also includes distribution packaging for a Codex plugin and a tool-only ChatGPT App MCP server.
+
 ```
 /read -> /note -> /map -> /integrate -> /audit -> /style -> /logic-review -> /export
              |                         |
@@ -88,9 +90,11 @@ my-writing-project/
 ├── .claude/skills/          Claude Code skills
 ├── .agents/skills/          Symlinks for Codex, Gemini, and compatible agents
 ├── .cursor/rules/           Cursor baseline rules
+├── apps/                    ChatGPT App MCP server
 ├── chapters/                Your chapter drafts
 ├── literature/
 │   └── reading_notes/       One notes file per source
+├── plugins/                 Codex plugin package
 ├── final_output/            Exported documents
 ├── scripts/                 Deterministic helper checks
 ├── CLAUDE.md                Canonical project configuration
@@ -124,9 +128,10 @@ make test     # full regression suite
 make sync     # regenerate AGENTS.md and GEMINI.md
 make plugin-sync   # regenerate the Codex plugin skills from .claude/skills
 make plugin-check  # validate plugin metadata, sync state, and bundled helpers
+make chatgpt-app-check  # run the ChatGPT App MCP server checks
 ```
 
-For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md).
+For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md). For ChatGPT App deployment and submission preparation, use [`docs/chatgpt-app-publishing.md`](docs/chatgpt-app-publishing.md).
 
 The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, and offline plus fixture-backed reference verification.
 

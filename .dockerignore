@@ -1,0 +1,13 @@
+.git
+.github
+.DS_Store
+.playwright-mcp
+.worktrees
+node_modules
+apps/chatgpt-academic-writing-toolkit/node_modules
+__pycache__
+*.pyc
+*.docx
+*.pdf
+*.zip
+.env
