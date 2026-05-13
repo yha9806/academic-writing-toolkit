@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { createHttpApp } from "../src/server.js";
 
 test("HTTP app exposes health and guards non-POST MCP requests", async () => {
+  const oldChallenge = process.env.OPENAI_APPS_CHALLENGE;
+  process.env.OPENAI_APPS_CHALLENGE = "test-openai-apps-challenge";
   const app = createHttpApp({ host: "127.0.0.1" });
   const server = await new Promise((resolve) => {
     const listener = app.listen(0, "127.0.0.1", () => resolve(listener));
@@ -25,7 +27,16 @@ test("HTTP app exposes health and guards non-POST MCP requests", async () => {
 
     const mcpGet = await fetch(`http://127.0.0.1:${port}/mcp`);
     assert.equal(mcpGet.status, 405);
+
+    const challenge = await fetch(`http://127.0.0.1:${port}/.well-known/openai-apps-challenge`);
+    assert.equal(challenge.status, 200);
+    assert.equal(await challenge.text(), "test-openai-apps-challenge");
   } finally {
+    if (oldChallenge === undefined) {
+      delete process.env.OPENAI_APPS_CHALLENGE;
+    } else {
+      process.env.OPENAI_APPS_CHALLENGE = oldChallenge;
+    }
     await new Promise((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
