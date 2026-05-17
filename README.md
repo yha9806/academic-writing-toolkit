@@ -10,10 +10,10 @@ This repository is a public toolkit. It contains reusable local agent skills, sc
 The repository also includes distribution packaging for a Codex plugin and a tool-only ChatGPT App MCP server.
 
 ```
-/read -> /note -> /map -> /integrate -> /audit -> /style -> /logic-review -> /export
-             |                         |
-             v                         v
-        /verify                  /verify-refs
+/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /style -> /logic-review -> /export
+             |                                      |
+             v                                      v
+        /verify                               /verify-refs
              |
              v
         /progress
@@ -53,6 +53,7 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/note` | Record reading notes in the shared notes format |
 | `/verify` | Fact-check factual claims during reading |
 | `/map` | Map sources to chapters and coverage gaps |
+| `/evidence-review` | Build evidence-controlled gap maps, claim registers, citation plans, and overclaim audits |
 | `/integrate` | Propose and apply approved note-to-chapter integrations |
 | `/audit` | Check numbers, terminology, cross-references, and citations |
 | `/style` | Check and safely fix British English spellings |

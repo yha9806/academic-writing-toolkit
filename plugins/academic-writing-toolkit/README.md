@@ -8,6 +8,7 @@ This Codex plugin packages the academic-writing-toolkit skills for structured re
 - `note`: record source notes in the toolkit notes format
 - `verify`: fact-check historical or empirical claims during reading
 - `map`: map literature coverage against thesis chapters
+- `evidence-review`: build evidence-controlled literature gap maps, claim registers, citation plans, and overclaim audits
 - `integrate`: integrate completed reading notes into chapter drafts
 - `audit`: audit citation consistency, numbers, terminology, and cross-references
 - `style`: check and safely fix common US spellings when British English is required

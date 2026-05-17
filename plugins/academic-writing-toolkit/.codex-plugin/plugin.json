@@ -1,7 +1,7 @@
 {
   "name": "academic-writing-toolkit",
-  "version": "0.1.0",
-  "description": "Academic reading, thesis writing, citation auditing, British English checking, reference verification, and export skills for Codex.",
+  "version": "0.2.0",
+  "description": "Academic reading, thesis writing, evidence-controlled review synthesis, citation auditing, British English checking, reference verification, and export skills for Codex.",
   "author": {
     "name": "Yu, Haorui",
     "email": "yuhaorui48@gmail.com",
@@ -16,13 +16,15 @@
     "citations",
     "research",
     "british-english",
-    "references"
+    "references",
+    "evidence-review",
+    "literature-review"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Academic Writing Toolkit",
-    "shortDescription": "Structured research, thesis writing, citation, style, and export workflows.",
-    "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, integrating arguments, auditing citations and consistency, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
+    "shortDescription": "Structured research, thesis writing, evidence-review, citation, style, and export workflows.",
+    "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, integrating arguments, auditing citations and consistency, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
     "developerName": "Yu, Haorui",
     "category": "Productivity",
     "capabilities": [
@@ -35,7 +37,7 @@
     "termsOfServiceURL": "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/terms.md",
     "defaultPrompt": [
       "Read this paper and extract thesis connections.",
-      "Audit my chapter citations and consistency.",
+      "Build an evidence-controlled gap map for my literature review.",
       "Check my thesis draft for British English."
     ],
     "brandColor": "#2563EB",
