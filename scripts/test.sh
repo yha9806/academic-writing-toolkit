@@ -471,11 +471,15 @@ EOF
 }
 
 test_T42() {
-    for skill in style logic-review verify-refs; do
+    local skill_dir skill mode
+    while IFS= read -r -d '' skill_dir; do
+        skill="$(basename "$skill_dir")"
         [[ -f "$REPO_ROOT/.claude/skills/$skill/SKILL.md" ]] || return 1
         [[ -L "$REPO_ROOT/.agents/skills/$skill" ]] || return 1
         [[ "$(readlink "$REPO_ROOT/.agents/skills/$skill")" == "../../.claude/skills/$skill" ]] || return 1
-    done
+        mode="$(git -C "$REPO_ROOT" ls-files -s ".agents/skills/$skill" | awk '{print $1}')"
+        [[ "$mode" == "120000" ]] || return 1
+    done < <(find "$REPO_ROOT/.claude/skills" -maxdepth 1 -mindepth 1 -type d -print0 | sort -z)
 }
 
 test_T43() {
