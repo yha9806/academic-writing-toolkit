@@ -22,6 +22,7 @@ The app-specific check runs the Node test suite for the MCP server and tool wrap
 - Submission import file: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
 - Privacy URL source: `docs/privacy.md`
 - Terms URL source: `docs/terms.md`
+- App package version: `0.2.0`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
 
 ## Deployment Requirement
 
@@ -38,7 +39,17 @@ Use these environment variables on the host:
 ```sh
 HOST=0.0.0.0
 PORT=3000
+OPENAI_APPS_CHALLENGE=<challenge value from OpenAI Platform, when requested>
 ```
+
+Before submission, verify the hosted deployment from outside local or private networks:
+
+```sh
+curl -fsS https://YOUR_DOMAIN/health
+curl -i https://YOUR_DOMAIN/mcp
+```
+
+`/health` should return the app name, version, and `status: ok`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
 
 ## Docker Deployment
 
@@ -50,6 +61,19 @@ docker run --rm -p 3000:3000 academic-writing-toolkit-chatgpt-app
 ```
 
 For hosted deployment, configure the platform to route HTTPS traffic to container port `3000` and submit the public `https://YOUR_DOMAIN/mcp` URL.
+
+## Review Checklist
+
+Before pressing Submit for review:
+
+- Complete OpenAI organization verification for the publisher name.
+- Confirm the submitting account has `api.apps.write`; use `api.apps.read` to view drafts and review status.
+- Use a public HTTPS MCP URL that OpenAI can reach during automated checks and manual review.
+- Import `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` into the dashboard form and re-check every generated test case.
+- Run the positive and negative test prompts in ChatGPT Developer Mode on web and mobile; expected outputs should be concise and match the stated tool behavior.
+- Confirm every tool descriptor has explicit `readOnlyHint`, `openWorldHint`, `destructiveHint`, and `outputSchema`.
+- Audit realistic tool responses for unnecessary personal data, debug fields, request IDs, logs, or secrets before submission.
+- Confirm `docs/privacy.md` and `docs/terms.md` match the deployed app behaviour.
 
 ## Official Review Flow
 

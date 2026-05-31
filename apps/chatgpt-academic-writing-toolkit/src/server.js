@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
@@ -14,7 +15,8 @@ import {
 } from "./tool-runner.js";
 
 const APP_NAME = "academic-writing-toolkit";
-const APP_VERSION = "1.0.0";
+const APP_PACKAGE = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const APP_VERSION = APP_PACKAGE.version;
 
 const TOOL_HANDLERS = {
   audit_citations: auditCitations,

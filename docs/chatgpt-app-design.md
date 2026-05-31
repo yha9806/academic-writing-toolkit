@@ -9,6 +9,8 @@ This gives the project two distribution tracks:
 - ChatGPT App: public MCP server submitted through OpenAI Platform Apps Manage.
 - Codex plugin: local plugin package under `plugins/academic-writing-toolkit`, with official public distribution following OpenAI's app approval and publication flow.
 
+Both surfaces use package version `0.2.0` for this release. The ChatGPT App server reads its version from `apps/chatgpt-academic-writing-toolkit/package.json`, and the test suite checks that it matches the Codex plugin manifest version.
+
 ## User Flows
 
 1. A user pastes a thesis paragraph and asks for British English spelling checks.
@@ -26,6 +28,24 @@ This gives the project two distribution tracks:
 - `create_reading_note_template`: Produces a standard reading notes Markdown template.
 
 All tools are read-only from the user's perspective. They compute results from user-provided text, write only temporary local files during the tool call, do not persist user data, do not call external APIs, and do not mutate local thesis files.
+
+## Surface Alignment
+
+The ChatGPT App intentionally exposes a review-safe subset of the local Codex plugin:
+
+| Capability | Codex plugin | ChatGPT App |
+|------------|--------------|-------------|
+| Read PDFs and create local notes | `/read`, `/note` | Not exposed; ChatGPT App has no local file access |
+| Map and integrate sources into chapters | `/map`, `/integrate` | Not exposed; requires workspace files |
+| Evidence-controlled review synthesis | `/evidence-review` | Not exposed; requires local notes and project artefacts |
+| Citation audit | `/audit` | `audit_citations` for pasted text and source lines |
+| British English check | `/style` | `check_british_english` for pasted text |
+| Paragraph logic review | `/logic-review` | `review_paragraph_logic` for pasted text |
+| BibTeX/reference validation | `/verify-refs` | `verify_bibtex_references` offline only |
+| Reading note scaffold | `/note` template workflow | `create_reading_note_template` |
+| Progress and export | `/progress`, `/export` | Not exposed; requires local workspace files |
+
+This is functional alignment by workflow, not one-to-one feature parity. The plugin remains the full local workspace product; the ChatGPT App is the safe hosted review surface for user-provided text.
 
 ## Review Constraints
 

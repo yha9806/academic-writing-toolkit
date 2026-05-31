@@ -1,9 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import { createHttpApp } from "../src/server.js";
 
-test("HTTP app exposes health and guards non-POST MCP requests", async () => {
+async function readJson(url) {
+  return JSON.parse(await readFile(url, "utf8"));
+}
+
+test("HTTP app exposes package-aligned health and guards non-POST MCP requests", async () => {
+  const appPackage = await readJson(new URL("../package.json", import.meta.url));
+  const pluginManifest = await readJson(
+    new URL("../../../plugins/academic-writing-toolkit/.codex-plugin/plugin.json", import.meta.url),
+  );
+  assert.equal(appPackage.version, pluginManifest.version);
+
   const oldChallenge = process.env.OPENAI_APPS_CHALLENGE;
   process.env.OPENAI_APPS_CHALLENGE = "test-openai-apps-challenge";
   const app = createHttpApp({ host: "127.0.0.1" });
@@ -21,7 +32,7 @@ test("HTTP app exposes health and guards non-POST MCP requests", async () => {
     );
     assert.deepEqual(await health.json(), {
       name: "academic-writing-toolkit",
-      version: "1.0.0",
+      version: appPackage.version,
       status: "ok",
     });
 
