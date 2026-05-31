@@ -71,7 +71,7 @@ The Blueprint defines one Docker web service:
 - service name: `academic-writing-toolkit-chatgpt-app`
 - Dockerfile: `apps/chatgpt-academic-writing-toolkit/Dockerfile`
 - build context: repository root
-- plan: `starter`
+- plan: `free`
 - region: `oregon`
 - health check: `/health`
 - deploy trigger: `checksPass`
@@ -81,7 +81,10 @@ Why Render for the first public MCP endpoint:
 - Docker web services fit the existing Express MCP server without changing the app.
 - Render provides a public `onrender.com` HTTPS URL by default.
 - `checksPass` avoids deploying a commit before GitHub CI succeeds.
-- The `starter` plan avoids free-tier spin-down during app review.
+- The `free` plan keeps the first deployment cost at zero while we prepare the app.
+- A dedicated custom subdomain, such as `awt.example.com`, keeps Academic Writing Toolkit separate from any existing app and main site.
+
+The free plan may sleep when idle. If OpenAI review fails because the MCP endpoint is slow to wake up or unavailable, temporarily upgrade the Render service to `starter` for the review window, then downgrade after approval if traffic stays low.
 
 Setup:
 
@@ -90,7 +93,12 @@ Setup:
 3. Create the service from the Blueprint.
 4. Wait for Render to deploy the `master` branch after checks pass.
 5. Copy the service URL, for example `https://academic-writing-toolkit-chatgpt-app.onrender.com`.
-6. Use `https://YOUR_RENDER_URL/mcp` as the MCP Server URL in OpenAI Platform Apps Manage.
+6. Add a dedicated custom domain, such as `awt.example.com`, as the Render custom domain for this service.
+7. In the DNS provider for that domain, create the CNAME record Render requests.
+8. Verify `https://YOUR_AWT_DOMAIN/health` returns `status: ok`.
+9. Use `https://YOUR_AWT_DOMAIN/mcp` as the MCP Server URL in OpenAI Platform Apps Manage.
+
+Keep the main site on its existing app. Do not route the main site's `/mcp` path to Academic Writing Toolkit; that would mix two products on the same review surface.
 
 If OpenAI Platform asks for a domain challenge, set this environment variable on the Render service and redeploy:
 
@@ -101,7 +109,7 @@ OPENAI_APPS_CHALLENGE=<challenge value from OpenAI Platform>
 Then verify:
 
 ```sh
-curl -fsS https://YOUR_RENDER_URL/.well-known/openai-apps-challenge
+curl -fsS https://YOUR_AWT_DOMAIN/.well-known/openai-apps-challenge
 ```
 
 ## Review Checklist
@@ -111,6 +119,7 @@ Before pressing Submit for review:
 - Complete OpenAI organization verification for the publisher name.
 - Confirm the submitting account has `api.apps.write`; use `api.apps.read` to view drafts and review status.
 - Use a public HTTPS MCP URL that OpenAI can reach during automated checks and manual review.
+- Prefer a dedicated custom-domain MCP URL for submission; use the Render `onrender.com` URL only as a temporary deployment smoke-test URL.
 - Import `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` into the dashboard form and re-check every generated test case.
 - Run the positive and negative test prompts in ChatGPT Developer Mode on web and mobile; expected outputs should be concise and match the stated tool behavior.
 - Confirm every tool descriptor has explicit `readOnlyHint`, `openWorldHint`, `destructiveHint`, and `outputSchema`.
