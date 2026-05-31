@@ -15,7 +15,48 @@ The container still uses the app Dockerfile:
 apps/chatgpt-academic-writing-toolkit/Dockerfile
 ```
 
-## Build
+## GitHub Actions Deploy
+
+The preferred deployment path is the manual GitHub Actions workflow:
+
+```text
+.github/workflows/deploy-cloud-run-mcp.yml
+```
+
+Set these repository variables before running it:
+
+| Variable | Purpose |
+| --- | --- |
+| `GCP_PROJECT_ID` | Google Cloud project that owns the Cloud Run service and hosting rewrite |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | GitHub Actions Workload Identity provider resource name |
+| `GCP_SERVICE_ACCOUNT` | Least-privilege deploy service account email |
+
+Pre-create the Artifact Registry Docker repository used by the workflow input
+`artifact_repository`; the default name is `academic-writing-toolkit` in
+`asia-east1`.
+
+```sh
+gcloud artifacts repositories create academic-writing-toolkit \
+  --repository-format docker \
+  --location asia-east1 \
+  --project "$GCP_PROJECT_ID"
+```
+
+The deploy service account needs permission to authenticate from GitHub Actions,
+push Docker images to the Artifact Registry repository, deploy the Cloud Run
+service, and act as the Cloud Run runtime service account. In Google Cloud IAM
+terms, grant the narrowest equivalent of:
+
+- Workload Identity User on the GitHub identity pool binding.
+- Artifact Registry Writer on the Docker repository.
+- Cloud Run Admin on the target service or project.
+- Service Account User on the Cloud Run runtime service account.
+
+Run the workflow manually from GitHub Actions. Keep the default service name and
+region when pairing this service with the Firebase Hosting rewrite documented
+below.
+
+## Local Build
 
 Run from the repository root:
 
@@ -31,7 +72,7 @@ gcloud builds submit \
   .
 ```
 
-## Deploy
+## Local Deploy
 
 Cloud Run provides `PORT`; set only the host and production mode explicitly.
 Keep `REGION` aligned with the Firebase Hosting rewrite; this guide defaults to
