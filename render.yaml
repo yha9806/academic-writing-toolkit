@@ -2,7 +2,7 @@ services:
   - type: web
     name: academic-writing-toolkit-chatgpt-app
     runtime: docker
-    plan: starter
+    plan: free
     region: oregon
     branch: master
     dockerfilePath: ./apps/chatgpt-academic-writing-toolkit/Dockerfile
