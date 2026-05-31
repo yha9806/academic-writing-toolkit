@@ -1,0 +1,166 @@
+name: Deploy Cloud Run MCP
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: "Cloud Run service name"
+        required: true
+        default: "academic-writing-toolkit-chatgpt-mcp"
+      region:
+        description: "Cloud Run and Artifact Registry region"
+        required: true
+        default: "asia-east1"
+      artifact_repository:
+        description: "Artifact Registry Docker repository"
+        required: true
+        default: "academic-writing-toolkit"
+      max_instances:
+        description: "Cloud Run maximum instances"
+        required: true
+        default: "2"
+      openai_apps_challenge:
+        description: "Optional OpenAI Apps domain verification challenge"
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy-cloud-run-mcp-${{ inputs.service_name }}-${{ inputs.region }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy MCP server to Cloud Run
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      SERVICE_NAME: ${{ inputs.service_name }}
+      REGION: ${{ inputs.region }}
+      ARTIFACT_REPOSITORY: ${{ inputs.artifact_repository }}
+      MAX_INSTANCES: ${{ inputs.max_instances }}
+      OPENAI_APPS_CHALLENGE: ${{ inputs.openai_apps_challenge }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check deployment configuration
+        run: |
+          missing=0
+          for name in PROJECT_ID WORKLOAD_IDENTITY_PROVIDER DEPLOY_SERVICE_ACCOUNT SERVICE_NAME REGION ARTIFACT_REPOSITORY MAX_INSTANCES; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is required"
+              missing=1
+            fi
+          done
+
+          if ! printf '%s' "$MAX_INSTANCES" | grep -Eq '^[1-9][0-9]*$'; then
+            echo "::error::MAX_INSTANCES must be a positive integer"
+            missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Verify Artifact Registry repository
+        run: |
+          if ! gcloud artifacts repositories describe "$ARTIFACT_REPOSITORY" \
+            --location "$REGION" \
+            --project "$PROJECT_ID" \
+            --format "value(name)" >/dev/null; then
+            echo "::error::Artifact Registry repository '$ARTIFACT_REPOSITORY' does not exist in $PROJECT_ID/$REGION"
+            exit 1
+          fi
+
+      - name: Build and push Docker image
+        id: image
+        run: |
+          image="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${SERVICE_NAME}:${GITHUB_SHA}"
+          latest="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${SERVICE_NAME}:latest"
+
+          docker build \
+            -f apps/chatgpt-academic-writing-toolkit/Dockerfile \
+            -t "$image" \
+            -t "$latest" \
+            .
+
+          docker push "$image"
+          docker push "$latest"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Cloud Run service
+        id: deploy
+        run: |
+          env_vars="NODE_ENV=production,HOST=0.0.0.0"
+          if [ -n "$OPENAI_APPS_CHALLENGE" ]; then
+            env_vars="${env_vars},OPENAI_APPS_CHALLENGE=${OPENAI_APPS_CHALLENGE}"
+          fi
+
+          gcloud run deploy "$SERVICE_NAME" \
+            --image "${{ steps.image.outputs.image }}" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --platform managed \
+            --allow-unauthenticated \
+            --ingress all \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 300 \
+            --concurrency 20 \
+            --min-instances 0 \
+            --max-instances "$MAX_INSTANCES" \
+            --set-env-vars "$env_vars"
+
+          service_url="$(gcloud run services describe "$SERVICE_NAME" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --format 'value(status.url)')"
+          echo "service_url=$service_url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify direct service URL
+        run: |
+          service_url="${{ steps.deploy.outputs.service_url }}"
+
+          curl -fsS "$service_url/health" > "$RUNNER_TEMP/health.json"
+          grep -q '"status":"ok"' "$RUNNER_TEMP/health.json"
+
+          http_code="$(curl -sS -o "$RUNNER_TEMP/mcp-get.json" -w '%{http_code}' "$service_url/mcp" || true)"
+          if [ "$http_code" != "405" ]; then
+            echo "::error::Expected GET /mcp to return 405, got $http_code"
+            cat "$RUNNER_TEMP/mcp-get.json" || true
+            exit 1
+          fi
+
+          if [ -n "$OPENAI_APPS_CHALLENGE" ]; then
+            curl -fsS "$service_url/.well-known/openai-apps-challenge" > "$RUNNER_TEMP/challenge.txt"
+            printf '%s' "$OPENAI_APPS_CHALLENGE" > "$RUNNER_TEMP/expected-challenge.txt"
+            cmp "$RUNNER_TEMP/challenge.txt" "$RUNNER_TEMP/expected-challenge.txt"
+          fi
+
+      - name: Output deployment info
+        run: |
+          echo "## Cloud Run MCP deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Service: $SERVICE_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Region: $REGION" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Direct service URL: ${{ steps.deploy.outputs.service_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- MCP URL: ${{ steps.deploy.outputs.service_url }}/mcp" >> "$GITHUB_STEP_SUMMARY"

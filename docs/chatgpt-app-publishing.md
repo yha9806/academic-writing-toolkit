@@ -72,7 +72,9 @@ Cloud Run files live in:
 deploy/cloud-run/
 ```
 
-Deploy the app as a Cloud Run service named `academic-writing-toolkit-chatgpt-mcp` in the same region used by the Firebase Hosting rewrite, then add rewrites for these exact paths before the single-page-app fallback:
+Deploy the app as a Cloud Run service named `academic-writing-toolkit-chatgpt-mcp` in the same region used by the Firebase Hosting rewrite. Prefer the manual GitHub Actions workflow in `.github/workflows/deploy-cloud-run-mcp.yml`, backed by a dedicated least-privilege Google Cloud deploy identity.
+
+After the service URL passes direct smoke tests, add Firebase Hosting rewrites for these exact paths before the single-page-app fallback:
 
 - `/mcp`
 - `/health`
