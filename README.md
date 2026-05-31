@@ -10,7 +10,7 @@ This repository is a public toolkit. It contains reusable local agent skills, sc
 The repository also includes distribution packaging for a Codex plugin and a tool-only ChatGPT App MCP server.
 
 ```
-/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /style -> /logic-review -> /export
+/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /release-governance -> /style -> /logic-review -> /export
              |                                      |
              v                                      v
         /verify                               /verify-refs
@@ -56,6 +56,7 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/evidence-review` | Build evidence-controlled gap maps, claim registers, citation plans, and overclaim audits |
 | `/integrate` | Propose and apply approved note-to-chapter integrations |
 | `/audit` | Check numbers, terminology, cross-references, and citations |
+| `/release-governance` | Prepare release, rebuttal, artifact, and claim packets with ref-artifact-gate controls |
 | `/style` | Check and safely fix British English spellings |
 | `/logic-review` | Review paragraph flow, transitions, and argument continuity |
 | `/verify-refs` | Validate BibTeX records offline or with explicit metadata checks |
@@ -80,9 +81,12 @@ python3 scripts/audit-logic.py --base-dir . --json
 python3 scripts/verify-refs.py --bib references.bib --json
 python3 scripts/verify-refs.py --bib references.bib --json --online
 python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
+
+python3 .claude/skills/release-governance/scripts/check_release_packet.py .
 ```
 
 Safe fixers are intentionally narrow. Citation fixes only apply conservative formatting changes such as Harvard comma normalisation; British English fixes only apply whole-word spelling replacements from the built-in map. Paragraph logic and reference metadata checks report findings for agent or user review.
+Release packet checks are also narrow: they validate files, columns, evidence-state values, parseability, local path leakage, and unresolved template markers, but they do not judge scientific validity or venue compliance.
 
 ## Project Layout
 
@@ -96,6 +100,7 @@ my-writing-project/
 ├── literature/
 │   └── reading_notes/       One notes file per source
 ├── plugins/                 Codex plugin package
+├── release/                 Optional release governance packets
 ├── final_output/            Exported documents
 ├── scripts/                 Deterministic helper checks
 ├── CLAUDE.md                Canonical project configuration

@@ -5,7 +5,7 @@ This toolkit provides local agent skills for academic writing projects. Skills a
 ## Pipeline
 
 ```text
-/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /style -> /logic-review -> /export
+/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /release-governance -> /style -> /logic-review -> /export
              |                                      |
              v                                      v
         /verify                               /verify-refs
@@ -25,6 +25,7 @@ This toolkit provides local agent skills for academic writing projects. Skills a
 | `/evidence-review` | [12-evidence-review.md](12-evidence-review.md) |
 | `/integrate` | [05-integrate.md](05-integrate.md) |
 | `/audit` | [06-audit.md](06-audit.md) |
+| `/release-governance` | [13-release-governance.md](13-release-governance.md) |
 | `/progress` | [07-progress.md](07-progress.md) |
 | `/export` | [08-export.md](08-export.md) |
 | `/style` | [09-style.md](09-style.md) |
