@@ -9,6 +9,14 @@ This repository is a public toolkit. It contains reusable local agent skills, sc
 
 The repository also includes distribution packaging for a Codex plugin and a tool-only ChatGPT App MCP server.
 
+## Product Surfaces
+
+Local agent skills are the full workflow. Use them when an agent can read and write the project files in your clone: chapters, reading notes, evidence registers, release packets, and export outputs.
+
+The Codex plugin packages those same local skills for Codex plugin installation. It is a distribution surface, not a separate workflow.
+
+The ChatGPT App MCP server is narrower. It provides pasted-text checks and template generation through temporary files only; it does not read or write a local thesis project, run the full skill pipeline, or persist user submissions.
+
 ```
 /read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /release-governance -> /style -> /logic-review -> /export
              |                                      |

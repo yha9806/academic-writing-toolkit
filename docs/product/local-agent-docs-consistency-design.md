@@ -56,7 +56,7 @@ The guides should keep their runtime-specific setup details but share the same p
 
 Add a focused test to `scripts/test.sh` that fails when public setup docs drift behind the current local skill set. The guard should check for:
 
-- no stale "11 public academic writing skills" wording
+- no stale fixed-count skill inventory wording
 - presence of `evidence-review` and `release-governance` in local-agent setup docs
 - root README explicitly distinguishing local skills from the ChatGPT App pasted-text surface
 

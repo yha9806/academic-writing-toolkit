@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (55 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (56 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -740,6 +740,28 @@ test_T58() {
     ! grep -Eq '\b(subprocess|socket|requests|urllib|http\.client|ftplib)\b' .claude/skills/release-governance/scripts/check_release_packet.py
 }
 
+test_T59() {
+    local setup_docs=(
+        "$REPO_ROOT/docs/setup-claude-code.md"
+        "$REPO_ROOT/docs/setup-codex-cli.md"
+        "$REPO_ROOT/docs/setup-gemini-cli.md"
+        "$REPO_ROOT/docs/setup-openclaw.md"
+    )
+
+    local stale_phrase="11 public academic writing skill"
+    ! grep -R -q "${stale_phrase}s" "${setup_docs[@]}" || return 1
+
+    local doc
+    for doc in "${setup_docs[@]}"; do
+        grep -q "evidence-review" "$doc" || return 1
+        grep -q "release-governance" "$doc" || return 1
+    done
+
+    grep -q "Local agent skills" "$REPO_ROOT/README.md" || return 1
+    grep -q "ChatGPT App MCP server" "$REPO_ROOT/README.md" || return 1
+    grep -q "pasted-text" "$REPO_ROOT/README.md" || return 1
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -805,6 +827,7 @@ run_test "T55 release packet validator rejects invalid evidence state" test_T55
 run_test "T56 release packet validator rejects missing columns" test_T56
 run_test "T57 release packet validator rejects local paths and placeholders" test_T57
 run_test "T58 release packet validator stays local-only" test_T58
+run_test "T59 local-agent docs avoid skill drift" test_T59
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

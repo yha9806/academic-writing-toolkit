@@ -28,7 +28,8 @@ test_T59() {
         "$REPO_ROOT/docs/setup-openclaw.md"
     )
 
-    ! grep -R -q "11 public academic writing skills" "${setup_docs[@]}" || return 1
+    local stale_phrase="11 public academic writing skill"
+    ! grep -R -q "${stale_phrase}s" "${setup_docs[@]}" || return 1
 
     local doc
     for doc in "${setup_docs[@]}"; do
@@ -187,7 +188,7 @@ This page is the canonical public index for local agent skills. Runtime setup gu
 Run:
 
 ```bash
-rg -n "11 public academic writing skills" docs README.md
+rg -n "11 public academic writing skill""s" docs README.md
 rg -n "evidence-review|release-governance" docs/setup-claude-code.md docs/setup-codex-cli.md docs/setup-gemini-cli.md docs/setup-openclaw.md
 ```
 

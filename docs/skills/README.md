@@ -2,6 +2,8 @@
 
 This toolkit provides local agent skills for academic writing projects. Skills are discovered from `.claude/skills/` by Claude Code and from `.agents/skills/` by Codex, Gemini, and compatible hosts.
 
+This page is the canonical public index for local agent skills. Runtime setup guides should point here rather than maintaining separate skill inventories.
+
 ## Pipeline
 
 ```text
