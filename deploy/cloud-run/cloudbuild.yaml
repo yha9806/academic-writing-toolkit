@@ -1,0 +1,15 @@
+substitutions:
+  _IMAGE: gcr.io/$PROJECT_ID/academic-writing-toolkit-chatgpt-mcp:manual
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/chatgpt-academic-writing-toolkit/Dockerfile
+      - -t
+      - ${_IMAGE}
+      - .
+
+images:
+  - ${_IMAGE}

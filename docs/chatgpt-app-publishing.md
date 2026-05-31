@@ -60,11 +60,39 @@ docker build -f apps/chatgpt-academic-writing-toolkit/Dockerfile -t academic-wri
 docker run --rm -p 3000:3000 academic-writing-toolkit-chatgpt-app
 ```
 
-For hosted deployment, configure the platform to route HTTPS traffic to container port `3000` and submit the public `https://YOUR_DOMAIN/mcp` URL.
+For hosted deployment, configure the platform to route HTTPS traffic to the container and submit the public `https://YOUR_DOMAIN/mcp` URL.
+
+## Cloud Run Deployment
+
+Use Cloud Run when the MCP server should live behind an existing Firebase Hosting domain path. This keeps the main static site in place while routing only MCP-related paths to the ChatGPT App server.
+
+Cloud Run files live in:
+
+```text
+deploy/cloud-run/
+```
+
+Deploy the app as a Cloud Run service named `academic-writing-toolkit-chatgpt-mcp` in the same region used by the Firebase Hosting rewrite, then add rewrites for these exact paths before the single-page-app fallback:
+
+- `/mcp`
+- `/health`
+- `/.well-known/openai-apps-challenge`
+
+After the hosting rewrite is deployed, submit:
+
+```text
+https://YOUR_DOMAIN/mcp
+```
+
+as the MCP Server URL in OpenAI Platform Apps Manage.
+
+See `deploy/cloud-run/README.md` for build, deploy, verification, and rewrite examples.
 
 ## Render Deployment
 
-The default production target for this repository is Render, configured by `render.yaml` at the repository root.
+Render remains useful for low-cost smoke testing or for deployments that can use a dedicated custom domain. It is not the preferred path when an existing Firebase Hosting domain must route `/mcp` on the same hostname.
+
+Render is configured by `render.yaml` at the repository root.
 
 The Blueprint defines one Docker web service:
 
@@ -84,7 +112,7 @@ Why Render for the first public MCP endpoint:
 - The `free` plan keeps the first deployment cost at zero while we prepare the app.
 - A dedicated custom subdomain, such as `awt.example.com`, keeps Academic Writing Toolkit separate from any existing app and main site.
 
-The free plan may sleep when idle. If OpenAI review fails because the MCP endpoint is slow to wake up or unavailable, temporarily upgrade the Render service to `starter` for the review window, then downgrade after approval if traffic stays low.
+The free plan may sleep when idle. If you use Render for OpenAI review and it fails because the MCP endpoint is slow to wake up or unavailable, temporarily upgrade the Render service to `starter` for the review window, then downgrade after approval if traffic stays low.
 
 Setup:
 
@@ -119,7 +147,7 @@ Before pressing Submit for review:
 - Complete OpenAI organization verification for the publisher name.
 - Confirm the submitting account has `api.apps.write`; use `api.apps.read` to view drafts and review status.
 - Use a public HTTPS MCP URL that OpenAI can reach during automated checks and manual review.
-- Prefer a dedicated custom-domain MCP URL for submission; use the Render `onrender.com` URL only as a temporary deployment smoke-test URL.
+- Prefer the Firebase Hosting domain rewrite backed by Cloud Run for submission; use the Render `onrender.com` URL only as a temporary deployment smoke-test URL.
 - Import `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` into the dashboard form and re-check every generated test case.
 - Run the positive and negative test prompts in ChatGPT Developer Mode on web and mobile; expected outputs should be concise and match the stated tool behavior.
 - Confirm every tool descriptor has explicit `readOnlyHint`, `openWorldHint`, `destructiveHint`, and `outputSchema`.
