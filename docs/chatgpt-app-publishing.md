@@ -62,6 +62,48 @@ docker run --rm -p 3000:3000 academic-writing-toolkit-chatgpt-app
 
 For hosted deployment, configure the platform to route HTTPS traffic to container port `3000` and submit the public `https://YOUR_DOMAIN/mcp` URL.
 
+## Render Deployment
+
+The default production target for this repository is Render, configured by `render.yaml` at the repository root.
+
+The Blueprint defines one Docker web service:
+
+- service name: `academic-writing-toolkit-chatgpt-app`
+- Dockerfile: `apps/chatgpt-academic-writing-toolkit/Dockerfile`
+- build context: repository root
+- plan: `starter`
+- region: `oregon`
+- health check: `/health`
+- deploy trigger: `checksPass`
+
+Why Render for the first public MCP endpoint:
+
+- Docker web services fit the existing Express MCP server without changing the app.
+- Render provides a public `onrender.com` HTTPS URL by default.
+- `checksPass` avoids deploying a commit before GitHub CI succeeds.
+- The `starter` plan avoids free-tier spin-down during app review.
+
+Setup:
+
+1. In Render, create a Blueprint from `https://github.com/yha9806/academic-writing-toolkit`.
+2. Confirm `render.yaml` is detected at the repository root.
+3. Create the service from the Blueprint.
+4. Wait for Render to deploy the `master` branch after checks pass.
+5. Copy the service URL, for example `https://academic-writing-toolkit-chatgpt-app.onrender.com`.
+6. Use `https://YOUR_RENDER_URL/mcp` as the MCP Server URL in OpenAI Platform Apps Manage.
+
+If OpenAI Platform asks for a domain challenge, set this environment variable on the Render service and redeploy:
+
+```sh
+OPENAI_APPS_CHALLENGE=<challenge value from OpenAI Platform>
+```
+
+Then verify:
+
+```sh
+curl -fsS https://YOUR_RENDER_URL/.well-known/openai-apps-challenge
+```
+
 ## Review Checklist
 
 Before pressing Submit for review:

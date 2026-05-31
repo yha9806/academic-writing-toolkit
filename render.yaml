@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: academic-writing-toolkit-chatgpt-app
+    runtime: docker
+    plan: starter
+    region: oregon
+    branch: master
+    dockerfilePath: ./apps/chatgpt-academic-writing-toolkit/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "3000"
