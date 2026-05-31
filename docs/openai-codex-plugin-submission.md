@@ -4,12 +4,13 @@ This file records the official-format submission details for the Academic Writin
 
 ## Official Status
 
-As of 2026-05-13, OpenAI's Codex plugin build documentation says official public plugin publishing and self-serve plugin management are coming soon.
+As of 2026-05-31, OpenAI's Codex plugin build documentation says official public plugin publishing and self-serve plugin management are coming soon. OpenAI's Apps submission documentation says the current public distribution path is to submit a ChatGPT App through the dashboard; publishing an approved app creates the Codex distribution plugin.
 
 Official docs:
 
 - https://developers.openai.com/codex/plugins
 - https://developers.openai.com/codex/plugins/build
+- https://developers.openai.com/apps-sdk/deploy/submission
 
 This package is prepared to match the official Codex plugin package format. It has not been submitted to an official OpenAI public Plugin Directory because the official self-serve submission surface is not yet available in the documented developer flow.
 
@@ -18,16 +19,26 @@ This package is prepared to match the official Codex plugin package format. It h
 - Plugin name: `academic-writing-toolkit`
 - Display name: `Academic Writing Toolkit`
 - Repository: `https://github.com/yha9806/academic-writing-toolkit`
-- Release ref: `v0.1.0`
+- Package version: `0.2.0`
+- Tagged release ref for external review: `v0.2.0` after creating the verified release tag
 - Current default branch ref used for local marketplace tracking: `master`
 - Plugin path: `plugins/academic-writing-toolkit`
 - Manifest: `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
 - Marketplace metadata for repo/team testing: `.agents/plugins/marketplace.json`
+- ChatGPT App submission import: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
 
 ## Install Command For Review
 
+Use `master` for current default-branch testing:
+
 ```bash
-codex marketplace add yha9806/academic-writing-toolkit --ref v0.1.0 --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
+codex marketplace add yha9806/academic-writing-toolkit --ref master --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
+```
+
+Use an immutable release tag after the `v0.2.0` tag has been created:
+
+```bash
+codex marketplace add yha9806/academic-writing-toolkit --ref v0.2.0 --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
 ```
 
 The local CLI currently exposes `codex marketplace add`. Some newer OpenAI docs show `codex plugin marketplace add`; use the command supported by the installed Codex CLI version.
@@ -49,6 +60,7 @@ The manifest follows the OpenAI Codex plugin docs:
 - `note`
 - `verify`
 - `map`
+- `evidence-review`
 - `integrate`
 - `audit`
 - `style`
@@ -59,10 +71,11 @@ The manifest follows the OpenAI Codex plugin docs:
 
 ## Review Notes
 
-- The plugin is a Codex plugin package, not a ChatGPT Apps SDK app.
-- `chatgpt-app-submission.json` is not generated because this repo does not expose a ChatGPT Apps MCP server or Apps SDK widget surface.
+- The standalone plugin package is a Codex plugin package with bundled local skills and helper scripts.
+- The repository also exposes a separate tool-only ChatGPT App MCP server under `apps/chatgpt-academic-writing-toolkit/`.
+- `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` is generated for the OpenAI Platform Apps dashboard review flow.
 - The package uses bundled local skills and helper scripts only.
-- The package does not declare an external app connector or MCP server.
+- The standalone plugin manifest does not currently declare `.app.json` or `.mcp.json`; public Codex distribution should follow the documented Apps approval and publication path until self-serve plugin publishing is available.
 
 ## Verification
 
@@ -71,6 +84,7 @@ Run from the repository root before any official submission:
 ```bash
 make plugin-sync
 make plugin-check
+make chatgpt-app-check
 make test
 ```
 
@@ -80,6 +94,7 @@ Expected result:
 - plugin manifest and marketplace metadata validate
 - helper scripts expose usable `--help`
 - PNG asset paths and headers validate
+- ChatGPT App tool descriptors and wrappers pass their Node test suite
 - regression tests pass
 
 ## Community Submission Note
