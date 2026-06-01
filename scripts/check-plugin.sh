@@ -117,7 +117,7 @@ if grep -R "\[TODO\]\|TODO:" "$PLUGIN_ROOT" "$MARKETPLACE_JSON" >/dev/null; then
     die "plugin package contains TODO placeholders"
 fi
 
-for skill in audit evidence-review export integrate logic-review map note progress read style verify verify-refs; do
+for skill in audit evidence-review export human-eval-handoff-repair integrate logic-review map note progress read style verify verify-refs; do
     [[ -f "$PLUGIN_ROOT/skills/$skill/SKILL.md" ]] || die "missing plugin skill: $skill"
 done
 

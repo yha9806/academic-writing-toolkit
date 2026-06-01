@@ -1,7 +1,7 @@
 {
   "name": "academic-writing-toolkit",
   "version": "0.2.0",
-  "description": "Academic reading, thesis writing, evidence-controlled review synthesis, citation auditing, British English checking, reference verification, and export skills for Codex.",
+  "description": "Academic reading, thesis writing, evidence-controlled review synthesis, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
   "author": {
     "name": "Yu, Haorui",
     "email": "yuhaorui48@gmail.com",
@@ -18,13 +18,15 @@
     "british-english",
     "references",
     "evidence-review",
-    "literature-review"
+    "literature-review",
+    "human-evaluation",
+    "annotation-repair"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Academic Writing Toolkit",
-    "shortDescription": "Structured research, thesis writing, evidence-review, citation, style, and export workflows.",
-    "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, integrating arguments, auditing citations and consistency, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
+    "shortDescription": "Structured research, thesis writing, evidence-review, citation, human-eval repair, style, and export workflows.",
+    "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, integrating arguments, auditing citations and consistency, checking British English, reviewing paragraph logic, verifying BibTeX records, validating and repairing human-evaluation handoff packages, tracking progress, and exporting thesis materials.",
     "developerName": "Yu, Haorui",
     "category": "Productivity",
     "capabilities": [

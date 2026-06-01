@@ -66,6 +66,7 @@ The manifest follows the OpenAI Codex plugin docs:
 - `style`
 - `logic-review`
 - `verify-refs`
+- `human-eval-handoff-repair`
 - `progress`
 - `export`
 

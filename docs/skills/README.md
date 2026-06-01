@@ -12,6 +12,8 @@ This toolkit provides local agent skills for academic writing projects. Skills a
              |
              v
         /progress
+
+/human-eval-handoff-repair is an evaluation-package QC and annotation repair workflow outside the thesis-writing pipeline.
 ```
 
 ## Guides
@@ -30,5 +32,6 @@ This toolkit provides local agent skills for academic writing projects. Skills a
 | `/style` | [09-style.md](09-style.md) |
 | `/logic-review` | [10-logic-review.md](10-logic-review.md) |
 | `/verify-refs` | [11-verify-refs.md](11-verify-refs.md) |
+| `/human-eval-handoff-repair` | [13-human-eval-handoff-repair.md](13-human-eval-handoff-repair.md) |
 
 The shared data contract is the notes file in `literature/reading_notes/`: status, source citation, relevance, detailed notes, and thesis connections.

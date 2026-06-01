@@ -17,6 +17,8 @@ The repository also includes distribution packaging for a Codex plugin and a too
              |
              v
         /progress
+
+/human-eval-handoff-repair supports evaluation-package QC and annotation repair workflows.
 ```
 
 ## Quick Start
@@ -59,6 +61,7 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/style` | Check and safely fix British English spellings |
 | `/logic-review` | Review paragraph flow, transitions, and argument continuity |
 | `/verify-refs` | Validate BibTeX records offline or with explicit metadata checks |
+| `/human-eval-handoff-repair` | Validate, repair, and map human-evaluation handoff packages and filled annotation CSVs |
 | `/progress` | Show reading, writing, and coverage progress |
 | `/export` | Convert Markdown outputs to `.docx` and ZIP packages |
 
@@ -134,7 +137,7 @@ make chatgpt-app-check  # run the ChatGPT App MCP server checks
 
 For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md). For ChatGPT App deployment and submission preparation, use [`docs/chatgpt-app-publishing.md`](docs/chatgpt-app-publishing.md).
 
-The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, and offline plus fixture-backed reference verification.
+The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, human-evaluation handoff repair packaging, and offline plus fixture-backed reference verification.
 
 ## Reference Verification
 
