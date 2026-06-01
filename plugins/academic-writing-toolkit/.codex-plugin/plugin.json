@@ -3,8 +3,7 @@
   "version": "0.2.0",
   "description": "Academic reading, thesis writing, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, and export skills for Codex.",
   "author": {
-    "name": "Yu, Haorui",
-    "email": "yuhaorui48@gmail.com",
+    "name": "Academic Writing Toolkit Maintainers",
     "url": "https://github.com/yha9806"
   },
   "homepage": "https://github.com/yha9806/academic-writing-toolkit",
@@ -26,7 +25,7 @@
     "displayName": "Academic Writing Toolkit",
     "shortDescription": "Structured research, thesis writing, evidence-review, release governance, citation, style, and export workflows.",
     "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, integrating arguments, auditing citations and consistency, preparing release-governance packets, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
-    "developerName": "Yu, Haorui",
+    "developerName": "Academic Writing Toolkit Maintainers",
     "category": "Productivity",
     "capabilities": [
       "Read",

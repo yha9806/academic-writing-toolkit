@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (56 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (57 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -618,6 +618,31 @@ test_T49() {
     python3 scripts/verify-refs.py --help | grep -q -- "--metadata-dir"
 }
 
+test_T60() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/refs"
+    cat > "$tmp/refs/papers.md" <<'EOF'
+# References
+
+```bibtex
+@article{smith2024,
+  title = {A Generic Toolkit Study},
+  author = {Smith, Jane},
+  year = {2024},
+  journal = {Journal of Tools},
+  doi = {10.1000/example}
+}
+```
+EOF
+    out=$(python3 scripts/verify-refs.py "$tmp/refs/papers.md" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['entries'] == 1 and not d['issues']"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -828,6 +853,7 @@ run_test "T56 release packet validator rejects missing columns" test_T56
 run_test "T57 release packet validator rejects local paths and placeholders" test_T57
 run_test "T58 release packet validator stays local-only" test_T58
 run_test "T59 local-agent docs avoid skill drift" test_T59
+run_test "T60 verify-refs accepts Markdown BibTeX fences" test_T60
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
