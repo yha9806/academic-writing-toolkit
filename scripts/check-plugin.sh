@@ -117,7 +117,7 @@ if grep -R "\[TODO\]\|TODO:" "$PLUGIN_ROOT" "$MARKETPLACE_JSON" >/dev/null; then
     die "plugin package contains TODO placeholders"
 fi
 
-for skill in audit evidence-review export integrate logic-review map note progress read style verify verify-refs; do
+for skill in audit evidence-review export integrate logic-review map note progress read release-governance style verify verify-refs; do
     [[ -f "$PLUGIN_ROOT/skills/$skill/SKILL.md" ]] || die "missing plugin skill: $skill"
 done
 
@@ -127,5 +127,6 @@ python3 "$PLUGIN_ROOT/skills/logic-review/scripts/audit-logic.py" --help >/dev/n
 python3 "$PLUGIN_ROOT/skills/verify-refs/scripts/verify-refs.py" --help >/dev/null
 python3 "$PLUGIN_ROOT/skills/export/scripts/convert_to_docx.py" --help >/dev/null
 python3 "$PLUGIN_ROOT/skills/evidence-review/scripts/check_review_package.py" --help >/dev/null
+python3 "$PLUGIN_ROOT/skills/release-governance/scripts/check_release_packet.py" --help >/dev/null
 
 ok "plugin package validates"
