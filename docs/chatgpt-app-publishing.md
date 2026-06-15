@@ -26,17 +26,17 @@ The app-specific check runs the Node test suite for the MCP server and tool wrap
 
 ## Current v0.3.0 Submission Endpoint
 
-For the zero-cost v0.3.0 submission path, use the Render free deployment:
+For the zero-cost v0.3.0 update of the already-published ChatGPT App, keep the existing Hugging Face Space MCP base URL:
 
 ```text
-https://academic-writing-toolkit-chatgpt-app.onrender.com/mcp
+https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 ```
 
 Dashboard fields:
 
 - App name: `Academic Writing Toolkit`
 - Category: `EDUCATION`
-- MCP Server URL: `https://academic-writing-toolkit-chatgpt-app.onrender.com/mcp`
+- MCP Server URL: `https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp`
 - Privacy Policy URL: `https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/privacy.md`
 - Terms of Service URL: `https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/terms.md`
 - Submission import file: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
@@ -44,13 +44,15 @@ Dashboard fields:
 Smoke-test before submitting:
 
 ```sh
-curl -fsS https://academic-writing-toolkit-chatgpt-app.onrender.com/health
-curl -i https://academic-writing-toolkit-chatgpt-app.onrender.com/mcp
+curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/health
+curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 ```
 
 `/health` should return version `0.3.0` and `status: ok`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
 
-Because the Render free plan can sleep when idle, run the smoke tests immediately before saving or submitting the dashboard draft so OpenAI's first automated check does not hit a cold start.
+OpenAI currently requires an updated app draft to keep the same MCP base URL as the published version. Use the Render URL only for backup smoke testing or for a separate future app listing.
+
+For the v0.3.0 draft, OpenAI Platform accepted the Hugging Face Space URL, confirmed domain verification, scanned 5 tools, and applied 5 imported tool justifications.
 
 ## Deployment Requirement
 
@@ -118,9 +120,38 @@ as the MCP Server URL in OpenAI Platform Apps Manage.
 
 See `deploy/cloud-run/README.md` for build, deploy, verification, and rewrite examples.
 
+## Hugging Face Space Deployment
+
+The already-published ChatGPT App is bound to the Hugging Face Space domain:
+
+```text
+https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space
+```
+
+Use the Hugging Face Space path when updating the published app because OpenAI Platform rejects changing the MCP base URL inside the existing app version lineage.
+
+The Space is a Docker Space on the free `cpu-basic` runtime. The Space root `Dockerfile` uses `PORT=7860`; keep that root Dockerfile in the Space even though the repository app Dockerfile uses `PORT=3000` for generic Docker hosts.
+
+Update the Space from the repository root with a bounded upload package that includes:
+
+- root Space `Dockerfile`
+- root Space `README.md`
+- `apps/chatgpt-academic-writing-toolkit/`
+- runtime scripts under `scripts/`
+
+After upload, wait until the Space runtime SHA matches the latest Space repo SHA, then verify:
+
+```sh
+curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/health
+curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
+curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/.well-known/openai-apps-challenge
+```
+
 ## Render Deployment
 
-Render is the current zero-cost hosted path for the v0.3.0 ChatGPT App submission. Cloud Run remains useful only if the MCP server must later live behind an existing Firebase Hosting domain path.
+Render is a zero-cost backup hosted path for smoke testing or for a separate future app listing. It is not the MCP URL for updates to the already-published OpenAI app, because that app is currently bound to the Hugging Face Space base URL.
+
+Cloud Run remains useful only if the MCP server must later live behind an existing Firebase Hosting domain path.
 
 Render is configured by `render.yaml` at the repository root.
 
@@ -177,8 +208,9 @@ Before pressing Submit for review:
 - Complete OpenAI organization verification for the publisher name.
 - Confirm the submitting account has `api.apps.write`; use `api.apps.read` to view drafts and review status.
 - Use a public HTTPS MCP URL that OpenAI can reach during automated checks and manual review.
-- Use the current Render `onrender.com` URL for the zero-cost submission path. Move to a custom domain or Firebase Hosting plus Cloud Run only if OpenAI review requires a same-domain setup or the free Render cold start causes review failures.
-- Pre-warm the Render service with `/health` immediately before saving or submitting the OpenAI dashboard draft.
+- For updates to the already-published app, use the Hugging Face Space MCP URL because OpenAI Platform requires the MCP base URL to match the current published version.
+- Pre-warm the Hugging Face Space with `/health` immediately before saving or submitting the OpenAI dashboard draft.
+- Keep the Render `onrender.com` URL as a backup smoke-test deployment only. Move to a custom domain or Firebase Hosting plus Cloud Run only if a future app version or separate listing needs that base URL.
 - Import `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` into the dashboard form and re-check every generated test case.
 - Run the positive and negative test prompts in ChatGPT Developer Mode on web and mobile; expected outputs should be concise and match the stated tool behavior.
 - Confirm every tool descriptor has explicit `readOnlyHint`, `openWorldHint`, `destructiveHint`, and `outputSchema`.
