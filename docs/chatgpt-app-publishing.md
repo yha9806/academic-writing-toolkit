@@ -24,6 +24,34 @@ The app-specific check runs the Node test suite for the MCP server and tool wrap
 - Terms URL source: `docs/terms.md`
 - App package version: `0.3.0`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
 
+## Current v0.3.0 Submission Endpoint
+
+For the zero-cost v0.3.0 submission path, use the Render free deployment:
+
+```text
+https://academic-writing-toolkit-chatgpt-app.onrender.com/mcp
+```
+
+Dashboard fields:
+
+- App name: `Academic Writing Toolkit`
+- Category: `EDUCATION`
+- MCP Server URL: `https://academic-writing-toolkit-chatgpt-app.onrender.com/mcp`
+- Privacy Policy URL: `https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/privacy.md`
+- Terms of Service URL: `https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/terms.md`
+- Submission import file: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
+
+Smoke-test before submitting:
+
+```sh
+curl -fsS https://academic-writing-toolkit-chatgpt-app.onrender.com/health
+curl -i https://academic-writing-toolkit-chatgpt-app.onrender.com/mcp
+```
+
+`/health` should return version `0.3.0` and `status: ok`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
+
+Because the Render free plan can sleep when idle, run the smoke tests immediately before saving or submitting the dashboard draft so OpenAI's first automated check does not hit a cold start.
+
 ## Deployment Requirement
 
 OpenAI Apps submission requires a public HTTPS MCP server URL. Localhost and temporary testing endpoints are not valid for review.
@@ -92,7 +120,7 @@ See `deploy/cloud-run/README.md` for build, deploy, verification, and rewrite ex
 
 ## Render Deployment
 
-Render remains useful for low-cost smoke testing or for deployments that can use a dedicated custom domain. It is not the preferred path when an existing Firebase Hosting domain must route `/mcp` on the same hostname.
+Render is the current zero-cost hosted path for the v0.3.0 ChatGPT App submission. Cloud Run remains useful only if the MCP server must later live behind an existing Firebase Hosting domain path.
 
 Render is configured by `render.yaml` at the repository root.
 
@@ -149,7 +177,8 @@ Before pressing Submit for review:
 - Complete OpenAI organization verification for the publisher name.
 - Confirm the submitting account has `api.apps.write`; use `api.apps.read` to view drafts and review status.
 - Use a public HTTPS MCP URL that OpenAI can reach during automated checks and manual review.
-- Prefer the Firebase Hosting domain rewrite backed by Cloud Run for submission; use the Render `onrender.com` URL only as a temporary deployment smoke-test URL.
+- Use the current Render `onrender.com` URL for the zero-cost submission path. Move to a custom domain or Firebase Hosting plus Cloud Run only if OpenAI review requires a same-domain setup or the free Render cold start causes review failures.
+- Pre-warm the Render service with `/health` immediately before saving or submitting the OpenAI dashboard draft.
 - Import `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` into the dashboard form and re-check every generated test case.
 - Run the positive and negative test prompts in ChatGPT Developer Mode on web and mobile; expected outputs should be concise and match the stated tool behavior.
 - Confirm every tool descriptor has explicit `readOnlyHint`, `openWorldHint`, `destructiveHint`, and `outputSchema`.
