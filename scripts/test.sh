@@ -712,7 +712,12 @@ for path in files:
         if not target:
             continue
         candidate = (path.parent / target).resolve()
-        if not str(candidate).startswith(str(root.resolve())) or not candidate.exists():
+        try:
+            candidate.relative_to(root.resolve())
+        except ValueError:
+            missing.append(f"{path.relative_to(root)} -> {target}")
+            continue
+        if not candidate.exists():
             missing.append(f"{path.relative_to(root)} -> {target}")
 if missing:
     raise SystemExit("\n".join(missing))

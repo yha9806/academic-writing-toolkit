@@ -7,7 +7,7 @@ agent-native, local-first workflows for evidence-controlled literature review, t
 
 Academic Writing Toolkit is a public toolkit for researchers who want their local AI agent to work through academic writing tasks with repeatable files, checks, and evidence controls. Install it into a writing project, open that project in Codex, Claude Code, Gemini CLI, Cursor, or another compatible agent host, and use the skills as a structured research workflow.
 
-This is not a SaaS product and it does not host your thesis. Your chapters, PDFs, reading notes, evidence registers, release packets, and exports stay in your clone.
+This is not a SaaS product and it does not host your thesis. Your chapters, PDFs, reading notes, evidence registers, release packets, and exports stay in your clone. Optional reference metadata checks use external APIs only when you explicitly run them with `--online`.
 
 ## Product Surfaces
 
