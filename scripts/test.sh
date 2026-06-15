@@ -484,6 +484,7 @@ test_T42() {
 
 test_T43() {
     grep -q "/verify-refs" "$REPO_ROOT/README.md" || return 1
+    grep -q "/human-eval-handoff-repair" "$REPO_ROOT/README.md" || return 1
     grep -q "/style" "$REPO_ROOT/README.md" || return 1
     grep -q "/logic-review" "$REPO_ROOT/README.md" || return 1
     grep -q "local agent skill" "$REPO_ROOT/README.md" || return 1

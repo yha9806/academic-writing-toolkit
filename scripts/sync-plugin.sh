@@ -58,7 +58,8 @@ def replace(relative_path: str, old: str, new: str) -> None:
     text = path.read_text(encoding="utf-8")
     if old not in text:
         raise SystemExit(f"pattern not found in {path}: {old[:80]!r}")
-    path.write_text(text.replace(old, new), encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text.replace(old, new))
 
 replace(
     "audit/SKILL.md",

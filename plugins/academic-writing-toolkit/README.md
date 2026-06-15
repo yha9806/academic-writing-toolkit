@@ -15,6 +15,7 @@ This Codex plugin packages the academic-writing-toolkit skills for structured re
 - `style`: check and safely fix common US spellings when British English is required
 - `logic-review`: review paragraph flow and transition issues
 - `verify-refs`: validate BibTeX and reference metadata
+- `human-eval-handoff-repair`: validate, repair, and map human-evaluation handoff packages and filled annotation CSVs
 - `progress`: show reading, writing, and coverage progress
 - `export`: export chapters and notes to Word documents
 
@@ -27,6 +28,7 @@ The skills expect a writing project with these directories when relevant:
 - `literature/reading_notes/`
 - `release/`
 - `final_output/`
+- `codex_outputs/` for generated handoff-repair reports when no output directory is specified
 
 Script-backed skills use helper scripts bundled inside the individual skill directories, so the plugin can run without copying the repository-level `scripts/` directory into a user's project.
 

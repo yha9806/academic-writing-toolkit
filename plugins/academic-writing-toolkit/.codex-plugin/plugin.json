@@ -1,7 +1,7 @@
 {
   "name": "academic-writing-toolkit",
   "version": "0.2.0",
-  "description": "Academic reading, thesis writing, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, and export skills for Codex.",
+  "description": "Academic reading, thesis writing, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
   "author": {
     "name": "Academic Writing Toolkit Maintainers",
     "url": "https://github.com/yha9806"
@@ -18,13 +18,15 @@
     "references",
     "evidence-review",
     "release-governance",
-    "literature-review"
+    "literature-review",
+    "human-evaluation",
+    "annotation-repair"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Academic Writing Toolkit",
-    "shortDescription": "Structured research, thesis writing, evidence-review, release governance, citation, style, and export workflows.",
-    "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, integrating arguments, auditing citations and consistency, preparing release-governance packets, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
+    "shortDescription": "Structured research, thesis writing, evidence-review, release governance, human-eval repair, citation, style, and export workflows.",
+    "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, integrating arguments, auditing citations and consistency, preparing release-governance packets, validating and repairing human-evaluation handoff packages, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
     "developerName": "Academic Writing Toolkit Maintainers",
     "category": "Productivity",
     "capabilities": [
@@ -38,7 +40,7 @@
     "defaultPrompt": [
       "Read this paper and extract thesis connections.",
       "Build an evidence-controlled gap map for my literature review.",
-      "Prepare a release-governance packet for my camera-ready artifact."
+      "Prepare a release-governance or human-evaluation repair packet."
     ],
     "brandColor": "#2563EB",
     "composerIcon": "./assets/icon.png",
