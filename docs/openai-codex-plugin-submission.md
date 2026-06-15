@@ -4,7 +4,7 @@ This file records the official-format submission details for the Academic Writin
 
 ## Official Status
 
-As of 2026-05-31, OpenAI's Codex plugin build documentation says official public plugin publishing and self-serve plugin management are coming soon. OpenAI's Apps submission documentation says the current public distribution path is to submit a ChatGPT App through the dashboard; publishing an approved app creates the Codex distribution plugin.
+As of 2026-06-15, OpenAI's Codex plugin build documentation says official public plugin publishing and self-serve plugin management are coming soon. OpenAI's Apps submission documentation says the current public distribution path is to submit a ChatGPT App through the dashboard; publishing an approved app creates the Codex distribution plugin.
 
 Official docs:
 
@@ -19,8 +19,8 @@ This package is prepared to match the official Codex plugin package format. It h
 - Plugin name: `academic-writing-toolkit`
 - Display name: `Academic Writing Toolkit`
 - Repository: `https://github.com/yha9806/academic-writing-toolkit`
-- Package version: `0.2.0`
-- Tagged release ref for external review: `v0.2.0` after creating the verified release tag
+- Package version: `0.3.0`
+- Tagged release ref for external review: `v0.3.0` after creating the verified release tag
 - Current default branch ref used for local marketplace tracking: `master`
 - Plugin path: `plugins/academic-writing-toolkit`
 - Manifest: `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
@@ -35,10 +35,10 @@ Use `master` for current default-branch testing:
 codex marketplace add yha9806/academic-writing-toolkit --ref master --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
 ```
 
-Use an immutable release tag after the `v0.2.0` tag has been created:
+Use an immutable release tag after the `v0.3.0` tag has been created:
 
 ```bash
-codex marketplace add yha9806/academic-writing-toolkit --ref v0.2.0 --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
+codex marketplace add yha9806/academic-writing-toolkit --ref v0.3.0 --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
 ```
 
 The local CLI currently exposes `codex marketplace add`. Some newer OpenAI docs show `codex plugin marketplace add`; use the command supported by the installed Codex CLI version.
@@ -63,6 +63,7 @@ The manifest follows the OpenAI Codex plugin docs:
 - `evidence-review`
 - `integrate`
 - `audit`
+- `release-governance`
 - `style`
 - `logic-review`
 - `verify-refs`
