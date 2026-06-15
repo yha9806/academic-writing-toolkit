@@ -10,3 +10,4 @@ node_modules/
 
 # Local worktrees (created by superpowers:using-git-worktrees skill)
 .worktrees/
+.gemini-agent/
