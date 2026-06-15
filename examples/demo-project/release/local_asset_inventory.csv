@@ -1,0 +1,3 @@
+path,status,file_count,size,role,release_action
+chapters/ch01.md,present,1,1 KB,manuscript-demo,keep
+evidence/evidence_matrix.csv,present,1,1 KB,evidence-demo,keep

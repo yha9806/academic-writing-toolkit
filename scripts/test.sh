@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (57 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (60 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -643,6 +643,82 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['entries'] == 1 and not d['issues']"
 }
 
+test_T61() {
+    local demo="$REPO_ROOT/examples/demo-project"
+    local use_cases="$REPO_ROOT/docs/use-cases"
+
+    [[ -f "$demo/README.md" ]] || return 1
+    [[ -f "$demo/CLAUDE.md" ]] || return 1
+    [[ -f "$demo/AGENTS.md" ]] || return 1
+    [[ -f "$demo/GEMINI.md" ]] || return 1
+    [[ -f "$demo/chapters/ch01.md" ]] || return 1
+    [[ -f "$demo/literature/reading_notes/smith2024_NOTES.md" ]] || return 1
+    [[ -f "$demo/literature/reading_notes/jones2023_NOTES.md" ]] || return 1
+    [[ -f "$demo/references.bib" ]] || return 1
+
+    [[ -f "$use_cases/README.md" ]] || return 1
+    [[ -f "$use_cases/write-literature-review.md" ]] || return 1
+    [[ -f "$use_cases/audit-thesis-citations.md" ]] || return 1
+    [[ -f "$use_cases/verify-references-before-submission.md" ]] || return 1
+    [[ -f "$use_cases/prepare-release-governance-packet.md" ]] || return 1
+    [[ -f "$use_cases/choose-product-surface.md" ]] || return 1
+
+    grep -q "agent-native" "$REPO_ROOT/README.md" || return 1
+    grep -q "local-first" "$REPO_ROOT/README.md" || return 1
+    grep -q "10-minute demo" "$REPO_ROOT/README.md" || return 1
+    grep -q "docs/use-cases" "$REPO_ROOT/README.md" || return 1
+    grep -q "examples/demo-project" "$REPO_ROOT/README.md" || return 1
+}
+
+test_T62() {
+    local demo="$REPO_ROOT/examples/demo-project"
+    local out
+
+    python3 scripts/verify-refs.py --bib "$demo/references.bib" --json >/dev/null || return 1
+    python3 .claude/skills/evidence-review/scripts/check_review_package.py "$demo" --strict >/dev/null || return 1
+    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$demo" --json) || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0"
+}
+
+test_T63() {
+    python3 - "$REPO_ROOT" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+files = [
+    root / "README.md",
+    root / "docs/use-cases/README.md",
+    root / "docs/use-cases/write-literature-review.md",
+    root / "docs/use-cases/audit-thesis-citations.md",
+    root / "docs/use-cases/verify-references-before-submission.md",
+    root / "docs/use-cases/prepare-release-governance-packet.md",
+    root / "docs/use-cases/choose-product-surface.md",
+    root / "examples/demo-project/README.md",
+]
+pattern = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
+missing = []
+for path in files:
+    if not path.is_file():
+        missing.append(str(path.relative_to(root)))
+        continue
+    text = path.read_text(encoding="utf-8")
+    for match in pattern.finditer(text):
+        target = match.group(1).strip()
+        if target.startswith(("http://", "https://", "mailto:", "#")):
+            continue
+        target = target.split("#", 1)[0]
+        if not target:
+            continue
+        candidate = (path.parent / target).resolve()
+        if not str(candidate).startswith(str(root.resolve())) or not candidate.exists():
+            missing.append(f"{path.relative_to(root)} -> {target}")
+if missing:
+    raise SystemExit("\n".join(missing))
+PY
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -854,6 +930,9 @@ run_test "T57 release packet validator rejects local paths and placeholders" tes
 run_test "T58 release packet validator stays local-only" test_T58
 run_test "T59 local-agent docs avoid skill drift" test_T59
 run_test "T60 verify-refs accepts Markdown BibTeX fences" test_T60
+run_test "T61 productization docs and demo structure exist" test_T61
+run_test "T62 demo project validates with existing checkers" test_T62
+run_test "T63 productization docs keep local links valid" test_T63
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

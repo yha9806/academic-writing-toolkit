@@ -1,0 +1,2 @@
+claim_id,claim_text,evidence_status,sources,scope_boundary,manual_check_needed
+C1,Local-first workflows can separate source notes evidence claims and release checks,verified_artifact,smith2024;jones2023,demo project only,false

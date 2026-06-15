@@ -4,6 +4,8 @@ This toolkit provides local agent skills for academic writing projects. Skills a
 
 This page is the canonical public index for local agent skills. Runtime setup guides should point here rather than maintaining separate skill inventories.
 
+If you want to start from a goal rather than a skill name, see the [use-case guides](../use-cases/README.md).
+
 ## Pipeline
 
 ```text

@@ -40,7 +40,7 @@ def tokens() -> List[str]:
 def public_files(base_dir: Path) -> Iterable[Path]:
     roots = [
         "README.md", "CLAUDE.md", "AGENTS.md", "GEMINI.md", "Makefile",
-        "docs", ".claude/skills", ".cursor", "templates", "scripts", "tests",
+        "docs", "examples", ".claude/skills", ".cursor", "templates", "scripts", "tests",
         "plugins/academic-writing-toolkit",
     ]
     for item in roots:
