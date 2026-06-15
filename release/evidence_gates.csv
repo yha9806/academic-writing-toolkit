@@ -1,0 +1,6 @@
+gate_id,artifact_id,evidence_state,human_confirmed,reviewer,review_date,validator,status
+gate-source,source-tree,verified_artifact,false,,,git status and git ls-files,passed
+gate-plugin,codex-plugin,verified_artifact,false,,,make plugin-check,passed
+gate-chatgpt,chatgpt-app,verified_artifact,false,,,npm --prefix apps/chatgpt-academic-writing-toolkit test,passed
+gate-branches,branch-integration,verified_artifact,false,,,git merge-base --is-ancestor,passed
+gate-docs,publishing-docs,verified_artifact,false,,,OpenAI docs browser check and local doc review,passed

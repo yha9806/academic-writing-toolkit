@@ -1,0 +1,6 @@
+claim_id,claim_text,artifact_ids,evidence_state,denominator,scope_boundary,human_gate_required,status
+c1,The v0.3.0 candidate has ChatGPT App and Codex plugin package metadata aligned at version 0.3.0,codex-plugin;chatgpt-app,verified_artifact,two package manifests,repository package metadata only,false,supported
+c2,The release-readiness and human-eval handoff repair branches are integrated into master,branch-integration,verified_artifact,two remote branches fetched on 2026-06-15,git branch ancestry only,false,supported
+c3,The Codex plugin package includes release governance and human-eval handoff repair skills,codex-plugin,verified_artifact,fourteen plugin skills,local plugin package only,false,supported
+c4,The ChatGPT App remains a narrower pasted-text MCP server and not the full local project workflow,chatgpt-app;publishing-docs,verified_artifact,five app tools,repository app surface only,false,supported
+c5,External ChatGPT Apps publication and hosted deployment still require maintainer-controlled credentials after push,publishing-docs,verified_artifact,external dashboards and hosts,repository cannot prove external publication,true,needs human gate

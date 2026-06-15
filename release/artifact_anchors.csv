@@ -1,0 +1,6 @@
+artifact_id,source_ref,source_path,count_or_checksum,evidence_state,verified_by,claim_supported
+source-tree,07118e4eed95a0357ceefa4449a49b7ff58d323f,.,228 tracked files,verified_artifact,git ls-files count,v0.3.0 source candidate exists
+codex-plugin,07118e4eed95a0357ceefa4449a49b7ff58d323f,plugins/academic-writing-toolkit,32 tracked files and version 0.3.0,verified_artifact,make plugin-check,Codex plugin package is aligned for v0.3.0
+chatgpt-app,07118e4eed95a0357ceefa4449a49b7ff58d323f,apps/chatgpt-academic-writing-toolkit,10 tracked files and version 0.3.0,verified_artifact,npm test,ChatGPT App package is aligned for v0.3.0
+publishing-docs,07118e4eed95a0357ceefa4449a49b7ff58d323f,docs/openai-codex-plugin-submission.md;docs/chatgpt-app-publishing.md;docs/product/v0.3.0-release-readiness.md,3 release docs,verified_artifact,manual doc review,publishing handoff docs are updated for v0.3.0
+branch-integration,07118e4eed95a0357ceefa4449a49b7ff58d323f,git refs,2 remote branches merged,verified_artifact,git merge-base checks,release-readiness and human-eval branches are ancestors of master

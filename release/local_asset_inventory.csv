@@ -1,0 +1,6 @@
+path,status,file_count,size,role,release_action
+.,tracked,228,repo,source tree,tag and push after verification
+plugins/academic-writing-toolkit,tracked,32,348K,Codex plugin package,include in v0.3.0 tag
+apps/chatgpt-academic-writing-toolkit,tracked,10,92K,ChatGPT App MCP server,deploy from master after checks pass
+docs,tracked,37,208K,publishing and release documentation,include in v0.3.0 tag
+.agents/plugins/marketplace.json,tracked,1,4K,local marketplace metadata,include for local and team plugin testing
