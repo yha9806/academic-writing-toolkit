@@ -156,6 +156,19 @@ Before pressing Submit for review:
 - Audit realistic tool responses for unnecessary personal data, debug fields, request IDs, logs, or secrets before submission.
 - Confirm `docs/privacy.md` and `docs/terms.md` match the deployed app behaviour.
 
+## Review Checklist
+
+Before pressing Submit for review:
+
+- Complete OpenAI organization verification for the publisher name.
+- Confirm the submitting account has `api.apps.write`; use `api.apps.read` to view drafts and review status.
+- Use a public HTTPS MCP URL that OpenAI can reach during automated checks and manual review.
+- Import `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` into the dashboard form and re-check every generated test case.
+- Run the positive and negative test prompts in ChatGPT Developer Mode on web and mobile; expected outputs should be concise and match the stated tool behavior.
+- Confirm every tool descriptor has explicit `readOnlyHint`, `openWorldHint`, `destructiveHint`, and `outputSchema`.
+- Audit realistic tool responses for unnecessary personal data, debug fields, request IDs, logs, or secrets before submission.
+- Confirm `docs/privacy.md` and `docs/terms.md` match the deployed app behaviour.
+
 ## Official Review Flow
 
 Use OpenAI Platform Apps Manage after deployment:
