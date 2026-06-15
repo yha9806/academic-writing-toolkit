@@ -1,0 +1,2 @@
+claim_id,claim_text,artifact_ids,evidence_state,denominator,scope_boundary,human_gate_required,status
+claim-1,Local-first workflows can separate source notes evidence claims and release checks,art-chapter-claim;art-evidence-matrix,verified_artifact,two fictional demo sources,demo project only,false,ready

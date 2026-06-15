@@ -18,27 +18,29 @@ Skills are loaded from `.agents/skills/` (symlinked to `.claude/skills/`).
 
 Ask OpenClaw: "What skills are available?"
 
-You should see the 11 public academic writing skills: read, note, verify, map, integrate, audit, style, logic-review, verify-refs, progress, export.
+You should see the public local agent skills listed in [the skills guide](skills/README.md), including `evidence-review` and `release-governance`.
 
 ## Available Skills
 
-| Skill     | Purpose                              |
-|-----------|--------------------------------------|
-| read      | Guided reading with page-by-page PDF extraction |
-| note      | Record structured reading notes      |
-| verify    | Fact-check claims against sources    |
-| map       | View literature coverage matrix      |
+| Skill | Purpose |
+|-------|---------|
+| read | Guided reading with page-by-page PDF extraction |
+| note | Record structured reading notes |
+| verify | Fact-check claims against sources |
+| map | View literature coverage matrix |
+| evidence-review | Build evidence-controlled gap maps and claim registers |
 | integrate | Weave reading notes into chapter drafts |
-| audit     | Pre-submission consistency check     |
-| style     | Check British English consistency    |
+| audit | Pre-submission consistency check |
+| release-governance | Prepare release, rebuttal, artifact, and claim packets |
+| style | Check British English consistency |
 | logic-review | Review paragraph flow and transitions |
 | verify-refs | Check BibTeX records and metadata |
-| progress  | Writing progress dashboard           |
-| export    | Export chapters to Word (.docx) + ZIP |
+| progress | Writing progress dashboard |
+| export | Export chapters to Word (.docx) and ZIP |
 
 ## Configuration
 
-OpenClaw reads `AGENTS.md` as its project instruction file, but **`AGENTS.md` is auto-generated** from `CLAUDE.md` by sub-project D's tooling. To customise:
+OpenClaw reads `AGENTS.md` as its project instruction file, but **`AGENTS.md` is auto-generated** from `CLAUDE.md` by this toolkit's sync tooling. To customise:
 
 1. Edit `CLAUDE.md` (the canonical source — the SHARED block is what gets regenerated).
 2. Run `make sync` to regenerate `AGENTS.md` (and `GEMINI.md`).
@@ -66,8 +68,10 @@ read literature/my-paper.pdf         # Start reading a paper
 note                                  # Record notes from reading
 verify Smith published the article in 2020  # Fact-check a claim
 map                                   # See literature coverage matrix
+evidence-review                       # Build evidence-controlled review maps
 integrate                             # Weave notes into chapters
 audit                                 # Pre-submission consistency check
+release-governance                    # Prepare release evidence packet
 style                                 # Check British English consistency
 logic-review                          # Review paragraph flow
 verify-refs references.bib            # Check BibTeX records

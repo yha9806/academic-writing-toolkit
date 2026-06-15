@@ -3,8 +3,8 @@
 
 The default mode is deterministic and CI-safe: parse BibTeX, validate required
 fields, duplicate keys, DOI shape, URL shape, and arXiv identifier shape.
-Online metadata checks can be added later behind an explicit flag without
-changing the offline contract.
+Online metadata checks are available behind an explicit flag without changing
+the offline contract.
 """
 
 import argparse

@@ -1,16 +1,46 @@
 # academic-writing-toolkit
 
-Structured local agent skills for academic reading, writing, reference checking, and export.
+agent-native, local-first workflows for evidence-controlled literature review, thesis writing, citation auditing, reference verification, and release governance.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-Standard-blue.svg)](https://agentskills.io)
 
-This repository is a public toolkit. It contains reusable local agent skills, scripts, templates, and tests only. Put your own chapters, PDFs, notes, and private project material in your clone.
+Academic Writing Toolkit is a public toolkit for researchers who want their local AI agent to work through academic writing tasks with repeatable files, checks, and evidence controls. Install it into a writing project, open that project in Codex, Claude Code, Gemini CLI, Cursor, or another compatible agent host, and use the skills as a structured research workflow.
 
-The repository also includes distribution packaging for a Codex plugin and a tool-only ChatGPT App MCP server.
+This is not a SaaS product and it does not host your thesis. Your chapters, PDFs, reading notes, evidence registers, release packets, and exports stay in your clone. Optional reference metadata checks use external APIs only when you explicitly run them with `--online`.
+
+## Product Surfaces
+
+Local agent skills are the full workflow. Use them when an agent can read and write the project files in your clone: chapters, reading notes, evidence registers, release packets, and export outputs.
+
+The Codex plugin packages those same local skills for Codex plugin installation. It is a distribution surface, not a separate workflow.
+
+The ChatGPT App MCP server is narrower. It provides pasted-text checks and template generation through temporary files only; it does not read or write a local thesis project, run the full skill pipeline, or persist user submissions.
+
+## 10-minute demo
+
+Inspect the runnable demo project:
+
+```bash
+python3 scripts/verify-refs.py --bib examples/demo-project/references.bib --json
+python3 .claude/skills/evidence-review/scripts/check_review_package.py examples/demo-project --strict
+python3 .claude/skills/release-governance/scripts/check_release_packet.py examples/demo-project --json
+```
+
+Then open [`examples/demo-project/`](examples/demo-project/) in your agent host and ask it to explain the local workflow.
+
+## Common use cases
+
+- [Write a literature review](docs/use-cases/write-literature-review.md)
+- [Audit thesis citations](docs/use-cases/audit-thesis-citations.md)
+- [Verify references before submission](docs/use-cases/verify-references-before-submission.md)
+- [Prepare a release-governance packet](docs/use-cases/prepare-release-governance-packet.md)
+- [Choose the right product surface](docs/use-cases/choose-product-surface.md)
+
+## Workflow
 
 ```
-/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /style -> /logic-review -> /export
+/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /release-governance -> /style -> /logic-review -> /export
              |                                      |
              v                                      v
         /verify                               /verify-refs
@@ -56,6 +86,7 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/evidence-review` | Build evidence-controlled gap maps, claim registers, citation plans, and overclaim audits |
 | `/integrate` | Propose and apply approved note-to-chapter integrations |
 | `/audit` | Check numbers, terminology, cross-references, and citations |
+| `/release-governance` | Prepare release, rebuttal, artifact, and claim packets with ref-artifact-gate controls |
 | `/style` | Check and safely fix British English spellings |
 | `/logic-review` | Review paragraph flow, transitions, and argument continuity |
 | `/verify-refs` | Validate BibTeX records offline or with explicit metadata checks |
@@ -63,6 +94,8 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/export` | Convert Markdown outputs to `.docx` and ZIP packages |
 
 Detailed guides live in [`docs/skills/`](docs/skills/).
+
+The local agent skill guides are organized by command name; goal-oriented guides live in [`docs/use-cases/`](docs/use-cases/).
 
 ## Quality Checks
 
@@ -80,9 +113,12 @@ python3 scripts/audit-logic.py --base-dir . --json
 python3 scripts/verify-refs.py --bib references.bib --json
 python3 scripts/verify-refs.py --bib references.bib --json --online
 python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
+
+python3 .claude/skills/release-governance/scripts/check_release_packet.py .
 ```
 
 Safe fixers are intentionally narrow. Citation fixes only apply conservative formatting changes such as Harvard comma normalisation; British English fixes only apply whole-word spelling replacements from the built-in map. Paragraph logic and reference metadata checks report findings for agent or user review.
+Release packet checks are also narrow: they validate files, columns, evidence-state values, parseability, local path leakage, and unresolved template markers, but they do not judge scientific validity or venue compliance.
 
 ## Project Layout
 
@@ -96,6 +132,7 @@ my-writing-project/
 ├── literature/
 │   └── reading_notes/       One notes file per source
 ├── plugins/                 Codex plugin package
+├── release/                 Optional release governance packets
 ├── final_output/            Exported documents
 ├── scripts/                 Deterministic helper checks
 ├── CLAUDE.md                Canonical project configuration
@@ -132,7 +169,7 @@ make plugin-check  # validate plugin metadata, sync state, and bundled helpers
 make chatgpt-app-check  # run the ChatGPT App MCP server checks
 ```
 
-For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md). For ChatGPT App deployment and submission preparation, use [`docs/chatgpt-app-publishing.md`](docs/chatgpt-app-publishing.md).
+For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md). For ChatGPT App deployment and submission preparation, use [`docs/chatgpt-app-publishing.md`](docs/chatgpt-app-publishing.md). For `v0.3.0` release preparation, use [`docs/product/v0.3.0-release-readiness.md`](docs/product/v0.3.0-release-readiness.md).
 
 The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, and offline plus fixture-backed reference verification.
 

@@ -1,0 +1,3 @@
+artifact_id,source_ref,source_path,count_or_checksum,evidence_state,verified_by,claim_supported
+art-chapter-claim,demo-manuscript,chapters/ch01.md,abc1234,verified_artifact,automated-demo-check,local-first workflow claim
+art-evidence-matrix,demo-evidence,evidence/evidence_matrix.csv,def5678,verified_artifact,automated-demo-check,evidence packet structure

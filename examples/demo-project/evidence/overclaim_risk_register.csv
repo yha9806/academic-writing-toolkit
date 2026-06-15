@@ -1,0 +1,2 @@
+risk_id,claim_id,risk,mitigation,status
+R1,C1,Claim could sound universal,Limit wording to demo workflow and fictional records,mitigated

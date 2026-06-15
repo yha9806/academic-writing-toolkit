@@ -1,0 +1,3 @@
+gate_id,artifact_id,evidence_state,human_confirmed,reviewer,review_date,validator,status
+gate-1,art-chapter-claim,verified_artifact,false,,,.claude/skills/release-governance/scripts/check_release_packet.py,passed
+gate-2,art-evidence-matrix,verified_artifact,false,,,.claude/skills/release-governance/scripts/check_release_packet.py,passed

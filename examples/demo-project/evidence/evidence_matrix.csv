@@ -1,0 +1,3 @@
+source_id,citation_key,evidence_status,claim_supported,source_path,notes
+S1,smith2024,verified_artifact,local-first workflows keep notes inspectable,literature/reading_notes/smith2024_NOTES.md,Supports file-based note workflow
+S2,jones2023,verified_artifact,decision records support review audit trails,literature/reading_notes/jones2023_NOTES.md,Supports explicit review records

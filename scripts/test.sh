@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (50 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (60 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -618,6 +618,112 @@ test_T49() {
     python3 scripts/verify-refs.py --help | grep -q -- "--metadata-dir"
 }
 
+test_T60() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/refs"
+    cat > "$tmp/refs/papers.md" <<'EOF'
+# References
+
+```bibtex
+@article{smith2024,
+  title = {A Generic Toolkit Study},
+  author = {Smith, Jane},
+  year = {2024},
+  journal = {Journal of Tools},
+  doi = {10.1000/example}
+}
+```
+EOF
+    out=$(python3 scripts/verify-refs.py "$tmp/refs/papers.md" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['entries'] == 1 and not d['issues']"
+}
+
+test_T61() {
+    local demo="$REPO_ROOT/examples/demo-project"
+    local use_cases="$REPO_ROOT/docs/use-cases"
+
+    [[ -f "$demo/README.md" ]] || return 1
+    [[ -f "$demo/CLAUDE.md" ]] || return 1
+    [[ -f "$demo/AGENTS.md" ]] || return 1
+    [[ -f "$demo/GEMINI.md" ]] || return 1
+    [[ -f "$demo/chapters/ch01.md" ]] || return 1
+    [[ -f "$demo/literature/reading_notes/smith2024_NOTES.md" ]] || return 1
+    [[ -f "$demo/literature/reading_notes/jones2023_NOTES.md" ]] || return 1
+    [[ -f "$demo/references.bib" ]] || return 1
+
+    [[ -f "$use_cases/README.md" ]] || return 1
+    [[ -f "$use_cases/write-literature-review.md" ]] || return 1
+    [[ -f "$use_cases/audit-thesis-citations.md" ]] || return 1
+    [[ -f "$use_cases/verify-references-before-submission.md" ]] || return 1
+    [[ -f "$use_cases/prepare-release-governance-packet.md" ]] || return 1
+    [[ -f "$use_cases/choose-product-surface.md" ]] || return 1
+
+    grep -q "agent-native" "$REPO_ROOT/README.md" || return 1
+    grep -q "local-first" "$REPO_ROOT/README.md" || return 1
+    grep -q "10-minute demo" "$REPO_ROOT/README.md" || return 1
+    grep -q "docs/use-cases" "$REPO_ROOT/README.md" || return 1
+    grep -q "examples/demo-project" "$REPO_ROOT/README.md" || return 1
+}
+
+test_T62() {
+    local demo="$REPO_ROOT/examples/demo-project"
+    local out
+
+    python3 scripts/verify-refs.py --bib "$demo/references.bib" --json >/dev/null || return 1
+    python3 .claude/skills/evidence-review/scripts/check_review_package.py "$demo" --strict >/dev/null || return 1
+    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$demo" --json) || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0"
+}
+
+test_T63() {
+    python3 - "$REPO_ROOT" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+files = [
+    root / "README.md",
+    root / "docs/use-cases/README.md",
+    root / "docs/use-cases/write-literature-review.md",
+    root / "docs/use-cases/audit-thesis-citations.md",
+    root / "docs/use-cases/verify-references-before-submission.md",
+    root / "docs/use-cases/prepare-release-governance-packet.md",
+    root / "docs/use-cases/choose-product-surface.md",
+    root / "examples/demo-project/README.md",
+]
+pattern = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
+missing = []
+for path in files:
+    if not path.is_file():
+        missing.append(str(path.relative_to(root)))
+        continue
+    text = path.read_text(encoding="utf-8")
+    for match in pattern.finditer(text):
+        target = match.group(1).strip()
+        if target.startswith(("http://", "https://", "mailto:", "#")):
+            continue
+        target = target.split("#", 1)[0]
+        if not target:
+            continue
+        candidate = (path.parent / target).resolve()
+        try:
+            candidate.relative_to(root.resolve())
+        except ValueError:
+            missing.append(f"{path.relative_to(root)} -> {target}")
+            continue
+        if not candidate.exists():
+            missing.append(f"{path.relative_to(root)} -> {target}")
+if missing:
+    raise SystemExit("\n".join(missing))
+PY
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -639,6 +745,127 @@ test_T52() {
 
 test_T53() {
     ! grep -Rq 'removeprefix' "$REPO_ROOT/scripts/check-plugin.sh" "$REPO_ROOT/scripts/sync-plugin.sh"
+}
+
+_make_valid_release_packet() {
+    local tmp="$1"
+    mkdir -p "$tmp/release"
+    cat > "$tmp/release/release_scope.md" <<'EOF'
+# Release Scope
+
+Scope date: 2026-05-31
+Paper/artifact: Generic review packet
+Deadline/use: collaborator handoff
+Included refs: refs/heads/main at abcdef1234567890
+Excluded refs: none
+Open question: whether one optional figure should stay local-only
+EOF
+    cat > "$tmp/release/canonical_refs.csv" <<'EOF'
+ref_name,sha,date,status,canonical_for,caveat
+main,abcdef1234567890,2026-05-31,clean,manuscript,none
+EOF
+    cat > "$tmp/release/local_asset_inventory.csv" <<'EOF'
+path,status,file_count,size,role,release_action
+figures/source/tracked.png,tracked,1,42K,figure source,keep tracked
+EOF
+    cat > "$tmp/release/artifact_anchors.csv" <<'EOF'
+artifact_id,source_ref,source_path,count_or_checksum,evidence_state,verified_by,claim_supported
+fig1,main,figures/source/tracked.png,sha256:abc,verified_artifact,manual checksum,figure provenance
+EOF
+    cat > "$tmp/release/evidence_gates.csv" <<'EOF'
+gate_id,artifact_id,evidence_state,human_confirmed,reviewer,review_date,validator,status
+gate1,fig1,human_final,true,Reviewer One,2026-05-31,manual packet review,passed
+EOF
+    cat > "$tmp/release/claim_ledger.csv" <<'EOF'
+claim_id,claim_text,artifact_ids,evidence_state,denominator,scope_boundary,human_gate_required,status
+c1,The figure is anchored to a tracked source artifact,fig1,verified_artifact,one figure,provenance only,false,supported
+EOF
+    cat > "$tmp/release/verification_report.md" <<'EOF'
+# Verification Report
+
+Verification:
+- packet validator -> clean
+
+Residual risk:
+- Optional figure still needs owner decision before submission.
+EOF
+}
+
+test_T54() {
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    _make_valid_release_packet "$tmp"
+    python3 .claude/skills/release-governance/scripts/check_release_packet.py "$tmp" >/dev/null
+    local rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T55() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_release_packet "$tmp"
+    sed 's/verified_artifact/agent_final/' "$tmp/release/artifact_anchors.csv" > "$tmp/release/artifact_anchors.tmp"
+    mv "$tmp/release/artifact_anchors.tmp" "$tmp/release/artifact_anchors.csv"
+    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'invalid-evidence-state' in kinds"
+}
+
+test_T56() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_release_packet "$tmp"
+    cat > "$tmp/release/claim_ledger.csv" <<'EOF'
+claim_id,claim_text,artifact_ids,evidence_state,denominator,status
+c1,The figure is anchored to a tracked source artifact,fig1,verified_artifact,one figure,supported
+EOF
+    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'missing-columns' in kinds"
+}
+
+test_T57() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_release_packet "$tmp"
+    printf '\nLocal cache: /tmp/private-release-cache\n' >> "$tmp/release/verification_report.md"
+    printf '\nFollow-up: todo before sharing\n' >> "$tmp/release/release_scope.md"
+    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'local-absolute-path' in kinds and 'placeholder-text' in kinds"
+}
+
+test_T58() {
+    ! grep -Eq '\b(subprocess|socket|requests|urllib|http\.client|ftplib)\b' .claude/skills/release-governance/scripts/check_release_packet.py
+}
+
+test_T59() {
+    local setup_docs=(
+        "$REPO_ROOT/docs/setup-claude-code.md"
+        "$REPO_ROOT/docs/setup-codex-cli.md"
+        "$REPO_ROOT/docs/setup-gemini-cli.md"
+        "$REPO_ROOT/docs/setup-openclaw.md"
+    )
+
+    local stale_phrase="11 public academic writing skill"
+    ! grep -R -q "${stale_phrase}s" "${setup_docs[@]}" || return 1
+
+    local doc
+    for doc in "${setup_docs[@]}"; do
+        grep -q "evidence-review" "$doc" || return 1
+        grep -q "release-governance" "$doc" || return 1
+    done
+
+    grep -q "Local agent skills" "$REPO_ROOT/README.md" || return 1
+    grep -q "ChatGPT App MCP server" "$REPO_ROOT/README.md" || return 1
+    grep -q "pasted-text" "$REPO_ROOT/README.md" || return 1
 }
 
 # ----------------------------------------------------------------------------
@@ -701,6 +928,16 @@ run_test "T50 plugin skills are synced" test_T50
 run_test "T51 plugin package validates" test_T51
 run_test "T52 plugin sync ignores bytecode caches" test_T52
 run_test "T53 plugin checks are Python 3.8 compatible" test_T53
+run_test "T54 release packet validator accepts a clean packet" test_T54
+run_test "T55 release packet validator rejects invalid evidence state" test_T55
+run_test "T56 release packet validator rejects missing columns" test_T56
+run_test "T57 release packet validator rejects local paths and placeholders" test_T57
+run_test "T58 release packet validator stays local-only" test_T58
+run_test "T59 local-agent docs avoid skill drift" test_T59
+run_test "T60 verify-refs accepts Markdown BibTeX fences" test_T60
+run_test "T61 productization docs and demo structure exist" test_T61
+run_test "T62 demo project validates with existing checkers" test_T62
+run_test "T63 productization docs keep local links valid" test_T63
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
