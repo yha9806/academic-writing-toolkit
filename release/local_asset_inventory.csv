@@ -1,6 +1,11 @@
 path,status,file_count,size,role,release_action
-.,tracked,228,repo,source tree,tag and push after verification
-plugins/academic-writing-toolkit,tracked,32,348K,Codex plugin package,include in v0.3.0 tag
-apps/chatgpt-academic-writing-toolkit,tracked,10,92K,ChatGPT App MCP server,deploy from master after checks pass
-docs,tracked,37,208K,publishing and release documentation,include in v0.3.0 tag
+.,tracked,240,repo,source tree,tag and push after verification
+plugins/academic-writing-toolkit,tracked,33,356K,Codex plugin package,include in v0.3.1 tag
+apps/chatgpt-academic-writing-toolkit,tracked,10,24M local tree,ChatGPT App MCP server,deploy from master after checks pass
+docs,tracked,39,220K,publishing and release documentation,include in v0.3.1 tag
 .agents/plugins/marketplace.json,tracked,1,4K,local marketplace metadata,include for local and team plugin testing
+.claude/settings.local.json,ignored,1,local,developer-local settings,exclude from release
+.gemini-agent,ignored,local cache,local,advisory agent cache,exclude from release
+.playwright-mcp,ignored,local cache,local,browser automation cache,exclude from release
+apps/chatgpt-academic-writing-toolkit/node_modules,ignored,local dependencies,24M,local test dependencies,exclude from release
+scripts/__pycache__,ignored,local cache,local,Python bytecode cache,exclude from release

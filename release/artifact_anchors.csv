@@ -1,6 +1,6 @@
 artifact_id,source_ref,source_path,count_or_checksum,evidence_state,verified_by,claim_supported
-source-tree,07118e4eed95a0357ceefa4449a49b7ff58d323f,.,228 tracked files,verified_artifact,git ls-files count,v0.3.0 source candidate exists
-codex-plugin,07118e4eed95a0357ceefa4449a49b7ff58d323f,plugins/academic-writing-toolkit,32 tracked files and version 0.3.0,verified_artifact,make plugin-check,Codex plugin package is aligned for v0.3.0
-chatgpt-app,07118e4eed95a0357ceefa4449a49b7ff58d323f,apps/chatgpt-academic-writing-toolkit,10 tracked files and version 0.3.0,verified_artifact,npm test,ChatGPT App package is aligned for v0.3.0
-publishing-docs,07118e4eed95a0357ceefa4449a49b7ff58d323f,docs/openai-codex-plugin-submission.md;docs/chatgpt-app-publishing.md;docs/product/v0.3.0-release-readiness.md,3 release docs,verified_artifact,manual doc review,publishing handoff docs are updated for v0.3.0
-branch-integration,07118e4eed95a0357ceefa4449a49b7ff58d323f,git refs,2 remote branches merged,verified_artifact,git merge-base checks,release-readiness and human-eval branches are ancestors of master
+source-tree,e6a0c1c399d558991aa28ab2aa9910c33ad39f96,.,240 tracked files,verified_artifact,git ls-files count,v0.3.1 source candidate exists
+codex-plugin,e6a0c1c399d558991aa28ab2aa9910c33ad39f96,plugins/academic-writing-toolkit,33 tracked files and version 0.3.1,verified_artifact,make plugin-check,Codex plugin package is aligned for v0.3.1
+chatgpt-app,e6a0c1c399d558991aa28ab2aa9910c33ad39f96,apps/chatgpt-academic-writing-toolkit,10 tracked files and version 0.3.1,verified_artifact,make chatgpt-app-check,ChatGPT App package is aligned for v0.3.1
+publishing-docs,e6a0c1c399d558991aa28ab2aa9910c33ad39f96,docs/openai-codex-plugin-submission.md;docs/chatgpt-app-publishing.md;docs/product/v0.3.1-release-readiness.md,3 current release docs,verified_artifact,manual doc review,publishing handoff docs are updated for v0.3.1
+manuscript-reframe,e6a0c1c399d558991aa28ab2aa9910c33ad39f96,.claude/skills/manuscript-reframe/SKILL.md;.agents/skills/manuscript-reframe;plugins/academic-writing-toolkit/skills/manuscript-reframe/SKILL.md,canonical skill plus symlink plus plugin copy,verified_artifact,make test and make plugin-check,/manuscript-reframe is packaged consistently

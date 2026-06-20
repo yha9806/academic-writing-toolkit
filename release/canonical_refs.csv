@@ -1,5 +1,5 @@
 ref_name,sha,date,status,canonical_for,caveat
-master,07118e4eed95a0357ceefa4449a49b7ff58d323f,2026-06-15,clean,v0.3.0 release candidate before release packet,local branch ahead of origin before push
-origin/master,2538054047799bd7dc637b6f002006d4d81b30da,2026-06-15,fetched,remote baseline before v0.3.0 push,behind local master
-origin/codex/release-readiness,53ded20301bf0286bb76a1f5d2c42da0b8254bb4,2026-06-15,merged,release-readiness branch content,ancestor of master after merge
-origin/feat/human-eval-handoff-repair-skill,8376ac2b2c56918e40b7c3a287c84e49083e463a,2026-06-15,merged,human-eval repair branch content,ancestor of master after merge
+master,e6a0c1c399d558991aa28ab2aa9910c33ad39f96,2026-06-20,clean,v0.3.1 package metadata candidate,local branch ahead of origin before push
+origin/master,fd2237bbbe6822f0d578ae6838f8a9a5b4529fdb,2026-06-20,fetched,remote baseline before v0.3.1 push,behind local master by package metadata commit
+v0.3.0,726d80b0e0810cf4e35dbf69d937749722b58f4b,2026-06-20,tagged,previous release baseline,ancestor of master
+detached-codex-worktree,d3986c07b629376a76c90cb1dd8ea4e13ef70964,2026-06-20,excluded,temporary review worktree,not canonical for v0.3.1
