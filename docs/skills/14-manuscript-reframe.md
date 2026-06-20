@@ -7,7 +7,7 @@ Use this skill when a draft is technically complete but still reads like an engi
 - Identifies the scientific gap and manuscript spine.
 - Converts module lists into a contribution chain.
 - Rewrites Results around a narrative transition instead of raw metric dumps.
-- Keeps LLM/VLM or generative components in supplementary or future-work roles unless they are the locked primary experiment.
+- Keeps language-model or multimodal generative components in supplementary or future-work roles unless they are the locked primary experiment.
 - Assigns clear argumentative roles to figures and tables.
 - Separates scientific readiness from submission metadata readiness.
 

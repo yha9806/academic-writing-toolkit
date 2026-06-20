@@ -40,7 +40,7 @@ Then open [`examples/demo-project/`](examples/demo-project/) in your agent host 
 ## Workflow
 
 ```
-<</read -> /note -> /map -> /evidence-review -> /integrate -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
+/read -> /note -> /map -> /evidence-review -> /integrate -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
              |                                      |
              v                                      v
         /verify                               /verify-refs

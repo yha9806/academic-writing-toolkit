@@ -1,6 +1,6 @@
 ---
 name: manuscript-reframe
-description: Reframe academic manuscript drafts that read like engineering reports, module inventories, internal validation packets, or system notes into paper-form scientific arguments with clear gap, contribution chain, results narrative, figure/table roles, LLM/VLM boundaries, and submission-readiness blockers.
+description: Reframe academic manuscript drafts that read like engineering reports, module inventories, internal validation packets, or system notes into paper-form scientific arguments with clear gap, contribution chain, results narrative, figure/table roles, AI-assisted component boundaries, and submission-readiness blockers.
 allowed-tools: Read, Glob, Grep, Edit, Write, Bash
 ---
 
@@ -12,7 +12,7 @@ Turn a technically valid but report-like manuscript into a scientific paper argu
 
 ## Trigger Words
 
-This skill activates on: `manuscript reframe`, `paper form`, `too much like a report`, `gap and contribution`, `scientific framing`, `CMPB framing`, `submission clean`, `methods paper`, `/manuscript-reframe`.
+This skill activates on: `manuscript reframe`, `paper form`, `too much like a report`, `gap and contribution`, `scientific framing`, `journal framing`, `submission clean`, `methods paper`, `/manuscript-reframe`.
 
 ## Core Rule
 
@@ -109,15 +109,15 @@ Use language such as:
 Low supported coverage indicates conservative evidence routing under the frozen gate, not a direct measure of segmentation accuracy.
 ```
 
-### 6. Keep LLM/VLM Or Generative Components In Their Proper Role
+### 6. Keep Generative Components In Their Proper Role
 
-Do not let LLM/VLM experiments steal the manuscript thesis unless they are the locked primary experiment.
+Do not let language-model or multimodal generative experiments steal the manuscript thesis unless they are the locked primary experiment.
 
 Safe hierarchy:
 
 - Primary result: deterministic, evidence-grounded, rule-based, or schema-validated workflow.
 - Supplementary extension: frozen text-only or image-conditioned formatting tests.
-- Future work: live clinical reporting, open-ended reasoning, or deployment validation.
+- Future work: live domain reporting, open-ended reasoning, or deployment validation.
 
 Boundary phrases:
 
@@ -126,9 +126,9 @@ Boundary phrases:
 - no geometry recomputation
 - no gate override
 - no action command
-- no clinical or execution decision
+- no domain or execution decision
 
-Flag or remove wording that implies clinical reasoning, autonomous operation, controller updates, or action recommendations unless explicitly negated as non-goals.
+Flag or remove wording that implies domain reasoning, autonomous operation, controller updates, or action recommendations unless explicitly negated as non-goals.
 
 ### 7. Make Figures And Tables Carry The Argument
 
@@ -199,5 +199,5 @@ Stop and report a blocker if:
 - locked numbers or evidence sources are missing
 - raw data are unavailable for requested analyses
 - references cannot be verified but are needed for central claims
-- user asks to claim clinical, causal, deployment, or outcome validity without direct evidence
+- user asks to claim domain, causal, deployment, or outcome validity without direct evidence
 - author-, ethics-, funding-, or data-availability fields are required for submission but unavailable
