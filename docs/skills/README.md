@@ -9,7 +9,7 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 ## Pipeline
 
 ```text
-/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /release-governance -> /style -> /logic-review -> /export
+<</read -> /note -> /map -> /evidence-review -> /integrate -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
              |                                      |
              v                                      v
         /verify                               /verify-refs
@@ -30,6 +30,7 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 | `/map` | [04-map.md](04-map.md) |
 | `/evidence-review` | [12-evidence-review.md](12-evidence-review.md) |
 | `/integrate` | [05-integrate.md](05-integrate.md) |
+| `/manuscript-reframe` | [13-manuscript-reframe.md](13-manuscript-reframe.md) |
 | `/audit` | [06-audit.md](06-audit.md) |
 | `/release-governance` | [13-release-governance.md](13-release-governance.md) |
 | `/progress` | [07-progress.md](07-progress.md) |

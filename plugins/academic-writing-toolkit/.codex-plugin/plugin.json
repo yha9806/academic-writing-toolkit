@@ -1,53 +1,55 @@
 {
-  "name": "academic-writing-toolkit",
-  "version": "0.3.0",
-  "description": "Academic reading, thesis writing, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
-  "author": {
-    "name": "Academic Writing Toolkit Maintainers",
-    "url": "https://github.com/yha9806"
-  },
-  "homepage": "https://github.com/yha9806/academic-writing-toolkit",
-  "repository": "https://github.com/yha9806/academic-writing-toolkit",
-  "license": "MIT",
-  "keywords": [
-    "academic-writing",
-    "thesis",
-    "citations",
-    "research",
-    "british-english",
-    "references",
-    "evidence-review",
-    "release-governance",
-    "literature-review",
-    "human-evaluation",
-    "annotation-repair"
-  ],
-  "skills": "./skills/",
-  "interface": {
-    "displayName": "Academic Writing Toolkit",
-    "shortDescription": "Structured research, thesis writing, evidence-review, release governance, human-eval repair, citation, style, and export workflows.",
-    "longDescription": "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, integrating arguments, auditing citations and consistency, preparing release-governance packets, validating and repairing human-evaluation handoff packages, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
-    "developerName": "Academic Writing Toolkit Maintainers",
-    "category": "Productivity",
-    "capabilities": [
-      "Read",
-      "Write",
-      "Review"
-    ],
-    "websiteURL": "https://github.com/yha9806/academic-writing-toolkit",
-    "privacyPolicyURL": "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/privacy.md",
-    "termsOfServiceURL": "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/terms.md",
-    "defaultPrompt": [
-      "Read this paper and extract thesis connections.",
-      "Build an evidence-controlled gap map for my literature review.",
-      "Prepare a release-governance or human-evaluation repair packet."
-    ],
-    "brandColor": "#2563EB",
-    "composerIcon": "./assets/icon.png",
-    "logo": "./assets/logo.png",
-    "screenshots": [
-      "./assets/screenshot-workflow.png",
-      "./assets/screenshot-progress.png"
-    ]
-  }
+    "name":  "academic-writing-toolkit",
+    "version":  "0.3.0",
+    "description":  "Academic reading, thesis writing, manuscript reframing, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
+    "author":  {
+                   "name":  "Academic Writing Toolkit Maintainers",
+                   "url":  "https://github.com/yha9806"
+               },
+    "homepage":  "https://github.com/yha9806/academic-writing-toolkit",
+    "repository":  "https://github.com/yha9806/academic-writing-toolkit",
+    "license":  "MIT",
+    "keywords":  [
+                     "academic-writing",
+                     "thesis",
+                     "citations",
+                     "research",
+                     "british-english",
+                     "references",
+                     "evidence-review",
+                     "release-governance",
+                     "literature-review",
+                     "human-evaluation",
+                     "annotation-repair",
+                     "manuscript-reframe",
+                     "scientific-writing"
+                 ],
+    "skills":  "./skills/",
+    "interface":  {
+                      "displayName":  "Academic Writing Toolkit",
+                      "shortDescription":  "Structured research, manuscript reframing, evidence-review, release governance, human-eval repair, citation, style, and export workflows.",
+                      "longDescription":  "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, reframing report-like drafts into scientific manuscripts, integrating arguments, auditing citations and consistency, preparing release-governance packets, validating and repairing human-evaluation handoff packages, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
+                      "developerName":  "Academic Writing Toolkit Maintainers",
+                      "category":  "Productivity",
+                      "capabilities":  [
+                                           "Read",
+                                           "Write",
+                                           "Review"
+                                       ],
+                      "websiteURL":  "https://github.com/yha9806/academic-writing-toolkit",
+                      "privacyPolicyURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/privacy.md",
+                      "termsOfServiceURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/terms.md",
+                      "defaultPrompt":  [
+                                            "Read this paper and extract thesis connections.",
+                                            "Reframe this report-like draft into a scientific manuscript with a clear gap and contribution.",
+                                            "Prepare a release-governance or human-evaluation repair packet."
+                                        ],
+                      "brandColor":  "#2563EB",
+                      "composerIcon":  "./assets/icon.png",
+                      "logo":  "./assets/logo.png",
+                      "screenshots":  [
+                                          "./assets/screenshot-workflow.png",
+                                          "./assets/screenshot-progress.png"
+                                      ]
+                  }
 }

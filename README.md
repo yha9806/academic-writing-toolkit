@@ -40,7 +40,7 @@ Then open [`examples/demo-project/`](examples/demo-project/) in your agent host 
 ## Workflow
 
 ```
-/read -> /note -> /map -> /evidence-review -> /integrate -> /audit -> /release-governance -> /style -> /logic-review -> /export
+<</read -> /note -> /map -> /evidence-review -> /integrate -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
              |                                      |
              v                                      v
         /verify                               /verify-refs
@@ -87,6 +87,7 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/map` | Map sources to chapters and coverage gaps |
 | `/evidence-review` | Build evidence-controlled gap maps, claim registers, citation plans, and overclaim audits |
 | `/integrate` | Propose and apply approved note-to-chapter integrations |
+| `/manuscript-reframe` | Turn report-like drafts into paper-form scientific arguments |
 | `/audit` | Check numbers, terminology, cross-references, and citations |
 | `/release-governance` | Prepare release, rebuttal, artifact, and claim packets with ref-artifact-gate controls |
 | `/style` | Check and safely fix British English spellings |

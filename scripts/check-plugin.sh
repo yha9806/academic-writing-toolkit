@@ -12,15 +12,33 @@ PLUGIN_ROOT="$REPO_ROOT/plugins/academic-writing-toolkit"
 PLUGIN_JSON="$PLUGIN_ROOT/.codex-plugin/plugin.json"
 MARKETPLACE_JSON="$REPO_ROOT/.agents/plugins/marketplace.json"
 
+find_python() {
+    if [[ -n "${PYTHON:-}" ]]; then
+        "$PYTHON" -c 'import sys' >/dev/null 2>&1 || die "PYTHON is set but not usable: $PYTHON"
+        printf '%s\n' "$PYTHON"
+        return 0
+    fi
+    local candidate
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys' >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    die "missing usable Python interpreter; set PYTHON=/path/to/python"
+}
+
+PYTHON_BIN="$(find_python)"
+
 [[ -f "$PLUGIN_JSON" ]] || die "missing plugin manifest: $PLUGIN_JSON"
 [[ -f "$MARKETPLACE_JSON" ]] || die "missing marketplace manifest: $MARKETPLACE_JSON"
 
-bash "$SCRIPT_DIR/sync-plugin.sh" --check >/dev/null
+PYTHON="$PYTHON_BIN" bash "$SCRIPT_DIR/sync-plugin.sh" --check >/dev/null
 
-python3 -m json.tool "$PLUGIN_JSON" >/dev/null
-python3 -m json.tool "$MARKETPLACE_JSON" >/dev/null
+"$PYTHON_BIN" -m json.tool "$PLUGIN_JSON" >/dev/null
+"$PYTHON_BIN" -m json.tool "$MARKETPLACE_JSON" >/dev/null
 
-python3 - "$PLUGIN_JSON" "$MARKETPLACE_JSON" <<'PY'
+"$PYTHON_BIN" - "$PLUGIN_JSON" "$MARKETPLACE_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -87,7 +105,7 @@ if not entry.get("category"):
     raise SystemExit("marketplace category is required")
 PY
 
-python3 - "$PLUGIN_ROOT" "$PLUGIN_JSON" <<'PY'
+"$PYTHON_BIN" - "$PLUGIN_ROOT" "$PLUGIN_JSON" <<'PY'
 import json
 import struct
 import sys
@@ -117,16 +135,16 @@ if grep -R "\[TODO\]\|TODO:" "$PLUGIN_ROOT" "$MARKETPLACE_JSON" >/dev/null; then
     die "plugin package contains TODO placeholders"
 fi
 
-for skill in audit evidence-review export human-eval-handoff-repair integrate logic-review map note progress read release-governance style verify verify-refs; do
+for skill in audit evidence-review export human-eval-handoff-repair integrate logic-review manuscript-reframe map note progress read release-governance style verify verify-refs; do
     [[ -f "$PLUGIN_ROOT/skills/$skill/SKILL.md" ]] || die "missing plugin skill: $skill"
 done
 
-python3 "$PLUGIN_ROOT/skills/audit/scripts/audit-citations.py" --help >/dev/null
-python3 "$PLUGIN_ROOT/skills/style/scripts/audit-british-english.py" --help >/dev/null
-python3 "$PLUGIN_ROOT/skills/logic-review/scripts/audit-logic.py" --help >/dev/null
-python3 "$PLUGIN_ROOT/skills/verify-refs/scripts/verify-refs.py" --help >/dev/null
-python3 "$PLUGIN_ROOT/skills/export/scripts/convert_to_docx.py" --help >/dev/null
-python3 "$PLUGIN_ROOT/skills/evidence-review/scripts/check_review_package.py" --help >/dev/null
-python3 "$PLUGIN_ROOT/skills/release-governance/scripts/check_release_packet.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/audit/scripts/audit-citations.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/style/scripts/audit-british-english.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/logic-review/scripts/audit-logic.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/verify-refs/scripts/verify-refs.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/export/scripts/convert_to_docx.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/evidence-review/scripts/check_review_package.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/release-governance/scripts/check_release_packet.py" --help >/dev/null
 
 ok "plugin package validates"

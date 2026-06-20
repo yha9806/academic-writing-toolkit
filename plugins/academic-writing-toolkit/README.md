@@ -10,6 +10,7 @@ This Codex plugin packages the academic-writing-toolkit skills for structured re
 - `map`: map literature coverage against thesis chapters
 - `evidence-review`: build evidence-controlled literature gap maps, claim registers, citation plans, and overclaim audits
 - `integrate`: integrate completed reading notes into chapter drafts
+- `manuscript-reframe`: turn report-like drafts into paper-form scientific arguments with clear gap, contribution, result narrative, figure/table roles, and submission blockers
 - `audit`: audit citation consistency, numbers, terminology, and cross-references
 - `release-governance`: prepare release, rebuttal, artifact, and claim packets with ref-artifact-gate controls
 - `style`: check and safely fix common US spellings when British English is required

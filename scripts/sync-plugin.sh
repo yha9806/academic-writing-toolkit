@@ -18,6 +18,24 @@ PLUGIN_ROOT="$REPO_ROOT/plugins/academic-writing-toolkit"
 PLUGIN_SKILLS="$PLUGIN_ROOT/skills"
 SOURCE_SKILLS="$REPO_ROOT/.claude/skills"
 
+find_python() {
+    if [[ -n "${PYTHON:-}" ]]; then
+        "$PYTHON" -c 'import sys' >/dev/null 2>&1 || die "PYTHON is set but not usable: $PYTHON"
+        printf '%s\n' "$PYTHON"
+        return 0
+    fi
+    local candidate
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys' >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    die "missing usable Python interpreter; set PYTHON=/path/to/python"
+}
+
+PYTHON_BIN="$(find_python)"
+
 [[ -d "$SOURCE_SKILLS" ]] || die "missing canonical skills directory: $SOURCE_SKILLS"
 [[ -f "$PLUGIN_ROOT/.codex-plugin/plugin.json" ]] || die "missing plugin manifest: $PLUGIN_ROOT/.codex-plugin/plugin.json"
 
@@ -47,7 +65,7 @@ generate_skills() {
     copy_helper "$REPO_ROOT/scripts/audit-logic.py" "$dest/logic-review/scripts/audit-logic.py"
     copy_helper "$REPO_ROOT/scripts/verify-refs.py" "$dest/verify-refs/scripts/verify-refs.py"
 
-    python3 - "$dest" <<'PY'
+    "$PYTHON_BIN" - "$dest" <<'PY'
 from pathlib import Path
 import sys
 
