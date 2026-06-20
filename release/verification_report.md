@@ -18,5 +18,11 @@ Verification already run for the v0.3.1 package candidate:
 - `python3 .claude/skills/release-governance/scripts/check_release_packet.py .` -> passed
 - `git diff --check` -> passed
 
+Post-tag hosted app verification:
+- Hugging Face Space repo/runtime SHA `f5ab7c9cb5bd554bf380698b039b3a56403ded1e` -> running
+- `curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/health` -> version `0.3.1`, `status: ok`
+- `curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp` -> `405 Method not allowed`
+- `curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/.well-known/openai-apps-challenge` -> configured challenge token returned
+
 Residual risk:
-- The repository can prepare and tag the release, and a push to `master` can trigger configured CI. The Hugging Face Space update still needs a successful hosted runtime health check. The OpenAI Apps dashboard still requires maintainer-controlled business verification and a manual Submit for Review action.
+- The repository release is tagged and the Hugging Face Space runtime is updated. The OpenAI Apps dashboard still requires maintainer-controlled business verification and a manual Submit for Review action.

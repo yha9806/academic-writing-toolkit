@@ -147,6 +147,14 @@ curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/.well-known/openai-apps-challenge
 ```
 
+Latest hosted verification:
+
+- Date: 2026-06-20
+- Space repo/runtime SHA: `f5ab7c9cb5bd554bf380698b039b3a56403ded1e`
+- `/health`: version `0.3.1`, `status: ok`
+- `GET /mcp`: `405 Method not allowed`
+- `/.well-known/openai-apps-challenge`: returned the configured OpenAI challenge token
+
 ## Render Deployment
 
 Render is a zero-cost backup hosted path for smoke testing or for a separate future app listing. It is not the MCP URL for updates to the already-published OpenAI app, because that app is currently bound to the Hugging Face Space base URL.
