@@ -173,7 +173,7 @@ make plugin-check  # validate plugin metadata, sync state, and bundled helpers
 make chatgpt-app-check  # run the ChatGPT App MCP server checks
 ```
 
-For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md). For ChatGPT App deployment and submission preparation, use [`docs/chatgpt-app-publishing.md`](docs/chatgpt-app-publishing.md). For `v0.3.0` release preparation, use [`docs/product/v0.3.0-release-readiness.md`](docs/product/v0.3.0-release-readiness.md).
+For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md). For ChatGPT App deployment and submission preparation, use [`docs/chatgpt-app-publishing.md`](docs/chatgpt-app-publishing.md). For `v0.3.1` release preparation, use [`docs/product/v0.3.1-release-readiness.md`](docs/product/v0.3.1-release-readiness.md).
 
 The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, human-evaluation handoff repair packaging, and offline plus fixture-backed reference verification.
 

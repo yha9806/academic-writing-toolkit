@@ -9,7 +9,7 @@ This gives the project two distribution tracks:
 - ChatGPT App: public MCP server submitted through OpenAI Platform Apps Manage.
 - Codex plugin: local plugin package under `plugins/academic-writing-toolkit`, with official public distribution following OpenAI's app approval and publication flow.
 
-Both surfaces use package version `0.3.0` for this release. The ChatGPT App server reads its version from `apps/chatgpt-academic-writing-toolkit/package.json`, and the test suite checks that it matches the Codex plugin manifest version.
+Both surfaces use package version `0.3.1` for this release. The ChatGPT App server reads its version from `apps/chatgpt-academic-writing-toolkit/package.json`, and the test suite checks that it matches the Codex plugin manifest version.
 
 ## User Flows
 

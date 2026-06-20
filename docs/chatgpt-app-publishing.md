@@ -22,11 +22,11 @@ The app-specific check runs the Node test suite for the MCP server and tool wrap
 - Submission import file: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
 - Privacy URL source: `docs/privacy.md`
 - Terms URL source: `docs/terms.md`
-- App package version: `0.3.0`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
+- App package version: `0.3.1`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
 
-## Current v0.3.0 Submission Endpoint
+## Current v0.3.1 Submission Endpoint
 
-For the zero-cost v0.3.0 update of the already-published ChatGPT App, keep the existing Hugging Face Space MCP base URL:
+For the zero-cost v0.3.1 update of the already-published ChatGPT App, keep the existing Hugging Face Space MCP base URL:
 
 ```text
 https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
@@ -48,11 +48,11 @@ curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/healt
 curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 ```
 
-`/health` should return version `0.3.0` and `status: ok`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
+`/health` should return version `0.3.1` and `status: ok`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
 
 OpenAI currently requires an updated app draft to keep the same MCP base URL as the published version. Use the Render URL only for backup smoke testing or for a separate future app listing.
 
-For the v0.3.0 draft, OpenAI Platform accepted the Hugging Face Space URL, confirmed domain verification, scanned 5 tools, and applied 5 imported tool justifications.
+For the previous v0.3.0 draft, OpenAI Platform accepted the Hugging Face Space URL, confirmed domain verification, scanned 5 tools, and applied 5 imported tool justifications. For v0.3.1, keep the same MCP base URL and re-import the same submission file after the hosted Space reports version `0.3.1`.
 
 ## Deployment Requirement
 

@@ -19,8 +19,8 @@ This package is prepared to match the official Codex plugin package format. It h
 - Plugin name: `academic-writing-toolkit`
 - Display name: `Academic Writing Toolkit`
 - Repository: `https://github.com/yha9806/academic-writing-toolkit`
-- Package version: `0.3.0`
-- Tagged release ref for external review: `v0.3.0` after creating the verified release tag
+- Package version: `0.3.1`
+- Tagged release ref for external review: `v0.3.1` after creating the verified release tag
 - Current default branch ref used for local marketplace tracking: `master`
 - Plugin path: `plugins/academic-writing-toolkit`
 - Manifest: `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
@@ -36,10 +36,10 @@ Use `master` for current default-branch testing:
 codex marketplace add yha9806/academic-writing-toolkit --ref master --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
 ```
 
-Use an immutable release tag after the `v0.3.0` tag has been created:
+Use an immutable release tag after the `v0.3.1` tag has been created:
 
 ```bash
-codex marketplace add yha9806/academic-writing-toolkit --ref v0.3.0 --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
+codex marketplace add yha9806/academic-writing-toolkit --ref v0.3.1 --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
 ```
 
 The local CLI currently exposes `codex marketplace add`. Some newer OpenAI docs show `codex plugin marketplace add`; use the command supported by the installed Codex CLI version.
@@ -65,6 +65,7 @@ The manifest follows the OpenAI Codex plugin docs:
 - `integrate`
 - `audit`
 - `release-governance`
+- `manuscript-reframe`
 - `style`
 - `logic-review`
 - `verify-refs`
@@ -77,7 +78,7 @@ The manifest follows the OpenAI Codex plugin docs:
 - The standalone plugin package is a Codex plugin package with bundled local skills and helper scripts.
 - The repository also exposes a separate tool-only ChatGPT App MCP server under `apps/chatgpt-academic-writing-toolkit/`.
 - `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` is generated for the OpenAI Platform Apps dashboard review flow.
-- For the zero-cost v0.3.0 review path, submit `https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp` as the MCP Server URL because the published app version already uses that MCP base URL.
+- For the zero-cost v0.3.1 review path, submit `https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp` as the MCP Server URL because the published app version already uses that MCP base URL.
 - The package uses bundled local skills and helper scripts only.
 - The standalone plugin manifest does not currently declare `.app.json` or `.mcp.json`; public Codex distribution should follow the documented Apps approval and publication path until self-serve plugin publishing is available.
 
