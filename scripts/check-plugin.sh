@@ -135,10 +135,11 @@ if grep -R "\[TODO\]\|TODO:" "$PLUGIN_ROOT" "$MARKETPLACE_JSON" >/dev/null; then
     die "plugin package contains TODO placeholders"
 fi
 
-for skill in audit evidence-review export human-eval-handoff-repair integrate logic-review manuscript-reframe map note progress read release-governance style verify verify-refs; do
+for skill in argument-governance audit evidence-review export human-eval-handoff-repair integrate logic-review manuscript-reframe map note peer-review progress read release-governance self-review style verify verify-refs; do
     [[ -f "$PLUGIN_ROOT/skills/$skill/SKILL.md" ]] || die "missing plugin skill: $skill"
 done
 
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/argument-governance/scripts/check_argument_governance.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/audit/scripts/audit-citations.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/style/scripts/audit-british-english.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/logic-review/scripts/audit-logic.py" --help >/dev/null
@@ -146,5 +147,6 @@ done
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/export/scripts/convert_to_docx.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/evidence-review/scripts/check_review_package.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/release-governance/scripts/check_release_packet.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/self-review/scripts/check_self_review_packet.py" --help >/dev/null
 
 ok "plugin package validates"
