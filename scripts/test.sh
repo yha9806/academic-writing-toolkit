@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (65 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T68 thesis control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (68 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T71 thesis control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -900,6 +900,134 @@ EOF
     [[ "$rc" -ne 0 ]]
 }
 
+test_T69() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that control-packet identifiers must be safe stable ids.
+EOF
+
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --unit-id ../escape \
+        --copy-source >/dev/null 2>&1
+    rc=$?
+    [[ "$rc" -ne 0 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --unit-id safe-unit \
+        --contract-id 'bad/id' >/dev/null 2>&1
+    rc=$?
+    [[ "$rc" -ne 0 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    mkdir -p "$tmp/manual/thesis_control"
+    cat > "$tmp/manual/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+../escape,chapters/ch01.md,Unsafe id,This unit has an unsafe id.,single unit only,unsafe id should fail,do not accept path-like ids
+EOF
+    cat > "$tmp/manual/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+bad/id,../escape,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+EOF
+    cat > "$tmp/manual/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+bad/audit,bad/id,none,none,none,none,accept,false,passed
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'invalid-unit-id','invalid-contract-id','invalid-audit-id'} <= kinds"
+}
+
+test_T70() {
+    local tmp out rc abs_source
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/project/chapters" "$tmp/outside" "$tmp/manual/thesis_control"
+    cat > "$tmp/project/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that source paths in control packets must be inspectable.
+EOF
+    abs_source="$tmp/project/chapters/ch01.md"
+
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp/project" \
+        --source "$abs_source" \
+        --output-dir "$tmp/outside" \
+        --unit-id outside-source >/dev/null 2>&1
+    rc=$?
+    [[ "$rc" -ne 0 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    cat > "$tmp/manual/thesis_control/spine_cards.csv" <<EOF
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+missing,chapters/missing.md,Missing path,This unit points at a missing path.,one unit only,path must exist,do not accept missing paths
+absolute,$abs_source,Absolute path,This unit points at an absolute path.,one unit only,path must be relative,do not accept absolute paths
+traversal,../outside.md,Traversal path,This unit points outside the packet root.,one unit only,path must stay inside root,do not accept traversal paths
+EOF
+    cat > "$tmp/manual/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-missing,missing,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+ec-absolute,absolute,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+ec-traversal,traversal,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+EOF
+    cat > "$tmp/manual/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert sum(1 for i in d['issues'] if i['kind'] == 'invalid-source-path') == 3"
+}
+
+test_T71() {
+    local tmp repo_root
+    tmp=$(mktemp -d) || return 1
+    repo_root="$PWD"
+    mkdir -p "$tmp/project/chapters"
+    cat > "$tmp/project/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that relative output directories should produce valid packets.
+EOF
+    (
+        cd "$tmp" || exit 1
+        python3 "$repo_root/.claude/skills/thesis-control/scripts/scaffold_thesis_control.py" project \
+            --source chapters/ch01.md \
+            --output-dir out \
+            --unit-id relative-out \
+            --copy-source \
+            --json >/dev/null &&
+        python3 "$repo_root/.claude/skills/thesis-control/scripts/check_thesis_control.py" out --strict --json > check.json
+    ) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp/check.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert payload["issue_count"] == 0
+assert payload["summary"]["spine_cards"] == 1
+PY
+    rm -rf "$tmp"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -1119,6 +1247,9 @@ run_test "T65 thesis-control catches distorted edit case" test_T65
 run_test "T66 thesis-control scaffold creates draft packet" test_T66
 run_test "T67 thesis-control strict mode requires audits for applied edits" test_T67
 run_test "T68 thesis-control scaffold rejects empty excerpts" test_T68
+run_test "T69 thesis-control rejects unsafe identifiers" test_T69
+run_test "T70 thesis-control rejects uninspectable source paths" test_T70
+run_test "T71 thesis-control accepts relative output directories" test_T71
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

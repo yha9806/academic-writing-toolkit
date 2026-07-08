@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
@@ -55,6 +56,7 @@ CONTRACT_STATUSES = {"draft", "approved", "applied", "rejected"}
 DRIFT_DECISIONS = {"accept", "partial_accept", "revise", "rollback"}
 AUDIT_STATUSES = {"passed", "needs_review", "failed"}
 EMPTY_MARKERS = {"", "none", "n/a", "na", "no", "not applicable"}
+IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,118}[A-Za-z0-9])?$")
 
 
 def is_empty(value: str) -> bool:
@@ -67,6 +69,30 @@ def parse_bool(value: str) -> bool | None:
         return True
     if lowered in {"false", "no", "n", "0"}:
         return False
+    return None
+
+
+def is_valid_identifier(value: str) -> bool:
+    stripped = value.strip()
+    return bool(IDENTIFIER_RE.fullmatch(stripped)) and ".." not in stripped
+
+
+def validate_source_path(root: Path, value: str) -> str | None:
+    path_text = value.strip()
+    if not path_text:
+        return None
+    source_path = Path(path_text)
+    if source_path.is_absolute():
+        return "source path must be relative to the packet root"
+    if ".." in source_path.parts:
+        return "source path must not contain '..'"
+    candidate = (root / source_path).resolve()
+    try:
+        candidate.relative_to(root.resolve())
+    except ValueError:
+        return "source path must stay inside the packet root"
+    if not candidate.is_file():
+        return "source path does not exist"
     return None
 
 
@@ -140,6 +166,13 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
         unit_id = row.get("unit_id", "").strip()
         if not unit_id:
             add_issue(issues, "missing-unit-id", location, "spine card has no unit_id")
+        elif not is_valid_identifier(unit_id):
+            add_issue(
+                issues,
+                "invalid-unit-id",
+                location,
+                "unit_id must be 1-120 safe ASCII characters and must not contain path segments",
+            )
         elif unit_id in spine_ids:
             add_issue(issues, "duplicate-unit-id", location, f"duplicate unit_id: {unit_id}")
         else:
@@ -148,6 +181,9 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
         for column in ["path", "section_title", "spine_sentence", "scope_boundary", "core_claims", "do_not_change"]:
             if is_empty(row.get(column, "")):
                 add_issue(issues, "empty-spine-field", location, f"spine card field is empty: {column}")
+        path_issue = validate_source_path(root, row.get("path", ""))
+        if path_issue:
+            add_issue(issues, "invalid-source-path", location, path_issue)
 
     contract_ids = set()
     applied_contracts = set()
@@ -160,11 +196,25 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
 
         if not contract_id:
             add_issue(issues, "missing-contract-id", location, "edit contract has no contract_id")
+        elif not is_valid_identifier(contract_id):
+            add_issue(
+                issues,
+                "invalid-contract-id",
+                location,
+                "contract_id must be 1-120 safe ASCII characters and must not contain path segments",
+            )
         elif contract_id in contract_ids:
             add_issue(issues, "duplicate-contract-id", location, f"duplicate contract_id: {contract_id}")
         else:
             contract_ids.add(contract_id)
 
+        if unit_id and not is_valid_identifier(unit_id):
+            add_issue(
+                issues,
+                "invalid-unit-id",
+                location,
+                "unit_id must be 1-120 safe ASCII characters and must not contain path segments",
+            )
         if unit_id and unit_id not in spine_ids:
             add_issue(issues, "unknown-unit-id", location, f"contract references unknown unit_id: {unit_id}")
 
@@ -183,9 +233,11 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
         if status == "applied" and contract_id:
             applied_contracts.add(contract_id)
 
+    audit_ids = set()
     audited_contracts = set()
     for index, row in enumerate(audit_rows):
         location = row_location("drift_audits.csv", index)
+        audit_id = row.get("audit_id", "").strip()
         contract_id = row.get("contract_id", "").strip()
         decision = row.get("drift_decision", "").strip().lower()
         status = row.get("status", "").strip().lower()
@@ -195,8 +247,29 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
         new_claims = row.get("new_unsupported_claims", "")
         missed_adjacent = row.get("missed_adjacent_updates", "")
 
+        if not audit_id:
+            add_issue(issues, "missing-audit-id", location, "drift audit has no audit_id")
+        elif not is_valid_identifier(audit_id):
+            add_issue(
+                issues,
+                "invalid-audit-id",
+                location,
+                "audit_id must be 1-120 safe ASCII characters and must not contain path segments",
+            )
+        elif audit_id in audit_ids:
+            add_issue(issues, "duplicate-audit-id", location, f"duplicate audit_id: {audit_id}")
+        else:
+            audit_ids.add(audit_id)
+
         if contract_id:
             audited_contracts.add(contract_id)
+            if not is_valid_identifier(contract_id):
+                add_issue(
+                    issues,
+                    "invalid-contract-id",
+                    location,
+                    "contract_id must be 1-120 safe ASCII characters and must not contain path segments",
+                )
             if contract_id not in contract_ids:
                 add_issue(issues, "unknown-contract-id", location, f"audit references unknown contract_id: {contract_id}")
         else:

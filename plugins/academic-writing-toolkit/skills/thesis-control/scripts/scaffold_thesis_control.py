@@ -52,10 +52,19 @@ AUDIT_COLUMNS = [
 ]
 
 AUTHOR_REVIEW = "AUTHOR_REVIEW_REQUIRED"
+IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,118}[A-Za-z0-9])?$")
 
 
 def review_required(label: str) -> str:
     return f"{AUTHOR_REVIEW}: {label}"
+
+
+def validate_identifier(label: str, value: str) -> None:
+    if not IDENTIFIER_RE.fullmatch(value) or ".." in value:
+        raise ValueError(
+            f"{label} must be 1-120 ASCII letters, numbers, dots, underscores, or hyphens; "
+            "it must start and end with a letter or number and must not contain '..'"
+        )
 
 
 def resolve_source(project_root: Path, source: str) -> Path:
@@ -218,6 +227,8 @@ def scaffold(args: argparse.Namespace) -> dict:
     unit_id = args.unit_id or infer_unit_id(source, args.start_line, args.end_line)
     section_title = args.section_title or infer_section_title(excerpt, source)
     contract_id = args.contract_id or f"ec-{unit_id}-001"
+    validate_identifier("unit_id", unit_id)
+    validate_identifier("contract_id", contract_id)
 
     if args.copy_source:
         excerpt_dir = output_dir / "source_excerpts"
@@ -228,7 +239,11 @@ def scaffold(args: argparse.Namespace) -> dict:
         excerpt_file.write_text(excerpt, encoding="utf-8")
         source_display = relative_display(excerpt_file, output_dir)
     else:
-        source_display = relative_display(source, project_root)
+        try:
+            source.resolve().relative_to(output_dir)
+        except ValueError as exc:
+            raise ValueError("source must be inside output-dir when --copy-source is not used") from exc
+        source_display = relative_display(source, output_dir)
 
     control_dir = output_dir / "thesis_control"
     spine_path = control_dir / "spine_cards.csv"
