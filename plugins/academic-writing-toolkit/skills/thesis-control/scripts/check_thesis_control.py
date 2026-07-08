@@ -113,7 +113,7 @@ def validate_columns(root: Path, filename: str) -> Tuple[List[Dict[str, str]], L
             }
         )
 
-    if not rows:
+    if not rows and filename != "drift_audits.csv":
         issues.append({"kind": "empty-file", "location": str(path), "message": f"{filename} has no data rows"})
 
     return rows, issues

@@ -119,6 +119,7 @@ python3 scripts/verify-refs.py --bib references.bib --json
 python3 scripts/verify-refs.py --bib references.bib --json --online
 python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
 
+python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py . --source chapters/ch1_introduction.md --copy-source
 python3 .claude/skills/thesis-control/scripts/check_thesis_control.py . --strict
 python3 .claude/skills/release-governance/scripts/check_release_packet.py .
 ```

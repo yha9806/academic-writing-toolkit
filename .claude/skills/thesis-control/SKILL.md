@@ -42,6 +42,20 @@ python {skill_dir}/scripts/check_thesis_control.py <project_root> --strict
 
 The validator checks packet structure and gate consistency. It does not judge scholarly truth.
 
+To create a draft packet from a real Markdown unit before editing prose:
+
+```bash
+python {skill_dir}/scripts/scaffold_thesis_control.py <project_root> \
+  --source chapters/ch1_introduction.md \
+  --start-line 71 \
+  --end-line 104 \
+  --copy-source
+```
+
+The scaffold writes `human_approved=false`, `status=draft`, and
+`AUTHOR_REVIEW_REQUIRED` fields. Replace those fields with concrete author
+judgement before applying a substantive edit.
+
 ## Workflow
 
 ### 1. Establish Or Read The Spine Card
@@ -75,6 +89,10 @@ For every substantive edit, state:
 - adjacent context that must be checked
 - acceptance checks
 - whether human approval is required before editing
+
+When using the scaffold helper, treat its output as a draft control packet, not
+as approval. A generated contract becomes actionable only after the author has
+replaced the `AUTHOR_REVIEW_REQUIRED` fields and explicitly approved the scope.
 
 Always require human approval for:
 

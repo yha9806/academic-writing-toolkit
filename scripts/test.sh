@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (62 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T65 thesis control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (64 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T67 thesis control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -774,6 +774,91 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-human-review','unsafe-accept','unsupported-claim-passed','missed-adjacent-passed'} <= kinds"
 }
 
+test_T66() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that author control requires visible edit boundaries before rewriting begins.
+The claim is local to this project and does not assert that every thesis workflow needs the same structure.
+EOF
+
+    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --start-line 3 \
+        --end-line 4 \
+        --unit-id ch01-control \
+        --copy-source \
+        --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json > "$tmp/check.json" || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$out" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+payload = json.loads(sys.argv[2])
+check = json.loads((root / "check.json").read_text(encoding="utf-8"))
+assert payload["unit_id"] == "ch01-control"
+assert check["issue_count"] == 0
+assert check["summary"]["drift_audits"] == 0
+assert (root / "source_excerpts/ch01-control.md").is_file()
+assert Path(payload["review_packet"]).is_file()
+contracts = list(csv.DictReader((root / "thesis_control/edit_contracts.csv").open(encoding="utf-8")))
+assert contracts[0]["human_approved"] == "false"
+assert contracts[0]["status"] == "draft"
+assert "AUTHOR_REVIEW_REQUIRED" in contracts[0]["allowed_changes"]
+PY
+    rm -rf "$tmp"
+}
+
+test_T67() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that applied thesis edits require drift audits before acceptance.
+EOF
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --unit-id ch01-applied \
+        --copy-source \
+        --json >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp/thesis_control/edit_contracts.csv" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+rows = list(csv.DictReader(path.open(encoding="utf-8")))
+rows[0]["human_approved"] = "true"
+rows[0]["status"] = "applied"
+with path.open("w", encoding="utf-8", newline="") as handle:
+    writer = csv.DictWriter(handle, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+PY
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'missing-drift-audit' in kinds"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -990,6 +1075,8 @@ run_test "T62 demo project validates with existing checkers" test_T62
 run_test "T63 productization docs keep local links valid" test_T63
 run_test "T64 thesis-control packet accepts bounded edit case" test_T64
 run_test "T65 thesis-control catches distorted edit case" test_T65
+run_test "T66 thesis-control scaffold creates draft packet" test_T66
+run_test "T67 thesis-control strict mode requires audits for applied edits" test_T67
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

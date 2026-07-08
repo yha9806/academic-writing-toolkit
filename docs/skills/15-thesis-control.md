@@ -25,6 +25,20 @@ Validate them with:
 python3 .claude/skills/thesis-control/scripts/check_thesis_control.py . --strict
 ```
 
+Create a draft packet from a real Markdown section with:
+
+```bash
+python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py . \
+  --source chapters/ch1_introduction.md \
+  --start-line 71 \
+  --end-line 104 \
+  --copy-source
+```
+
+The scaffold is intentionally conservative: it creates a draft spine card and
+edit contract with `human_approved=false`. Replace `AUTHOR_REVIEW_REQUIRED`
+fields with concrete author judgement before changing thesis prose.
+
 ## Typical Prompts
 
 ```text
