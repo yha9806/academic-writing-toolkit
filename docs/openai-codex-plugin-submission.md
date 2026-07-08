@@ -63,6 +63,7 @@ The manifest follows the OpenAI Codex plugin docs:
 - `map`
 - `evidence-review`
 - `integrate`
+- `thesis-control`
 - `audit`
 - `release-governance`
 - `manuscript-reframe`
