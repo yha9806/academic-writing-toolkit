@@ -88,9 +88,20 @@ def read_excerpt(path: Path, start_line: Optional[int], end_line: Optional[int])
         raise ValueError("--end-line must be greater than or equal to --start-line")
 
     lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines:
+        raise ValueError(f"source file is empty: {path}")
+    total_lines = len(lines)
+    if start_line is not None and start_line > total_lines:
+        raise ValueError(f"--start-line {start_line} is beyond end of file ({total_lines} lines)")
+    if end_line is not None and end_line > total_lines:
+        raise ValueError(f"--end-line {end_line} is beyond end of file ({total_lines} lines)")
+
     start = (start_line - 1) if start_line is not None else 0
     end = end_line if end_line is not None else len(lines)
-    return "\n".join(lines[start:end]).rstrip() + "\n"
+    excerpt = "\n".join(lines[start:end]).rstrip()
+    if not excerpt.strip():
+        raise ValueError("selected source excerpt is empty")
+    return excerpt + "\n"
 
 
 def infer_section_title(excerpt: str, source: Path) -> str:

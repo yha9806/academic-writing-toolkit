@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (64 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T67 thesis control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (65 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T68 thesis control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -859,6 +859,47 @@ PY
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'missing-drift-audit' in kinds"
 }
 
+test_T68() {
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that scaffolded control packets must refer to real prose.
+EOF
+    : > "$tmp/chapters/empty.md"
+
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --start-line 99 \
+        --end-line 99 \
+        --unit-id beyond-start >/dev/null 2>&1
+    rc=$?
+    [[ "$rc" -ne 0 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --start-line 1 \
+        --end-line 99 \
+        --unit-id beyond-end >/dev/null 2>&1
+    rc=$?
+    [[ "$rc" -ne 0 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/empty.md \
+        --unit-id empty-source >/dev/null 2>&1
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -ne 0 ]]
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -1077,6 +1118,7 @@ run_test "T64 thesis-control packet accepts bounded edit case" test_T64
 run_test "T65 thesis-control catches distorted edit case" test_T65
 run_test "T66 thesis-control scaffold creates draft packet" test_T66
 run_test "T67 thesis-control strict mode requires audits for applied edits" test_T67
+run_test "T68 thesis-control scaffold rejects empty excerpts" test_T68
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
