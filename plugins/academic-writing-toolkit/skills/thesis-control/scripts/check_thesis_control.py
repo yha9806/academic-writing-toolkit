@@ -208,14 +208,16 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
         else:
             contract_ids.add(contract_id)
 
-        if unit_id and not is_valid_identifier(unit_id):
+        if not unit_id:
+            add_issue(issues, "missing-unit-id", location, "edit contract has no unit_id")
+        elif not is_valid_identifier(unit_id):
             add_issue(
                 issues,
                 "invalid-unit-id",
                 location,
                 "unit_id must be 1-120 safe ASCII characters and must not contain path segments",
             )
-        if unit_id and unit_id not in spine_ids:
+        elif unit_id not in spine_ids:
             add_issue(issues, "unknown-unit-id", location, f"contract references unknown unit_id: {unit_id}")
 
         if status not in CONTRACT_STATUSES:

@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-academic-writing-toolkit",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "Tool-only ChatGPT App MCP server for academic writing checks.",

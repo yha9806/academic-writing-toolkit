@@ -1,6 +1,6 @@
 {
     "name":  "academic-writing-toolkit",
-    "version":  "0.3.1",
+    "version":  "0.3.2",
     "description":  "Academic reading, thesis writing, thesis drift control, manuscript reframing, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
     "author":  {
                    "name":  "Academic Writing Toolkit Maintainers",

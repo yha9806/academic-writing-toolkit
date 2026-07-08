@@ -4,7 +4,7 @@ Use this checklist before submitting or sharing the Academic Writing Toolkit Cod
 
 ## Official Directory Status
 
-OpenAI's current Codex plugin build documentation says official public plugin publishing and self-serve plugin management are coming soon. Until that official submission surface exists, treat this repository as an official-format, submission-ready plugin package rather than a completed official directory listing.
+OpenAI's current Codex plugin build documentation describes the plugin package and marketplace model, while Apps SDK submission documentation says public distribution currently runs through the dashboard app review flow. Until a self-serve official plugin submission surface is available, treat this repository as an official-format, submission-ready plugin package rather than a completed official directory listing.
 
 Reference: https://developers.openai.com/codex/plugins/build
 

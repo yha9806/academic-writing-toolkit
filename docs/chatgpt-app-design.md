@@ -9,7 +9,7 @@ This gives the project two distribution tracks:
 - ChatGPT App: public MCP server submitted through OpenAI Platform Apps Manage.
 - Codex plugin: local plugin package under `plugins/academic-writing-toolkit`, with official public distribution following OpenAI's app approval and publication flow.
 
-Both surfaces use package version `0.3.1` for this release. The ChatGPT App server reads its version from `apps/chatgpt-academic-writing-toolkit/package.json`, and the test suite checks that it matches the Codex plugin manifest version.
+Both surfaces use package version `0.3.2` for the current release. The ChatGPT App server reads its version from `apps/chatgpt-academic-writing-toolkit/package.json`, and the test suite checks that it matches the Codex plugin manifest version.
 
 ## User Flows
 
@@ -38,6 +38,7 @@ The ChatGPT App intentionally exposes a review-safe subset of the local Codex pl
 | Read PDFs and create local notes | `/read`, `/note` | Not exposed; ChatGPT App has no local file access |
 | Map and integrate sources into chapters | `/map`, `/integrate` | Not exposed; requires workspace files |
 | Evidence-controlled review synthesis | `/evidence-review` | Not exposed; requires local notes and project artefacts |
+| Thesis drift control | `/thesis-control` | Not exposed; requires local thesis files, spine cards, edit contracts, drift audits, and author gates |
 | Release and human-evaluation packet governance | `/release-governance`, `/human-eval-handoff-repair` | Not exposed; requires local refs, assets, package files, or annotation CSVs |
 | Citation audit | `/audit` | `audit_citations` for pasted text and source lines |
 | British English check | `/style` | `check_british_english` for pasted text |

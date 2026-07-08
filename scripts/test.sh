@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (68 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T71 thesis control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (69 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -1028,6 +1028,33 @@ PY
     rm -rf "$tmp"
 }
 
+test_T72() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/thesis_control" "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that every edit contract must remain bound to a spine card.
+EOF
+    cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch01,chapters/ch01.md,Contract binding,This unit argues that contracts need spine bindings.,one unit only,contracts must bind to spine cards,do not allow orphan contracts
+EOF
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-missing,,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'missing-unit-id' in kinds"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -1250,6 +1277,7 @@ run_test "T68 thesis-control scaffold rejects empty excerpts" test_T68
 run_test "T69 thesis-control rejects unsafe identifiers" test_T69
 run_test "T70 thesis-control rejects uninspectable source paths" test_T70
 run_test "T71 thesis-control accepts relative output directories" test_T71
+run_test "T72 thesis-control rejects orphan edit contracts" test_T72
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
