@@ -155,6 +155,19 @@ Latest hosted verification:
 - `GET /mcp`: `405 Method not allowed`
 - `/.well-known/openai-apps-challenge`: returned the configured OpenAI challenge token
 
+Latest OpenAI dashboard check:
+
+- Date: 2026-07-08
+- App draft: `Academic Writing Toolkit`
+- MCP Server URL: `https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp`
+- Authentication: `No Auth`
+- Domain verification: verified
+- Tool scan: 5 tools with explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint`
+- Tests: 5 positive test cases and 3 negative test cases present
+- Country availability: allow all countries
+- Submit status: blocked by OpenAI Platform with `Business verification is not complete. Please verify as a business before submitting.`
+- Next gate: complete OpenAI organization Business verification for the publisher organization, then return to the same draft and click `Submit for Review`.
+
 ## Render Deployment
 
 Render is a zero-cost backup hosted path for smoke testing or for a separate future app listing. It is not the MCP URL for updates to the already-published OpenAI app, because that app is currently bound to the Hugging Face Space base URL.
