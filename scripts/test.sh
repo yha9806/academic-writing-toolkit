@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (60 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (62 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T65 thesis control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -725,6 +725,55 @@ if missing:
 PY
 }
 
+_make_valid_thesis_control_packet() {
+    local tmp="$1"
+    mkdir -p "$tmp/thesis_control" "$tmp/chapters"
+    cat > "$tmp/chapters/ch02.md" <<'EOF'
+# Chapter 2
+
+Local-first writing workflows can make source notes inspectable, but this section only claims that file-based records improve traceability within one project. It does not claim that such workflows improve scholarly quality by themselves.
+EOF
+    cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch02-s1,chapters/ch02.md,Local workflow control,This unit argues that file-based records improve traceability within one writing project by keeping notes and claims inspectable.,single-project workflow traceability only,file-based records improve traceability;the workflow does not prove scholarly quality,do not claim quality improvement;preserve single-project boundary
+EOF
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch02-s1,clarify topic sentence in first paragraph,make the traceability claim clearer without changing its scope,do not add quality improvement claims;do not remove single-project boundary,check following paragraph for repeated boundary language,spine sentence preserved;no new unsupported claim,true,applied
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,accept,false,passed
+EOF
+}
+
+test_T64() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    _make_valid_thesis_control_packet "$tmp"
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0 and d['summary']['edit_contracts'] == 1"
+}
+
+test_T65() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_thesis_control_packet "$tmp"
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,The edit now claims the workflow improves final thesis quality,The boundary moved from one project to all thesis writing,workflow improves final thesis quality,related caution paragraph still says quality is not proven,accept,false,passed
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-human-review','unsafe-accept','unsupported-claim-passed','missed-adjacent-passed'} <= kinds"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -939,6 +988,8 @@ run_test "T60 verify-refs accepts Markdown BibTeX fences" test_T60
 run_test "T61 productization docs and demo structure exist" test_T61
 run_test "T62 demo project validates with existing checkers" test_T62
 run_test "T63 productization docs keep local links valid" test_T63
+run_test "T64 thesis-control packet accepts bounded edit case" test_T64
+run_test "T65 thesis-control catches distorted edit case" test_T65
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
