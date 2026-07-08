@@ -20,7 +20,7 @@ This package is prepared to match the official Codex plugin package format. It h
 - Display name: `Academic Writing Toolkit`
 - Repository: `https://github.com/yha9806/academic-writing-toolkit`
 - Package version: `0.3.2`
-- Tagged release ref for external review: `v0.3.2` after creating the verified release tag
+- Tagged release ref for external review: `v0.3.2`
 - Current default branch ref used for local marketplace tracking: `master`
 - Plugin path: `plugins/academic-writing-toolkit`
 - Manifest: `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`

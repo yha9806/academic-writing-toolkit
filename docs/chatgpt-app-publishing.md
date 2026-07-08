@@ -147,11 +147,11 @@ curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/.well-known/openai-apps-challenge
 ```
 
-Latest hosted verification before the v0.3.2 update:
+Latest hosted verification:
 
-- Date: 2026-06-20
-- Space repo/runtime SHA: `f5ab7c9cb5bd554bf380698b039b3a56403ded1e`
-- `/health`: version `0.3.1`, `status: ok`
+- Date: 2026-07-08
+- Space repo/runtime SHA: `5c0703a256460782fa4551ac2b4eadb919b92058`
+- `/health`: version `0.3.2`, `status: ok`
 - `GET /mcp`: `405 Method not allowed`
 - `/.well-known/openai-apps-challenge`: returned the configured OpenAI challenge token
 
