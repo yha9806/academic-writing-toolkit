@@ -164,6 +164,11 @@ For compatibility, non-strict checking continues to accept legacy packets withou
 
 The public-safe executable fixture at `examples/thesis-control-revision-escalation/` keeps blocked and approved packets side by side. It demonstrates the same fourth contract failing without an escalation record and passing only after a matching escalation receives explicit author approval.
 
+The schema-v3 hardening contract is specified separately in
+[`thesis-control-revision-escalation-v3-hardening-design.md`](thesis-control-revision-escalation-v3-hardening-design.md).
+It separates early diagnosis from cycle-closing approval, defines strict CSV
+shape handling, and requires failure-atomic scaffold and migration writes.
+
 ## Acceptance Criteria
 
 The design is ready for implementation planning when:
