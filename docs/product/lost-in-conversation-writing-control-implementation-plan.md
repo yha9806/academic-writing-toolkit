@@ -8,7 +8,9 @@
 
 **Tech Stack:** Markdown fixtures, CSV control packets, Bash regression harness, Python 3 standard library.
 
-**Current extension:** The initial single-case fixture has been expanded into a three-case fixture. `scripts/check_lost_in_conversation_bench.py` now validates the root case plus `cases/*`, and T73 runs strict `/thesis-control` validation for every case treatment packet.
+**Current extension:** The initial single-case fixture has been expanded into a three-case fixture. `scripts/check_lost_in_conversation_bench.py` validates the root case plus `cases/*`, T73 runs strict `/thesis-control` validation for every case treatment packet, and T74 requires the skill to stop and diagnose repeated revisions instead of applying a fourth prose patch.
+
+**Revision escalation architecture:** Keep revision escalation inside `/thesis-control`. The skill counts unsuccessful outcomes against the same edit contract, stops after three, allows earlier escalation for high-risk control failures, and routes the author to a corrected local contract, section restructure, evidence-boundary decision, approved-version restore, or full reframing. The structural validator remains unchanged because it cannot judge semantic convergence.
 
 ---
 

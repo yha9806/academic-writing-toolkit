@@ -1,6 +1,6 @@
 ---
 name: thesis-control
-description: Control AI-assisted thesis edits with spine cards, edit contracts, drift audits, and human gates so manuscript changes stay bounded, reviewable, and reversible.
+description: Use when AI-assisted thesis edits risk claim drift, scope creep, loss of author control, or repeated revisions that fail to converge; provides spine cards, edit contracts, drift audits, revision escalation, and human gates.
 allowed-tools: Read, Glob, Grep, Edit, Write, Bash
 ---
 
@@ -126,6 +126,63 @@ If any claim, boundary, or caveat changed, the result needs human review even if
 ### 5. Record Human Gate Outcome
 
 The author decides whether to accept, partially accept, revise, or rollback. Do not mark a high-risk edit as accepted without explicit human approval.
+
+## Revision Escalation Rule
+
+Treat three unsuccessful attempts on the same edit contract as an operational escalation threshold, not as evidence that every task fails after three turns. Count an attempt when its drift decision is `revise` or `rollback`, or when the author rejects the result against the same contract. Clarifying discussion and unexecuted proposals do not count.
+
+After three unsuccessful attempts, stop. Do not apply a fourth prose patch.
+
+Escalate earlier than three attempts when any of these signals is already visible:
+
+- the section spine cannot be stated consistently
+- the requested claim lacks supporting evidence
+- a revision changes a claim, caveat, or scope boundary outside the contract
+- the latest author-approved version cannot be identified
+- old assumptions, duplicated explanations, or conflicting requirements indicate version contamination
+
+### Required Escalation Check
+
+Before editing again:
+
+1. Consolidate the currently valid requirements into one brief.
+2. Compare that brief with the spine card, evidence boundaries, current contract, and latest author-approved version.
+3. Classify the failure as one primary category:
+   - **underspecified or conflicting intent** — the target, audience, venue, constraint, or acceptance condition is missing or inconsistent
+   - **local execution failure** — the contract is clear, but the edit did not implement it correctly
+   - **structural mismatch** — the problem affects the section purpose, research question, gap, contribution, evidence chain, or manuscript structure
+   - **evidence gap** — the requested claim is not supported by the available sources, data, experiments, or files
+   - **version contamination** — accumulated patches mix incompatible assumptions, duplicate reasoning, or obscure which prose the author approved
+4. Classify the writing scope:
+   - **local patch** — wording or presentation changes that preserve the spine, claims, evidence, and adjacent-section relationships
+   - **section-level restructure** — changes confined to one section without changing the research question, contribution, or evidence chain
+   - **full reframing** — changes to the title, abstract, research question, gap, contribution, methods-results alignment, evidence chain, or discussion framing
+5. Recommend the smallest valid next action and wait for author approval.
+
+Use these default actions:
+
+- For a local execution failure, create a corrected local contract.
+- For underspecified or conflicting intent, ask for the missing decision before editing.
+- For a structural mismatch, propose a section-level restructure or full reframing plan before editing.
+- For an evidence gap, narrow, qualify, or remove the unsupported claim unless the author supplies more evidence.
+- For version contamination, restore or copy the latest author-approved version, then apply a consolidated contract. Create a separate branch or manuscript version only when the approved scope requires structural work.
+
+Return the escalation check in this form:
+
+```text
+## Revision Escalation Check
+
+Contract:
+Unsuccessful attempts:
+Primary category:
+Writing scope:
+Why the revisions did not converge:
+Valid requirements:
+Missing or conflicting information:
+Latest author-approved version:
+Recommended next action:
+Author decision required:
+```
 
 ## Output Patterns
 

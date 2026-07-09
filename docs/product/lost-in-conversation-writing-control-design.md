@@ -125,6 +125,14 @@ The treatment workflow must stop instead of editing when:
 
 If any of these occur during the bench run, the outcome should be recorded as a control success rather than an execution failure: refusing to edit is the correct behaviour when author control is insufficient.
 
+### Revision Escalation
+
+Three unsuccessful attempts against the same edit contract are an operational stop threshold, not a research claim that every task fails after three turns. An attempt counts when the author rejects the result or the drift decision is `revise` or `rollback`. At that point the workflow must not apply a fourth prose patch.
+
+The workflow may escalate earlier when claim drift, an evidence gap, an unclear spine, loss of the latest author-approved version, or version contamination is already visible. Before any further edit, it consolidates the valid requirements, compares them with the control packet and approved source, classifies the problem, and asks the author to approve the next action.
+
+The diagnosis separates underspecified or conflicting intent, local execution failure, structural mismatch, evidence gap, and version contamination. It also distinguishes a local patch, section-level restructure, and full reframing. A new branch or manuscript version is an isolation mechanism for approved structural work, not a substitute for repairing an unclear specification.
+
 ## Acceptance Criteria
 
 The design is ready for implementation planning when:
@@ -134,6 +142,7 @@ The design is ready for implementation planning when:
 - the treatment workflow produces valid `spine_cards.csv`, `edit_contracts.csv`, and `drift_audits.csv`;
 - the comparison report identifies at least one concrete difference between normal chat editing and contract-bounded editing;
 - the final review answers whether the treatment improved author control, not merely whether the prose sounded better.
+- repeated revisions trigger diagnosis after three unsuccessful attempts on the same contract, or earlier when a high-risk control failure is visible.
 
 ## Public Communication Boundary
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (70 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (71 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74 revision escalation) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -1083,6 +1083,35 @@ test_T73() {
     done
 }
 
+test_T74() {
+    python3 - "$REPO_ROOT/.claude/skills/thesis-control/SKILL.md" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+required = (
+    "## Revision Escalation Rule",
+    "same edit contract",
+    "three unsuccessful attempts",
+    "operational escalation threshold",
+    "Do not apply a fourth prose patch",
+    "Escalate earlier",
+    "underspecified or conflicting intent",
+    "local execution failure",
+    "structural mismatch",
+    "evidence gap",
+    "version contamination",
+    "latest author-approved version",
+    "local patch",
+    "section-level restructure",
+    "full reframing",
+)
+missing = [phrase for phrase in required if phrase not in text]
+if missing:
+    raise SystemExit("missing revision-escalation guidance: " + ", ".join(missing))
+PY
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -1307,6 +1336,7 @@ run_test "T70 thesis-control rejects uninspectable source paths" test_T70
 run_test "T71 thesis-control accepts relative output directories" test_T71
 run_test "T72 thesis-control rejects orphan edit contracts" test_T72
 run_test "T73 lost-in-conversation bench validates" test_T73
+run_test "T74 thesis-control escalates repeated revisions" test_T74
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
