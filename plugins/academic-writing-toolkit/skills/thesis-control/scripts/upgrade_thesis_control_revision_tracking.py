@@ -16,7 +16,9 @@ REVISION_COLUMNS = ["revision_issue_id", "attempt_no"]
 ESCALATION_COLUMNS = [
     "escalation_id",
     "revision_issue_id",
+    "escalation_kind",
     "trigger_contracts",
+    "approved_after_attempt",
     "primary_category",
     "writing_scope",
     "valid_requirements",

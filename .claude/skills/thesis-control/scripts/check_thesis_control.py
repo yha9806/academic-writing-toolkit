@@ -54,10 +54,25 @@ REQUIRED_FILES = {
 }
 
 REVISION_CONTRACT_COLUMNS = ["revision_issue_id", "attempt_no"]
-REVISION_ESCALATION_COLUMNS = [
+REVISION_ESCALATION_V2_COLUMNS = [
     "escalation_id",
     "revision_issue_id",
     "trigger_contracts",
+    "primary_category",
+    "writing_scope",
+    "valid_requirements",
+    "missing_or_conflicting_information",
+    "latest_author_approved_version",
+    "recommended_next_action",
+    "human_approved",
+    "status",
+]
+REVISION_ESCALATION_V3_COLUMNS = [
+    "escalation_id",
+    "revision_issue_id",
+    "escalation_kind",
+    "trigger_contracts",
+    "approved_after_attempt",
     "primary_category",
     "writing_scope",
     "valid_requirements",
@@ -80,6 +95,7 @@ ESCALATION_CATEGORIES = {
 }
 WRITING_SCOPES = {"local_patch", "section_level_restructure", "full_reframing"}
 ESCALATION_STATUSES = {"draft", "approved", "rejected"}
+ESCALATION_KINDS = {"early_diagnostic", "cycle_gate"}
 EMPTY_MARKERS = {"", "none", "n/a", "na", "no", "not applicable"}
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,118}[A-Za-z0-9])?$")
 
@@ -181,6 +197,11 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
     contract_path = control_dir / "edit_contracts.csv"
     escalation_path = control_dir / "revision_escalations.csv"
     contract_fields = read_fieldnames(contract_path)
+    escalation_fields = read_fieldnames(escalation_path)
+    escalation_v3 = all(
+        column in escalation_fields for column in ["escalation_kind", "approved_after_attempt"]
+    )
+    enforce_revision_gate = strict or escalation_v3
     revision_tracking = strict or escalation_path.is_file() or all(
         column in contract_fields for column in REVISION_CONTRACT_COLUMNS
     )
@@ -207,10 +228,15 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
     escalation_rows: List[Dict[str, str]] = []
     escalation_issues: List[dict] = []
     if revision_tracking:
+        escalation_columns = (
+            REVISION_ESCALATION_V3_COLUMNS
+            if enforce_revision_gate
+            else REVISION_ESCALATION_V2_COLUMNS
+        )
         escalation_rows, escalation_issues = validate_columns(
             root,
             "revision_escalations.csv",
-            REVISION_ESCALATION_COLUMNS,
+            escalation_columns,
             allow_empty=True,
         )
     issues.extend(spine_issues + contract_issues + audit_issues + escalation_issues)
@@ -437,7 +463,7 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
         if not is_empty(missed_adjacent) and status == "passed":
             add_issue(issues, "missed-adjacent-passed", location, "missed adjacent updates cannot have status=passed")
 
-    escalations_by_issue: Dict[str, List[dict]] = {}
+    cycle_gates_by_issue: Dict[str, List[dict]] = {}
     escalation_ids = set()
     escalation_trigger_sets = set()
     if revision_tracking:
@@ -451,6 +477,8 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
                 if value.strip()
             ]
             trigger_set = set(trigger_contracts)
+            escalation_kind = row.get("escalation_kind", "").strip().lower()
+            approved_after_text = row.get("approved_after_attempt", "").strip()
             category = row.get("primary_category", "").strip().lower()
             writing_scope = row.get("writing_scope", "").strip().lower()
             approved = parse_bool(row.get("human_approved", ""))
@@ -508,6 +536,50 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
             if status == "approved" and approved is not True:
                 add_issue(issues, "missing-human-approval", location, "approved escalation requires human_approved=true")
 
+            approved_after_attempt = None
+            if enforce_revision_gate:
+                if escalation_kind not in ESCALATION_KINDS:
+                    add_issue(
+                        issues,
+                        "invalid-escalation-kind",
+                        location,
+                        f"invalid escalation_kind: {escalation_kind}",
+                    )
+                elif escalation_kind == "early_diagnostic":
+                    if not 1 <= len(trigger_contracts) <= 2:
+                        add_issue(
+                            issues,
+                            "invalid-early-diagnostic-trigger-count",
+                            location,
+                            "early_diagnostic requires one or two unique trigger contracts",
+                        )
+                    if approved_after_text:
+                        add_issue(
+                            issues,
+                            "unexpected-approved-after-attempt",
+                            location,
+                            "early_diagnostic must leave approved_after_attempt empty",
+                        )
+                elif escalation_kind == "cycle_gate":
+                    if len(trigger_contracts) != 3:
+                        add_issue(
+                            issues,
+                            "invalid-cycle-gate-trigger-count",
+                            location,
+                            "cycle_gate requires exactly three unique trigger contracts",
+                        )
+                    try:
+                        approved_after_attempt = int(approved_after_text)
+                    except ValueError:
+                        approved_after_attempt = None
+                    if approved_after_attempt is None or approved_after_attempt < 1:
+                        add_issue(
+                            issues,
+                            "invalid-approved-after-attempt",
+                            location,
+                            "cycle_gate approved_after_attempt must be a positive integer",
+                        )
+
             for column in [
                 "valid_requirements",
                 "missing_or_conflicting_information",
@@ -528,55 +600,103 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
                     )
                 else:
                     escalation_trigger_sets.add(trigger_key)
-                escalations_by_issue.setdefault(revision_issue_id, []).append(
-                    {
-                        "triggers": trigger_set,
-                        "approved": approved is True and status == "approved",
-                    }
-                )
-
-        unsuccessful_by_issue: Dict[str, List[Tuple[int, str]]] = {}
-        for contract_id in unsuccessful_contracts:
-            revision_issue_id = contract_issues_by_id.get(contract_id)
-            attempt_no = contract_attempts.get(contract_id)
-            if revision_issue_id and attempt_no is not None:
-                unsuccessful_by_issue.setdefault(revision_issue_id, []).append((attempt_no, contract_id))
-
-        for revision_issue_id, attempts in unsuccessful_by_issue.items():
-            ordered = sorted(attempts)
-            complete_groups = len(ordered) // 3
-            for group_index in range(complete_groups):
-                trigger_group = ordered[group_index * 3 : (group_index + 1) * 3]
-                required_triggers = {contract_id for _, contract_id in trigger_group}
-                threshold_attempt = max(attempt_no for attempt_no, _ in trigger_group)
-                matching = [
-                    escalation
-                    for escalation in escalations_by_issue.get(revision_issue_id, [])
-                    if required_triggers == escalation["triggers"]
-                ]
-                trigger_list = ", ".join(contract_id for _, contract_id in trigger_group)
-                if not matching:
-                    add_issue(
-                        issues,
-                        "missing-revision-escalation",
-                        "thesis_control/revision_escalations.csv",
-                        f"revision issue {revision_issue_id} needs an escalation record for {trigger_list}",
+                if enforce_revision_gate and escalation_kind == "cycle_gate":
+                    cycle_gates_by_issue.setdefault(revision_issue_id, []).append(
+                        {
+                            "triggers": trigger_set,
+                            "approved": approved is True and status == "approved",
+                            "approved_after_attempt": approved_after_attempt,
+                            "location": location,
+                            "effective": False,
+                        }
                     )
-                approved_escalation = any(escalation["approved"] for escalation in matching)
-                if approved_escalation:
-                    continue
-                for contract_id, attempt_no in contract_attempts.items():
-                    if contract_issues_by_id.get(contract_id) != revision_issue_id:
-                        continue
-                    if attempt_no <= threshold_attempt:
-                        continue
-                    if contract_statuses.get(contract_id) in {"approved", "applied"}:
+
+        if enforce_revision_gate:
+            unsuccessful_by_issue: Dict[str, List[Tuple[int, str]]] = {}
+            for contract_id in unsuccessful_contracts:
+                revision_issue_id = contract_issues_by_id.get(contract_id)
+                attempt_no = contract_attempts.get(contract_id)
+                if revision_issue_id and attempt_no is not None:
+                    unsuccessful_by_issue.setdefault(revision_issue_id, []).append((attempt_no, contract_id))
+
+            groups_by_issue: Dict[str, List[dict]] = {}
+            for revision_issue_id, attempts in unsuccessful_by_issue.items():
+                ordered = sorted(attempts)
+                complete_groups = len(ordered) // 3
+                for group_index in range(complete_groups):
+                    trigger_group = ordered[group_index * 3 : (group_index + 1) * 3]
+                    groups_by_issue.setdefault(revision_issue_id, []).append(
+                        {
+                            "triggers": {contract_id for _, contract_id in trigger_group},
+                            "threshold_attempt": max(attempt_no for attempt_no, _ in trigger_group),
+                            "ordered": trigger_group,
+                        }
+                    )
+
+            for revision_issue_id, cycle_gates in cycle_gates_by_issue.items():
+                groups = groups_by_issue.get(revision_issue_id, [])
+                for cycle_gate in cycle_gates:
+                    matching_group = next(
+                        (group for group in groups if group["triggers"] == cycle_gate["triggers"]),
+                        None,
+                    )
+                    if matching_group is None:
                         add_issue(
                             issues,
-                            "revision-escalation-required",
-                            contract_locations.get(contract_id, "thesis_control/edit_contracts.csv"),
-                            f"contract {contract_id} cannot proceed before revision issue {revision_issue_id} has an approved escalation for {trigger_list}",
+                            "invalid-cycle-gate-trigger-group",
+                            cycle_gate["location"],
+                            "cycle_gate triggers do not match a completed unsuccessful group",
                         )
+                        if cycle_gate["approved"]:
+                            add_issue(
+                                issues,
+                                "premature-cycle-gate-approval",
+                                cycle_gate["location"],
+                                "approved cycle_gate requires a completed unsuccessful group",
+                            )
+                        continue
+                    if cycle_gate["approved_after_attempt"] != matching_group["threshold_attempt"]:
+                        add_issue(
+                            issues,
+                            "invalid-approved-after-attempt",
+                            cycle_gate["location"],
+                            "cycle_gate approved_after_attempt must equal the group's final attempt",
+                        )
+                        continue
+                    cycle_gate["effective"] = cycle_gate["approved"]
+
+            for revision_issue_id, groups in groups_by_issue.items():
+                for group in groups:
+                    required_triggers = group["triggers"]
+                    threshold_attempt = group["threshold_attempt"]
+                    trigger_group = group["ordered"]
+                    matching = [
+                        cycle_gate
+                        for cycle_gate in cycle_gates_by_issue.get(revision_issue_id, [])
+                        if required_triggers == cycle_gate["triggers"]
+                    ]
+                    trigger_list = ", ".join(contract_id for _, contract_id in trigger_group)
+                    if not matching:
+                        add_issue(
+                            issues,
+                            "missing-revision-escalation",
+                            "thesis_control/revision_escalations.csv",
+                            f"revision issue {revision_issue_id} needs a cycle_gate for {trigger_list}",
+                        )
+                    if any(cycle_gate["effective"] for cycle_gate in matching):
+                        continue
+                    for contract_id, attempt_no in contract_attempts.items():
+                        if contract_issues_by_id.get(contract_id) != revision_issue_id:
+                            continue
+                        if attempt_no <= threshold_attempt:
+                            continue
+                        if contract_statuses.get(contract_id) in {"approved", "applied"}:
+                            add_issue(
+                                issues,
+                                "revision-escalation-required",
+                                contract_locations.get(contract_id, "thesis_control/edit_contracts.csv"),
+                                f"contract {contract_id} cannot proceed before revision issue {revision_issue_id} has an approved cycle_gate for {trigger_list}",
+                            )
 
     if strict:
         missing_audits = sorted(applied_contracts - audited_contracts)
@@ -598,6 +718,7 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
             "drift_audits": len(audit_rows),
             "revision_escalations": len(escalation_rows),
             "revision_tracking": revision_tracking,
+            "escalation_schema_version": 3 if escalation_v3 else 2,
         },
         "issues": issues,
         "issue_count": len(issues),

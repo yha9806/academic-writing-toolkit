@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (89 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T92 revision escalation and human gates) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (93 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T96 revision escalation and human gates) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -746,7 +746,7 @@ audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,mi
 da-001,ec-001,none,none,none,none,accept,false,passed
 EOF
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
 }
 
@@ -947,7 +947,7 @@ audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,mi
 bad/audit,bad/id,none,none,none,none,accept,false,passed
 EOF
     cat > "$tmp/manual/thesis_control/revision_escalations.csv" <<'EOF'
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
     rc=$?
@@ -993,7 +993,7 @@ EOF
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
 EOF
     cat > "$tmp/manual/thesis_control/revision_escalations.csv" <<'EOF'
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
     rc=$?
@@ -1058,7 +1058,7 @@ EOF
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
 EOF
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
@@ -1169,11 +1169,11 @@ da-003,ec-003,none,none,none,none,revise,true,failed
 da-004,ec-004,none,none,none,none,accept,false,passed
 EOF
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
     if [[ "$escalation_mode" == "approved" ]]; then
         cat >> "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
-re-001,ri-ch03-clarity,ec-001;ec-002;ec-003,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
     fi
 }
@@ -1213,8 +1213,8 @@ ec-003,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,c
 ec-004,ch03,ri-ch03-clarity,5,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
 EOF
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
-re-001,ri-ch03-clarity,ec-001;ec-002;ec-unknown,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-unknown,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
@@ -1490,8 +1490,8 @@ da-006,ec-006,none,none,none,none,revise,true,failed
 da-007,ec-007,none,none,none,none,accept,false,passed
 EOF
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
-re-all-six,ri-ch03-clarity,ec-001;ec-002;ec-003;ec-004;ec-005;ec-006,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-all-six,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003;ec-004;ec-005;ec-006,6,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
 
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
@@ -1625,8 +1625,8 @@ test_T89() {
     tmp=$(mktemp -d) || return 1
     _make_revision_escalation_packet "$tmp" approved
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
-re-001,ri-ch03-clarity,ec-001;ec-002;ec-003;ec-003,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003;ec-003,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
 
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
@@ -1641,7 +1641,7 @@ test_T90() {
     tmp=$(mktemp -d) || return 1
     _make_revision_escalation_packet "$tmp" approved
     cat >> "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
-re-002,ri-ch03-clarity,ec-003;ec-001;ec-002,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+re-002,ri-ch03-clarity,cycle_gate,ec-003;ec-001;ec-002,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
 
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
@@ -1753,6 +1753,114 @@ for case, expected_kind in cases.items():
     payload = json.loads(result.stdout)
     kinds = {issue["kind"] for issue in payload["issues"]}
     assert expected_kind in kinds, (case.name, expected_kind, kinds)
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T93() {
+    local tmp legacy strict rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp" approved
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-001,ri-ch03-clarity,ec-001;ec-002;ec-003,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+EOF
+
+    legacy=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    echo "$legacy" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count']==0" || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    strict=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$strict" | python3 -c "import json,sys; d=json.load(sys.stdin); missing={i['message'] for i in d['issues'] if i['kind']=='missing-column'}; assert any('escalation_kind' in m for m in missing) and any('approved_after_attempt' in m for m in missing)"
+}
+
+test_T94() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp"
+    sed -i.bak '/^ec-004,/ s/,true,applied$/,false,draft/' "$tmp/thesis_control/edit_contracts.csv"
+    sed -i.bak '/^da-003,/ s/,revise,true,failed$/,accept,false,passed/' "$tmp/thesis_control/drift_audits.csv"
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,third attempt has not failed,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+EOF
+
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind']=='premature-cycle-gate-approval' for i in d['issues'])"
+}
+
+test_T95() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp"
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-early,ri-ch03-clarity,early_diagnostic,ec-001;ec-002;ec-003,,local_execution_failure,local_patch,preserve the section spine and improve clarity,diagnosis began before the completed group,chapters/ch03.md before ec-001,inspect the issue before another edit,true,approved
+EOF
+
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'invalid-early-diagnostic-trigger-count','revision-escalation-required'} <= kinds"
+}
+
+test_T96() {
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp/base"
+
+    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts/check_thesis_control.py" <<'PY'
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+checker = Path(sys.argv[2])
+base = root / "base"
+header = "escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status\n"
+tail = ",local_execution_failure,local_patch,preserve the section spine,previous edits failed,chapters/ch03.md before ec-001,apply one bounded contract,true,approved\n"
+
+cases = {
+    "wrong-boundary": (
+        "re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003,2" + tail,
+        "invalid-approved-after-attempt",
+    ),
+    "oversized": (
+        "re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003;ec-004,4" + tail,
+        "invalid-cycle-gate-trigger-count",
+    ),
+}
+
+for name, (row, expected_kind) in cases.items():
+    case = root / name
+    shutil.copytree(base, case)
+    (case / "thesis_control/revision_escalations.csv").write_text(header + row, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(checker), str(case), "--strict", "--json"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 1, (name, result.stdout, result.stderr)
+    payload = json.loads(result.stdout)
+    kinds = {issue["kind"] for issue in payload["issues"]}
+    assert expected_kind in kinds, (name, expected_kind, kinds)
 PY
     rc=$?
     rm -rf "$tmp"
@@ -2002,6 +2110,10 @@ run_test "T89 revision escalation rejects duplicate trigger contracts" test_T89
 run_test "T90 revision escalation requires one row per trigger set" test_T90
 run_test "T91 thesis-control rejects duplicate CSV headers" test_T91
 run_test "T92 thesis-control reports malformed CSV rows without traceback" test_T92
+run_test "T93 strict thesis-control requires schema v3 escalation fields" test_T93
+run_test "T94 cycle gate approval requires a completed failure group" test_T94
+run_test "T95 early diagnostics never close a failure cycle" test_T95
+run_test "T96 cycle gates require exact trigger count and attempt boundary" test_T96
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
