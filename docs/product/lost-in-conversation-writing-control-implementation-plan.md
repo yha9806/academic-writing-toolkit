@@ -130,7 +130,7 @@ passes.
 - [x] Record each adversarial case, expected exit and issue kind, observed
   result, and regression-test mapping.
 - [x] Synchronise skill, public docs, fixtures, and generated plugin copies.
-- [ ] Run the complete test, plugin, ChatGPT App, public-content, release-packet,
+- [x] Run the complete test, plugin, ChatGPT App, public-content, release-packet,
   syntax, sync, and diff gates.
 - [ ] Obtain two independent full-range reviews and resolve every Critical and
   Important finding.
