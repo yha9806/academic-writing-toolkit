@@ -1,6 +1,8 @@
 # Lost-in-Conversation Writing Control Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For implementers:** Execute this plan task-by-task with strict red-green TDD,
+> focused commits, and review gates. Steps use checkbox (`- [ ]`) syntax for
+> tracking.
 
 **Goal:** Build a small local benchmark fixture that demonstrates how `/thesis-control` turns scattered multi-turn writing intent into reviewable edit-control artifacts.
 
@@ -13,6 +15,127 @@
 **Revision escalation architecture:** Keep revision escalation inside `/thesis-control`. The skill groups unsuccessful contract versions under one revision issue, stops after three, allows earlier escalation for high-risk control failures, and routes the author to a corrected local contract, section restructure, evidence-boundary decision, approved-version restore, or full reframing. The validator enforces structural attempt and approval gates without claiming to judge semantic convergence.
 
 **Execution-layer extension:** Track one unresolved problem across contract versions with `revision_issue_id` and `attempt_no`. Add `revision_escalations.csv` as the durable diagnosis and author-approval record. Strict validation must require a distinct exact-match escalation record after each group of three unsuccessful applied contracts with resolved failed audits, and must reject a later `approved` or `applied` contract until that escalation is human-approved. Non-strict validation remains compatible with legacy packets.
+
+## Schema v3 Hardening Extension
+
+**Approved design:**
+[`thesis-control-revision-escalation-v3-hardening-design.md`](thesis-control-revision-escalation-v3-hardening-design.md)
+
+**Goal:** Eliminate premature escalation approval, ambiguous CSV parsing, and
+partial writes while preserving the structural-only checker boundary.
+
+**Architecture:** Add `escalation_kind` and `approved_after_attempt` to strict
+escalation records. Route checker, scaffold, and migration CSV handling through
+one canonical `thesis_control_io.py` module. Build complete candidate outputs in
+memory and commit them through a staged batch writer only after all validation
+passes.
+
+### Task E: Introduce Strict Shared CSV I/O
+
+**Files:**
+- Create `.claude/skills/thesis-control/scripts/thesis_control_io.py`
+- Modify `.claude/skills/thesis-control/scripts/check_thesis_control.py`
+- Modify `.claude/skills/thesis-control/scripts/scaffold_thesis_control.py`
+- Modify `.claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py`
+- Modify `scripts/test.sh`
+
+- [ ] Add T91 proving duplicate headers, including conflicting
+  `human_approved` columns, fail in each control CSV.
+- [ ] Add T92 proving extra, missing, truncated, and invalid quoted cells return
+  structured checker issues without a traceback.
+- [ ] Implement strict header and row-width parsing with
+  `csv.reader(..., strict=True)`.
+- [ ] Make checker parsing failures issue records and helper parsing failures
+  concise `ValueError` messages.
+- [ ] Preserve named extension columns in migration and reject unsupported
+  extension columns before scaffold mutation.
+- [ ] Run the full suite; T2-T90 and T91-T92 must pass.
+
+### Task F: Enforce Schema v3 Escalation Semantics
+
+**Files:**
+- Modify `.claude/skills/thesis-control/scripts/check_thesis_control.py`
+- Modify `.claude/skills/thesis-control/scripts/scaffold_thesis_control.py`
+- Modify all public `revision_escalations.csv` fixtures
+- Modify `scripts/test.sh`
+
+- [ ] Add T93 proving non-strict mode reads v2 packets but strict mode requires
+  `escalation_kind` and `approved_after_attempt`.
+- [ ] Add T94 proving an approved three-trigger record is invalid before its
+  trigger contracts form a completed unsuccessful group.
+- [ ] Add T95 proving `early_diagnostic` remains non-closing after later
+  failures and a distinct `cycle_gate` is required.
+- [ ] Add T96 covering oversized, cross-issue, duplicate, shifted, and repeated
+  cycle-gate trigger sets.
+- [ ] Accept `early_diagnostic` only with one or two unique triggers and an
+  empty approval boundary.
+- [ ] Accept an effective `cycle_gate` only with exactly three failed applied
+  triggers, an exact completed group, and `approved_after_attempt` equal to the
+  group's maximum attempt.
+- [ ] Run strict validation for every public fixture and the full suite.
+
+### Task G: Make Scaffold Writes Failure-Atomic
+
+**Files:**
+- Modify `.claude/skills/thesis-control/scripts/thesis_control_io.py`
+- Modify `.claude/skills/thesis-control/scripts/scaffold_thesis_control.py`
+- Modify `scripts/test.sh`
+
+- [ ] Add T97 proving malformed existing headers cause no file or directory
+  changes.
+- [ ] Add T98 proving excerpt, spine, contract, and review-packet collisions
+  cause no byte changes when the command fails.
+- [ ] Add T99 proving attempts 1 and 2 default to distinct `-001` and `-002`
+  contract IDs and produce a strict-valid family.
+- [ ] Add T100 covering force replacement and multiple issue families without
+  mutation on an invalid candidate.
+- [ ] Preflight all targets, render the full candidate packet in memory, stage
+  every output, and use rollback-capable batch replacement.
+- [ ] Run T97-T100 and the full suite.
+
+### Task H: Make Migration Deterministic And Failure-Atomic
+
+**Files:**
+- Modify `.claude/skills/thesis-control/scripts/thesis_control_io.py`
+- Modify `.claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py`
+- Modify `scripts/test.sh`
+
+- [ ] Add T101 proving malformed escalation input leaves the legacy contract
+  file byte-identical.
+- [ ] Add T102 proving partial revision schemas stop without mutation and give
+  an author-actionable message.
+- [ ] Add T103 proving deterministic v2-to-v3 conversion produces a
+  strict-valid packet for both early diagnostics and completed cycle gates.
+- [ ] Add T104 proving ambiguous, oversized, and non-completed v2 escalation
+  rows stop without mutation.
+- [ ] Add T105 proving complete valid revision metadata and extension columns
+  are preserved and repeated migration is idempotent.
+- [ ] Validate every candidate table and escalation classification before the
+  staged batch writer replaces any target.
+- [ ] Run T101-T105 and the full suite.
+
+### Task I: Adversarial Audit, Documentation, And Packaging
+
+**Files:**
+- Modify `.claude/skills/thesis-control/SKILL.md`
+- Modify `README.md`
+- Modify `docs/product/lost-in-conversation-writing-control-design.md`
+- Modify `docs/skills/15-thesis-control.md`
+- Create `docs/product/thesis-control-v3-adversarial-matrix.md`
+- Regenerate `plugins/academic-writing-toolkit/skills/thesis-control/`
+- Modify `scripts/test.sh` when an audit case exposes an uncovered defect
+
+- [ ] Add T106 for multiple-audit, approval/status, cycle-shifting, identifier,
+  path-boundary, legacy/non-strict, and retry combinations.
+- [ ] Record each adversarial case, expected exit and issue kind, observed
+  result, and regression-test mapping.
+- [ ] Synchronise skill, public docs, fixtures, and generated plugin copies.
+- [ ] Run the complete test, plugin, ChatGPT App, public-content, release-packet,
+  syntax, sync, and diff gates.
+- [ ] Obtain two independent full-range reviews and resolve every Critical and
+  Important finding.
+- [ ] Commit and push verified changes, update PR #22 evidence, and confirm
+  GitHub Actions passes while leaving the PR open and unmerged.
 
 ## PR #22 Review-Fix Extension
 
