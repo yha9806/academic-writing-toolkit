@@ -82,7 +82,7 @@ Local discovery paths:
 | Gemini CLI | `.agents/skills/` | [Gemini CLI](docs/setup-gemini-cli.md) |
 | Cursor | `.cursor/rules/` baseline | [Cursor](docs/setup-cursor.md) |
 
-## Run the 10-minute evidence demo
+## Run the 10-minute demo
 
 The demo uses fictional public-safe sources. It exercises the same validators used by real projects without requiring network access.
 
@@ -156,6 +156,7 @@ Reference verification is offline by default:
 ```bash
 python3 scripts/verify-refs.py --bib references.bib --json
 python3 scripts/verify-refs.py --bib references.bib --json --online
+python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
 ```
 
 The explicit `--online` mode can query Crossref, Semantic Scholar, and arXiv. CI uses local fixtures so the release gate stays deterministic.
