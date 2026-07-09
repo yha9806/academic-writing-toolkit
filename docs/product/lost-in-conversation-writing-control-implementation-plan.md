@@ -39,17 +39,17 @@ passes.
 - Modify `.claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py`
 - Modify `scripts/test.sh`
 
-- [ ] Add T91 proving duplicate headers, including conflicting
+- [x] Add T91 proving duplicate headers, including conflicting
   `human_approved` columns, fail in each control CSV.
-- [ ] Add T92 proving extra, missing, truncated, and invalid quoted cells return
+- [x] Add T92 proving extra, missing, truncated, and invalid quoted cells return
   structured checker issues without a traceback.
-- [ ] Implement strict header and row-width parsing with
+- [x] Implement strict header and row-width parsing with
   `csv.reader(..., strict=True)`.
-- [ ] Make checker parsing failures issue records and helper parsing failures
+- [x] Make checker parsing failures issue records and helper parsing failures
   concise `ValueError` messages.
-- [ ] Preserve named extension columns in migration and reject unsupported
+- [x] Preserve named extension columns in migration and reject unsupported
   extension columns before scaffold mutation.
-- [ ] Run the full suite; T2-T90 and T91-T92 must pass.
+- [x] Run the full suite; T2-T90 and T91-T92 must pass.
 
 ### Task F: Enforce Schema v3 Escalation Semantics
 
@@ -59,20 +59,20 @@ passes.
 - Modify all public `revision_escalations.csv` fixtures
 - Modify `scripts/test.sh`
 
-- [ ] Add T93 proving non-strict mode reads v2 packets but strict mode requires
+- [x] Add T93 proving non-strict mode reads v2 packets but strict mode requires
   `escalation_kind` and `approved_after_attempt`.
-- [ ] Add T94 proving an approved three-trigger record is invalid before its
+- [x] Add T94 proving an approved three-trigger record is invalid before its
   trigger contracts form a completed unsuccessful group.
-- [ ] Add T95 proving `early_diagnostic` remains non-closing after later
+- [x] Add T95 proving `early_diagnostic` remains non-closing after later
   failures and a distinct `cycle_gate` is required.
-- [ ] Add T96 covering oversized, cross-issue, duplicate, shifted, and repeated
+- [x] Add T96 covering oversized, cross-issue, duplicate, shifted, and repeated
   cycle-gate trigger sets.
-- [ ] Accept `early_diagnostic` only with one or two unique triggers and an
+- [x] Accept `early_diagnostic` only with one or two unique triggers and an
   empty approval boundary.
-- [ ] Accept an effective `cycle_gate` only with exactly three failed applied
+- [x] Accept an effective `cycle_gate` only with exactly three failed applied
   triggers, an exact completed group, and `approved_after_attempt` equal to the
   group's maximum attempt.
-- [ ] Run strict validation for every public fixture and the full suite.
+- [x] Run strict validation for every public fixture and the full suite.
 
 ### Task G: Make Scaffold Writes Failure-Atomic
 
@@ -81,17 +81,17 @@ passes.
 - Modify `.claude/skills/thesis-control/scripts/scaffold_thesis_control.py`
 - Modify `scripts/test.sh`
 
-- [ ] Add T97 proving malformed existing headers cause no file or directory
+- [x] Add T97 proving malformed existing headers cause no file or directory
   changes.
-- [ ] Add T98 proving excerpt, spine, contract, and review-packet collisions
+- [x] Add T98 proving excerpt, spine, contract, and review-packet collisions
   cause no byte changes when the command fails.
-- [ ] Add T99 proving attempts 1 and 2 default to distinct `-001` and `-002`
+- [x] Add T99 proving attempts 1 and 2 default to distinct `-001` and `-002`
   contract IDs and produce a strict-valid family.
-- [ ] Add T100 covering force replacement and multiple issue families without
+- [x] Add T100 covering force replacement and multiple issue families without
   mutation on an invalid candidate.
-- [ ] Preflight all targets, render the full candidate packet in memory, stage
+- [x] Preflight all targets, render the full candidate packet in memory, stage
   every output, and use rollback-capable batch replacement.
-- [ ] Run T97-T100 and the full suite.
+- [x] Run T97-T100 and the full suite.
 
 ### Task H: Make Migration Deterministic And Failure-Atomic
 
@@ -100,19 +100,19 @@ passes.
 - Modify `.claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py`
 - Modify `scripts/test.sh`
 
-- [ ] Add T101 proving malformed escalation input leaves the legacy contract
+- [x] Add T101 proving malformed escalation input leaves the legacy contract
   file byte-identical.
-- [ ] Add T102 proving partial revision schemas stop without mutation and give
+- [x] Add T102 proving partial revision schemas stop without mutation and give
   an author-actionable message.
-- [ ] Add T103 proving deterministic v2-to-v3 conversion produces a
+- [x] Add T103 proving deterministic v2-to-v3 conversion produces a
   strict-valid packet for both early diagnostics and completed cycle gates.
-- [ ] Add T104 proving ambiguous, oversized, and non-completed v2 escalation
+- [x] Add T104 proving ambiguous, oversized, and non-completed v2 escalation
   rows stop without mutation.
-- [ ] Add T105 proving complete valid revision metadata and extension columns
+- [x] Add T105 proving complete valid revision metadata and extension columns
   are preserved and repeated migration is idempotent.
-- [ ] Validate every candidate table and escalation classification before the
+- [x] Validate every candidate table and escalation classification before the
   staged batch writer replaces any target.
-- [ ] Run T101-T105 and the full suite.
+- [x] Run T101-T105 and the full suite.
 
 ### Task I: Adversarial Audit, Documentation, And Packaging
 
@@ -125,11 +125,11 @@ passes.
 - Regenerate `plugins/academic-writing-toolkit/skills/thesis-control/`
 - Modify `scripts/test.sh` when an audit case exposes an uncovered defect
 
-- [ ] Add T106 for multiple-audit, approval/status, cycle-shifting, identifier,
-  path-boundary, legacy/non-strict, and retry combinations.
-- [ ] Record each adversarial case, expected exit and issue kind, observed
+- [x] Add T106-T110 for multiple-audit, trigger-order, candidate-integrity,
+  path-boundary, rollback, encoding, legacy/non-strict, and retry combinations.
+- [x] Record each adversarial case, expected exit and issue kind, observed
   result, and regression-test mapping.
-- [ ] Synchronise skill, public docs, fixtures, and generated plugin copies.
+- [x] Synchronise skill, public docs, fixtures, and generated plugin copies.
 - [ ] Run the complete test, plugin, ChatGPT App, public-content, release-packet,
   syntax, sync, and diff gates.
 - [ ] Obtain two independent full-range reviews and resolve every Critical and

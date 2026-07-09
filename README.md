@@ -132,8 +132,12 @@ python3 .claude/skills/release-governance/scripts/check_release_packet.py .
 Thesis-control strict validation blocks applied edits whose drift audit still
 needs human review. Resolve the audit as `passed` or `failed` before treating
 the packet as complete. Revision escalation counts only applied contracts with
-resolved failed audits, and each completed group of three requires one unique
-exact-match escalation record. Trigger IDs cannot repeat within that record.
+resolved failed audits. Schema v3 keeps one- or two-trigger
+`early_diagnostic` rows non-closing; each completed group of three requires one
+unique `cycle_gate` whose triggers follow attempt order and whose
+`approved_after_attempt` records the final attempt. The gate becomes effective
+only with explicit human approval and `status=approved`. The scaffold and
+migration helper validate complete candidates before failure-atomic writes.
 
 Safe fixers are intentionally narrow. Citation fixes only apply conservative formatting changes such as Harvard comma normalisation; British English fixes only apply whole-word spelling replacements from the built-in map. Paragraph logic and reference metadata checks report findings for agent or user review.
 Release packet checks are also narrow: they validate files, columns, evidence-state values, parseability, local path leakage, and unresolved template markers, but they do not judge scientific validity or venue compliance.

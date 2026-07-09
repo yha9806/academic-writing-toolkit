@@ -43,7 +43,8 @@ python {skill_dir}/scripts/check_thesis_control.py <project_root> --strict
 
 The validator checks packet structure and gate consistency. It does not judge scholarly truth.
 
-Strict validation requires revision-tracking schema v2. Upgrade a legacy packet without guessing historical revision families:
+Strict validation requires revision-tracking schema v3. Upgrade a complete
+legacy packet without guessing historical revision families:
 
 ```bash
 python {skill_dir}/scripts/upgrade_thesis_control_revision_tracking.py <project_root>
@@ -63,7 +64,15 @@ python {skill_dir}/scripts/scaffold_thesis_control.py <project_root> \
 
 The scaffold writes `human_approved=false`, `status=draft`, and
 `AUTHOR_REVIEW_REQUIRED` fields. Replace those fields with concrete author
-judgement before applying a substantive edit.
+judgement before applying a substantive edit. Its default contract id includes
+the attempt number, so attempts 1 and 2 become `ec-<unit>-001` and
+`ec-<unit>-002`. Reuse an explicit `revision_issue_id` for retries.
+
+The migration helper stops without writing when revision metadata is partial or
+when a legacy escalation cannot be classified from current contracts and
+resolved audits. It preserves named extension columns and converts one- or
+two-trigger legacy rows to `early_diagnostic`; a three-trigger row becomes a
+`cycle_gate` only when it already matches one completed failure group.
 
 ## Workflow
 
@@ -144,13 +153,24 @@ The author decides whether to accept, partially accept, revise, or rollback. Do 
 
 ## Revision Escalation Rule
 
-Treat three unsuccessful attempts on the same revision issue as an operational escalation threshold, not as evidence that every task fails after three turns. Use `revision_issue_id` to keep successive contract versions attached to that issue. Only count an attempt when its drift decision is `revise` or `rollback` and its audit status is `failed`. Only applied contracts count as unsuccessful attempts. Record author rejection as one of those decisions. Multiple audits of one contract still count as one attempt. Clarifying discussion, pending human reviews, and unexecuted proposals do not count.
+Treat three unsuccessful attempts on the same revision issue as an operational escalation threshold, not as evidence that every task fails after three turns. Use `revision_issue_id` to keep successive contract versions attached to that issue. Only count an attempt when its drift decision is `revise` or `rollback` and its audit status is `failed`. Only applied contracts count as unsuccessful attempts. Record author rejection as one of those decisions. Multiple failed audits of one contract still count as one attempt; contradictory passed and failed resolved audits are invalid. Clarifying discussion, pending human reviews, and unexecuted proposals do not count.
 
 After three unsuccessful attempts, stop. Do not apply a fourth prose patch. Record a row in `revision_escalations.csv`; a later contract may become `approved` or `applied` only after the matching escalation has `human_approved=true` and `status=approved`.
 
 An approved escalation closes only that group of three unsuccessful contracts. If three later contracts also receive `revise` or `rollback`, require a new escalation before another contract can proceed.
 
-Only an escalation whose trigger set exactly matches one completed group of three unsuccessful contracts may close that group. One escalation cannot close more than one group. Do not repeat a trigger contract within a row or create multiple rows for the same issue and trigger set.
+Only a `cycle_gate` whose three triggers exactly match one completed group of
+unsuccessful contracts, in attempt order, may close that group. Set
+`approved_after_attempt` to the final attempt number in that group. The gate is
+effective only with `human_approved=true` and `status=approved`. One gate cannot
+close more than one group. Do not repeat a trigger contract within a row or
+create multiple rows for the same issue and trigger set.
+
+Only an escalation whose trigger set exactly matches one completed group of three unsuccessful contracts may close that group. One escalation cannot close more than one group.
+
+Record an earlier warning as `early_diagnostic` with one or two unique triggers
+and an empty `approved_after_attempt`. It may be author-approved as a diagnosis,
+but it never closes or pre-authorises a later completed group.
 
 An earlier escalation with fewer than three trigger contracts does not close or pre-authorise a later completed group.
 

@@ -147,20 +147,20 @@ An unsuccessful attempt is one applied contract whose resolved audit decision is
 `revision_escalations.csv` records:
 
 ```text
-escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 ```
 
 The execution gate is:
 
 1. Find the first three unsuccessful contracts in one `revision_issue_id` family.
-2. Require exactly one revision-escalation row whose trigger set exactly matches those three contracts; trigger IDs cannot repeat within a row, and the same issue and trigger set cannot appear in multiple rows.
-3. Permit draft planning, but reject any later contract marked `approved` or `applied` until a matching escalation row has `human_approved=true` and `status=approved`.
-4. Keep early escalation available with fewer than three trigger contracts; it does not close or pre-authorise a later completed three-contract group, so it does not weaken the three-strike gate.
+2. Require exactly one `cycle_gate` row whose three triggers exactly match those contracts in attempt order and whose `approved_after_attempt` equals the final attempt; trigger IDs cannot repeat, and the same issue and trigger set cannot appear in multiple rows.
+3. Permit draft planning, but reject any later contract marked `approved` or `applied` until the matching cycle gate has `human_approved=true` and `status=approved`.
+4. Keep early escalation available as `early_diagnostic` with one or two triggers and an empty approval boundary. It never closes or pre-authorises a later completed group, so it cannot weaken the three-strike gate.
 5. Treat every later group of three unsuccessful contracts as a new escalation cycle with its own exact-match escalation row; an earlier approval cannot close more than one group or permanently unlock the issue.
 
 The checker remains structural. It can verify identities, attempt order, audit outcomes, escalation linkage, and human approval. It cannot decide whether feedback is semantically ambiguous, whether evidence is academically sufficient, or whether a full reframing is intellectually correct.
 
-For compatibility, non-strict checking continues to accept legacy packets without revision-tracking columns. Strict checking requires the new fields and escalation file. A local migration helper adds the new schema without guessing historical issue relationships: each legacy contract starts as its own issue and authors may explicitly regroup known revision families.
+For compatibility, non-strict checking continues to accept legacy packets without revision-tracking columns and can inspect v2 escalation rows. Strict checking requires schema v3. A local migration helper adds complete revision metadata without guessing historical issue relationships: each legacy contract starts as its own issue, while partial or ambiguous metadata stops for an author decision. Existing one- or two-trigger v2 rows become early diagnostics; a three-trigger row becomes a cycle gate only when current resolved audits prove the completed group.
 
 The public-safe executable fixture at `examples/thesis-control-revision-escalation/` keeps blocked and approved packets side by side. It demonstrates the same fourth contract failing without an escalation record and passing only after a matching escalation receives explicit author approval.
 
