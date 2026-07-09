@@ -144,3 +144,11 @@ The safe public claim is:
 ```text
 Academic Writing Toolkit turns scattered multi-turn writing intent into thesis-control artifacts before substantive edits are applied, helping authors inspect claim drift, evidence boundaries, and acceptance decisions.
 ```
+
+## Implementation Pointer
+
+The first implementation should use the public-safe fixture in `examples/lost-in-conversation-bench/` and the structural checker `scripts/check_lost_in_conversation_bench.py`. The treatment packet should also validate with:
+
+```sh
+python3 .claude/skills/thesis-control/scripts/check_thesis_control.py examples/lost-in-conversation-bench/treatment --strict --json
+```
