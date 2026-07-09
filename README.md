@@ -1,6 +1,6 @@
 # academic-writing-toolkit
 
-agent-native, local-first workflows for evidence-controlled literature review, thesis writing, citation auditing, reference verification, and release governance.
+agent-native, local-first workflows for evidence-controlled literature review, argument governance, thesis writing, citation auditing, reference verification, manuscript review, and release governance.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-Standard-blue.svg)](https://agentskills.io)
@@ -8,6 +8,10 @@ agent-native, local-first workflows for evidence-controlled literature review, t
 Academic Writing Toolkit is a public toolkit for researchers who want their local AI agent to work through academic writing tasks with repeatable files, checks, and evidence controls. Install it into a writing project, open that project in Codex, Claude Code, Gemini CLI, Cursor, or another compatible agent host, and use the skills as a structured research workflow.
 
 This is not a SaaS product and it does not host your thesis. Your chapters, PDFs, reading notes, evidence registers, release packets, and exports stay in your clone. Optional reference metadata checks use external APIs only when you explicitly run them with `--online`.
+
+Codex can complete the local workflows without Gemini, gemini-agent, subagents, or external model review. External reviewers and model calls are optional advisory inputs only; local source anchors and deterministic checks remain the evidence boundary.
+
+For higher-assurance review, users may opt into API-key-backed advisory passes. Store keys in environment variables, explicitly approve any source material sent outside the local clone, and treat external model output as advisory rather than evidence.
 
 ## Product Surfaces
 
@@ -44,10 +48,13 @@ The executable stop gate is demonstrated separately at [`examples/thesis-control
 ## Workflow
 
 ```
-/read -> /note -> /map -> /evidence-review -> /integrate -> /thesis-control -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
-             |                                      |
-             v                                      v
-        /verify                               /verify-refs
+/read -> /note -> /map -> /evidence-review -> /argument-governance -> /integrate -> /thesis-control -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
+             |                         |                                           |                                      |
+             v                         v                                           v                                      v
+        /verify                  /peer-review                                /revision-escalation                    /verify-refs
+                                       |
+                                       v
+                                  /self-review
              |
              v
         /progress
@@ -91,6 +98,7 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/verify` | Fact-check factual claims during reading |
 | `/map` | Map sources to chapters and coverage gaps |
 | `/evidence-review` | Build evidence-controlled gap maps, claim registers, citation plans, and overclaim audits |
+| `/argument-governance` | Build and audit intent, gap-contribution chains, claim hierarchies, evidence balance, and reviewer risks |
 | `/integrate` | Propose and apply approved note-to-chapter integrations |
 | `/thesis-control` | Keep AI-assisted thesis edits bounded with spine cards, edit contracts, drift audits, and human gates |
 | `/manuscript-reframe` | Turn report-like drafts into paper-form scientific arguments |
@@ -101,6 +109,8 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/logic-review` | Review paragraph flow, transitions, and argument continuity |
 | `/verify-refs` | Validate BibTeX records offline or with explicit metadata checks |
 | `/human-eval-handoff-repair` | Validate, repair, and map human-evaluation handoff packages and filled annotation CSVs |
+| `/peer-review` | Review another author's manuscript as an external reviewer |
+| `/self-review` | Review your own manuscript with clean-room source-boundary controls |
 | `/progress` | Show reading, writing, and coverage progress |
 | `/export` | Convert Markdown outputs to `.docx` and ZIP packages |
 
@@ -128,6 +138,8 @@ python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-d
 python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py . --source chapters/ch1_introduction.md --copy-source
 python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py .
 python3 .claude/skills/thesis-control/scripts/check_thesis_control.py . --strict
+python3 .claude/skills/argument-governance/scripts/check_argument_governance.py . --json
+python3 .claude/skills/self-review/scripts/check_self_review_packet.py review_packet --json
 python3 .claude/skills/release-governance/scripts/check_release_packet.py .
 ```
 

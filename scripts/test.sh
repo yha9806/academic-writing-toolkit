@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (108 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (112 automated tests, labelled T2-T115: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -485,6 +485,9 @@ test_T42() {
 test_T43() {
     grep -q "/verify-refs" "$REPO_ROOT/README.md" || return 1
     grep -q "/human-eval-handoff-repair" "$REPO_ROOT/README.md" || return 1
+    grep -q "/argument-governance" "$REPO_ROOT/README.md" || return 1
+    grep -q "/peer-review" "$REPO_ROOT/README.md" || return 1
+    grep -q "/self-review" "$REPO_ROOT/README.md" || return 1
     grep -q "/style" "$REPO_ROOT/README.md" || return 1
     grep -q "/logic-review" "$REPO_ROOT/README.md" || return 1
     grep -q "local agent skill" "$REPO_ROOT/README.md" || return 1
@@ -747,6 +750,35 @@ da-001,ec-001,none,none,none,none,accept,false,passed
 EOF
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
 escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+EOF
+}
+
+_make_valid_argument_packet() {
+    local tmp="$1"
+    mkdir -p "$tmp/evidence"
+    cat > "$tmp/evidence/intent_register.csv" <<'EOF'
+intent_id,paper_title,central_problem,target_venue,target_readers,field_positioning,core_gap,current_dominant_narrative,narrative_to_correct,why_now,main_contribution_ids,boundary_statement,success_criterion,reviewer_risk_level,notes
+I1,Example paper,Current reviews lack traceable argument checks,Example venue,reviewers and authors,writing tools,Gap-contribution and claim-evidence links are implicit,Manuscripts can be judged by citation count alone,Argument systems need explicit links,Review workflows increasingly use agents,C1,This is a governance aid not a scientific validity guarantee,All main claims are source anchored,medium,fixture
+EOF
+    cat > "$tmp/evidence/contribution_chain.csv" <<'EOF'
+contribution_id,intent_id,gap_id,gap_statement,gap_type,why_gap_matters,insight,contribution_statement,contribution_type,method_or_artifact_id,primary_claim_ids,required_evidence_type,current_evidence_ids,evidence_coverage,limitation,boundary_language,reviewer_defense_note
+C1,I1,G1,Manuscript claims often lack explicit hierarchy,governance_gap,Flat claims hide weak evidence,Argument structure can be checked separately from scientific validity,We provide an argument-governance schema,governance_framework,AG1,CL1,governance schema evidence,E1,adequate,Does not prove manuscript quality,Validates structure only,Checker reports structural issues
+EOF
+    cat > "$tmp/evidence/claim_hierarchy.csv" <<'EOF'
+claim_id,parent_claim_id,root_intent_id,contribution_id,section_id,claim_level,claim_role,claim_text,depends_on_claim_ids,evidence_requirement,evidence_ids,citation_keys,evidence_status,evidence_strength,support_balance,system_role,overclaim_risk,boundary_language,revision_action
+CL0,,I1,,intro,paper_thesis,interpretive_claim,Argument systems need explicit governance,,packet evidence,E1,,verified_full_text_supported,adequate,adequately_supported,states_implication,low,Within the packet scope,none
+CL1,CL0,I1,C1,intro,contribution_claim,artifact_claim,The schema links gaps contributions claims and evidence,,schema evidence,E1,,governance_support_only,adequate,adequately_supported,answers_gap,low,Structure only,none
+CL2,CL1,I1,C1,methods,paragraph_claim,method_claim,The checker validates required links,,script evidence,E1,,governance_support_only,adequate,adequately_supported,justifies_method,low,It does not judge science,none
+EOF
+    cat > "$tmp/evidence/argument_system_map.csv" <<'EOF'
+node_id,parent_node_id,node_type,node_label,linked_gap_id,linked_contribution_id,linked_claim_id,linked_evidence_ids,section_id,status,risk_level,notes
+N1,,intent,Argument governance,,,,,intro,active,medium,root
+N2,N1,gap,Implicit argument links,G1,,,,intro,active,medium,gap
+N3,N2,contribution,Schema,,C1,CL1,E1,methods,active,low,contribution
+EOF
+    cat > "$tmp/evidence/reviewer_attack_matrix.csv" <<'EOF'
+attack_id,target_type,target_id,reviewer_question,attack_category,severity,likely_reviewer_profile,current_defense,evidence_needed,current_evidence_ids,defense_strength,revision_needed,response_strategy,owner,status
+A1,contribution,C1,Is this governance rather than validity?,scope_boundary,medium,methods reviewer,Boundary language states structure only,script and schema,E1,adequate,no,Keep limitation explicit,author,open
 EOF
 }
 
@@ -2487,6 +2519,85 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; locations={i['location'] for i in d['issues']}; assert {'invalid-drift-decision','invalid-audit-status'} <= kinds; assert 'thesis_control/drift_audits.csv:row 2' in locations and 'thesis_control/drift_audits.csv:row 3' in locations"
 }
 
+test_T112() {
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_argument_packet "$tmp"
+    python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --json >/dev/null
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T113() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_argument_packet "$tmp"
+    sed 's/adequately_supported/unsupported/' "$tmp/evidence/claim_hierarchy.csv" > "$tmp/evidence/claim_hierarchy.tmp"
+    mv "$tmp/evidence/claim_hierarchy.tmp" "$tmp/evidence/claim_hierarchy.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind']=='weak-main-claim-support' for i in d['issues'])"
+}
+
+test_T114() {
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/review_packet/evidence"
+    cat > "$tmp/review_packet/manuscript.md" <<'EOF'
+# Manuscript
+
+This is a fixture manuscript.
+EOF
+    cat > "$tmp/review_packet/references.bib" <<'EOF'
+@article{smith2024,title={Fixture},author={Smith, Jane},year={2024},journal={Journal}}
+EOF
+    cat > "$tmp/review_packet/evidence/claim_register.csv" <<'EOF'
+claim_id,claim_text
+C1,Fixture claim
+EOF
+    cat > "$tmp/review_packet/review_manifest.yaml" <<'EOF'
+review_mode: self_review_clean_room
+allowed_sources:
+  - manuscript.md
+  - references.bib
+  - evidence/claim_register.csv
+forbidden_sources:
+  - prior_chat_memory
+  - unstated_project_assumptions
+  - model_background_knowledge_as_evidence
+  - unpublished_notes_not_listed_in_manifest
+EOF
+    python3 .claude/skills/self-review/scripts/check_self_review_packet.py "$tmp/review_packet" --json >/dev/null
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T115() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/review_packet"
+    cat > "$tmp/review_packet/manuscript.md" <<'EOF'
+# Manuscript
+EOF
+    cat > "$tmp/review_packet/review_manifest.yaml" <<'EOF'
+review_mode: self_review_clean_room
+allowed_sources:
+  - manuscript.md
+  - prior_chat_memory
+forbidden_sources:
+  - prior_chat_memory
+EOF
+    out=$(python3 .claude/skills/self-review/scripts/check_self_review_packet.py "$tmp/review_packet" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'forbidden-source-allowed' in kinds and 'missing-required-forbidden-source' in kinds"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -2749,6 +2860,10 @@ run_test "T108 scaffold validates the complete candidate packet before mutation"
 run_test "T109 scaffold and migration reject internal symlink paths" test_T109
 run_test "T110 batch rollback and invalid UTF-8 fail cleanly" test_T110
 run_test "T111 empty and invalid audit outcomes return located issues" test_T111
+run_test "T112 argument governance validator accepts a clean packet" test_T112
+run_test "T113 argument governance validator flags weak main support" test_T113
+run_test "T114 self-review packet validator accepts clean-room manifest" test_T114
+run_test "T115 self-review packet validator rejects contamination" test_T115
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

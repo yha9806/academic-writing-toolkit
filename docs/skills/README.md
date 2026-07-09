@@ -9,10 +9,13 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 ## Pipeline
 
 ```text
-/read -> /note -> /map -> /evidence-review -> /integrate -> /thesis-control -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
-             |                                      |
-             v                                      v
-        /verify                               /verify-refs
+/read -> /note -> /map -> /evidence-review -> /argument-governance -> /integrate -> /thesis-control -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
+             |                         |                                           |                                      |
+             v                         v                                           v                                      v
+        /verify                  /peer-review                                /revision-escalation                    /verify-refs
+                                       |
+                                       v
+                                  /self-review
              |
              v
         /progress
@@ -30,6 +33,7 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 | `/verify` | [03-verify.md](03-verify.md) |
 | `/map` | [04-map.md](04-map.md) |
 | `/evidence-review` | [12-evidence-review.md](12-evidence-review.md) |
+| `/argument-governance` | [17-argument-governance.md](17-argument-governance.md) |
 | `/integrate` | [05-integrate.md](05-integrate.md) |
 | `/thesis-control` | [15-thesis-control.md](15-thesis-control.md) |
 | `/manuscript-reframe` | [14-manuscript-reframe.md](14-manuscript-reframe.md) |
@@ -42,5 +46,7 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 | `/logic-review` | [10-logic-review.md](10-logic-review.md) |
 | `/verify-refs` | [11-verify-refs.md](11-verify-refs.md) |
 | `/human-eval-handoff-repair` | [13-human-eval-handoff-repair.md](13-human-eval-handoff-repair.md) |
+| `/peer-review` | [18-peer-review.md](18-peer-review.md) |
+| `/self-review` | [19-self-review.md](19-self-review.md) |
 
 The shared data contract is the notes file in `literature/reading_notes/`: status, source citation, relevance, detailed notes, and thesis connections.
