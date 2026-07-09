@@ -1057,8 +1057,10 @@ EOF
 
 test_T73() {
     local bench="$REPO_ROOT/examples/lost-in-conversation-bench"
+    local case
 
     [[ -f "$bench/README.md" ]] || return 1
+    [[ -f "$bench/cases/index.md" ]] || return 1
     [[ -f "$bench/chapters/desensitized_section.md" ]] || return 1
     [[ -f "$bench/requirements/multi_turn_requirements.md" ]] || return 1
     [[ -f "$bench/requirements/consolidated_prompt.md" ]] || return 1
@@ -1072,7 +1074,13 @@ test_T73() {
     [[ -f "$bench/treatment/review_report.md" ]] || return 1
 
     python3 scripts/check_lost_in_conversation_bench.py "$bench" >/dev/null || return 1
-    python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$bench/treatment" --strict >/dev/null || return 1
+    for case in \
+        "$bench" \
+        "$bench/cases/method-limitation-boundary" \
+        "$bench/cases/evidence-boundary-literature"
+    do
+        python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$case/treatment" --strict >/dev/null || return 1
+    done
 }
 
 test_T50() {

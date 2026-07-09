@@ -31,7 +31,7 @@ Academic Writing Toolkit should not optimise for a longer conversation. It shoul
 
 1. Show, with a small realistic evaluation, why normal multi-turn writing assistance causes loss of author control.
 2. Demonstrate that `/thesis-control` can reduce that loss by requiring a pre-edit contract and a post-edit drift audit.
-3. Use a desensitised real thesis section rather than a fully fictional sample, so the evaluation reflects real writing complexity without exposing private manuscript content.
+3. Use desensitised thesis-style sections rather than purely generic samples, so the evaluation reflects real writing complexity without exposing private manuscript content.
 4. Keep the first implementation local-first, file-based, and compatible with the existing skill and validator structure.
 
 ## Non-Goals
@@ -44,7 +44,7 @@ Academic Writing Toolkit should not optimise for a longer conversation. It shoul
 
 ## Evaluation Design
 
-Use one desensitised real thesis section as the initial sample. The sample should preserve the real structure of academic writing: section purpose, core claims, evidence anchors, caveats, adjacent-section relationship, and revision pressure. It should remove names, unpublished findings, private supervisor comments, sensitive datasets, and any text that should not become a public fixture.
+Use a small set of desensitised thesis-style sections. Each sample should preserve the real structure of academic writing: section purpose, core claims, evidence anchors, caveats, adjacent-section relationship, and revision pressure. It should remove names, unpublished findings, private supervisor comments, sensitive datasets, and any text that should not become a public fixture.
 
 Run the same writing task through three workflows:
 
@@ -129,7 +129,7 @@ If any of these occur during the bench run, the outcome should be recorded as a 
 
 The design is ready for implementation planning when:
 
-- one desensitised real section is selected or prepared;
+- at least three public-safe cases are selected or prepared;
 - the evaluation task is written once and reused across all three workflows;
 - the treatment workflow produces valid `spine_cards.csv`, `edit_contracts.csv`, and `drift_audits.csv`;
 - the comparison report identifies at least one concrete difference between normal chat editing and contract-bounded editing;
@@ -147,8 +147,10 @@ Academic Writing Toolkit turns scattered multi-turn writing intent into thesis-c
 
 ## Implementation Pointer
 
-The first implementation uses the public-safe fixture in `examples/lost-in-conversation-bench/` and the structural checker `scripts/check_lost_in_conversation_bench.py`. The fixture includes actual edited outputs for Baseline A, Baseline B, and Treatment, plus `comparison_report.md` for inline human review. The treatment packet should also validate with:
+The first implementation uses the public-safe fixture in `examples/lost-in-conversation-bench/` and the structural checker `scripts/check_lost_in_conversation_bench.py`. The fixture includes actual edited outputs for Baseline A, Baseline B, and Treatment, plus `comparison_report.md` for inline human review. The checker validates a three-case minimum through `cases/index.md` and requires each case to carry the same comparison and treatment-control artifacts. The treatment packets should also validate with:
 
 ```sh
 python3 .claude/skills/thesis-control/scripts/check_thesis_control.py examples/lost-in-conversation-bench/treatment --strict --json
+python3 .claude/skills/thesis-control/scripts/check_thesis_control.py examples/lost-in-conversation-bench/cases/method-limitation-boundary/treatment --strict --json
+python3 .claude/skills/thesis-control/scripts/check_thesis_control.py examples/lost-in-conversation-bench/cases/evidence-boundary-literature/treatment --strict --json
 ```

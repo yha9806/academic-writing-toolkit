@@ -8,6 +8,8 @@
 
 **Tech Stack:** Markdown fixtures, CSV control packets, Bash regression harness, Python 3 standard library.
 
+**Current extension:** The initial single-case fixture has been expanded into a three-case fixture. `scripts/check_lost_in_conversation_bench.py` now validates the root case plus `cases/*`, and T73 runs strict `/thesis-control` validation for every case treatment packet.
+
 ---
 
 ## Scope And File Map
