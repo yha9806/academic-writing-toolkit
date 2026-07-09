@@ -30,6 +30,8 @@ SPINE_COLUMNS = [
 CONTRACT_COLUMNS = [
     "contract_id",
     "unit_id",
+    "revision_issue_id",
+    "attempt_no",
     "change_scope",
     "allowed_changes",
     "forbidden_changes",
@@ -48,6 +50,20 @@ AUDIT_COLUMNS = [
     "missed_adjacent_updates",
     "drift_decision",
     "human_review_required",
+    "status",
+]
+
+ESCALATION_COLUMNS = [
+    "escalation_id",
+    "revision_issue_id",
+    "trigger_contracts",
+    "primary_category",
+    "writing_scope",
+    "valid_requirements",
+    "missing_or_conflicting_information",
+    "latest_author_approved_version",
+    "recommended_next_action",
+    "human_approved",
     "status",
 ]
 
@@ -189,6 +205,8 @@ def write_review_packet(
 - Source: `{excerpt_path}`
 - Section: {section_title}
 - Contract: `{contract_row['contract_id']}`
+- Revision issue: `{contract_row['revision_issue_id']}`
+- Attempt: {contract_row['attempt_no']}
 - Status: draft, not approved
 
 ## Spine Card Draft
@@ -211,6 +229,8 @@ def write_review_packet(
 - Before editing prose, replace every `{AUTHOR_REVIEW}` field with a concrete judgement.
 - Keep `human_approved=false` until the author explicitly approves the contract.
 - After any applied edit, add a drift-audit row before accepting the prose.
+- Reuse the same revision issue id and increment the attempt number when a new contract retries the same unresolved problem.
+- After three unsuccessful attempts, record and approve a revision escalation before applying a later contract.
 """
     packet_path.write_text(body, encoding="utf-8")
     return packet_path
@@ -227,8 +247,13 @@ def scaffold(args: argparse.Namespace) -> dict:
     unit_id = args.unit_id or infer_unit_id(source, args.start_line, args.end_line)
     section_title = args.section_title or infer_section_title(excerpt, source)
     contract_id = args.contract_id or f"ec-{unit_id}-001"
+    revision_issue_id = args.revision_issue_id or f"ri-{contract_id}"
+    attempt_no = args.attempt_no
     validate_identifier("unit_id", unit_id)
     validate_identifier("contract_id", contract_id)
+    validate_identifier("revision_issue_id", revision_issue_id)
+    if attempt_no < 1:
+        raise ValueError("--attempt-no must be >= 1")
 
     if args.copy_source:
         excerpt_dir = output_dir / "source_excerpts"
@@ -249,8 +274,10 @@ def scaffold(args: argparse.Namespace) -> dict:
     spine_path = control_dir / "spine_cards.csv"
     contract_path = control_dir / "edit_contracts.csv"
     audit_path = control_dir / "drift_audits.csv"
+    escalation_path = control_dir / "revision_escalations.csv"
 
     ensure_csv(audit_path, AUDIT_COLUMNS)
+    ensure_csv(escalation_path, ESCALATION_COLUMNS)
 
     spine_row = {
         "unit_id": unit_id,
@@ -264,6 +291,8 @@ def scaffold(args: argparse.Namespace) -> dict:
     contract_row = {
         "contract_id": contract_id,
         "unit_id": unit_id,
+        "revision_issue_id": revision_issue_id,
+        "attempt_no": str(attempt_no),
         "change_scope": args.change_scope or review_required("Specify exact paragraphs, lines, or local issue before editing."),
         "allowed_changes": args.allowed_changes or review_required("Specify what the edit may change."),
         "forbidden_changes": args.forbidden_changes or review_required("Specify claims, evidence, caveats, and boundaries the edit must preserve."),
@@ -286,20 +315,24 @@ def scaffold(args: argparse.Namespace) -> dict:
     )
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "output_dir": str(output_dir),
         "unit_id": unit_id,
         "contract_id": contract_id,
+        "revision_issue_id": revision_issue_id,
+        "attempt_no": attempt_no,
         "source": str(source),
         "source_recorded_as": source_display,
         "spine_cards": str(spine_path),
         "edit_contracts": str(contract_path),
         "drift_audits": str(audit_path),
+        "revision_escalations": str(escalation_path),
         "review_packet": str(packet_path),
         "actions": {
             "spine_card": spine_action,
             "edit_contract": contract_action,
             "drift_audits": "ensured-header",
+            "revision_escalations": "ensured-header",
         },
     }
 
@@ -313,6 +346,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", help="Directory where thesis_control/ should be written; defaults to project_root")
     parser.add_argument("--unit-id", help="Stable unit id; defaults to source stem plus line range")
     parser.add_argument("--contract-id", help="Stable contract id; defaults to ec-<unit-id>-001")
+    parser.add_argument(
+        "--revision-issue-id",
+        help="Stable issue id shared by contract versions for the same unresolved problem",
+    )
+    parser.add_argument("--attempt-no", type=int, default=1, help="Positive attempt number within the revision issue")
     parser.add_argument("--section-title", help="Section title; defaults to first Markdown heading in the excerpt")
     parser.add_argument("--start-line", type=int, help="1-based start line for a source excerpt")
     parser.add_argument("--end-line", type=int, help="1-based end line for a source excerpt")
@@ -348,6 +386,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         print(f"Thesis-control draft created: {payload['output_dir']}")
         print(f"- unit_id: {payload['unit_id']}")
         print(f"- contract_id: {payload['contract_id']}")
+        print(f"- revision_issue_id: {payload['revision_issue_id']}")
+        print(f"- attempt_no: {payload['attempt_no']}")
         print(f"- review packet: {payload['review_packet']}")
     return 0
 

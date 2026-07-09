@@ -24,6 +24,7 @@
 - Modify `.claude/skills/thesis-control/SKILL.md`: document durable attempt recording and the strict checker gate.
 - Modify `scripts/test.sh`: add red-green tests for schema requirements, blocking, approval, scaffold output, and legacy migration.
 - Modify `examples/lost-in-conversation-bench/**/thesis_control/*.csv`: move all strict public fixtures to the revision-tracking schema.
+- Create `examples/thesis-control-revision-escalation/`: preserve blocked and approved four-attempt packets for direct human and checker review.
 - Regenerate `plugins/academic-writing-toolkit/skills/thesis-control/` with `make plugin-sync`.
 
 ### Checker Contract
@@ -32,6 +33,7 @@
 - Attempt numbers are positive, unique, and sequential within one issue.
 - A contract counts as unsuccessful once when any linked audit decides `revise` or `rollback`.
 - Three unsuccessful contracts require a linked escalation row.
+- Every later group of three unsuccessful contracts requires a new linked escalation row.
 - A later draft or rejected contract is inspectable, but a later approved or applied contract requires a matching human-approved escalation.
 - An approved escalation must reference the first three unsuccessful contracts in `trigger_contracts`.
 
@@ -42,7 +44,10 @@
 3. Add T77 and verify malformed attempt families and escalation references fail.
 4. Add T78 and verify the scaffold emits revision identity plus the escalation header.
 5. Add T79 and verify the migration helper preserves legacy rows while adding isolated issue identities.
-6. Run `make plugin-sync`, `make test`, public-content audit, and `git diff --check`.
+6. Add T80 and verify the persistent fixture blocks the fourth edit before escalation and accepts it after author approval.
+7. Add T81 and verify each later group of three unsuccessful contracts requires a new escalation cycle.
+8. Add T82 and verify non-strict legacy compatibility while strict mode requires migration.
+9. Run `make plugin-sync`, `make test`, public-content audit, and `git diff --check`.
 
 ---
 

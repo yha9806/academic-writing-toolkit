@@ -33,6 +33,7 @@ Use a `thesis_control/` directory when the project needs durable tracking:
 - `spine_cards.csv`
 - `edit_contracts.csv`
 - `drift_audits.csv`
+- `revision_escalations.csv`
 
 Run the optional validator when Python is available:
 
@@ -42,6 +43,12 @@ python {skill_dir}/scripts/check_thesis_control.py <project_root> --strict
 
 The validator checks packet structure and gate consistency. It does not judge scholarly truth.
 
+Strict validation requires revision-tracking schema v2. Upgrade a legacy packet without guessing historical revision families:
+
+```bash
+python {skill_dir}/scripts/upgrade_thesis_control_revision_tracking.py <project_root>
+```
+
 To create a draft packet from a real Markdown unit before editing prose:
 
 ```bash
@@ -49,6 +56,8 @@ python {skill_dir}/scripts/scaffold_thesis_control.py <project_root> \
   --source chapters/ch1_introduction.md \
   --start-line 71 \
   --end-line 104 \
+  --revision-issue-id ri-ch1-gap-clarity \
+  --attempt-no 1 \
   --copy-source
 ```
 
@@ -129,9 +138,11 @@ The author decides whether to accept, partially accept, revise, or rollback. Do 
 
 ## Revision Escalation Rule
 
-Treat three unsuccessful attempts on the same edit contract as an operational escalation threshold, not as evidence that every task fails after three turns. Only count an attempt when its drift decision is `revise` or `rollback`, or when the author rejects the result against the same contract. Clarifying discussion and unexecuted proposals do not count.
+Treat three unsuccessful attempts on the same revision issue as an operational escalation threshold, not as evidence that every task fails after three turns. Use `revision_issue_id` to keep successive contract versions attached to that issue. Only count an attempt when its drift decision is `revise` or `rollback`. Record author rejection as one of those decisions. Multiple audits of one contract still count as one attempt. Clarifying discussion and unexecuted proposals do not count.
 
-After three unsuccessful attempts, stop. Do not apply a fourth prose patch.
+After three unsuccessful attempts, stop. Do not apply a fourth prose patch. Record a row in `revision_escalations.csv`; a later contract may become `approved` or `applied` only after the matching escalation has `human_approved=true` and `status=approved`.
+
+An approved escalation closes only that group of three unsuccessful contracts. If three later contracts also receive `revise` or `rollback`, require a new escalation before another contract can proceed.
 
 Escalate earlier than three attempts when any of these signals is already visible:
 
@@ -148,7 +159,7 @@ Before editing again:
 1. Consolidate the currently valid requirements into one brief.
 2. Compare that brief with the spine card, evidence boundaries, current contract, and latest author-approved version.
 3. Classify the failure as one primary category:
-   - **underspecified or conflicting intent** — the target, audience, venue, constraint, or acceptance condition is missing or inconsistent
+   - **underspecified or conflicting intent** — the target, audience, venue, constraint, or acceptance condition is missing or inconsistent, or the feedback is evaluative but not operational, such as “weak”, “unclear”, or “still not right” without a concrete change target
    - **local execution failure** — the contract is clear, but the edit did not implement it correctly
    - **structural mismatch** — the problem affects the section purpose, research question, gap, contribution, evidence chain, or manuscript structure
    - **evidence gap** — the requested claim is not supported by the available sources, data, experiments, or files
@@ -167,13 +178,17 @@ Use these default actions:
 - For an evidence gap, narrow, qualify, or remove the unsupported claim unless the author supplies more evidence.
 - For version contamination, restore or copy the latest author-approved version, then apply a consolidated contract. Create a separate branch or manuscript version only when the approved scope requires structural work.
 
+For full reframing, hand off a brief that states the target venue, research question, gap, core claim, available evidence, claims that must not be made, and proposed new structure. Do not rewrite the manuscript until the author approves that brief.
+
 Return the escalation check in this form:
 
 ```text
 ## Revision Escalation Check
 
+Revision issue:
 Contract:
 Unsuccessful attempts:
+Trigger contracts:
 Primary category:
 Writing scope:
 Why the revisions did not converge:

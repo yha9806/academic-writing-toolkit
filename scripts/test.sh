@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (71 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74 revision escalation) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (79 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T82 revision escalation) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -738,12 +738,15 @@ unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_chan
 ch02-s1,chapters/ch02.md,Local workflow control,This unit argues that file-based records improve traceability within one writing project by keeping notes and claims inspectable.,single-project workflow traceability only,file-based records improve traceability;the workflow does not prove scholarly quality,do not claim quality improvement;preserve single-project boundary
 EOF
     cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
-ec-001,ch02-s1,clarify topic sentence in first paragraph,make the traceability claim clearer without changing its scope,do not add quality improvement claims;do not remove single-project boundary,check following paragraph for repeated boundary language,spine sentence preserved;no new unsupported claim,true,applied
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch02-s1,ri-ch02-traceability,1,clarify topic sentence in first paragraph,make the traceability claim clearer without changing its scope,do not add quality improvement claims;do not remove single-project boundary,check following paragraph for repeated boundary language,spine sentence preserved;no new unsupported claim,true,applied
 EOF
     cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
 da-001,ec-001,none,none,none,none,accept,false,passed
+EOF
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
 }
 
@@ -936,12 +939,15 @@ unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_chan
 ../escape,chapters/ch01.md,Unsafe id,This unit has an unsafe id.,single unit only,unsafe id should fail,do not accept path-like ids
 EOF
     cat > "$tmp/manual/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
-bad/id,../escape,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+bad/id,../escape,bad/issue,1,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
 EOF
     cat > "$tmp/manual/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
 bad/audit,bad/id,none,none,none,none,accept,false,passed
+EOF
+    cat > "$tmp/manual/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
     rc=$?
@@ -978,13 +984,16 @@ absolute,$abs_source,Absolute path,This unit points at an absolute path.,one uni
 traversal,../outside.md,Traversal path,This unit points outside the packet root.,one unit only,path must stay inside root,do not accept traversal paths
 EOF
     cat > "$tmp/manual/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
-ec-missing,missing,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
-ec-absolute,absolute,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
-ec-traversal,traversal,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-missing,missing,ri-missing,1,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+ec-absolute,absolute,ri-absolute,1,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+ec-traversal,traversal,ri-traversal,1,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
 EOF
     cat > "$tmp/manual/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+EOF
+    cat > "$tmp/manual/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
     rc=$?
@@ -1042,11 +1051,14 @@ unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_chan
 ch01,chapters/ch01.md,Contract binding,This unit argues that contracts need spine bindings.,one unit only,contracts must bind to spine cards,do not allow orphan contracts
 EOF
     cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
-ec-missing,,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-missing,,ri-missing,1,local change,clarify prose,do not broaden,check neighbours,spine preserved,false,draft
 EOF
     cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+EOF
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
@@ -1093,10 +1105,11 @@ start = text.index("## Revision Escalation Rule")
 end = text.index("\n## Output Patterns", start)
 section = text[start:end]
 required_clauses = (
-    "same edit contract",
+    "same revision issue",
+    "revision_issue_id",
     "three unsuccessful attempts",
     "operational escalation threshold",
-    "Only count an attempt when its drift decision is `revise` or `rollback`, or when the author rejects the result against the same contract.",
+    "Only count an attempt when its drift decision is `revise` or `rollback`.",
     "Clarifying discussion and unexecuted proposals do not count.",
     "Do not apply a fourth prose patch",
     "Escalate earlier",
@@ -1116,11 +1129,251 @@ required_clauses = (
     "section-level restructure",
     "full reframing",
     "Create a separate branch or manuscript version only when the approved scope requires structural work.",
+    "revision_escalations.csv",
 )
 missing = [phrase for phrase in required_clauses if phrase not in section]
 if missing:
     raise SystemExit("missing revision-escalation guidance: " + ", ".join(missing))
 PY
+}
+
+_make_revision_escalation_packet() {
+    local tmp="$1"
+    local escalation_mode="${2:-none}"
+    mkdir -p "$tmp/thesis_control" "$tmp/chapters"
+    cat > "$tmp/chapters/ch03.md" <<'EOF'
+# Chapter 3
+
+This section argues that repeated revisions need a durable stop-and-diagnose gate.
+EOF
+    cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch03,chapters/ch03.md,Revision control,This unit argues that repeated revisions need a durable escalation gate.,one section only,revision attempts require a stop gate,do not broaden beyond revision control
+EOF
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch03,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-002,ch03,ri-ch03-clarity,2,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-003,ch03,ri-ch03-clarity,3,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-004,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,revise,true,needs_review
+da-002,ec-002,none,none,none,none,rollback,true,needs_review
+da-003,ec-003,none,none,none,none,revise,true,needs_review
+da-004,ec-004,none,none,none,none,accept,false,passed
+EOF
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+EOF
+    if [[ "$escalation_mode" == "approved" ]]; then
+        cat >> "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+re-001,ri-ch03-clarity,ec-001;ec-002;ec-003,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+EOF
+    fi
+}
+
+test_T75() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp"
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-revision-escalation','revision-escalation-required'} <= kinds"
+}
+
+test_T76() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp" approved
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0 and d['summary']['revision_escalations'] == 1"
+}
+
+test_T77() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp" approved
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch03,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-002,ch03,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-003,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-004,ch03,ri-ch03-clarity,5,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+EOF
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-001,ri-ch03-clarity,ec-001;ec-002;ec-unknown,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'duplicate-revision-attempt','nonsequential-revision-attempt','unknown-trigger-contract'} <= kinds"
+}
+
+test_T78() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that scaffolded attempts need stable revision identities.
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --unit-id ch01-control \
+        --revision-issue-id ri-ch01-clarity \
+        --attempt-no 2 \
+        --copy-source \
+        --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$out" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+payload = json.loads(sys.argv[2])
+contracts = list(csv.DictReader((root / "thesis_control/edit_contracts.csv").open(encoding="utf-8")))
+assert contracts[0]["revision_issue_id"] == "ri-ch01-clarity"
+assert contracts[0]["attempt_no"] == "2"
+assert Path(payload["revision_escalations"]).is_file()
+with (root / "thesis_control/revision_escalations.csv").open(encoding="utf-8") as handle:
+    reader = csv.DictReader(handle)
+    assert "trigger_contracts" in (reader.fieldnames or [])
+    assert list(reader) == []
+PY
+    rm -rf "$tmp"
+}
+
+test_T79() {
+    local tmp out second
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/thesis_control"
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-legacy-001,ch01,clarify prose,improve clarity,do not broaden,check neighbours,spine preserved,true,applied
+ec-legacy-002,ch02,clarify prose,improve clarity,do not broaden,check neighbours,spine preserved,false,draft
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    second=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$out" "$second" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+payload = json.loads(sys.argv[2])
+second = json.loads(sys.argv[3])
+rows = list(csv.DictReader((root / "thesis_control/edit_contracts.csv").open(encoding="utf-8")))
+assert payload["contracts_upgraded"] == 2
+assert second["contracts_upgraded"] == 0
+assert second["escalation_file"] == "unchanged"
+assert [row["attempt_no"] for row in rows] == ["1", "1"]
+assert rows[0]["revision_issue_id"] != rows[1]["revision_issue_id"]
+assert (root / "thesis_control/revision_escalations.csv").is_file()
+PY
+    rm -rf "$tmp"
+}
+
+test_T80() {
+    local fixture blocked approved rc
+    fixture="$REPO_ROOT/examples/thesis-control-revision-escalation"
+    blocked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$fixture/blocked" --strict --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$blocked" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-revision-escalation','revision-escalation-required'} <= kinds" || return 1
+
+    approved=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$fixture/approved" --strict --json) || return 1
+    echo "$approved" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0 and d['summary']['revision_escalations'] == 1"
+}
+
+test_T81() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp" approved
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch03,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-002,ch03,ri-ch03-clarity,2,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-003,ch03,ri-ch03-clarity,3,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-004,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-005,ch03,ri-ch03-clarity,5,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-006,ch03,ri-ch03-clarity,6,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-007,ch03,ri-ch03-clarity,7,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,revise,true,needs_review
+da-002,ec-002,none,none,none,none,rollback,true,needs_review
+da-003,ec-003,none,none,none,none,revise,true,needs_review
+da-004,ec-004,none,none,none,none,revise,true,needs_review
+da-005,ec-005,none,none,none,none,rollback,true,needs_review
+da-006,ec-006,none,none,none,none,revise,true,needs_review
+da-007,ec-007,none,none,none,none,accept,false,passed
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); messages=' '.join(i['message'] for i in d['issues']); assert 'ec-004, ec-005, ec-006' in messages and any(i['kind'] == 'revision-escalation-required' for i in d['issues'])"
+}
+
+test_T82() {
+    local tmp legacy strict rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters" "$tmp/thesis_control"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This legacy packet predates revision tracking but remains structurally inspectable.
+EOF
+    cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch01,chapters/ch01.md,Legacy packet,This unit records a legacy control packet.,one unit only,legacy packets remain readable,do not infer revision families
+EOF
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-legacy,ch01,clarify prose,improve clarity,do not broaden,check neighbours,spine preserved,true,applied
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-legacy,ec-legacy,none,none,none,none,accept,false,passed
+EOF
+
+    legacy=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    echo "$legacy" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0 and d['summary']['revision_tracking'] is False" || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    strict=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$strict" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-column','missing-file'} <= kinds"
 }
 
 test_T50() {
@@ -1348,6 +1601,14 @@ run_test "T71 thesis-control accepts relative output directories" test_T71
 run_test "T72 thesis-control rejects orphan edit contracts" test_T72
 run_test "T73 lost-in-conversation bench validates" test_T73
 run_test "T74 thesis-control escalates repeated revisions" test_T74
+run_test "T75 thesis-control blocks fourth revision without escalation" test_T75
+run_test "T76 thesis-control allows fourth revision after approved escalation" test_T76
+run_test "T77 thesis-control rejects invalid revision escalation links" test_T77
+run_test "T78 thesis-control scaffold emits revision tracking" test_T78
+run_test "T79 thesis-control upgrades legacy revision tracking" test_T79
+run_test "T80 revision escalation fixture blocks then releases fourth edit" test_T80
+run_test "T81 revision escalation requires a new gate after another three failures" test_T81
+run_test "T82 non-strict checker accepts legacy packets while strict requires upgrade" test_T82
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

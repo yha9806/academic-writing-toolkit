@@ -31,6 +31,8 @@ Then open [`examples/demo-project/`](examples/demo-project/) in your agent host 
 
 The repository also includes a small public-safe multi-case writing-control fixture at [`examples/lost-in-conversation-bench`](examples/lost-in-conversation-bench). It compares normal multi-turn editing, consolidated prompting, and `/thesis-control` artifacts for author-control review.
 
+The executable stop gate is demonstrated separately at [`examples/thesis-control-revision-escalation`](examples/thesis-control-revision-escalation): one packet rejects a fourth applied revision after three unsuccessful attempts, while a matched packet passes after author-approved escalation.
+
 ## Common use cases
 
 - [Write a literature review](docs/use-cases/write-literature-review.md)
@@ -122,6 +124,7 @@ python3 scripts/verify-refs.py --bib references.bib --json --online
 python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
 
 python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py . --source chapters/ch1_introduction.md --copy-source
+python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py .
 python3 .claude/skills/thesis-control/scripts/check_thesis_control.py . --strict
 python3 .claude/skills/release-governance/scripts/check_release_packet.py .
 ```

@@ -156,10 +156,13 @@ The execution gate is:
 2. Require a revision-escalation row that references those trigger contracts.
 3. Permit draft planning, but reject any later contract marked `approved` or `applied` until a matching escalation row has `human_approved=true` and `status=approved`.
 4. Keep early escalation available with fewer than three trigger contracts; it does not weaken the three-strike gate.
+5. Treat every later group of three unsuccessful contracts as a new escalation cycle; an earlier approval does not permanently unlock the issue.
 
 The checker remains structural. It can verify identities, attempt order, audit outcomes, escalation linkage, and human approval. It cannot decide whether feedback is semantically ambiguous, whether evidence is academically sufficient, or whether a full reframing is intellectually correct.
 
 For compatibility, non-strict checking continues to accept legacy packets without revision-tracking columns. Strict checking requires the new fields and escalation file. A local migration helper adds the new schema without guessing historical issue relationships: each legacy contract starts as its own issue and authors may explicitly regroup known revision families.
+
+The public-safe executable fixture at `examples/thesis-control-revision-escalation/` keeps blocked and approved packets side by side. It demonstrates the same fourth contract failing without an escalation record and passing only after a matching escalation receives explicit author approval.
 
 ## Acceptance Criteria
 
