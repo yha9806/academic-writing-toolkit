@@ -31,6 +31,7 @@ REQUIRED_FILES = [
     "treatment/thesis_control/spine_cards.csv",
     "treatment/thesis_control/edit_contracts.csv",
     "treatment/thesis_control/drift_audits.csv",
+    "treatment/thesis_control/revision_escalations.csv",
 ]
 
 REQUIRED_METRICS = [
@@ -165,6 +166,7 @@ def validate_treatment_packet(case_root: Path, bench_root: Path, issues: List[di
     spine_path = treatment / "thesis_control" / "spine_cards.csv"
     contract_path = treatment / "thesis_control" / "edit_contracts.csv"
     audit_path = treatment / "thesis_control" / "drift_audits.csv"
+    escalation_path = treatment / "thesis_control" / "revision_escalations.csv"
     if not source_dir.is_dir() or not any(source_dir.glob("*.md")):
         add_issue(
             issues,
@@ -172,24 +174,41 @@ def validate_treatment_packet(case_root: Path, bench_root: Path, issues: List[di
             rel_path(source_dir, bench_root),
             "treatment must include at least one source excerpt Markdown file",
         )
-    if not (spine_path.is_file() and contract_path.is_file() and audit_path.is_file()):
+    if not (
+        spine_path.is_file()
+        and contract_path.is_file()
+        and audit_path.is_file()
+        and escalation_path.is_file()
+    ):
         return
 
     spine_rows = read_csv_rows(spine_path)
     contract_rows = read_csv_rows(contract_path)
     audit_rows = read_csv_rows(audit_path)
+    escalation_rows = read_csv_rows(escalation_path)
     if len(spine_rows) != 1:
         add_issue(issues, "unexpected-spine-count", rel_path(spine_path, bench_root), "bench treatment should have exactly one spine row")
     if len(contract_rows) != 1:
         add_issue(issues, "unexpected-contract-count", rel_path(contract_path, bench_root), "bench treatment should have exactly one contract row")
     if len(audit_rows) != 1:
         add_issue(issues, "unexpected-audit-count", rel_path(audit_path, bench_root), "bench treatment should have exactly one audit row")
+    if escalation_rows:
+        add_issue(
+            issues,
+            "unexpected-escalation-count",
+            rel_path(escalation_path, bench_root),
+            "single-attempt bench treatment should not need a revision escalation row",
+        )
     if contract_rows:
         row = contract_rows[0]
         if row.get("status", "").strip().lower() != "applied":
             add_issue(issues, "contract-not-applied", rel_path(contract_path, bench_root), "treatment contract must be status=applied")
         if row.get("human_approved", "").strip().lower() != "true":
             add_issue(issues, "contract-not-approved", rel_path(contract_path, bench_root), "treatment contract must have human_approved=true")
+        if not row.get("revision_issue_id", "").strip():
+            add_issue(issues, "missing-revision-issue", rel_path(contract_path, bench_root), "treatment contract needs revision_issue_id")
+        if row.get("attempt_no", "").strip() != "1":
+            add_issue(issues, "invalid-treatment-attempt", rel_path(contract_path, bench_root), "single-attempt treatment must use attempt_no=1")
     if audit_rows:
         row = audit_rows[0]
         if row.get("drift_decision", "").strip().lower() not in {"accept", "partial_accept", "revise", "rollback"}:

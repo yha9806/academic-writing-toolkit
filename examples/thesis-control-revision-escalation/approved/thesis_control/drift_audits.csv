@@ -1,0 +1,5 @@
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-trace-001,ec-trace-001,none,scope changed from one project to all thesis workflows,none,none,revise,true,failed
+da-trace-002,ec-trace-002,none,none,edit records improve scholarly quality,none,rollback,true,failed
+da-trace-003,ec-trace-003,none,none,none,following paragraph still universalises the workflow,revise,true,failed
+da-trace-004,ec-trace-004,none,none,none,none,accept,false,passed

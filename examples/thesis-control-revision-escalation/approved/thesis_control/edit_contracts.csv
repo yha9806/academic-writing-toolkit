@@ -1,0 +1,5 @@
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-trace-001,traceability-section,ri-traceability-clarity,1,clarify the traceability claim,improve sentence clarity,do not broaden beyond one project,check the boundary sentence,local scope preserved,true,applied
+ec-trace-002,traceability-section,ri-traceability-clarity,2,clarify the traceability claim,reduce repetition,do not add quality claims,check the boundary sentence,no unsupported claim,true,applied
+ec-trace-003,traceability-section,ri-traceability-clarity,3,clarify the traceability claim,improve transition flow,do not leave adjacent boundaries inconsistent,check the following paragraph,adjacent boundary remains aligned,true,applied
+ec-trace-004,traceability-section,ri-traceability-clarity,4,apply the consolidated clarity brief,improve clarity while preserving scope,do not broaden or add evidence,check the complete unit,spine and boundary preserved,true,applied

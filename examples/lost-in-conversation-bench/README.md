@@ -18,7 +18,7 @@ Review the root case files in this order:
 4. [`baselines/baseline_b_edited_section.md`](baselines/baseline_b_edited_section.md) shows the consolidated-prompt output.
 5. [`treatment/edited_section.md`](treatment/edited_section.md) shows the `/thesis-control` bounded edit.
 6. [`comparison_report.md`](comparison_report.md) compares all three workflows across the control metrics.
-7. [`treatment/thesis_control/`](treatment/thesis_control/) stores the spine card, edit contract, and drift audit.
+7. [`treatment/thesis_control/`](treatment/thesis_control/) stores the spine card, edit contract, drift audit, and revision-escalation schema.
 
 Then review [`cases/index.md`](cases/index.md) and the two additional cases:
 

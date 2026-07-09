@@ -125,6 +125,50 @@ The treatment workflow must stop instead of editing when:
 
 If any of these occur during the bench run, the outcome should be recorded as a control success rather than an execution failure: refusing to edit is the correct behaviour when author control is insufficient.
 
+### Revision Escalation
+
+Three unsuccessful attempts against the same revision issue are an operational stop threshold, not a research claim that every task fails after three turns. Contract versions remain in the same issue family through `revision_issue_id`. An attempt counts only when an applied contract has a resolved `revise` or `rollback` audit with `status=failed`; clarification, pending human review, and unexecuted proposals do not count. At that point the workflow must not apply a fourth prose patch.
+
+The workflow may escalate earlier when claim drift, an evidence gap, an unclear spine, loss of the latest author-approved version, or version contamination is already visible. Before any further edit, it consolidates the valid requirements, compares them with the control packet and approved source, classifies the problem, and asks the author to approve the next action.
+
+The diagnosis separates underspecified or conflicting intent, local execution failure, structural mismatch, evidence gap, and version contamination. It also distinguishes a local patch, section-level restructure, and full reframing. A new branch or manuscript version is an isolation mechanism for approved structural work, not a substitute for repairing an unclear specification.
+
+### Revision Escalation Execution Layer
+
+The instruction rule is not sufficient on its own. Strict thesis-control packets must make revision attempts and escalation approval structurally inspectable.
+
+`edit_contracts.csv` adds two fields:
+
+- `revision_issue_id` groups multiple contract versions that address the same unresolved writing problem;
+- `attempt_no` is a positive, unique, sequential number within that issue.
+
+An unsuccessful attempt is one applied contract whose resolved audit decision is `revise` or `rollback` with `status=failed`. Author rejection must be recorded as one of those two decisions so the outcome is durable and countable. Multiple audits for one contract still count as one attempt, while pending reviews and non-applied contracts do not count.
+
+`revision_escalations.csv` records:
+
+```text
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+```
+
+The execution gate is:
+
+1. Find the first three unsuccessful contracts in one `revision_issue_id` family.
+2. Require exactly one `cycle_gate` row whose three triggers exactly match those contracts in attempt order and whose `approved_after_attempt` equals the final attempt; trigger IDs cannot repeat, and the same issue and trigger set cannot appear in multiple rows.
+3. Permit draft planning, but reject any later contract marked `approved` or `applied` until the matching cycle gate has `human_approved=true` and `status=approved`.
+4. Keep early escalation available as `early_diagnostic` with one or two triggers and an empty approval boundary. It never closes or pre-authorises a later completed group, so it cannot weaken the three-strike gate.
+5. Treat every later group of three unsuccessful contracts as a new escalation cycle with its own exact-match escalation row; an earlier approval cannot close more than one group or permanently unlock the issue.
+
+The checker remains structural. It can verify identities, attempt order, audit outcomes, escalation linkage, and human approval. It cannot decide whether feedback is semantically ambiguous, whether evidence is academically sufficient, or whether a full reframing is intellectually correct.
+
+For compatibility, non-strict checking continues to accept legacy packets without revision-tracking columns and can inspect v2 escalation rows. Strict checking requires schema v3. A local migration helper adds complete revision metadata without guessing historical issue relationships: each legacy contract starts as its own issue, while partial or ambiguous metadata stops for an author decision. Existing one- or two-trigger v2 rows become early diagnostics; a three-trigger row becomes a cycle gate only when current resolved audits prove the completed group.
+
+The public-safe executable fixture at `examples/thesis-control-revision-escalation/` keeps blocked and approved packets side by side. It demonstrates the same fourth contract failing without an escalation record and passing only after a matching escalation receives explicit author approval.
+
+The schema-v3 hardening contract is specified separately in
+[`thesis-control-revision-escalation-v3-hardening-design.md`](thesis-control-revision-escalation-v3-hardening-design.md).
+It separates early diagnosis from cycle-closing approval, defines strict CSV
+shape handling, and requires failure-atomic scaffold and migration writes.
+
 ## Acceptance Criteria
 
 The design is ready for implementation planning when:
@@ -134,6 +178,7 @@ The design is ready for implementation planning when:
 - the treatment workflow produces valid `spine_cards.csv`, `edit_contracts.csv`, and `drift_audits.csv`;
 - the comparison report identifies at least one concrete difference between normal chat editing and contract-bounded editing;
 - the final review answers whether the treatment improved author control, not merely whether the prose sounded better.
+- repeated revisions trigger diagnosis after three unsuccessful applied contracts in the same `revision_issue_id`, or earlier when a high-risk control failure is visible.
 
 ## Public Communication Boundary
 
