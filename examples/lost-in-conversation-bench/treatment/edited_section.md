@@ -1,0 +1,7 @@
+# Section 2.3: Evidence Boundaries In Assisted Revision
+
+This section argues that AI-assisted thesis revision is useful only when the author can inspect how a local edit affects the section's claim boundary. A paragraph can become smoother while also blurring the difference between what the sources show and what the author infers from them. The point is therefore narrow: the section does not claim that all AI-assisted writing is unreliable. It shows why revision workflows need explicit controls around claims, caveats, and evidence use.
+
+The section relies on two source notes. Source A describes a writing-support workflow that keeps notes, claims, and revision decisions as separate records. Source B discusses multi-turn assistant use and warns that later clarifications can be absorbed into earlier assumptions. Together, these sources support a bounded claim: thesis writers need visible edit boundaries when they use AI across several turns. They do not support the stronger claim that any particular model is unsafe for every writing task.
+
+The next subsection turns to implementation, so this section keeps product architecture out of scope. Its role is to define the control problem and state what must not drift during revision. The key caveat is that fluency is not the target by itself. The target is a revision process in which smoother prose still preserves the author's intended claim, the evidence boundary, and the relationship to neighbouring sections.
