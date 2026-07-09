@@ -12,7 +12,103 @@
 
 **Revision escalation architecture:** Keep revision escalation inside `/thesis-control`. The skill groups unsuccessful contract versions under one revision issue, stops after three, allows earlier escalation for high-risk control failures, and routes the author to a corrected local contract, section restructure, evidence-boundary decision, approved-version restore, or full reframing. The validator enforces structural attempt and approval gates without claiming to judge semantic convergence.
 
-**Execution-layer extension:** Track one unresolved problem across contract versions with `revision_issue_id` and `attempt_no`. Add `revision_escalations.csv` as the durable diagnosis and author-approval record. Strict validation must require an escalation record after three unsuccessful contracts and must reject a later `approved` or `applied` contract until the escalation is human-approved. Non-strict validation remains compatible with legacy packets.
+**Execution-layer extension:** Track one unresolved problem across contract versions with `revision_issue_id` and `attempt_no`. Add `revision_escalations.csv` as the durable diagnosis and author-approval record. Strict validation must require a distinct exact-match escalation record after each group of three unsuccessful applied contracts with resolved failed audits, and must reject a later `approved` or `applied` contract until that escalation is human-approved. Non-strict validation remains compatible with legacy packets.
+
+## PR #22 Review-Fix Extension
+
+**Goal:** Close the merge-review gaps in escalation-cycle matching, failed-attempt counting, scaffolded attempt sequencing, and public documentation.
+
+**Architecture:** Keep the existing CSV schema. Allow early diagnostic escalation, but let a completed three-contract group close only through one unique exact-match approved escalation. Count only resolved failures from applied contracts, and reject scaffold writes that would leave one revision issue with duplicate or non-sequential attempts. Preserve non-strict legacy compatibility and regenerate the packaged plugin from the canonical skill.
+
+**Tech Stack:** Python 3 standard library, Bash regression harness, Markdown documentation, CSV fixtures.
+
+### Task A: Make Escalation Cycles One-To-One
+
+**Files:**
+- Modify `.claude/skills/thesis-control/scripts/check_thesis_control.py`
+- Modify `scripts/test.sh`
+
+**Interface:** A completed three-contract group is satisfied only by one escalation whose unique trigger set equals that group exactly. An early escalation with fewer than three triggers remains valid but cannot close or pre-authorise a later completed group.
+
+- [ ] Add T86 with six failed applied contracts, a seventh applied contract, and one approved escalation listing all six failures.
+- [ ] Run `bash scripts/test.sh`; expect only T86 to fail because the oversized escalation currently unlocks both groups.
+- [ ] Replace subset matching with exact trigger-set matching:
+
+```python
+matching = [
+    escalation
+    for escalation in escalations_by_issue.get(revision_issue_id, [])
+    if required_triggers == escalation["triggers"]
+]
+```
+
+- [ ] Re-run `bash scripts/test.sh`; expect T86 and the existing suite to pass.
+- [ ] Add T89 and T90 to reject duplicate trigger IDs within one row and duplicate escalation rows for the same issue and trigger set.
+- [ ] Reject repeated trigger tokens and repeated `(revision_issue_id, trigger set)` keys before cycle approval is evaluated.
+- [ ] Re-run `bash scripts/test.sh`; expect T89, T90, and the existing suite to pass.
+
+### Task B: Exclude Unexecuted Proposals From Failure Counts
+
+**Files:**
+- Modify `.claude/skills/thesis-control/scripts/check_thesis_control.py`
+- Modify `scripts/test.sh`
+
+**Interface:** A contract becomes an unsuccessful attempt only when it is `applied` and has a resolved `revise` or `rollback` audit with `status=failed`.
+
+- [ ] Add T87 with three non-applied contracts carrying failed audits and a fourth applied accepted contract.
+- [ ] Run `bash scripts/test.sh`; expect only T87 to fail because the non-applied contracts currently trigger escalation.
+- [ ] Add the contract-state condition to unsuccessful-attempt collection:
+
+```python
+if (
+    decision in {"revise", "rollback"}
+    and status == "failed"
+    and contract_statuses.get(contract_id) == "applied"
+):
+    unsuccessful_contracts.add(contract_id)
+```
+
+- [ ] Re-run `bash scripts/test.sh`; expect T87 and the existing suite to pass.
+
+### Task C: Keep Scaffolded Attempts Strict-Valid
+
+**Files:**
+- Modify `.claude/skills/thesis-control/scripts/scaffold_thesis_control.py`
+- Modify `scripts/test.sh`
+
+**Interface:** `validate_revision_attempt(path, contract_id, revision_issue_id, attempt_no, force)` reads existing contract rows before any output mutation, simulates replacing the same contract when `force=true`, and requires the target issue's candidate attempts to equal `1..N` with no duplicates.
+
+- [ ] Add T88 proving that a standalone attempt 2 is rejected, attempts 1 then 2 succeed, and the resulting packet passes strict validation.
+- [ ] Run `bash scripts/test.sh`; expect T88 to fail because the scaffold currently accepts standalone attempt 2.
+- [ ] Add the sequence validator and call it before copying source text or writing CSV rows:
+
+```python
+candidate_attempts = sorted(existing_attempts + [attempt_no])
+expected_attempts = list(range(1, candidate_attempts[-1] + 1))
+if candidate_attempts != expected_attempts:
+    raise ValueError(
+        f"revision issue {revision_issue_id} attempts must be unique and sequential from 1"
+    )
+```
+
+- [ ] Re-run `bash scripts/test.sh`; expect T88 and the existing suite to pass.
+
+### Task D: Synchronise Contracts, Documentation, And Release Gates
+
+**Files:**
+- Modify `.claude/skills/thesis-control/SKILL.md`
+- Modify `docs/product/lost-in-conversation-writing-control-design.md`
+- Modify `docs/product/lost-in-conversation-writing-control-implementation-plan.md`
+- Modify `docs/skills/15-thesis-control.md`
+- Regenerate `plugins/academic-writing-toolkit/skills/thesis-control/`
+
+**Interface:** Every public definition states that only applied contracts with resolved failed revise/rollback audits count; pending reviews and unexecuted proposals do not count; each later group of three needs one unique exact-match escalation; and early escalation does not close a later completed group.
+
+- [ ] Update the design and plan text, including the `revision_issue_id` acceptance criterion and T83-T90 sequence.
+- [ ] Update scaffold review-packet guidance to use the same resolved-failure wording.
+- [ ] Run `bash scripts/sync-plugin.sh` and verify `bash scripts/sync-plugin.sh --check`.
+- [ ] Run `bash scripts/test.sh`, `make plugin-check`, `make chatgpt-app-check`, `python3 scripts/audit-public-content.py --base-dir . --json`, the release-packet validator, and `git diff --check`.
+- [ ] Obtain independent diff review before committing and pushing the repaired branch.
 
 ## Revision Escalation Execution Extension
 
@@ -31,11 +127,12 @@
 
 - A revision issue id is a safe identifier shared by contracts for the same unresolved problem.
 - Attempt numbers are positive, unique, and sequential within one issue.
-- A contract counts as unsuccessful once when any linked audit decides `revise` or `rollback`.
+- A contract counts as unsuccessful once only when it is `applied` and a linked audit resolves to `revise` or `rollback` with `status=failed`.
 - Three unsuccessful contracts require a linked escalation row.
-- Every later group of three unsuccessful contracts requires a new linked escalation row.
+- Every later group of three unsuccessful contracts requires a new escalation row whose trigger set exactly matches that group.
 - A later draft or rejected contract is inspectable, but a later approved or applied contract requires a matching human-approved escalation.
-- An approved escalation must reference the first three unsuccessful contracts in `trigger_contracts`.
+- Only one escalation row for an issue may use the exact trigger set for a completed group, and trigger IDs may not repeat within the row.
+- An early escalation with fewer than three triggers is valid, but it cannot close or pre-authorise a later completed group.
 
 ### Test Sequence
 
@@ -47,7 +144,10 @@
 6. Add T80 and verify the persistent fixture blocks the fourth edit before escalation and accepts it after author approval.
 7. Add T81 and verify each later group of three unsuccessful contracts requires a new escalation cycle.
 8. Add T82 and verify non-strict legacy compatibility while strict mode requires migration.
-9. Run `make plugin-sync`, `make test`, public-content audit, and `git diff --check`.
+9. Add T83-T85 and verify pending human-review blocking plus resolved audit-outcome consistency.
+10. Add T86-T88 and verify exact cycle matching, exclusion of non-applied contracts, and strict-valid scaffold sequences.
+11. Add T89-T90 and verify duplicate trigger IDs and duplicate rows for one trigger set are rejected.
+12. Run `make plugin-sync`, `make test`, public-content audit, and `git diff --check`.
 
 ---
 

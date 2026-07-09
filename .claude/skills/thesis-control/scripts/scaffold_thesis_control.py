@@ -185,6 +185,53 @@ def upsert_row(
     return "replaced" if found else "added"
 
 
+def validate_revision_attempt(
+    path: Path,
+    contract_id: str,
+    revision_issue_id: str,
+    attempt_no: int,
+    force: bool,
+) -> None:
+    rows = ensure_csv(path, CONTRACT_COLUMNS) if path.exists() else []
+    candidate_rows: List[Dict[str, str]] = []
+    for row in rows:
+        if row.get("contract_id", "").strip() == contract_id:
+            if not force:
+                raise ValueError(
+                    f"{path} already contains contract_id={contract_id}; pass --force to replace it"
+                )
+            continue
+        candidate_rows.append(row)
+
+    candidate_rows.append(
+        {
+            "contract_id": contract_id,
+            "revision_issue_id": revision_issue_id,
+            "attempt_no": str(attempt_no),
+        }
+    )
+    attempts_by_issue: Dict[str, List[int]] = {}
+    for row in candidate_rows:
+        issue_id = row.get("revision_issue_id", "").strip()
+        validate_identifier("revision_issue_id", issue_id)
+        attempt_text = row.get("attempt_no", "").strip()
+        try:
+            row_attempt = int(attempt_text)
+        except ValueError as exc:
+            raise ValueError(f"attempt_no must be a positive integer: {attempt_text}") from exc
+        if row_attempt < 1:
+            raise ValueError(f"attempt_no must be a positive integer: {attempt_text}")
+        attempts_by_issue.setdefault(issue_id, []).append(row_attempt)
+
+    for issue_id, attempts in attempts_by_issue.items():
+        ordered = sorted(attempts)
+        expected = list(range(1, len(ordered) + 1))
+        if ordered != expected:
+            raise ValueError(
+                f"revision issue {issue_id} attempts must be unique and sequential from 1"
+            )
+
+
 def write_review_packet(
     output_dir: Path,
     unit_id: str,
@@ -230,7 +277,8 @@ def write_review_packet(
 - Keep `human_approved=false` until the author explicitly approves the contract.
 - After any applied edit, add a drift-audit row before accepting the prose.
 - Reuse the same revision issue id and increment the attempt number when a new contract retries the same unresolved problem.
-- After three unsuccessful attempts, record and approve a revision escalation before applying a later contract.
+- Count an attempt as unsuccessful only after an applied contract receives a resolved `revise` or `rollback` audit with `status=failed`.
+- After three unsuccessful attempts, approve a distinct escalation that lists exactly those three trigger contracts before applying a later contract.
 """
     packet_path.write_text(body, encoding="utf-8")
     return packet_path
@@ -255,6 +303,19 @@ def scaffold(args: argparse.Namespace) -> dict:
     if attempt_no < 1:
         raise ValueError("--attempt-no must be >= 1")
 
+    control_dir = output_dir / "thesis_control"
+    spine_path = control_dir / "spine_cards.csv"
+    contract_path = control_dir / "edit_contracts.csv"
+    audit_path = control_dir / "drift_audits.csv"
+    escalation_path = control_dir / "revision_escalations.csv"
+    validate_revision_attempt(
+        contract_path,
+        contract_id,
+        revision_issue_id,
+        attempt_no,
+        args.force,
+    )
+
     if args.copy_source:
         excerpt_dir = output_dir / "source_excerpts"
         excerpt_dir.mkdir(parents=True, exist_ok=True)
@@ -269,12 +330,6 @@ def scaffold(args: argparse.Namespace) -> dict:
         except ValueError as exc:
             raise ValueError("source must be inside output-dir when --copy-source is not used") from exc
         source_display = relative_display(source, output_dir)
-
-    control_dir = output_dir / "thesis_control"
-    spine_path = control_dir / "spine_cards.csv"
-    contract_path = control_dir / "edit_contracts.csv"
-    audit_path = control_dir / "drift_audits.csv"
-    escalation_path = control_dir / "revision_escalations.csv"
 
     ensure_csv(audit_path, AUDIT_COLUMNS)
     ensure_csv(escalation_path, ESCALATION_COLUMNS)

@@ -30,7 +30,8 @@ python3 .claude/skills/thesis-control/scripts/check_thesis_control.py . --strict
 
 Use `needs_review` only while the author decision is pending. Record accepted or
 partially accepted audits as `passed`; record `revise` or `rollback` outcomes as
-`failed`. Only resolved failed audits count towards revision escalation.
+`failed`. Only applied contracts with resolved failed audits count towards
+revision escalation; pending reviews and non-applied contracts do not count.
 
 Upgrade a legacy packet before strict validation:
 
@@ -52,12 +53,17 @@ python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py . \
 
 The scaffold is intentionally conservative: it creates a draft spine card and
 edit contract with `human_approved=false`. Replace `AUTHOR_REVIEW_REQUIRED`
-fields with concrete author judgement before changing thesis prose.
+fields with concrete author judgement before changing thesis prose. It rejects
+attempt numbers that would make a revision issue duplicate or non-sequential.
 
 Reuse the same `revision_issue_id` and increment `attempt_no` when a new
-contract retries the same unresolved problem. After three resolved `revise` or
-`rollback` outcomes with `status=failed`, record and approve a revision
-escalation before applying a later contract.
+contract retries the same unresolved problem. After three applied contracts
+receive resolved `revise` or `rollback` outcomes with `status=failed`, record
+and approve one unique escalation whose trigger set exactly matches those
+three contracts before applying a later contract. Do not repeat a trigger ID
+within a row or create multiple rows for the same issue and trigger set. An
+earlier escalation with fewer than three triggers remains valid, but it does
+not close or pre-authorise a later completed group.
 
 ## Typical Prompts
 

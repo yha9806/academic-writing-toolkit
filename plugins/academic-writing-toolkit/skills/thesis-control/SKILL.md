@@ -144,11 +144,15 @@ The author decides whether to accept, partially accept, revise, or rollback. Do 
 
 ## Revision Escalation Rule
 
-Treat three unsuccessful attempts on the same revision issue as an operational escalation threshold, not as evidence that every task fails after three turns. Use `revision_issue_id` to keep successive contract versions attached to that issue. Only count an attempt when its drift decision is `revise` or `rollback` and its audit status is `failed`. Record author rejection as one of those decisions. Multiple audits of one contract still count as one attempt. Clarifying discussion, pending human reviews, and unexecuted proposals do not count.
+Treat three unsuccessful attempts on the same revision issue as an operational escalation threshold, not as evidence that every task fails after three turns. Use `revision_issue_id` to keep successive contract versions attached to that issue. Only count an attempt when its drift decision is `revise` or `rollback` and its audit status is `failed`. Only applied contracts count as unsuccessful attempts. Record author rejection as one of those decisions. Multiple audits of one contract still count as one attempt. Clarifying discussion, pending human reviews, and unexecuted proposals do not count.
 
 After three unsuccessful attempts, stop. Do not apply a fourth prose patch. Record a row in `revision_escalations.csv`; a later contract may become `approved` or `applied` only after the matching escalation has `human_approved=true` and `status=approved`.
 
 An approved escalation closes only that group of three unsuccessful contracts. If three later contracts also receive `revise` or `rollback`, require a new escalation before another contract can proceed.
+
+Only an escalation whose trigger set exactly matches one completed group of three unsuccessful contracts may close that group. One escalation cannot close more than one group. Do not repeat a trigger contract within a row or create multiple rows for the same issue and trigger set.
+
+An earlier escalation with fewer than three trigger contracts does not close or pre-authorise a later completed group.
 
 Escalate earlier than three attempts when any of these signals is already visible:
 

@@ -127,7 +127,7 @@ If any of these occur during the bench run, the outcome should be recorded as a 
 
 ### Revision Escalation
 
-Three unsuccessful attempts against the same revision issue are an operational stop threshold, not a research claim that every task fails after three turns. Contract versions remain in the same issue family through `revision_issue_id`. Only author rejection or a `revise` or `rollback` drift decision counts as an unsuccessful attempt; clarification and unexecuted proposals do not count. At that point the workflow must not apply a fourth prose patch.
+Three unsuccessful attempts against the same revision issue are an operational stop threshold, not a research claim that every task fails after three turns. Contract versions remain in the same issue family through `revision_issue_id`. An attempt counts only when an applied contract has a resolved `revise` or `rollback` audit with `status=failed`; clarification, pending human review, and unexecuted proposals do not count. At that point the workflow must not apply a fourth prose patch.
 
 The workflow may escalate earlier when claim drift, an evidence gap, an unclear spine, loss of the latest author-approved version, or version contamination is already visible. Before any further edit, it consolidates the valid requirements, compares them with the control packet and approved source, classifies the problem, and asks the author to approve the next action.
 
@@ -142,7 +142,7 @@ The instruction rule is not sufficient on its own. Strict thesis-control packets
 - `revision_issue_id` groups multiple contract versions that address the same unresolved writing problem;
 - `attempt_no` is a positive, unique, sequential number within that issue.
 
-An unsuccessful attempt is one contract whose audit decision is `revise` or `rollback`. Author rejection must be recorded as one of those two decisions so the outcome is durable and countable. Multiple audits for one contract still count as one attempt.
+An unsuccessful attempt is one applied contract whose resolved audit decision is `revise` or `rollback` with `status=failed`. Author rejection must be recorded as one of those two decisions so the outcome is durable and countable. Multiple audits for one contract still count as one attempt, while pending reviews and non-applied contracts do not count.
 
 `revision_escalations.csv` records:
 
@@ -153,10 +153,10 @@ escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope
 The execution gate is:
 
 1. Find the first three unsuccessful contracts in one `revision_issue_id` family.
-2. Require a revision-escalation row that references those trigger contracts.
+2. Require exactly one revision-escalation row whose trigger set exactly matches those three contracts; trigger IDs cannot repeat within a row, and the same issue and trigger set cannot appear in multiple rows.
 3. Permit draft planning, but reject any later contract marked `approved` or `applied` until a matching escalation row has `human_approved=true` and `status=approved`.
-4. Keep early escalation available with fewer than three trigger contracts; it does not weaken the three-strike gate.
-5. Treat every later group of three unsuccessful contracts as a new escalation cycle; an earlier approval does not permanently unlock the issue.
+4. Keep early escalation available with fewer than three trigger contracts; it does not close or pre-authorise a later completed three-contract group, so it does not weaken the three-strike gate.
+5. Treat every later group of three unsuccessful contracts as a new escalation cycle with its own exact-match escalation row; an earlier approval cannot close more than one group or permanently unlock the issue.
 
 The checker remains structural. It can verify identities, attempt order, audit outcomes, escalation linkage, and human approval. It cannot decide whether feedback is semantically ambiguous, whether evidence is academically sufficient, or whether a full reframing is intellectually correct.
 
@@ -173,7 +173,7 @@ The design is ready for implementation planning when:
 - the treatment workflow produces valid `spine_cards.csv`, `edit_contracts.csv`, and `drift_audits.csv`;
 - the comparison report identifies at least one concrete difference between normal chat editing and contract-bounded editing;
 - the final review answers whether the treatment improved author control, not merely whether the prose sounded better.
-- repeated revisions trigger diagnosis after three unsuccessful attempts on the same contract, or earlier when a high-risk control failure is visible.
+- repeated revisions trigger diagnosis after three unsuccessful applied contracts in the same `revision_issue_id`, or earlier when a high-risk control failure is visible.
 
 ## Public Communication Boundary
 

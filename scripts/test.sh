@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (82 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T85 revision escalation and human gates) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (87 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T90 revision escalation and human gates) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -1110,8 +1110,12 @@ required_clauses = (
     "three unsuccessful attempts",
     "operational escalation threshold",
     "Only count an attempt when its drift decision is `revise` or `rollback` and its audit status is `failed`.",
+    "Only applied contracts count as unsuccessful attempts.",
     "Clarifying discussion, pending human reviews, and unexecuted proposals do not count.",
     "Do not apply a fourth prose patch",
+    "Only an escalation whose trigger set exactly matches one completed group of three unsuccessful contracts may close that group.",
+    "One escalation cannot close more than one group.",
+    "An earlier escalation with fewer than three trigger contracts does not close or pre-authorise a later completed group.",
     "Escalate earlier",
     "section spine cannot be stated consistently",
     "requested claim lacks supporting evidence",
@@ -1232,7 +1236,7 @@ EOF
         --source chapters/ch01.md \
         --unit-id ch01-control \
         --revision-issue-id ri-ch01-clarity \
-        --attempt-no 2 \
+        --attempt-no 1 \
         --copy-source \
         --json) || {
         rm -rf "$tmp"
@@ -1248,7 +1252,7 @@ root = Path(sys.argv[1])
 payload = json.loads(sys.argv[2])
 contracts = list(csv.DictReader((root / "thesis_control/edit_contracts.csv").open(encoding="utf-8")))
 assert contracts[0]["revision_issue_id"] == "ri-ch01-clarity"
-assert contracts[0]["attempt_no"] == "2"
+assert contracts[0]["attempt_no"] == "1"
 assert Path(payload["revision_escalations"]).is_file()
 with (root / "thesis_control/revision_escalations.csv").open(encoding="utf-8") as handle:
     reader = csv.DictReader(handle)
@@ -1459,6 +1463,192 @@ EOF
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
     echo "$mismatch" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'invalid-audit-outcome' for i in d['issues'])"
+}
+
+test_T86() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp"
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch03,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-002,ch03,ri-ch03-clarity,2,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-003,ch03,ri-ch03-clarity,3,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-004,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-005,ch03,ri-ch03-clarity,5,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-006,ch03,ri-ch03-clarity,6,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-007,ch03,ri-ch03-clarity,7,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,revise,true,failed
+da-002,ec-002,none,none,none,none,rollback,true,failed
+da-003,ec-003,none,none,none,none,revise,true,failed
+da-004,ec-004,none,none,none,none,revise,true,failed
+da-005,ec-005,none,none,none,none,rollback,true,failed
+da-006,ec-006,none,none,none,none,revise,true,failed
+da-007,ec-007,none,none,none,none,accept,false,passed
+EOF
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-all-six,ri-ch03-clarity,ec-001;ec-002;ec-003;ec-004;ec-005;ec-006,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+EOF
+
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); messages=' '.join(i['message'] for i in d['issues']); kinds={i['kind'] for i in d['issues']}; assert 'ec-004, ec-005, ec-006' in messages and 'revision-escalation-required' in kinds"
+}
+
+test_T87() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp"
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch03,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,false,draft
+ec-002,ch03,ri-ch03-clarity,2,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,approved
+ec-003,ch03,ri-ch03-clarity,3,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,false,rejected
+ec-004,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,revise,false,failed
+da-002,ec-002,none,none,none,none,rollback,false,failed
+da-003,ec-003,none,none,none,none,revise,false,failed
+da-004,ec-004,none,none,none,none,accept,false,passed
+EOF
+
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0"
+}
+
+test_T88() {
+    local tmp invalid first second duplicate checked rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/chapters/ch01.md" <<'EOF'
+# Chapter 1
+
+This section argues that scaffolded revision attempts must remain sequential.
+EOF
+
+    invalid=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --unit-id ch01-control \
+        --contract-id ec-ch01-002 \
+        --revision-issue-id ri-ch01-clarity \
+        --attempt-no 2 \
+        --copy-source \
+        --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 && ! -e "$tmp/thesis_control" && ! -e "$tmp/source_excerpts" ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+    [[ "$invalid" == *"unique and sequential from 1"* ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    first=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --unit-id ch01-control \
+        --contract-id ec-ch01-001 \
+        --revision-issue-id ri-ch01-clarity \
+        --attempt-no 1 \
+        --copy-source \
+        --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    second=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --unit-id ch01-control \
+        --contract-id ec-ch01-002 \
+        --revision-issue-id ri-ch01-clarity \
+        --attempt-no 2 \
+        --copy-source \
+        --force \
+        --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    duplicate=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch01.md \
+        --unit-id ch01-control \
+        --contract-id ec-ch01-003 \
+        --revision-issue-id ri-ch01-clarity \
+        --attempt-no 2 \
+        --copy-source \
+        --force \
+        --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 && "$duplicate" == *"unique and sequential from 1"* ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$first" "$second" "$checked" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+first = json.loads(sys.argv[2])
+second = json.loads(sys.argv[3])
+checked = json.loads(sys.argv[4])
+rows = list(csv.DictReader((root / "thesis_control/edit_contracts.csv").open(encoding="utf-8")))
+assert first["attempt_no"] == 1
+assert second["attempt_no"] == 2
+assert [row["attempt_no"] for row in rows] == ["1", "2"]
+assert checked["issue_count"] == 0
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T89() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp" approved
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-001,ri-ch03-clarity,ec-001;ec-002;ec-003;ec-003,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+EOF
+
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'duplicate-trigger-contract' for i in d['issues'])"
+}
+
+test_T90() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp" approved
+    cat >> "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+re-002,ri-ch03-clarity,ec-003;ec-001;ec-002,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
+EOF
+
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'duplicate-escalation-trigger-set' for i in d['issues'])"
 }
 
 test_T50() {
@@ -1697,6 +1887,11 @@ run_test "T82 non-strict checker accepts legacy packets while strict requires up
 run_test "T83 strict checker blocks applied edits pending human review" test_T83
 run_test "T84 revision escalation counts only resolved failed audits" test_T84
 run_test "T85 thesis-control rejects contradictory resolved audit outcomes" test_T85
+run_test "T86 one escalation cannot unlock multiple failure cycles" test_T86
+run_test "T87 non-applied contracts do not count as failed attempts" test_T87
+run_test "T88 scaffold preserves unique sequential revision attempts" test_T88
+run_test "T89 revision escalation rejects duplicate trigger contracts" test_T89
+run_test "T90 revision escalation requires one row per trigger set" test_T90
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

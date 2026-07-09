@@ -421,7 +421,11 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
                     location,
                     f"audit status={status} is inconsistent with drift_decision={decision}",
                 )
-            if decision in {"revise", "rollback"} and status == "failed" and contract_id:
+            if (
+                decision in {"revise", "rollback"}
+                and status == "failed"
+                and contract_statuses.get(contract_id) == "applied"
+            ):
                 unsuccessful_contracts.add(contract_id)
         if review_required is None:
             add_issue(issues, "invalid-human-review-required", location, "human_review_required must be true or false")
@@ -452,6 +456,7 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
 
     escalations_by_issue: Dict[str, List[dict]] = {}
     escalation_ids = set()
+    escalation_trigger_sets = set()
     if revision_tracking:
         for index, row in enumerate(escalation_rows):
             location = row_location("revision_escalations.csv", index)
@@ -462,6 +467,7 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
                 for value in row.get("trigger_contracts", "").split(";")
                 if value.strip()
             ]
+            trigger_set = set(trigger_contracts)
             category = row.get("primary_category", "").strip().lower()
             writing_scope = row.get("writing_scope", "").strip().lower()
             approved = parse_bool(row.get("human_approved", ""))
@@ -485,6 +491,13 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
 
             if not trigger_contracts:
                 add_issue(issues, "missing-trigger-contracts", location, "revision escalation has no trigger contracts")
+            elif len(trigger_contracts) != len(trigger_set):
+                add_issue(
+                    issues,
+                    "duplicate-trigger-contract",
+                    location,
+                    "revision escalation trigger_contracts must not repeat a contract",
+                )
             for trigger_contract in trigger_contracts:
                 if trigger_contract not in contract_ids:
                     add_issue(
@@ -521,10 +534,20 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
                 if is_empty(row.get(column, "")):
                     add_issue(issues, "empty-escalation-field", location, f"revision escalation field is empty: {column}")
 
-            if revision_issue_id:
+            if revision_issue_id and trigger_set:
+                trigger_key = (revision_issue_id, frozenset(trigger_set))
+                if trigger_key in escalation_trigger_sets:
+                    add_issue(
+                        issues,
+                        "duplicate-escalation-trigger-set",
+                        location,
+                        "revision issue must not repeat an escalation trigger set",
+                    )
+                else:
+                    escalation_trigger_sets.add(trigger_key)
                 escalations_by_issue.setdefault(revision_issue_id, []).append(
                     {
-                        "triggers": set(trigger_contracts),
+                        "triggers": trigger_set,
                         "approved": approved is True and status == "approved",
                     }
                 )
@@ -546,7 +569,7 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
                 matching = [
                     escalation
                     for escalation in escalations_by_issue.get(revision_issue_id, [])
-                    if required_triggers <= escalation["triggers"]
+                    if required_triggers == escalation["triggers"]
                 ]
                 trigger_list = ", ".join(contract_id for _, contract_id in trigger_group)
                 if not matching:
