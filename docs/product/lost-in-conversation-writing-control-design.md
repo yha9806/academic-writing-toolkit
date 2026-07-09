@@ -127,7 +127,7 @@ If any of these occur during the bench run, the outcome should be recorded as a 
 
 ### Revision Escalation
 
-Three unsuccessful attempts against the same edit contract are an operational stop threshold, not a research claim that every task fails after three turns. An attempt counts when the author rejects the result or the drift decision is `revise` or `rollback`. At that point the workflow must not apply a fourth prose patch.
+Three unsuccessful attempts against the same edit contract are an operational stop threshold, not a research claim that every task fails after three turns. Only author rejection or a `revise` or `rollback` drift decision counts as an unsuccessful attempt; clarification and unexecuted proposals do not count. At that point the workflow must not apply a fourth prose patch.
 
 The workflow may escalate earlier when claim drift, an evidence gap, an unclear spine, loss of the latest author-approved version, or version contamination is already visible. Before any further edit, it consolidates the valid requirements, compares them with the control packet and approved source, classifies the problem, and asks the author to approve the next action.
 

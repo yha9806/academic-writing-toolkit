@@ -129,7 +129,7 @@ The author decides whether to accept, partially accept, revise, or rollback. Do 
 
 ## Revision Escalation Rule
 
-Treat three unsuccessful attempts on the same edit contract as an operational escalation threshold, not as evidence that every task fails after three turns. Count an attempt when its drift decision is `revise` or `rollback`, or when the author rejects the result against the same contract. Clarifying discussion and unexecuted proposals do not count.
+Treat three unsuccessful attempts on the same edit contract as an operational escalation threshold, not as evidence that every task fails after three turns. Only count an attempt when its drift decision is `revise` or `rollback`, or when the author rejects the result against the same contract. Clarifying discussion and unexecuted proposals do not count.
 
 After three unsuccessful attempts, stop. Do not apply a fourth prose patch.
 

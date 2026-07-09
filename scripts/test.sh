@@ -1089,13 +1089,23 @@ import sys
 from pathlib import Path
 
 text = Path(sys.argv[1]).read_text(encoding="utf-8")
-required = (
-    "## Revision Escalation Rule",
+start = text.index("## Revision Escalation Rule")
+end = text.index("\n## Output Patterns", start)
+section = text[start:end]
+required_clauses = (
     "same edit contract",
     "three unsuccessful attempts",
     "operational escalation threshold",
+    "Only count an attempt when its drift decision is `revise` or `rollback`, or when the author rejects the result against the same contract.",
+    "Clarifying discussion and unexecuted proposals do not count.",
     "Do not apply a fourth prose patch",
     "Escalate earlier",
+    "section spine cannot be stated consistently",
+    "requested claim lacks supporting evidence",
+    "claim, caveat, or scope boundary outside the contract",
+    "latest author-approved version cannot be identified",
+    "conflicting requirements indicate version contamination",
+    "spine card, evidence boundaries, current contract, and latest author-approved version",
     "underspecified or conflicting intent",
     "local execution failure",
     "structural mismatch",
@@ -1105,8 +1115,9 @@ required = (
     "local patch",
     "section-level restructure",
     "full reframing",
+    "Create a separate branch or manuscript version only when the approved scope requires structural work.",
 )
-missing = [phrase for phrase in required if phrase not in text]
+missing = [phrase for phrase in required_clauses if phrase not in section]
 if missing:
     raise SystemExit("missing revision-escalation guidance: " + ", ".join(missing))
 PY
