@@ -14,7 +14,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from thesis_control_io import CsvShapeError, read_csv_table
 
@@ -152,20 +152,25 @@ def validate_columns(
     filename: str,
     required_columns: Iterable[str],
     allow_empty: bool = False,
+    table: Optional[Tuple[Sequence[str], Sequence[Mapping[str, str]]]] = None,
 ) -> Tuple[List[Dict[str, str]], List[dict]]:
     path = root / "thesis_control" / filename
     issues: List[dict] = []
-    if not path.is_file():
-        return [], [{"kind": "missing-file", "location": str(path), "message": f"missing {filename}"}]
+    if table is None:
+        if not path.is_file():
+            return [], [{"kind": "missing-file", "location": str(path), "message": f"missing {filename}"}]
 
-    try:
-        fieldnames, rows = read_csv_table(path)
-    except CsvShapeError as exc:
-        issues.append({"kind": exc.kind, "location": exc.location, "message": exc.message})
-        return [], issues
-    except OSError as exc:
-        issues.append({"kind": "csv-error", "location": str(path), "message": f"cannot read file: {exc}"})
-        return [], issues
+        try:
+            fieldnames, rows = read_csv_table(path)
+        except CsvShapeError as exc:
+            issues.append({"kind": exc.kind, "location": exc.location, "message": exc.message})
+            return [], issues
+        except OSError as exc:
+            issues.append({"kind": "csv-error", "location": str(path), "message": f"cannot read file: {exc}"})
+            return [], issues
+    else:
+        fieldnames = list(table[0])
+        rows = [dict(row) for row in table[1]]
 
     missing = [column for column in required_columns if column not in fieldnames]
     for column in missing:
@@ -191,13 +196,28 @@ def add_issue(issues: List[dict], kind: str, location: str, message: str) -> Non
     issues.append({"kind": kind, "location": location, "message": message})
 
 
-def validate_packet(root: Path, strict: bool = False) -> dict:
+def validate_packet(
+    root: Path,
+    strict: bool = False,
+    table_overrides: Optional[
+        Mapping[str, Tuple[Sequence[str], Sequence[Mapping[str, str]]]]
+    ] = None,
+) -> dict:
     issues: List[dict] = []
+    overrides = table_overrides or {}
     control_dir = root / "thesis_control"
     contract_path = control_dir / "edit_contracts.csv"
     escalation_path = control_dir / "revision_escalations.csv"
-    contract_fields = read_fieldnames(contract_path)
-    escalation_fields = read_fieldnames(escalation_path)
+    contract_fields = (
+        list(overrides["edit_contracts.csv"][0])
+        if "edit_contracts.csv" in overrides
+        else read_fieldnames(contract_path)
+    )
+    escalation_fields = (
+        list(overrides["revision_escalations.csv"][0])
+        if "revision_escalations.csv" in overrides
+        else read_fieldnames(escalation_path)
+    )
     escalation_v3 = all(
         column in escalation_fields for column in ["escalation_kind", "approved_after_attempt"]
     )
@@ -210,6 +230,7 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
         root,
         "spine_cards.csv",
         REQUIRED_FILES["spine_cards.csv"],
+        table=overrides.get("spine_cards.csv"),
     )
     contract_columns = list(REQUIRED_FILES["edit_contracts.csv"])
     if revision_tracking:
@@ -218,12 +239,14 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
         root,
         "edit_contracts.csv",
         contract_columns,
+        table=overrides.get("edit_contracts.csv"),
     )
     audit_rows, audit_issues = validate_columns(
         root,
         "drift_audits.csv",
         REQUIRED_FILES["drift_audits.csv"],
         allow_empty=True,
+        table=overrides.get("drift_audits.csv"),
     )
     escalation_rows: List[Dict[str, str]] = []
     escalation_issues: List[dict] = []
@@ -238,6 +261,7 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
             "revision_escalations.csv",
             escalation_columns,
             allow_empty=True,
+            table=overrides.get("revision_escalations.csv"),
         )
     issues.extend(spine_issues + contract_issues + audit_issues + escalation_issues)
 

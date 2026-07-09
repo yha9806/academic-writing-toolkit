@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (97 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T100 revision escalation and human gates) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (102 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T105 revision escalation and human gates) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -1265,11 +1265,22 @@ PY
 test_T79() {
     local tmp out second
     tmp=$(mktemp -d) || return 1
-    mkdir -p "$tmp/thesis_control"
+    mkdir -p "$tmp/chapters" "$tmp/thesis_control"
+    printf '# Chapter 1\n\nLegacy applied contract.\n' > "$tmp/chapters/ch01.md"
+    printf '# Chapter 2\n\nLegacy draft contract.\n' > "$tmp/chapters/ch02.md"
+    cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch01,chapters/ch01.md,Chapter 1,Keep the first argument stable,one chapter,one claim,do not broaden
+ch02,chapters/ch02.md,Chapter 2,Keep the second argument stable,one chapter,one claim,do not broaden
+EOF
     cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
 contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
 ec-legacy-001,ch01,clarify prose,improve clarity,do not broaden,check neighbours,spine preserved,true,applied
 ec-legacy-002,ch02,clarify prose,improve clarity,do not broaden,check neighbours,spine preserved,false,draft
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-legacy-001,ec-legacy-001,none,none,none,none,accept,false,passed
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
         rm -rf "$tmp"
@@ -2023,6 +2034,243 @@ EOF
     [[ "$out" == *"unsupported column"*"owner_note"* ]]
 }
 
+_make_migration_v2_packet() {
+    local root="$1"
+    mkdir -p "$root/chapters" "$root/thesis_control"
+    printf '# Chapter\n\nBounded migration fixture.\n' > "$root/chapters/ch.md"
+    cat > "$root/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch,chapters/ch.md,Chapter,Preserve the bounded claim,one section,one claim,do not broaden
+EOF
+    cat > "$root/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch,ri-ch-clarity,1,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
+ec-002,ch,ri-ch-clarity,2,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
+ec-003,ch,ri-ch-clarity,3,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
+ec-004,ch,ri-ch-clarity,4,clarify,improve wording,do not broaden,check neighbours,spine preserved,false,draft
+EOF
+    cat > "$root/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,revise,true,failed
+da-002,ec-002,none,none,none,none,rollback,true,failed
+da-003,ec-003,none,none,none,none,revise,true,failed
+EOF
+}
+
+test_T101() {
+    local tmp before after out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters" "$tmp/thesis_control"
+    printf '# Chapter\n\nLegacy source.\n' > "$tmp/chapters/ch.md"
+    cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch,chapters/ch.md,Chapter,Preserve the claim,one section,one claim,do not broaden
+EOF
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-legacy,ch,clarify,improve wording,do not broaden,check neighbours,spine preserved,false,draft
+EOF
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+EOF
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,human_approved,human_approved,status
+re-bad,ri-legacy,ec-legacy,false,true,draft
+EOF
+
+    before=$(_tree_digest "$tmp") || return 1
+    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$tmp")
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$before" == "$after" ]] || return 1
+    [[ "$out" == *"duplicate column"* ]]
+}
+
+test_T102() {
+    local tmp case_dir before after out rc
+    tmp=$(mktemp -d) || return 1
+
+    case_dir="$tmp/partial-header"
+    mkdir -p "$case_dir/chapters" "$case_dir/thesis_control"
+    printf '# Chapter\n\nSource.\n' > "$case_dir/chapters/ch.md"
+    cat > "$case_dir/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,revision_issue_id,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch,ri-ch,clarify,improve wording,do not broaden,check neighbours,spine preserved,false,draft
+EOF
+    before=$(_tree_digest "$case_dir") || return 1
+    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$case_dir")
+    [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"author decision"* ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    case_dir="$tmp/partial-value"
+    _make_migration_v2_packet "$case_dir"
+    sed -i.bak '/^ec-002,/ s/,2,/, ,/' "$case_dir/thesis_control/edit_contracts.csv"
+    rm -f "$case_dir/thesis_control/edit_contracts.csv.bak"
+    before=$(_tree_digest "$case_dir") || return 1
+    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$case_dir")
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"author decision"* ]]
+}
+
+test_T103() {
+    local tmp out checked
+    tmp=$(mktemp -d) || return 1
+    _make_migration_v2_packet "$tmp"
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status,decision_note
+re-early,ri-ch-clarity,ec-001;ec-002,local_execution_failure,local_patch,preserve the spine,earlier wording did not converge,chapters/ch.md before ec-001,diagnose before retry,true,approved,keep-early
+re-cycle,ri-ch-clarity,ec-001;ec-002;ec-003,local_execution_failure,local_patch,preserve the spine,three attempts did not converge,chapters/ch.md before ec-001,apply one bounded contract,true,approved,keep-cycle
+EOF
+
+    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$out" "$checked" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+payload = json.loads(sys.argv[2])
+checked = json.loads(sys.argv[3])
+path = root / "thesis_control/revision_escalations.csv"
+with path.open(encoding="utf-8") as handle:
+    rows = list(csv.DictReader(handle))
+assert payload["schema_version"] == 3
+assert payload["escalation_file"] == "upgraded"
+assert checked["issue_count"] == 0
+assert [(row["escalation_kind"], row["approved_after_attempt"]) for row in rows] == [
+    ("early_diagnostic", ""),
+    ("cycle_gate", "3"),
+]
+assert [row["decision_note"] for row in rows] == ["keep-early", "keep-cycle"]
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T104() {
+    local tmp base case_dir before after out rc
+    tmp=$(mktemp -d) || return 1
+    base="$tmp/base"
+    _make_migration_v2_packet "$base"
+
+    for case_name in oversized incomplete cross_issue; do
+        case_dir="$tmp/$case_name"
+        cp -R "$base" "$case_dir"
+        case "$case_name" in
+            oversized)
+                triggers='ec-001;ec-002;ec-003;ec-004'
+                ;;
+            incomplete)
+                triggers='ec-001;ec-002;ec-003'
+                sed -i.bak '/^da-003,/ s/,failed$/,needs_review/' "$case_dir/thesis_control/drift_audits.csv"
+                rm -f "$case_dir/thesis_control/drift_audits.csv.bak"
+                ;;
+            cross_issue)
+                triggers='ec-001;ec-004'
+                sed -i.bak '/^ec-004,/ s/ri-ch-clarity,4/ri-other,1/' "$case_dir/thesis_control/edit_contracts.csv"
+                rm -f "$case_dir/thesis_control/edit_contracts.csv.bak"
+                ;;
+        esac
+        cat > "$case_dir/thesis_control/revision_escalations.csv" <<EOF
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-bad,ri-ch-clarity,$triggers,local_execution_failure,local_patch,preserve the spine,revisions did not converge,chapters/ch.md before ec-001,diagnose before retry,true,approved
+EOF
+        before=$(_tree_digest "$case_dir") || return 1
+        out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
+        rc=$?
+        after=$(_tree_digest "$case_dir")
+        [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"ambiguous"* ]] || {
+            rm -rf "$tmp"
+            return 1
+        }
+    done
+    rm -rf "$tmp"
+}
+
+test_T105() {
+    local tmp first second before after_first after_second checked
+    tmp=$(mktemp -d) || return 1
+    _make_migration_v2_packet "$tmp"
+    python3 - "$tmp" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]) / "thesis_control"
+contract_path = root / "edit_contracts.csv"
+with contract_path.open(newline="", encoding="utf-8") as handle:
+    rows = list(csv.DictReader(handle))
+columns = list(rows[0]) + ["owner_note"]
+for index, row in enumerate(rows, start=1):
+    row["owner_note"] = f"keep-{index}"
+with contract_path.open("w", newline="", encoding="utf-8") as handle:
+    writer = csv.DictWriter(handle, fieldnames=columns, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+
+(root / "revision_escalations.csv").write_text(
+    "escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status,coordinator_note\n"
+    "re-cycle,ri-ch-clarity,cycle_gate,ec-001;ec-002;ec-003,3,local_execution_failure,local_patch,preserve the spine,three attempts did not converge,chapters/ch.md before ec-001,apply one bounded contract,true,approved,keep-gate\n",
+    encoding="utf-8",
+)
+PY
+    before=$(_tree_digest "$tmp") || return 1
+    first=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    after_first=$(_tree_digest "$tmp")
+    second=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    after_second=$(_tree_digest "$tmp")
+    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$first" "$second" "$checked" "$before" "$after_first" "$after_second" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+first = json.loads(sys.argv[2])
+second = json.loads(sys.argv[3])
+checked = json.loads(sys.argv[4])
+with (root / "thesis_control/edit_contracts.csv").open(encoding="utf-8") as handle:
+    contracts = list(csv.DictReader(handle))
+with (root / "thesis_control/revision_escalations.csv").open(encoding="utf-8") as handle:
+    escalations = list(csv.DictReader(handle))
+assert sys.argv[5] == sys.argv[6] == sys.argv[7]
+assert first["contracts_upgraded"] == second["contracts_upgraded"] == 0
+assert first["escalation_file"] == second["escalation_file"] == "unchanged"
+assert [row["owner_note"] for row in contracts] == ["keep-1", "keep-2", "keep-3", "keep-4"]
+assert escalations[0]["coordinator_note"] == "keep-gate"
+assert checked["issue_count"] == 0
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -2274,6 +2522,11 @@ run_test "T97 scaffold rejects malformed headers without mutation" test_T97
 run_test "T98 scaffold collisions leave the packet unchanged" test_T98
 run_test "T99 scaffold default contract IDs follow attempt numbers" test_T99
 run_test "T100 scaffold rejects extension columns without mutation" test_T100
+run_test "T101 migration rejects malformed escalation without mutation" test_T101
+run_test "T102 migration rejects partial revision metadata without mutation" test_T102
+run_test "T103 migration converts v2 escalation rows deterministically" test_T103
+run_test "T104 migration rejects ambiguous v2 escalation rows without mutation" test_T104
+run_test "T105 migration preserves extensions and is idempotent" test_T105
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
