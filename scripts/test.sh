@@ -2419,6 +2419,30 @@ assert first.read_bytes() == b"old-a\n"
 assert second.read_bytes() == b"old-b\n"
 assert sorted(path.name for path in root.iterdir()) == ["a.csv", "b.csv"]
 
+real_stage = control_io._stage_bytes
+stage_calls = 0
+
+def flaky_stage(path, content, mode):
+    global stage_calls
+    stage_calls += 1
+    if stage_calls == 2:
+        raise PermissionError("injected staging permission failure")
+    return real_stage(path, content, mode)
+
+control_io._stage_bytes = flaky_stage
+try:
+    control_io.atomic_write_batch({first: b"stage-a\n", second: b"stage-b\n"})
+except PermissionError as exc:
+    assert "injected staging permission failure" in str(exc)
+else:
+    raise AssertionError("atomic_write_batch unexpectedly staged every target")
+finally:
+    control_io._stage_bytes = real_stage
+
+assert first.read_bytes() == b"old-a\n"
+assert second.read_bytes() == b"old-b\n"
+assert sorted(path.name for path in root.iterdir()) == ["a.csv", "b.csv"]
+
 packet = root / "packet"
 (packet / "thesis_control").mkdir(parents=True)
 (packet / "thesis_control/spine_cards.csv").write_bytes(b"\xff\xfe")

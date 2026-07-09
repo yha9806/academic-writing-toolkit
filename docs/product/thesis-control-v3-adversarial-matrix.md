@@ -38,7 +38,7 @@ tests are included where they establish a compatibility or approval baseline.
 | Migration | Oversized, cross-issue, unknown, or incomplete three-trigger v2 row | Exit 1 as ambiguous; no mutation | Pass | T104 |
 | Migration | Complete v3 metadata with named extension columns, run twice | Preserve extension values and remain byte-idempotent | Pass | T105 |
 | Migration | Owned control directory is a symlink | Exit 1; refuse internal symlink; no external write | Pass | T109 |
-| Shared writer | Injected failure after one target replacement | Restore original bytes and remove temporary files | Pass | T110 |
+| Shared writer | Injected staging-permission failure or failure after one target replacement | Leave or restore original bytes and remove temporary files | Pass | T110 |
 
 ## Acceptance Interpretation
 
