@@ -1,7 +1,7 @@
 # Smith 2024 Notes
 
 **Status**: complete
-**Source**: Smith, Jane (2024). Local-first research workflows. Journal of Research Tooling.
+**Source**: Smith, J. (2024) Local-first research workflows. *Journal of Research Tooling*.
 
 ## Relevance
 

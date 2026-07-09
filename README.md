@@ -1,71 +1,66 @@
-# academic-writing-toolkit
+<p align="center">
+  <img src="docs/assets/readme/awt-readme-hero.svg" alt="Academic Writing Toolkit — write with agents, keep the argument yours" width="100%">
+</p>
 
-agent-native, local-first workflows for evidence-controlled literature review, argument governance, thesis writing, citation auditing, reference verification, manuscript review, and release governance.
+# Academic Writing Toolkit
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Agent Skills](https://img.shields.io/badge/Agent_Skills-Standard-blue.svg)](https://agentskills.io)
+[![CI](https://github.com/yha9806/academic-writing-toolkit/actions/workflows/test.yml/badge.svg)](https://github.com/yha9806/academic-writing-toolkit/actions/workflows/test.yml)
+[![Latest release](https://img.shields.io/github/v/release/yha9806/academic-writing-toolkit?display_name=tag&sort=semver)](https://github.com/yha9806/academic-writing-toolkit/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-15967D.svg)](LICENSE)
+[![Agent Skills](https://img.shields.io/badge/Agent_Skills-compatible-6F88F7.svg)](https://agentskills.io)
 
-Academic Writing Toolkit is a public toolkit for researchers who want their local AI agent to work through academic writing tasks with repeatable files, checks, and evidence controls. Install it into a writing project, open that project in Codex, Claude Code, Gemini CLI, Cursor, or another compatible agent host, and use the skills as a structured research workflow.
+Academic Writing Toolkit (AWT) is an open-source, local-first system for evidence-controlled academic work. It gives AI agents repeatable skills, inspectable files, and deterministic checks for reading, literature review, argument design, bounded revision, citation auditing, clean-room review, and release governance.
 
-This is not a SaaS product and it does not host your thesis. Your chapters, PDFs, reading notes, evidence registers, release packets, and exports stay in your clone. Optional reference metadata checks use external APIs only when you explicitly run them with `--online`.
+The core promise is simple: **agents may help operate the workflow; the author keeps control of claims, boundaries, approvals, and the exact artifact that ships.**
 
-Codex can complete the local workflows without Gemini, gemini-agent, subagents, or external model review. External reviewers and model calls are optional advisory inputs only; local source anchors and deterministic checks remain the evidence boundary.
+AWT is not a hosted writing service. It does not upload or store your thesis. Your PDFs, chapters, notes, evidence registers, review packets, and exports stay in your project clone. Online reference metadata checks run only when you explicitly add `--online`.
 
-For higher-assurance review, users may opt into API-key-backed advisory passes. Store keys in environment variables, explicitly approve any source material sent outside the local clone, and treat external model output as advisory rather than evidence.
+## Why AWT exists
 
-## Product Surfaces
+Long academic projects fail in ways that fluent text alone cannot solve: a citation is remembered but not verified; a claim becomes broader across revisions; a reviewer concern is answered without an evidence anchor; or the released file is not the file that passed review.
 
-Local agent skills are the full workflow. Use them when an agent can read and write the project files in your clone: chapters, reading notes, evidence registers, release packets, and export outputs.
+AWT turns those risks into visible objects:
 
-The Codex plugin packages those same local skills for Codex plugin installation. It is a distribution surface, not a separate workflow.
+| Risk | AWT control |
+|---|---|
+| Source and citation drift | independent reading notes, source-status labels, BibTeX checks |
+| Argument drift | gap → contribution → claim → evidence maps |
+| AI revision drift | spine cards, edit contracts, drift audits, human gates |
+| Repeated failed edits | three-attempt escalation with stop-and-diagnose semantics |
+| Review contamination | clean-room manifests and source-bounded findings |
+| Release mismatch | exact ref + artifact + evidence state + gate + owner |
 
-The ChatGPT App MCP server is narrower. It provides pasted-text checks and template generation through temporary files only; it does not read or write a local thesis project, run the full skill pipeline, or persist user submissions.
+## How the controlled workflow works
 
-## 10-minute demo
+<p align="center">
+  <img src="docs/assets/readme/awt-control-loop.svg" alt="Five stages from source evidence to exact release" width="100%">
+</p>
 
-Inspect the runnable demo project:
+1. **Ground** — read source material, record notes, and distinguish verified support from leads or unknowns.
+2. **Structure** — connect the research gap to contributions, claims, evidence, limitations, and reviewer risks.
+3. **Contract** — state what an edit may change, what it must preserve, and how acceptance will be checked.
+4. **Adjudicate** — compare the result with the approved boundary; unresolved or repeated failure stops the workflow.
+5. **Release** — bind approval to an exact Git ref and artifact rather than to a conversational impression.
 
-```bash
-python3 scripts/verify-refs.py --bib examples/demo-project/references.bib --json
-python3 .claude/skills/evidence-review/scripts/check_review_package.py examples/demo-project --strict
-python3 .claude/skills/release-governance/scripts/check_release_packet.py examples/demo-project --json
-```
+Human decisions are first-class data throughout the loop. A draft generated by an agent is never silently promoted to author-confirmed evidence.
 
-Then open [`examples/demo-project/`](examples/demo-project/) in your agent host and ask it to explain the local workflow.
+## Choose the right product surface
 
-The repository also includes a small public-safe multi-case writing-control fixture at [`examples/lost-in-conversation-bench`](examples/lost-in-conversation-bench). It compares normal multi-turn editing, consolidated prompting, and `/thesis-control` artifacts for author-control review.
+<p align="center">
+  <img src="docs/assets/readme/awt-product-surfaces.svg" alt="Local agent skills, Codex plugin, and ChatGPT App product surfaces" width="100%">
+</p>
 
-The executable stop gate is demonstrated separately at [`examples/thesis-control-revision-escalation`](examples/thesis-control-revision-escalation): one packet rejects a fourth applied revision after three unsuccessful attempts, while a matched packet passes after author-approved escalation.
+| Surface | Best for | Project access | Persistence |
+|---|---|---|---|
+| **Local agent skills** | the complete reading, writing, review, and release workflow | reads and writes the clone you opened | normal project files in your clone |
+| **Codex plugin** | installing the same local skill catalogue in Codex | the local workspace you authorise | normal project files in your clone |
+| **ChatGPT App** | bounded pasted-text checks and template generation | no access to your local thesis project | request-scoped temporary files only |
 
-## Common use cases
+See [Choose the right product surface](docs/use-cases/choose-product-surface.md) for the detailed boundary.
 
-- [Write a literature review](docs/use-cases/write-literature-review.md)
-- [Audit thesis citations](docs/use-cases/audit-thesis-citations.md)
-- [Verify references before submission](docs/use-cases/verify-references-before-submission.md)
-- [Prepare a release-governance packet](docs/use-cases/prepare-release-governance-packet.md)
-- [Choose the right product surface](docs/use-cases/choose-product-surface.md)
+## Quick start
 
-## Workflow
-
-```
-/read -> /note -> /map -> /evidence-review -> /argument-governance -> /integrate -> /thesis-control -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
-             |                         |                                           |                                      |
-             v                         v                                           v                                      v
-        /verify                  /peer-review                                /revision-escalation                    /verify-refs
-                                       |
-                                       v
-                                  /self-review
-             |
-             v
-        /progress
-
-/human-eval-handoff-repair supports evaluation-package QC and annotation repair workflows.
-/revision-escalation supports 3-strike stop-and-diagnose checks for repeated failed revisions.
-```
-
-## Quick Start
-
-Use `git clone`, not GitHub's "Download ZIP". This repository uses symlinks under `.agents/skills/` so Codex, Gemini, and other local agent hosts can discover the same skills as Claude Code.
+Use `git clone`, not GitHub's **Download ZIP**. AWT uses symlinks under `.agents/skills/` so compatible local agents discover the same canonical skills.
 
 ```bash
 git clone https://github.com/yha9806/academic-writing-toolkit.git my-writing-project
@@ -74,153 +69,140 @@ make setup
 make doctor
 ```
 
-Then open the folder in a local agent runtime and ask what skills are available. You should see the public academic writing skills listed below.
+Open the folder in your agent runtime and ask:
 
-The intended use is the same as local Superpowers-style skills: install the toolkit into a project folder, let the agent discover the skills from local files, and drive the workflow from natural language or slash commands.
+> Show me the available academic-writing skills, explain which files each one reads or writes, and recommend the smallest safe workflow for my task.
 
-## Agent Runtime Support
+Local discovery paths:
 
-| Runtime | Local discovery path |
-|---------|----------------------|
-| Claude Code | `.claude/skills/` |
-| Codex | `.agents/skills/` |
-| Gemini CLI | `.agents/skills/` |
-| Cursor | `.cursor/rules/` baseline rules |
+| Runtime | Discovery path | Setup guide |
+|---|---|---|
+| Claude Code | `.claude/skills/` | [Claude Code](docs/setup-claude-code.md) |
+| Codex | `.agents/skills/` | [Codex CLI](docs/setup-codex-cli.md) |
+| Gemini CLI | `.agents/skills/` | [Gemini CLI](docs/setup-gemini-cli.md) |
+| Cursor | `.cursor/rules/` baseline | [Cursor](docs/setup-cursor.md) |
 
-Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [`docs/setup-codex-cli.md`](docs/setup-codex-cli.md), [`docs/setup-gemini-cli.md`](docs/setup-gemini-cli.md), and [`docs/setup-cursor.md`](docs/setup-cursor.md).
+## Run the 10-minute evidence demo
 
-## Skills
-
-| Skill | Purpose |
-|-------|---------|
-| `/read` | Read academic PDFs page by page with structured output |
-| `/note` | Record reading notes in the shared notes format |
-| `/verify` | Fact-check factual claims during reading |
-| `/map` | Map sources to chapters and coverage gaps |
-| `/evidence-review` | Build evidence-controlled gap maps, claim registers, citation plans, and overclaim audits |
-| `/argument-governance` | Build and audit intent, gap-contribution chains, claim hierarchies, evidence balance, and reviewer risks |
-| `/integrate` | Propose and apply approved note-to-chapter integrations |
-| `/thesis-control` | Keep AI-assisted thesis edits bounded with spine cards, edit contracts, drift audits, and human gates |
-| `/manuscript-reframe` | Turn report-like drafts into paper-form scientific arguments |
-| `/revision-escalation` | Stop repeated failed revisions and diagnose whether the issue is specification, structure, evidence, or version contamination |
-| `/audit` | Check numbers, terminology, cross-references, and citations |
-| `/release-governance` | Prepare release, rebuttal, artifact, and claim packets with ref-artifact-gate controls |
-| `/style` | Check and safely fix British English spellings |
-| `/logic-review` | Review paragraph flow, transitions, and argument continuity |
-| `/verify-refs` | Validate BibTeX records offline or with explicit metadata checks |
-| `/human-eval-handoff-repair` | Validate, repair, and map human-evaluation handoff packages and filled annotation CSVs |
-| `/peer-review` | Review another author's manuscript as an external reviewer |
-| `/self-review` | Review your own manuscript with clean-room source-boundary controls |
-| `/progress` | Show reading, writing, and coverage progress |
-| `/export` | Convert Markdown outputs to `.docx` and ZIP packages |
-
-Detailed guides live in [`docs/skills/`](docs/skills/).
-
-The local agent skill guides are organized by command name; goal-oriented guides live in [`docs/use-cases/`](docs/use-cases/).
-
-## Quality Checks
-
-Agent-facing skills call deterministic scripts so checks are repeatable in CI and easy to run manually:
+The demo uses fictional public-safe sources. It exercises the same validators used by real projects without requiring network access.
 
 ```bash
-python3 scripts/audit-citations.py --base-dir . --style harvard --json
-python3 scripts/audit-citations.py --base-dir . --style harvard --fix-safe --apply
+python3 scripts/verify-refs.py \
+  --bib examples/demo-project/references.bib --json
 
-python3 scripts/audit-british-english.py --base-dir . --json
-python3 scripts/audit-british-english.py --base-dir . --fix
+python3 .claude/skills/evidence-review/scripts/check_review_package.py \
+  examples/demo-project --strict
 
-python3 scripts/audit-logic.py --base-dir . --json
+python3 .claude/skills/release-governance/scripts/check_release_packet.py \
+  examples/demo-project --json
 
-python3 scripts/verify-refs.py --bib references.bib --json
-python3 scripts/verify-refs.py --bib references.bib --json --online
-python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
-
-python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py . --source chapters/ch1_introduction.md --copy-source
-python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py .
-python3 .claude/skills/thesis-control/scripts/check_thesis_control.py . --strict
-python3 .claude/skills/argument-governance/scripts/check_argument_governance.py . --json
-python3 .claude/skills/self-review/scripts/check_self_review_packet.py review_packet --json
-python3 .claude/skills/release-governance/scripts/check_release_packet.py .
+python3 .claude/skills/thesis-control/scripts/check_thesis_control.py \
+  examples/thesis-control-revision-escalation/approved --strict --json
 ```
 
-Thesis-control strict validation blocks applied edits whose drift audit still
-needs human review. Resolve the audit as `passed` or `failed` before treating
-the packet as complete. Revision escalation counts only applied contracts with
-resolved failed audits. Schema v3 keeps one- or two-trigger
-`early_diagnostic` rows non-closing; each completed group of three requires one
-unique `cycle_gate` whose triggers follow attempt order and whose
-`approved_after_attempt` records the final attempt. The gate becomes effective
-only with explicit human approval and `status=approved`. The scaffold and
-migration helper validate complete candidates before failure-atomic writes.
+A valid run reports no blocking issues. Then compare the matched blocked and approved packets in [`examples/thesis-control-revision-escalation/`](examples/thesis-control-revision-escalation/) to see how an author-approved escalation releases a fourth revision.
 
-Safe fixers are intentionally narrow. Citation fixes only apply conservative formatting changes such as Harvard comma normalisation; British English fixes only apply whole-word spelling replacements from the built-in map. Paragraph logic and reference metadata checks report findings for agent or user review.
-Release packet checks are also narrow: they validate files, columns, evidence-state values, parseability, local path leakage, and unresolved template markers, but they do not judge scientific validity or venue compliance.
+For multi-turn drift evaluation, [`examples/lost-in-conversation-bench/`](examples/lost-in-conversation-bench/) compares normal editing, consolidated prompting, and `/thesis-control` artifacts across multiple public-safe cases.
 
-## Project Layout
+## 20 composable skills
+
+| Lane | Skills | What the lane produces |
+|---|---|---|
+| **Read and ground** | `/read`, `/note`, `/verify`, `/map`, `/evidence-review` | source notes, status labels, gap maps, claim registers, citation-role plans |
+| **Design and review the argument** | `/argument-governance`, `/peer-review`, `/self-review` | contribution chains, claim hierarchies, reviewer attack maps, clean-room findings |
+| **Write without losing control** | `/integrate`, `/thesis-control`, `/revision-escalation`, `/manuscript-reframe` | approved integrations, edit contracts, drift audits, escalation gates, reframe plans |
+| **Audit, package, and release** | `/audit`, `/release-governance`, `/style`, `/logic-review`, `/verify-refs`, `/human-eval-handoff-repair`, `/progress`, `/export` | consistency findings, release packets, reference checks, progress views, Word/ZIP exports |
+
+Detailed, goal-oriented documentation lives in:
+
+- [Skill guides](docs/skills/README.md)
+- [Use-case guides](docs/use-cases/README.md)
+- [Write a literature review](docs/use-cases/write-literature-review.md)
+- [Audit thesis citations](docs/use-cases/audit-thesis-citations.md)
+- [Verify references before submission](docs/use-cases/verify-references-before-submission.md)
+- [Prepare a release-governance packet](docs/use-cases/prepare-release-governance-packet.md)
+
+## What the checks guarantee — and what they do not
+
+AWT's deterministic helpers verify structural facts that software can check reliably:
+
+- required files, columns, identifiers, links, and allowed status values
+- source-note citation shape and in-text citation consistency
+- malformed or duplicate BibTeX records
+- claim/evidence and clean-room packet structure
+- revision-attempt ordering, drift-audit state, and human-gate completeness
+- plugin sync, public-content boundaries, local-path leakage, and packaging integrity
+
+They do **not** prove that a scientific claim is true, that evidence is sufficient for a venue, that a paper will be accepted, or that an AI-generated revision expresses the author's intent. Those remain human scholarly judgments.
+
+Safe fixers are deliberately narrow. They may normalise conservative citation punctuation or replace known US spellings with British forms; they do not invent references, rewrite arguments, or mark unresolved evidence as verified.
+
+## Deterministic quality gates
+
+```bash
+make doctor             # read-only environment and project health
+make test               # 112 regression tests
+make plugin-check       # plugin metadata, skill sync, bundled helpers
+make chatgpt-app-check  # ChatGPT App server tests
+
+python3 scripts/audit-citations.py --base-dir . --style harvard --json
+python3 scripts/audit-british-english.py --base-dir . --json
+python3 scripts/audit-logic.py --base-dir . --json
+python3 scripts/audit-public-content.py --base-dir .
+```
+
+Reference verification is offline by default:
+
+```bash
+python3 scripts/verify-refs.py --bib references.bib --json
+python3 scripts/verify-refs.py --bib references.bib --json --online
+```
+
+The explicit `--online` mode can query Crossref, Semantic Scholar, and arXiv. CI uses local fixtures so the release gate stays deterministic.
+
+## Project structure
 
 ```text
 my-writing-project/
-├── .claude/skills/          Claude Code skills
-├── .agents/skills/          Symlinks for Codex, Gemini, and compatible agents
+├── .claude/skills/          canonical local skill sources
+├── .agents/skills/          shared discovery links for compatible agents
 ├── .cursor/rules/           Cursor baseline rules
-├── apps/                    ChatGPT App MCP server
-├── chapters/                Your chapter drafts
+├── apps/                    bounded ChatGPT App MCP server
+├── chapters/                manuscript chapters
 ├── literature/
-│   └── reading_notes/       One notes file per source
-├── plugins/                 Codex plugin package
-├── release/                 Optional release governance packets
-├── final_output/            Exported documents
-├── scripts/                 Deterministic helper checks
-├── CLAUDE.md                Canonical project configuration
-├── AGENTS.md                Generated local-agent configuration
-└── GEMINI.md                Generated Gemini configuration
+│   └── reading_notes/       one structured notes file per source
+├── plugins/                 distributable Codex plugin package
+├── release/                 optional release-governance packets
+├── final_output/            generated Word and ZIP outputs
+├── scripts/                 deterministic validators and maintenance tools
+├── CLAUDE.md                canonical project configuration
+├── AGENTS.md                generated agent configuration
+└── GEMINI.md                generated Gemini configuration
 ```
 
-## Configuration
+Edit `CLAUDE.md` for project-specific directories, page limits, British English policy, and citation style, then run `make sync`. Do not edit the generated `AGENTS.md` or `GEMINI.md` blocks by hand.
 
-Edit `CLAUDE.md` for project-specific settings, then run:
+## Release and distribution
+
+- [Codex plugin publishing checklist](docs/plugin-publishing-checklist.md)
+- [OpenAI Codex plugin submission notes](docs/openai-codex-plugin-submission.md)
+- [ChatGPT App publishing guide](docs/chatgpt-app-publishing.md)
+- [v0.4.0 release-readiness record](docs/product/v0.4.0-release-readiness.md)
+- [Privacy policy](docs/privacy.md) and [terms](docs/terms.md)
+- [README visual source in Figma](https://www.figma.com/design/HhaFm0uorv5oS7MsezWDN5)
+
+Every release should identify one exact Git ref, the packaged artifact and hash, its evidence state, the gate that approved it, and the owner of any remaining human decision.
+
+## Development
 
 ```bash
-make sync
+make sync          # regenerate AGENTS.md and GEMINI.md from CLAUDE.md
+make plugin-sync   # regenerate plugin skills from .claude/skills
+make repair        # apply narrow, idempotent local repairs
+make test
 ```
 
-`AGENTS.md` and `GEMINI.md` are generated from the shared block in `CLAUDE.md`; do not edit them directly.
-
-Key settings include:
-
-- chapter, literature, notes, and export directories
-- reading page limits
-- British English writing policy
-- citation style (`harvard`, `apa`, `chicago-author-date`, `mla`, `ieee`, `vancouver`, `gb-t-7714-2015`)
-
-## Testing And Maintenance
-
-```bash
-make doctor   # read-only environment check
-make repair   # repair symlinks and generated configs where possible
-make test     # full regression suite
-make sync     # regenerate AGENTS.md and GEMINI.md
-make plugin-sync   # regenerate the Codex plugin skills from .claude/skills
-make plugin-check  # validate plugin metadata, sync state, and bundled helpers
-make chatgpt-app-check  # run the ChatGPT App MCP server checks
-```
-
-For Codex plugin release preparation, use [`docs/plugin-publishing-checklist.md`](docs/plugin-publishing-checklist.md). For ChatGPT App deployment and submission preparation, use [`docs/chatgpt-app-publishing.md`](docs/chatgpt-app-publishing.md). For `v0.3.2` release preparation, use [`docs/product/v0.3.2-release-readiness.md`](docs/product/v0.3.2-release-readiness.md).
-
-The regression suite covers local skill discovery, config sync, export assumptions, citation auditing, public-content cleanup, British English checks, paragraph-logic checks, human-evaluation handoff repair packaging, and offline plus fixture-backed reference verification.
-
-## Reference Verification
-
-`/verify-refs` uses a deterministic offline core by default:
-
-- parse BibTeX from `.bib` files or Markdown code fences
-- check required fields by entry type
-- detect duplicate keys
-- validate DOI, URL, and arXiv identifier shape
-
-For explicit metadata verification, run with `--online`. The script checks CrossRef for DOI records, Semantic Scholar as a secondary DOI/arXiv source, and arXiv for preprint identifiers. Tests use `--metadata-dir` fixtures so CI stays deterministic; live network calls are only attempted when `--online` is set and no matching fixture is present.
-
-Project-specific self-citation rules are intentionally excluded from this public toolkit.
+The canonical skill source is `.claude/skills/`; plugin copies are generated from it. Finished changes should pass the full quality gates before they are merged or tagged.
 
 ## License
 

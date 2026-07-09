@@ -1,0 +1,129 @@
+<svg width="1440" height="760" viewBox="0 0 1440 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Academic Writing Toolkit</title>
+  <desc id="desc">A local-first evidence-controlled writing system that keeps authors in control of agent-assisted research and revision.</desc>
+  <defs>
+    <linearGradient id="bg" x1="80" y1="40" x2="1360" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111A35"/>
+      <stop offset="0.58" stop-color="#0B1020"/>
+      <stop offset="1" stop-color="#08101B"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="886" y1="190" x2="1288" y2="568" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7892FF"/>
+      <stop offset="0.5" stop-color="#5DE3C1"/>
+      <stop offset="1" stop-color="#F6C86A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(1130 230) rotate(124) scale(520 640)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#647DFF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#647DFF" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" stroke="#D8E0FF" stroke-opacity="0.055"/>
+    </pattern>
+    <filter id="shadow" x="760" y="68" width="660" height="660" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="36" flood-color="#02040B" flood-opacity="0.56"/>
+    </filter>
+    <filter id="nodeShadow" x="0" y="0" width="200%" height="200%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#02040B" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+
+  <rect width="1440" height="760" rx="36" fill="url(#bg)"/>
+  <rect width="1440" height="760" rx="36" fill="url(#grid)"/>
+  <rect width="1440" height="760" rx="36" fill="url(#glow)"/>
+
+  <g transform="translate(84 70)">
+    <rect width="48" height="48" rx="14" fill="#F4F7FF"/>
+    <path d="M14 33L22.7 14H27.5L36 33H30.7L28.9 28.7H21L19.2 33H14ZM22.6 24.7H27.3L24.95 18.9L22.6 24.7Z" fill="#111A35"/>
+    <text x="64" y="22" fill="#F4F7FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="700" letter-spacing="0.2">Academic Writing Toolkit</text>
+    <text x="64" y="43" fill="#98A6C9" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="500" letter-spacing="1.6">OPEN SOURCE · LOCAL FIRST</text>
+  </g>
+
+  <g transform="translate(84 188)">
+    <rect width="436" height="34" rx="17" fill="#1A2547" stroke="#344573"/>
+    <circle cx="18" cy="17" r="5" fill="#5DE3C1"/>
+    <text x="32" y="22" fill="#C8D3F5" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650" letter-spacing="1.35">EVIDENCE-CONTROLLED · AGENT-NATIVE</text>
+
+    <text x="0" y="102" fill="#F7F9FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="68" font-weight="730" letter-spacing="-2.5">Write with agents.</text>
+    <text x="0" y="176" fill="#F7F9FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="68" font-weight="730" letter-spacing="-2.5">Keep the argument</text>
+    <text x="0" y="250" fill="#7F98FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="68" font-weight="730" letter-spacing="-2.5">yours.</text>
+
+    <text x="0" y="308" fill="#B8C2DD" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="430">Turn academic work into inspectable evidence,</text>
+    <text x="0" y="337" fill="#B8C2DD" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="430">bounded edits, human decisions, and</text>
+    <text x="0" y="366" fill="#B8C2DD" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="430">release-ready artifacts — in your own clone.</text>
+
+    <g transform="translate(0 405)">
+      <g>
+        <text x="0" y="36" fill="#F7F9FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="34" font-weight="730">20</text>
+        <text x="0" y="61" fill="#8897BC" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="600" letter-spacing="1">COMPOSABLE SKILLS</text>
+      </g>
+      <path d="M168 5V65" stroke="#34405F"/>
+      <g transform="translate(202 0)">
+        <text x="0" y="36" fill="#F7F9FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="34" font-weight="730">3</text>
+        <text x="0" y="61" fill="#8897BC" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="600" letter-spacing="1">PRODUCT SURFACES</text>
+      </g>
+      <path d="M360 5V65" stroke="#34405F"/>
+      <g transform="translate(394 0)">
+        <text x="0" y="36" fill="#F7F9FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="34" font-weight="730">0</text>
+        <text x="0" y="61" fill="#8897BC" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="600" letter-spacing="1">HOSTED MANUSCRIPTS</text>
+      </g>
+    </g>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="790" y="96" width="568" height="568" rx="30" fill="#111A31" stroke="#31405F"/>
+    <rect x="814" y="120" width="520" height="520" rx="22" fill="#0B1224"/>
+    <text x="846" y="160" fill="#8E9ABD" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650" letter-spacing="1.7">THE CONTROLLED WRITING LOOP</text>
+
+    <path d="M936 258C990 198 1086 188 1154 231" stroke="url(#beam)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M1196 270C1236 328 1229 414 1174 467" stroke="url(#beam)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M1122 504C1046 541 955 514 916 447" stroke="url(#beam)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M892 394C875 342 890 294 925 264" stroke="url(#beam)" stroke-width="3" stroke-linecap="round"/>
+
+    <g filter="url(#nodeShadow)">
+      <circle cx="928" cy="250" r="48" fill="#172341" stroke="#7892FF" stroke-width="2"/>
+      <path d="M911 237H934C941.2 237 947 242.8 947 250V265H924C916.8 265 911 259.2 911 252V237Z" fill="#7892FF" fill-opacity="0.16" stroke="#9CAEFD"/>
+      <path d="M918 244H939M918 251H934M918 258H930" stroke="#C9D3FF" stroke-width="2" stroke-linecap="round"/>
+      <text x="928" y="321" text-anchor="middle" fill="#E7EBFA" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="650">Evidence</text>
+      <text x="928" y="342" text-anchor="middle" fill="#7E8BAE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12">source status</text>
+    </g>
+
+    <g filter="url(#nodeShadow)">
+      <circle cx="1190" cy="252" r="48" fill="#132A31" stroke="#5DE3C1" stroke-width="2"/>
+      <circle cx="1178" cy="250" r="7" fill="#5DE3C1"/>
+      <circle cx="1202" cy="238" r="7" fill="#5DE3C1" fill-opacity="0.7"/>
+      <circle cx="1202" cy="262" r="7" fill="#5DE3C1" fill-opacity="0.7"/>
+      <path d="M1184 247L1196 241M1184 253L1196 259" stroke="#C8FFF0" stroke-width="2"/>
+      <text x="1190" y="323" text-anchor="middle" fill="#E7EBFA" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="650">Argument</text>
+      <text x="1190" y="344" text-anchor="middle" fill="#7E8BAE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12">claim hierarchy</text>
+    </g>
+
+    <g filter="url(#nodeShadow)">
+      <circle cx="1180" cy="490" r="48" fill="#332B19" stroke="#F6C86A" stroke-width="2"/>
+      <rect x="1163" y="473" width="34" height="34" rx="8" fill="#F6C86A" fill-opacity="0.14" stroke="#FFE2A1"/>
+      <path d="M1172 490L1178 496L1189 483" stroke="#FFE6AC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="1180" y="561" text-anchor="middle" fill="#E7EBFA" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="650">Human gate</text>
+      <text x="1180" y="582" text-anchor="middle" fill="#7E8BAE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12">approve exact ref</text>
+    </g>
+
+    <g filter="url(#nodeShadow)">
+      <circle cx="914" cy="430" r="48" fill="#27203B" stroke="#BE8CFF" stroke-width="2"/>
+      <path d="M897 415H931V443H897V415Z" fill="#BE8CFF" fill-opacity="0.14" stroke="#D7B8FF"/>
+      <path d="M904 422H924M904 429H924M904 436H917" stroke="#E8D8FF" stroke-width="2" stroke-linecap="round"/>
+      <text x="914" y="501" text-anchor="middle" fill="#E7EBFA" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="650">Bounded edit</text>
+      <text x="914" y="522" text-anchor="middle" fill="#7E8BAE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12">contract + audit</text>
+    </g>
+
+    <g>
+      <rect x="1001" y="334" width="116" height="80" rx="20" fill="#F4F7FF"/>
+      <text x="1059" y="366" text-anchor="middle" fill="#111A35" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650" letter-spacing="1">AUTHOR</text>
+      <text x="1059" y="391" text-anchor="middle" fill="#111A35" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="750">in control</text>
+    </g>
+  </g>
+
+  <g transform="translate(84 700)">
+    <circle cx="7" cy="7" r="7" fill="#5DE3C1"/>
+    <text x="24" y="12" fill="#9AA8CA" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="550">MIT licensed</text>
+    <circle cx="145" cy="7" r="3" fill="#465272"/>
+    <text x="161" y="12" fill="#9AA8CA" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="550">Codex · Claude Code · Gemini CLI · Cursor</text>
+  </g>
+</svg>

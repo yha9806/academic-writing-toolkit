@@ -1,0 +1,79 @@
+<svg width="1440" height="640" viewBox="0 0 1440 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Three product surfaces, one governed workflow</title>
+  <desc id="desc">Local agent skills provide the full project workflow, the Codex plugin distributes those skills, and the ChatGPT App exposes bounded pasted-text tools.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1440" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0D1428"/>
+      <stop offset="1" stop-color="#111C32"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="200%" height="200%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#02050B" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <rect width="1440" height="640" rx="34" fill="url(#bg)"/>
+  <circle cx="1310" cy="66" r="220" fill="#6A82FF" fill-opacity="0.08"/>
+  <circle cx="86" cy="612" r="250" fill="#5DE3C1" fill-opacity="0.05"/>
+
+  <text x="82" y="102" fill="#F5F7FD" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="38" font-weight="740" letter-spacing="-1">Three product surfaces. One governed workflow.</text>
+  <text x="82" y="140" fill="#9AA8C8" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="17">Choose the access surface that matches the task; keep the evidence boundary explicit.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="82" y="192" width="404" height="338" rx="28" fill="#F7F9FF"/>
+    <rect x="106" y="216" width="356" height="64" rx="18" fill="#E9EEFF"/>
+    <rect x="126" y="234" width="32" height="28" rx="8" fill="#6F88F7"/>
+    <path d="M134 242H150M134 249H150M134 256H145" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+    <text x="176" y="246" fill="#15203A" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="720">Local agent skills</text>
+    <text x="176" y="266" fill="#62708F" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="600" letter-spacing="0.8">FULL WORKFLOW</text>
+
+    <text x="112" y="326" fill="#17213B" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="650">Reads and writes your project clone</text>
+    <g fill="#5F6C89" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">
+      <circle cx="119" cy="361" r="4" fill="#5DE3C1"/><text x="134" y="366">PDFs, notes, chapters, claim registers</text>
+      <circle cx="119" cy="397" r="4" fill="#5DE3C1"/><text x="134" y="402">Edit contracts, audits, release packets</text>
+      <circle cx="119" cy="433" r="4" fill="#5DE3C1"/><text x="134" y="438">Codex, Claude Code, Gemini CLI, Cursor</text>
+    </g>
+    <rect x="112" y="470" width="160" height="34" rx="17" fill="#15203A"/>
+    <text x="192" y="492" text-anchor="middle" fill="#E6EBFB" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="680">CANONICAL SURFACE</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="518" y="192" width="404" height="338" rx="28" fill="#172442" stroke="#354B77"/>
+    <rect x="542" y="216" width="356" height="64" rx="18" fill="#223254"/>
+    <circle cx="578" cy="248" r="16" fill="#7690FF"/>
+    <path d="M570 248L576 254L587 242" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="612" y="246" fill="#F2F5FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="720">Codex plugin</text>
+    <text x="612" y="266" fill="#A4B1D2" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="600" letter-spacing="0.8">DISTRIBUTION SURFACE</text>
+
+    <text x="548" y="326" fill="#F2F5FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="650">Packages the same local skills</text>
+    <g fill="#B1BDD8" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">
+      <circle cx="555" cy="361" r="4" fill="#7690FF"/><text x="570" y="366">Installable skill catalogue</text>
+      <circle cx="555" cy="397" r="4" fill="#7690FF"/><text x="570" y="402">Synced from canonical skill sources</text>
+      <circle cx="555" cy="433" r="4" fill="#7690FF"/><text x="570" y="438">Not a second workflow or data store</text>
+    </g>
+    <rect x="548" y="470" width="150" height="34" rx="17" fill="#2A3D66"/>
+    <text x="623" y="492" text-anchor="middle" fill="#D9E1FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="680">LOCAL EXECUTION</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="954" y="192" width="404" height="338" rx="28" fill="#F9FCFB"/>
+    <rect x="978" y="216" width="356" height="64" rx="18" fill="#E4F8F2"/>
+    <path d="M1008 232C1016.84 232 1024 239.16 1024 248C1024 256.84 1016.84 264 1008 264C999.16 264 992 256.84 992 248C992 239.16 999.16 232 1008 232Z" fill="#33B998"/>
+    <path d="M1001 248H1015M1008 241V255" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="1042" y="246" fill="#152B2A" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="720">ChatGPT App</text>
+    <text x="1042" y="266" fill="#617B77" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="600" letter-spacing="0.8">BOUNDED TOOL SURFACE</text>
+
+    <text x="984" y="326" fill="#18312F" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="650">Checks pasted text and creates templates</text>
+    <g fill="#607A77" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">
+      <circle cx="991" cy="361" r="4" fill="#33B998"/><text x="1006" y="366">Temporary request-scoped files</text>
+      <circle cx="991" cy="397" r="4" fill="#33B998"/><text x="1006" y="402">No local thesis project access</text>
+      <circle cx="991" cy="433" r="4" fill="#33B998"/><text x="1006" y="438">No persistence of submitted text</text>
+    </g>
+    <rect x="984" y="470" width="170" height="34" rx="17" fill="#DDF6EF"/>
+    <text x="1069" y="492" text-anchor="middle" fill="#197A66" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="680">NARROW BY DESIGN</text>
+  </g>
+
+  <g transform="translate(82 570)">
+    <path d="M0 0H1276" stroke="#2C3B59"/>
+    <text x="0" y="30" fill="#8997B8" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13">Your clone remains the source of truth.</text>
+    <text x="1276" y="30" text-anchor="end" fill="#8997B8" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13">Optional online metadata checks run only when explicitly requested.</text>
+  </g>
+</svg>

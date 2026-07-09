@@ -1,7 +1,7 @@
 # Jones 2023 Notes
 
 **Status**: complete
-**Source**: Jones, Alex (2023). Review audit trails for research teams. Proceedings of Demo Methods.
+**Source**: Jones, A. (2023) Review audit trails for research teams. *Proceedings of Demo Methods*.
 
 ## Relevance
 

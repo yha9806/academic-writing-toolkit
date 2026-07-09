@@ -1,0 +1,92 @@
+<svg width="1440" height="680" viewBox="0 0 1440 680" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">From source to exact release</title>
+  <desc id="desc">Five stages connect source evidence, argument structure, bounded edits, drift audits, and exact artifact release with human approval gates.</desc>
+  <defs>
+    <linearGradient id="line" x1="164" y1="324" x2="1276" y2="324" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7892FF"/>
+      <stop offset="0.48" stop-color="#5DE3C1"/>
+      <stop offset="1" stop-color="#F2B84B"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="200%" height="200%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#18233E" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="1440" height="680" rx="34" fill="#F5F7FC"/>
+  <rect x="38" y="38" width="1364" height="604" rx="28" fill="#FFFFFF" stroke="#DDE3F0"/>
+
+  <text x="86" y="112" fill="#121A30" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="38" font-weight="740" letter-spacing="-1">From source to exact release</text>
+  <text x="86" y="150" fill="#66708C" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="17">The toolkit makes every hand-off inspectable — and places humans at the decisions that change truth.</text>
+
+  <path d="M166 322H1274" stroke="#D9DFEC" stroke-width="14" stroke-linecap="round"/>
+  <path d="M166 322H1274" stroke="url(#line)" stroke-width="4" stroke-linecap="round"/>
+
+  <g filter="url(#shadow)">
+    <rect x="86" y="224" width="228" height="196" rx="24" fill="#FBFCFF" stroke="#CBD5F4"/>
+    <circle cx="126" cy="268" r="22" fill="#E8EDFF"/>
+    <text x="126" y="275" text-anchor="middle" fill="#536DDE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="750">1</text>
+    <text x="86" y="190" fill="#536DDE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">GROUND</text>
+    <text x="162" y="266" fill="#121A30" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700">Read evidence</text>
+    <text x="110" y="315" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">Source status + notes,</text>
+    <text x="110" y="338" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">metadata + relevance.</text>
+    <rect x="110" y="370" width="156" height="28" rx="14" fill="#EDF1FF"/>
+    <text x="188" y="389" text-anchor="middle" fill="#536DDE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650">/read · /note · /verify</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="346" y="224" width="228" height="196" rx="24" fill="#FBFFFE" stroke="#BFE9DD"/>
+    <circle cx="386" cy="268" r="22" fill="#DDF8F0"/>
+    <text x="386" y="275" text-anchor="middle" fill="#178F76" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="750">2</text>
+    <text x="346" y="190" fill="#178F76" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">STRUCTURE</text>
+    <text x="422" y="266" fill="#121A30" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700">Map argument</text>
+    <text x="370" y="315" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">Gap → contribution → claim,</text>
+    <text x="370" y="338" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">evidence + boundary.</text>
+    <rect x="370" y="370" width="180" height="28" rx="14" fill="#E7F8F3"/>
+    <text x="460" y="389" text-anchor="middle" fill="#178F76" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650">/argument-governance</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="606" y="224" width="228" height="196" rx="24" fill="#FDFBFF" stroke="#DAC8F4"/>
+    <circle cx="646" cy="268" r="22" fill="#F0E7FB"/>
+    <text x="646" y="275" text-anchor="middle" fill="#8150B5" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="750">3</text>
+    <text x="606" y="190" fill="#8150B5" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">CONTRACT</text>
+    <text x="682" y="266" fill="#121A30" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700">Bound the edit</text>
+    <text x="630" y="315" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">Allowed vs forbidden change,</text>
+    <text x="630" y="338" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">acceptance checks.</text>
+    <rect x="630" y="370" width="180" height="28" rx="14" fill="#F3ECFB"/>
+    <text x="720" y="389" text-anchor="middle" fill="#8150B5" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650">/thesis-control</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="866" y="224" width="228" height="196" rx="24" fill="#FFFCF7" stroke="#F1D59B"/>
+    <circle cx="906" cy="268" r="22" fill="#FFF0CD"/>
+    <text x="906" y="275" text-anchor="middle" fill="#B47B0A" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="750">4</text>
+    <text x="866" y="190" fill="#B47B0A" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">ADJUDICATE</text>
+    <text x="942" y="266" fill="#121A30" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700">Audit drift</text>
+    <text x="890" y="315" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">Claims + boundaries,</text>
+    <text x="890" y="338" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">unresolved failures.</text>
+    <rect x="890" y="370" width="180" height="28" rx="14" fill="#FFF3D8"/>
+    <text x="980" y="389" text-anchor="middle" fill="#A46D00" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650">/revision-escalation</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1126" y="224" width="228" height="196" rx="24" fill="#FBFCFF" stroke="#BFD0F0"/>
+    <circle cx="1166" cy="268" r="22" fill="#E8F0FF"/>
+    <text x="1166" y="275" text-anchor="middle" fill="#3469B7" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="750">5</text>
+    <text x="1126" y="190" fill="#3469B7" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">RELEASE</text>
+    <text x="1202" y="266" fill="#121A30" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700">Ship exact truth</text>
+    <text x="1150" y="315" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">Ref + artifact + gate,</text>
+    <text x="1150" y="338" fill="#606B87" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">owner + hash.</text>
+    <rect x="1150" y="370" width="180" height="28" rx="14" fill="#EAF1FD"/>
+    <text x="1240" y="389" text-anchor="middle" fill="#3469B7" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650">/release-governance</text>
+  </g>
+
+  <g transform="translate(346 470)">
+    <rect width="748" height="104" rx="22" fill="#111A30"/>
+    <circle cx="48" cy="52" r="24" fill="#F6C86A"/>
+    <path d="M37 52L45 60L60 44" stroke="#171D2B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="88" y="43" fill="#F5F7FE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="700">Human decisions are first-class data</text>
+    <text x="88" y="70" fill="#AAB5D1" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">Approval does not disappear into chat; it is attached to the exact edit, gate, and artifact.</text>
+    <rect x="620" y="30" width="98" height="44" rx="22" fill="#222F4F" stroke="#3A4A71"/>
+    <text x="669" y="57" text-anchor="middle" fill="#C7D2F6" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="1">AUTHOR</text>
+  </g>
+</svg>
