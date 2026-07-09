@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (102 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T105 revision escalation and human gates) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (107 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T110 revision escalation and human gates) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -2057,6 +2057,14 @@ da-003,ec-003,none,none,none,none,revise,true,failed
 EOF
 }
 
+_write_valid_cycle_gate() {
+    local root="$1"
+    cat > "$root/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-cycle,ri-ch-clarity,cycle_gate,ec-001;ec-002;ec-003,3,local_execution_failure,local_patch,preserve the spine,three attempts did not converge,chapters/ch.md before ec-001,apply one bounded contract,true,approved
+EOF
+}
+
 test_T101() {
     local tmp before after out rc
     tmp=$(mktemp -d) || return 1
@@ -2265,6 +2273,172 @@ assert first["escalation_file"] == second["escalation_file"] == "unchanged"
 assert [row["owner_note"] for row in contracts] == ["keep-1", "keep-2", "keep-3", "keep-4"]
 assert escalations[0]["coordinator_note"] == "keep-gate"
 assert checked["issue_count"] == 0
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T106() {
+    local tmp conflict duplicate out checked rc
+    tmp=$(mktemp -d) || return 1
+
+    conflict="$tmp/conflict"
+    _make_migration_v2_packet "$conflict"
+    _write_valid_cycle_gate "$conflict"
+    printf 'da-004,ec-001,none,none,none,none,accept,false,passed\n' >> "$conflict/thesis_control/drift_audits.csv"
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$conflict" --strict --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'conflicting-resolved-audits' for i in d['issues'])" || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    duplicate="$tmp/duplicate-failure"
+    _make_migration_v2_packet "$duplicate"
+    _write_valid_cycle_gate "$duplicate"
+    printf 'da-004,ec-001,none,none,none,none,rollback,true,failed\n' >> "$duplicate/thesis_control/drift_audits.csv"
+    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$duplicate" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$checked" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0"
+}
+
+test_T107() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_migration_v2_packet "$tmp"
+    sed -i.bak '/^ec-004,/ s/,false,draft$/,true,approved/' "$tmp/thesis_control/edit_contracts.csv"
+    rm -f "$tmp/thesis_control/edit_contracts.csv.bak"
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+re-cycle,ri-ch-clarity,cycle_gate,ec-003;ec-001;ec-002,3,local_execution_failure,local_patch,preserve the spine,three attempts did not converge,chapters/ch.md before ec-001,apply one bounded contract,true,approved
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'misordered-cycle-gate-triggers','revision-escalation-required'} <= kinds"
+}
+
+test_T108() {
+    local tmp before after out rc
+    tmp=$(mktemp -d) || return 1
+    _make_migration_v2_packet "$tmp"
+    _write_valid_cycle_gate "$tmp"
+    printf 'da-001,ec-002,none,none,none,none,rollback,true,failed\n' >> "$tmp/thesis_control/drift_audits.csv"
+    printf '# New unit\n\nNew bounded source.\n' > "$tmp/chapters/new.md"
+    before=$(_tree_digest "$tmp") || return 1
+    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/new.md --unit-id new --revision-issue-id ri-new \
+        --copy-source --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$tmp")
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$before" == "$after" ]] || return 1
+    [[ "$out" == *"duplicate-audit-id"* ]]
+}
+
+test_T109() {
+    local tmp project outside before after out rc
+    tmp=$(mktemp -d) || return 1
+
+    project="$tmp/scaffold-project"
+    outside="$tmp/scaffold-outside"
+    mkdir -p "$project/chapters" "$outside"
+    printf '# Chapter\n\nSource.\n' > "$project/chapters/ch.md"
+    ln -s "$outside" "$project/thesis_control"
+    before=$(_tree_digest "$tmp") || return 1
+    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$project" \
+        --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --copy-source --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$tmp")
+    [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"symlink"* ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    project="$tmp/migration-project"
+    outside="$tmp/migration-outside"
+    _make_migration_v2_packet "$project"
+    mv "$project/thesis_control" "$outside"
+    ln -s "$outside" "$project/thesis_control"
+    before=$(_tree_digest "$tmp") || return 1
+    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$project" --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$tmp")
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"symlink"* ]]
+}
+
+test_T110() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts" <<'PY'
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+sys.path.insert(0, sys.argv[2])
+import thesis_control_io as control_io
+
+first = root / "a.csv"
+second = root / "b.csv"
+first.write_bytes(b"old-a\n")
+second.write_bytes(b"old-b\n")
+real_replace = control_io.os.replace
+failed = False
+
+def flaky_replace(source, target):
+    global failed
+    if Path(target) == second and not failed:
+        failed = True
+        raise OSError("injected replace failure")
+    return real_replace(source, target)
+
+control_io.os.replace = flaky_replace
+try:
+    control_io.atomic_write_batch({first: b"new-a\n", second: b"new-b\n"})
+except OSError as exc:
+    assert "injected replace failure" in str(exc)
+else:
+    raise AssertionError("atomic_write_batch unexpectedly succeeded")
+finally:
+    control_io.os.replace = real_replace
+
+assert first.read_bytes() == b"old-a\n"
+assert second.read_bytes() == b"old-b\n"
+assert sorted(path.name for path in root.iterdir()) == ["a.csv", "b.csv"]
+
+packet = root / "packet"
+(packet / "thesis_control").mkdir(parents=True)
+(packet / "thesis_control/spine_cards.csv").write_bytes(b"\xff\xfe")
+for name, header in {
+    "edit_contracts.csv": "contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status\n",
+    "drift_audits.csv": "audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status\n",
+    "revision_escalations.csv": "escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status\n",
+}.items():
+    (packet / "thesis_control" / name).write_text(header, encoding="utf-8")
+checker = Path(sys.argv[2]) / "check_thesis_control.py"
+result = subprocess.run(
+    [sys.executable, str(checker), str(packet), "--strict", "--json"],
+    text=True,
+    capture_output=True,
+    check=False,
+)
+assert result.returncode == 1, (result.stdout, result.stderr)
+assert "Traceback" not in result.stdout + result.stderr
+payload = json.loads(result.stdout)
+assert any(issue["kind"] == "csv-decode-error" for issue in payload["issues"])
 PY
     rc=$?
     rm -rf "$tmp"
@@ -2527,6 +2701,11 @@ run_test "T102 migration rejects partial revision metadata without mutation" tes
 run_test "T103 migration converts v2 escalation rows deterministically" test_T103
 run_test "T104 migration rejects ambiguous v2 escalation rows without mutation" test_T104
 run_test "T105 migration preserves extensions and is idempotent" test_T105
+run_test "T106 checker rejects conflicting resolved audits and de-duplicates failures" test_T106
+run_test "T107 cycle gates require trigger contracts in attempt order" test_T107
+run_test "T108 scaffold validates the complete candidate packet before mutation" test_T108
+run_test "T109 scaffold and migration reject internal symlink paths" test_T109
+run_test "T110 batch rollback and invalid UTF-8 fail cleanly" test_T110
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

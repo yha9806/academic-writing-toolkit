@@ -65,8 +65,37 @@ def read_csv_table(path: Path) -> Tuple[List[str], List[Dict[str, str]]]:
                 rows.append(dict(zip(fieldnames, values)))
     except csv.Error as exc:
         raise CsvShapeError("csv-parse-error", str(path), f"CSV parse error: {exc}") from exc
+    except UnicodeError as exc:
+        raise CsvShapeError(
+            "csv-decode-error",
+            str(path),
+            f"CSV is not valid UTF-8: {exc}",
+        ) from exc
 
     return fieldnames, rows
+
+
+def ensure_internal_paths(root: Path, paths: Sequence[Path]) -> None:
+    """Reject targets that escape the root or traverse an internal symlink."""
+
+    root = root.resolve()
+    for raw_path in paths:
+        target = Path(os.path.abspath(str(raw_path)))
+        try:
+            relative = target.relative_to(root)
+        except ValueError as exc:
+            raise ValueError(f"output path escapes the packet root: {target}") from exc
+
+        cursor = root
+        for part in relative.parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise ValueError(f"refusing internal symlink path: {cursor}")
+
+        try:
+            target.resolve().relative_to(root)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise ValueError(f"output path escapes the packet root: {target}") from exc
 
 
 def render_csv_table(fieldnames: Sequence[str], rows: Sequence[Mapping[str, str]]) -> bytes:

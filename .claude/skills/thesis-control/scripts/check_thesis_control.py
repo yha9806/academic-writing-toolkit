@@ -14,7 +14,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from thesis_control_io import CsvShapeError, read_csv_table
 
@@ -118,7 +118,11 @@ def is_valid_identifier(value: str) -> bool:
     return bool(IDENTIFIER_RE.fullmatch(stripped)) and ".." not in stripped
 
 
-def validate_source_path(root: Path, value: str) -> str | None:
+def validate_source_path(
+    root: Path,
+    value: str,
+    prospective_files: Optional[Set[Path]] = None,
+) -> str | None:
     path_text = value.strip()
     if not path_text:
         return None
@@ -132,7 +136,7 @@ def validate_source_path(root: Path, value: str) -> str | None:
         candidate.relative_to(root.resolve())
     except ValueError:
         return "source path must stay inside the packet root"
-    if not candidate.is_file():
+    if candidate not in (prospective_files or set()) and not candidate.is_file():
         return "source path does not exist"
     return None
 
@@ -202,9 +206,11 @@ def validate_packet(
     table_overrides: Optional[
         Mapping[str, Tuple[Sequence[str], Sequence[Mapping[str, str]]]]
     ] = None,
+    prospective_files: Optional[Iterable[Path]] = None,
 ) -> dict:
     issues: List[dict] = []
     overrides = table_overrides or {}
+    prospective = {Path(path).resolve() for path in (prospective_files or [])}
     control_dir = root / "thesis_control"
     contract_path = control_dir / "edit_contracts.csv"
     escalation_path = control_dir / "revision_escalations.csv"
@@ -286,7 +292,11 @@ def validate_packet(
         for column in ["path", "section_title", "spine_sentence", "scope_boundary", "core_claims", "do_not_change"]:
             if is_empty(row.get(column, "")):
                 add_issue(issues, "empty-spine-field", location, f"spine card field is empty: {column}")
-        path_issue = validate_source_path(root, row.get("path", ""))
+        path_issue = validate_source_path(
+            root,
+            row.get("path", ""),
+            prospective_files=prospective,
+        )
         if path_issue:
             add_issue(issues, "invalid-source-path", location, path_issue)
 
@@ -398,6 +408,7 @@ def validate_packet(
     audit_ids = set()
     audited_contracts = set()
     unsuccessful_contracts = set()
+    resolved_audit_outcomes: Dict[str, Set[str]] = {}
     for index, row in enumerate(audit_rows):
         location = row_location("drift_audits.csv", index)
         audit_id = row.get("audit_id", "").strip()
@@ -460,6 +471,11 @@ def validate_packet(
                 and contract_statuses.get(contract_id) == "applied"
             ):
                 unsuccessful_contracts.add(contract_id)
+            if contract_id and (
+                (status == "passed" and decision in {"accept", "partial_accept"})
+                or (status == "failed" and decision in {"revise", "rollback"})
+            ):
+                resolved_audit_outcomes.setdefault(contract_id, set()).add(status)
         if review_required is None:
             add_issue(issues, "invalid-human-review-required", location, "human_review_required must be true or false")
 
@@ -486,6 +502,15 @@ def validate_packet(
             add_issue(issues, "unsupported-claim-passed", location, "new unsupported claims cannot have status=passed")
         if not is_empty(missed_adjacent) and status == "passed":
             add_issue(issues, "missed-adjacent-passed", location, "missed adjacent updates cannot have status=passed")
+
+    for contract_id, outcomes in resolved_audit_outcomes.items():
+        if outcomes == {"passed", "failed"}:
+            add_issue(
+                issues,
+                "conflicting-resolved-audits",
+                "thesis_control/drift_audits.csv",
+                f"contract {contract_id} has both passed and failed resolved audits",
+            )
 
     cycle_gates_by_issue: Dict[str, List[dict]] = {}
     escalation_ids = set()
@@ -628,6 +653,7 @@ def validate_packet(
                     cycle_gates_by_issue.setdefault(revision_issue_id, []).append(
                         {
                             "triggers": trigger_set,
+                            "ordered_triggers": trigger_contracts,
                             "approved": approved is True and status == "approved",
                             "approved_after_attempt": approved_after_attempt,
                             "location": location,
@@ -678,6 +704,17 @@ def validate_packet(
                                 cycle_gate["location"],
                                 "approved cycle_gate requires a completed unsuccessful group",
                             )
+                        continue
+                    expected_order = [
+                        contract_id for _, contract_id in matching_group["ordered"]
+                    ]
+                    if cycle_gate["ordered_triggers"] != expected_order:
+                        add_issue(
+                            issues,
+                            "misordered-cycle-gate-triggers",
+                            cycle_gate["location"],
+                            "cycle_gate trigger_contracts must follow revision attempt order",
+                        )
                         continue
                     if cycle_gate["approved_after_attempt"] != matching_group["threshold_attempt"]:
                         add_issue(

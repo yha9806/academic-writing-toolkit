@@ -11,7 +11,12 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from check_thesis_control import is_valid_identifier, validate_packet
-from thesis_control_io import atomic_write_batch, read_csv_table, render_csv_table
+from thesis_control_io import (
+    atomic_write_batch,
+    ensure_internal_paths,
+    read_csv_table,
+    render_csv_table,
+)
 
 
 REVISION_COLUMNS = ["revision_issue_id", "attempt_no"]
@@ -144,7 +149,7 @@ def prepare_contracts(
 def completed_failure_groups(
     contract_rows: Sequence[Dict[str, str]],
     audit_rows: Sequence[Dict[str, str]],
-) -> Dict[str, List[Tuple[set, int]]]:
+) -> Dict[str, List[Tuple[set, int, List[str]]]]:
     contracts: Dict[str, Tuple[str, int, str]] = {}
     for row in contract_rows:
         contract_id = row.get("contract_id", "").strip()
@@ -173,13 +178,17 @@ def completed_failure_groups(
         revision_issue_id, attempt_no, _ = contracts[contract_id]
         ordered_by_issue.setdefault(revision_issue_id, []).append((attempt_no, contract_id))
 
-    groups: Dict[str, List[Tuple[set, int]]] = {}
+    groups: Dict[str, List[Tuple[set, int, List[str]]]] = {}
     for revision_issue_id, attempts in ordered_by_issue.items():
         ordered = sorted(attempts)
         for start in range(0, (len(ordered) // 3) * 3, 3):
             group = ordered[start : start + 3]
             groups.setdefault(revision_issue_id, []).append(
-                ({contract_id for _, contract_id in group}, max(attempt for attempt, _ in group))
+                (
+                    {contract_id for _, contract_id in group},
+                    max(attempt for attempt, _ in group),
+                    [contract_id for _, contract_id in group],
+                )
             )
     return groups
 
@@ -188,7 +197,7 @@ def classify_v2_escalation(
     path: Path,
     row: Dict[str, str],
     contracts: Dict[str, Tuple[str, int]],
-    failure_groups: Dict[str, List[Tuple[set, int]]],
+    failure_groups: Dict[str, List[Tuple[set, int, List[str]]]],
 ) -> None:
     escalation_id = row.get("escalation_id", "").strip() or "<missing>"
     revision_issue_id = row.get("revision_issue_id", "").strip()
@@ -220,8 +229,8 @@ def classify_v2_escalation(
 
     matching_group = next(
         (
-            (group, boundary)
-            for group, boundary in failure_groups.get(revision_issue_id, [])
+            (group, boundary, ordered)
+            for group, boundary, ordered in failure_groups.get(revision_issue_id, [])
             if group == trigger_set
         ),
         None,
@@ -232,6 +241,7 @@ def classify_v2_escalation(
         )
     row["escalation_kind"] = "cycle_gate"
     row["approved_after_attempt"] = str(matching_group[1])
+    row["trigger_contracts"] = ";".join(matching_group[2])
 
 
 def prepare_escalations(
@@ -308,6 +318,11 @@ def upgrade(project_root: Path) -> dict:
     contract_path = control_dir / "edit_contracts.csv"
     audit_path = control_dir / "drift_audits.csv"
     escalation_path = control_dir / "revision_escalations.csv"
+
+    ensure_internal_paths(
+        project_root,
+        [spine_path, contract_path, audit_path, escalation_path],
+    )
 
     contract_fields, contract_input_rows = read_required_csv(
         contract_path, "edit contracts"

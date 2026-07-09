@@ -15,7 +15,13 @@ import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from thesis_control_io import atomic_write_batch, read_csv_table, render_csv_table
+from check_thesis_control import validate_packet
+from thesis_control_io import (
+    atomic_write_batch,
+    ensure_internal_paths,
+    read_csv_table,
+    render_csv_table,
+)
 
 
 SPINE_COLUMNS = [
@@ -298,18 +304,32 @@ def scaffold(args: argparse.Namespace) -> dict:
     escalation_path = control_dir / "revision_escalations.csv"
     packet_path = control_dir / f"{unit_id}_review_packet.md"
 
+    excerpt_file: Optional[Path] = None
     if args.copy_source:
         excerpt_dir = output_dir / "source_excerpts"
         excerpt_file = excerpt_dir / f"{unit_id}.md"
-        if excerpt_file.exists() and not args.force:
-            raise ValueError(f"{excerpt_file} already exists; pass --force to replace it")
-        source_display = relative_display(excerpt_file, output_dir)
     else:
         try:
             source.resolve().relative_to(output_dir)
         except ValueError as exc:
             raise ValueError("source must be inside output-dir when --copy-source is not used") from exc
         source_display = relative_display(source, output_dir)
+
+    output_targets = [
+        spine_path,
+        contract_path,
+        audit_path,
+        escalation_path,
+        packet_path,
+    ]
+    if excerpt_file is not None:
+        output_targets.append(excerpt_file)
+    ensure_internal_paths(output_dir, output_targets)
+
+    if excerpt_file is not None:
+        if excerpt_file.exists() and not args.force:
+            raise ValueError(f"{excerpt_file} already exists; pass --force to replace it")
+        source_display = relative_display(excerpt_file, output_dir)
 
     if packet_path.exists() and not args.force:
         raise ValueError(f"{packet_path} already exists; pass --force to replace it")
@@ -364,6 +384,24 @@ def scaffold(args: argparse.Namespace) -> dict:
         contract_row,
     )
 
+    validation = validate_packet(
+        output_dir,
+        strict=True,
+        table_overrides={
+            "spine_cards.csv": (SPINE_COLUMNS, spine_rows),
+            "edit_contracts.csv": (CONTRACT_COLUMNS, contract_rows),
+            "drift_audits.csv": (AUDIT_COLUMNS, audit_rows),
+            "revision_escalations.csv": (ESCALATION_COLUMNS, escalation_rows),
+        },
+        prospective_files=[excerpt_file] if excerpt_file is not None else None,
+    )
+    if validation["issues"]:
+        issue = validation["issues"][0]
+        raise ValueError(
+            "candidate packet is not strict-valid: "
+            f"{issue['kind']} at {issue['location']}: {issue['message']}"
+        )
+
     contents = {
         spine_path: render_csv_table(SPINE_COLUMNS, spine_rows),
         contract_path: render_csv_table(CONTRACT_COLUMNS, contract_rows),
@@ -373,7 +411,7 @@ def scaffold(args: argparse.Namespace) -> dict:
         contents[audit_path] = render_csv_table(AUDIT_COLUMNS, audit_rows)
     if not escalation_path.exists():
         contents[escalation_path] = render_csv_table(ESCALATION_COLUMNS, escalation_rows)
-    if args.copy_source:
+    if excerpt_file is not None:
         contents[excerpt_file] = excerpt.encode("utf-8")
     atomic_write_batch(contents)
 
