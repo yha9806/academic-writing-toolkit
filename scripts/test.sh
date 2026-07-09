@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (69 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (70 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -1055,6 +1055,23 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'missing-unit-id' in kinds"
 }
 
+test_T73() {
+    local bench="$REPO_ROOT/examples/lost-in-conversation-bench"
+
+    [[ -f "$bench/README.md" ]] || return 1
+    [[ -f "$bench/chapters/desensitized_section.md" ]] || return 1
+    [[ -f "$bench/requirements/multi_turn_requirements.md" ]] || return 1
+    [[ -f "$bench/requirements/consolidated_prompt.md" ]] || return 1
+    [[ -f "$bench/baselines/baseline_a_review.md" ]] || return 1
+    [[ -f "$bench/baselines/baseline_b_review.md" ]] || return 1
+    [[ -f "$bench/treatment/source_excerpts/lost-conversation-section.md" ]] || return 1
+    [[ -f "$bench/treatment/edited_section.md" ]] || return 1
+    [[ -f "$bench/treatment/review_report.md" ]] || return 1
+
+    python3 scripts/check_lost_in_conversation_bench.py "$bench" >/dev/null || return 1
+    python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$bench/treatment" --strict >/dev/null || return 1
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -1278,6 +1295,7 @@ run_test "T69 thesis-control rejects unsafe identifiers" test_T69
 run_test "T70 thesis-control rejects uninspectable source paths" test_T70
 run_test "T71 thesis-control accepts relative output directories" test_T71
 run_test "T72 thesis-control rejects orphan edit contracts" test_T72
+run_test "T73 lost-in-conversation bench validates" test_T73
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
