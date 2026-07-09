@@ -1,6 +1,6 @@
 {
     "name":  "academic-writing-toolkit",
-    "version":  "0.3.2",
+    "version":  "0.4.0",
     "description":  "Academic reading, thesis writing, thesis drift control, manuscript reframing, revision escalation, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
     "author":  {
                    "name":  "Academic Writing Toolkit Maintainers",
@@ -39,8 +39,8 @@
                                            "Review"
                                        ],
                       "websiteURL":  "https://github.com/yha9806/academic-writing-toolkit",
-                      "privacyPolicyURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/privacy.md",
-                      "termsOfServiceURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/terms.md",
+                      "privacyPolicyURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/privacy.md",
+                      "termsOfServiceURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/terms.md",
                       "defaultPrompt":  [
                                             "Read this paper and extract thesis connections.",
                                             "Create an edit contract, drift audit, and reframe plan for this thesis section.",

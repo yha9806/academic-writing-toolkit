@@ -917,10 +917,10 @@ Expected: working tree clean and latest commits include the T73 guard, bench che
 - [ ] **Step 3: Push**
 
 ```bash
-git push origin master
+git push origin main
 ```
 
-Expected: `master` pushes successfully.
+Expected: `main` pushes successfully.
 
 ## Self-Review
 

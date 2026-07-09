@@ -22,11 +22,11 @@ The app-specific check runs the Node test suite for the MCP server and tool wrap
 - Submission import file: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
 - Privacy URL source: `docs/privacy.md`
 - Terms URL source: `docs/terms.md`
-- App package version: `0.3.2`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
+- App package version: `0.4.0`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
 
-## Current v0.3.2 Submission Endpoint
+## Current v0.4.0 Submission Endpoint
 
-For the zero-cost v0.3.2 update of the already-published ChatGPT App, keep the existing Hugging Face Space MCP base URL:
+For the zero-cost v0.4.0 update of the already-published ChatGPT App, keep the existing Hugging Face Space MCP base URL:
 
 ```text
 https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
@@ -37,8 +37,8 @@ Dashboard fields:
 - App name: `Academic Writing Toolkit`
 - Category: `EDUCATION`
 - MCP Server URL: `https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp`
-- Privacy Policy URL: `https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/privacy.md`
-- Terms of Service URL: `https://github.com/yha9806/academic-writing-toolkit/blob/master/docs/terms.md`
+- Privacy Policy URL: `https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/privacy.md`
+- Terms of Service URL: `https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/terms.md`
 - Submission import file: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
 
 Smoke-test before submitting:
@@ -48,11 +48,11 @@ curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/healt
 curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 ```
 
-After the hosted Space is updated from the `v0.3.2` package, `/health` should return version `0.3.2` and `status: ok`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
+After the hosted Space is updated from the `v0.4.0` package, `/health` should return version `0.4.0` and `status: ok`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
 
 OpenAI currently requires an updated app draft to keep the same MCP base URL as the published version. Use the Render URL only for backup smoke testing or for a separate future app listing.
 
-For the previous v0.3.0 draft, OpenAI Platform accepted the Hugging Face Space URL, confirmed domain verification, scanned 5 tools, and applied 5 imported tool justifications. For v0.3.2, keep the same MCP base URL and re-import the same submission file after the hosted Space reports version `0.3.2`.
+For the previous v0.3.0 draft, OpenAI Platform accepted the Hugging Face Space URL, confirmed domain verification, scanned 5 tools, and applied 5 imported tool justifications. For v0.4.0, keep the same MCP base URL and re-import the same submission file after the hosted Space reports version `0.4.0`.
 
 ## Deployment Requirement
 
@@ -151,7 +151,7 @@ Latest hosted verification:
 
 - Date: 2026-07-08
 - Space repo/runtime SHA: `5c0703a256460782fa4551ac2b4eadb919b92058`
-- `/health`: version `0.3.2`, `status: ok`
+- `/health`: version `0.4.0`, `status: ok`
 - `GET /mcp`: `405 Method not allowed`
 - `/.well-known/openai-apps-challenge`: returned the configured OpenAI challenge token
 
@@ -201,7 +201,7 @@ Setup:
 1. In Render, create a Blueprint from `https://github.com/yha9806/academic-writing-toolkit`.
 2. Confirm `render.yaml` is detected at the repository root.
 3. Create the service from the Blueprint.
-4. Wait for Render to deploy the `master` branch after checks pass.
+4. Wait for Render to deploy the `main` branch after checks pass.
 5. Copy the service URL, for example `https://academic-writing-toolkit-chatgpt-app.onrender.com`.
 6. Add a dedicated custom domain, such as `awt.example.com`, as the Render custom domain for this service.
 7. In the DNS provider for that domain, create the CNAME record Render requests.

@@ -6,4 +6,4 @@ The toolkit is provided "as is" without warranty. Users are responsible for revi
 
 The toolkit does not replace academic supervision, institutional review, publisher requirements, legal advice, or formal reference-management tools. Online metadata checks in the local toolkit depend on third-party services and may be incomplete or unavailable. The ChatGPT App submission build uses offline checks only.
 
-Use of this toolkit is also subject to the repository license: https://github.com/yha9806/academic-writing-toolkit/blob/master/LICENSE
+Use of this toolkit is also subject to the repository license: https://github.com/yha9806/academic-writing-toolkit/blob/main/LICENSE
