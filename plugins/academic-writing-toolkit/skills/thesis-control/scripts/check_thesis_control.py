@@ -10,12 +10,13 @@ the academic argument is true or well written.
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
+
+from thesis_control_io import CsvShapeError, read_csv_table
 
 
 REQUIRED_FILES = {
@@ -120,30 +121,13 @@ def validate_source_path(root: Path, value: str) -> str | None:
     return None
 
 
-def read_csv(path: Path) -> Tuple[List[Dict[str, str]], List[str]]:
-    issues: List[str] = []
-    try:
-        with path.open(newline="", encoding="utf-8") as handle:
-            reader = csv.DictReader(handle)
-            rows = list(reader)
-    except csv.Error as exc:
-        return [], [f"{path}: CSV parse error: {exc}"]
-    except OSError as exc:
-        return [], [f"{path}: cannot read file: {exc}"]
-
-    if reader.fieldnames is None:
-        return [], [f"{path}: missing header row"]
-
-    return rows, issues
-
-
 def read_fieldnames(path: Path) -> List[str]:
     if not path.is_file():
         return []
     try:
-        with path.open(newline="", encoding="utf-8") as handle:
-            return list(csv.DictReader(handle).fieldnames or [])
-    except (csv.Error, OSError):
+        fieldnames, _ = read_csv_table(path)
+        return fieldnames
+    except (CsvShapeError, OSError):
         return []
 
 
@@ -158,15 +142,14 @@ def validate_columns(
     if not path.is_file():
         return [], [{"kind": "missing-file", "location": str(path), "message": f"missing {filename}"}]
 
-    rows, read_issues = read_csv(path)
-    for message in read_issues:
-        issues.append({"kind": "csv-error", "location": str(path), "message": message})
-    if issues:
-        return rows, issues
-
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        fieldnames = reader.fieldnames or []
+    try:
+        fieldnames, rows = read_csv_table(path)
+    except CsvShapeError as exc:
+        issues.append({"kind": exc.kind, "location": exc.location, "message": exc.message})
+        return [], issues
+    except OSError as exc:
+        issues.append({"kind": "csv-error", "location": str(path), "message": f"cannot read file: {exc}"})
+        return [], issues
 
     missing = [column for column in required_columns if column not in fieldnames]
     for column in missing:

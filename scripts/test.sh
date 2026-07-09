@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (87 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T90 revision escalation and human gates) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (89 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T92 revision escalation and human gates) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -1651,6 +1651,114 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'duplicate-escalation-trigger-set' for i in d['issues'])"
 }
 
+test_T91() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_thesis_control_packet "$tmp"
+
+    python3 - "$tmp" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+control = Path(sys.argv[1]) / "thesis_control"
+cases = (
+    ("spine_cards.csv", "unit_id", None, None),
+    ("edit_contracts.csv", "human_approved", "false", "true"),
+    ("drift_audits.csv", "status", None, None),
+    ("revision_escalations.csv", "human_approved", None, None),
+)
+for filename, duplicate, first_value, second_value in cases:
+    path = control / filename
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.reader(handle))
+    header = rows[0]
+    source_index = header.index(duplicate)
+    header.append(duplicate)
+    for row in rows[1:]:
+        if first_value is not None:
+            row[source_index] = first_value
+        row.append(second_value if second_value is not None else row[source_index])
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        csv.writer(handle).writerows(rows)
+PY
+
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); duplicates=[i for i in d['issues'] if i['kind']=='duplicate-column']; assert len(duplicates)==4"
+}
+
+test_T92() {
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_thesis_control_packet "$tmp/base"
+
+    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts/check_thesis_control.py" <<'PY'
+import csv
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+checker = Path(sys.argv[2])
+base = root / "base"
+
+cases = {}
+
+extra = root / "extra-cell"
+shutil.copytree(base, extra)
+path = extra / "thesis_control/spine_cards.csv"
+lines = path.read_text(encoding="utf-8").splitlines()
+lines[1] += ",EXTRA"
+path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+cases[extra] = "row-width-mismatch"
+
+missing = root / "missing-cell"
+shutil.copytree(base, missing)
+path = missing / "thesis_control/edit_contracts.csv"
+with path.open(newline="", encoding="utf-8") as handle:
+    rows = list(csv.reader(handle))
+rows[1] = rows[1][:-1]
+with path.open("w", newline="", encoding="utf-8") as handle:
+    csv.writer(handle).writerows(rows)
+cases[missing] = "row-width-mismatch"
+
+truncated = root / "truncated-row"
+shutil.copytree(base, truncated)
+path = truncated / "thesis_control/drift_audits.csv"
+header = path.read_text(encoding="utf-8").splitlines()[0]
+path.write_text(header + "\nda-001,ec-001\n", encoding="utf-8")
+cases[truncated] = "row-width-mismatch"
+
+invalid_quote = root / "invalid-quote"
+shutil.copytree(base, invalid_quote)
+path = invalid_quote / "thesis_control/revision_escalations.csv"
+header = path.read_text(encoding="utf-8").splitlines()[0]
+path.write_text(header + '\n"unterminated,ri-ch02-traceability\n', encoding="utf-8")
+cases[invalid_quote] = "csv-parse-error"
+
+for case, expected_kind in cases.items():
+    result = subprocess.run(
+        [sys.executable, str(checker), str(case), "--strict", "--json"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 1, (case.name, result.returncode, result.stdout, result.stderr)
+    assert "Traceback" not in result.stderr, (case.name, result.stderr)
+    payload = json.loads(result.stdout)
+    kinds = {issue["kind"] for issue in payload["issues"]}
+    assert expected_kind in kinds, (case.name, expected_kind, kinds)
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -1892,6 +2000,8 @@ run_test "T87 non-applied contracts do not count as failed attempts" test_T87
 run_test "T88 scaffold preserves unique sequential revision attempts" test_T88
 run_test "T89 revision escalation rejects duplicate trigger contracts" test_T89
 run_test "T90 revision escalation requires one row per trigger set" test_T90
+run_test "T91 thesis-control rejects duplicate CSV headers" test_T91
+run_test "T92 thesis-control reports malformed CSV rows without traceback" test_T92
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
