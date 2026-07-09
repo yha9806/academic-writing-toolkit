@@ -18,6 +18,7 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
         /progress
 
 /human-eval-handoff-repair is an evaluation-package QC and annotation repair workflow outside the thesis-writing pipeline.
+/revision-escalation is a 3-strike stop-and-diagnose workflow for repeated failed writing, coding, rebuttal, or manuscript revisions.
 ```
 
 ## Guides
@@ -32,6 +33,7 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 | `/integrate` | [05-integrate.md](05-integrate.md) |
 | `/thesis-control` | [15-thesis-control.md](15-thesis-control.md) |
 | `/manuscript-reframe` | [14-manuscript-reframe.md](14-manuscript-reframe.md) |
+| `/revision-escalation` | [16-revision-escalation.md](16-revision-escalation.md) |
 | `/audit` | [06-audit.md](06-audit.md) |
 | `/release-governance` | [13-release-governance.md](13-release-governance.md) |
 | `/progress` | [07-progress.md](07-progress.md) |

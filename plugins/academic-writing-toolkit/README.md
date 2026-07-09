@@ -12,6 +12,7 @@ This Codex plugin packages the academic-writing-toolkit skills for structured re
 - `integrate`: integrate completed reading notes into chapter drafts
 - `thesis-control`: keep AI-assisted thesis edits bounded with spine cards, edit contracts, drift audits, human gates, and draft packet scaffolding
 - `manuscript-reframe`: turn report-like drafts into paper-form scientific arguments with clear gap, contribution, result narrative, figure/table roles, and submission blockers
+- `revision-escalation`: stop repeated failed revisions and diagnose specification, structure, evidence, or version-contamination problems
 - `audit`: audit citation consistency, numbers, terminology, and cross-references
 - `release-governance`: prepare release, rebuttal, artifact, and claim packets with ref-artifact-gate controls
 - `style`: check and safely fix common US spellings when British English is required

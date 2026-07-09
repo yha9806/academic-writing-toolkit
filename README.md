@@ -53,6 +53,7 @@ The executable stop gate is demonstrated separately at [`examples/thesis-control
         /progress
 
 /human-eval-handoff-repair supports evaluation-package QC and annotation repair workflows.
+/revision-escalation supports 3-strike stop-and-diagnose checks for repeated failed revisions.
 ```
 
 ## Quick Start
@@ -93,6 +94,7 @@ Setup guides live in [`docs/setup-claude-code.md`](docs/setup-claude-code.md), [
 | `/integrate` | Propose and apply approved note-to-chapter integrations |
 | `/thesis-control` | Keep AI-assisted thesis edits bounded with spine cards, edit contracts, drift audits, and human gates |
 | `/manuscript-reframe` | Turn report-like drafts into paper-form scientific arguments |
+| `/revision-escalation` | Stop repeated failed revisions and diagnose whether the issue is specification, structure, evidence, or version contamination |
 | `/audit` | Check numbers, terminology, cross-references, and citations |
 | `/release-governance` | Prepare release, rebuttal, artifact, and claim packets with ref-artifact-gate controls |
 | `/style` | Check and safely fix British English spellings |

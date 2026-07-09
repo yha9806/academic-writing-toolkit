@@ -1,7 +1,7 @@
 {
     "name":  "academic-writing-toolkit",
     "version":  "0.3.2",
-    "description":  "Academic reading, thesis writing, thesis drift control, manuscript reframing, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
+    "description":  "Academic reading, thesis writing, thesis drift control, manuscript reframing, revision escalation, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
     "author":  {
                    "name":  "Academic Writing Toolkit Maintainers",
                    "url":  "https://github.com/yha9806"
@@ -22,14 +22,15 @@
                      "human-evaluation",
                      "annotation-repair",
                      "manuscript-reframe",
+                     "revision-escalation",
                      "thesis-control",
                      "scientific-writing"
                  ],
     "skills":  "./skills/",
     "interface":  {
                       "displayName":  "Academic Writing Toolkit",
-                      "shortDescription":  "Structured research, thesis drift control, manuscript reframing, evidence-review, release governance, citation, style, and export workflows.",
-                      "longDescription":  "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, controlling AI-assisted thesis edits with spine cards and drift audits, reframing report-like drafts into scientific manuscripts, integrating arguments, auditing citations and consistency, preparing release-governance packets, validating and repairing human-evaluation handoff packages, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
+                      "shortDescription":  "Structured research, thesis drift control, manuscript reframing, revision escalation, evidence-review, release governance, citation, style, and export workflows.",
+                      "longDescription":  "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, controlling AI-assisted thesis edits with spine cards and drift audits, reframing report-like drafts into scientific manuscripts, stopping repeated failed revisions for diagnosis before more patches, integrating arguments, auditing citations and consistency, preparing release-governance packets, validating and repairing human-evaluation handoff packages, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
                       "developerName":  "Academic Writing Toolkit Maintainers",
                       "category":  "Productivity",
                       "capabilities":  [
