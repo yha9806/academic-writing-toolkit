@@ -29,7 +29,7 @@ python3 .claude/skills/release-governance/scripts/check_release_packet.py exampl
 
 Then open [`examples/demo-project/`](examples/demo-project/) in your agent host and ask it to explain the local workflow.
 
-The repository also includes a small public-safe writing-control fixture at [`examples/lost-in-conversation-bench`](examples/lost-in-conversation-bench). It compares normal multi-turn editing, consolidated prompting, and `/thesis-control` artifacts for author-control review.
+The repository also includes a small public-safe multi-case writing-control fixture at [`examples/lost-in-conversation-bench`](examples/lost-in-conversation-bench). It compares normal multi-turn editing, consolidated prompting, and `/thesis-control` artifacts for author-control review.
 
 ## Common use cases
 
