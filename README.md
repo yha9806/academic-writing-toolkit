@@ -62,6 +62,8 @@ See [Choose the right product surface](docs/use-cases/choose-product-surface.md)
 
 Use `git clone`, not GitHub's **Download ZIP**. AWT uses symlinks under `.agents/skills/` so compatible local agents discover the same canonical skills.
 
+The primary surface is an agent-native local agent skill workflow: the agent operates explicit files and validators inside the project you opened.
+
 ```bash
 git clone https://github.com/yha9806/academic-writing-toolkit.git my-writing-project
 cd my-writing-project
