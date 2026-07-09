@@ -10,6 +10,16 @@ The bench compares three workflows on the same desensitised thesis-style section
 
 The fixture is not a model benchmark and does not claim scientific validity. It is a product-control check: can the author inspect what changed, decide whether the edit stayed inside scope, and choose accept, partial accept, revise, or rollback without rereading a long chat history?
 
+Review these files in order:
+
+1. [`chapters/desensitized_section.md`](chapters/desensitized_section.md) records the original section.
+2. [`requirements/multi_turn_requirements.md`](requirements/multi_turn_requirements.md) records the sharded multi-turn requirements.
+3. [`baselines/baseline_a_edited_section.md`](baselines/baseline_a_edited_section.md) shows a normal multi-turn edit with claim and evidence-boundary drift.
+4. [`baselines/baseline_b_edited_section.md`](baselines/baseline_b_edited_section.md) shows the consolidated-prompt output.
+5. [`treatment/edited_section.md`](treatment/edited_section.md) shows the `/thesis-control` bounded edit.
+6. [`comparison_report.md`](comparison_report.md) compares all three workflows across the control metrics.
+7. [`treatment/thesis_control/`](treatment/thesis_control/) stores the spine card, edit contract, and drift audit.
+
 Run from the repository root:
 
 ```bash

@@ -147,7 +147,7 @@ Academic Writing Toolkit turns scattered multi-turn writing intent into thesis-c
 
 ## Implementation Pointer
 
-The first implementation should use the public-safe fixture in `examples/lost-in-conversation-bench/` and the structural checker `scripts/check_lost_in_conversation_bench.py`. The treatment packet should also validate with:
+The first implementation uses the public-safe fixture in `examples/lost-in-conversation-bench/` and the structural checker `scripts/check_lost_in_conversation_bench.py`. The fixture includes actual edited outputs for Baseline A, Baseline B, and Treatment, plus `comparison_report.md` for inline human review. The treatment packet should also validate with:
 
 ```sh
 python3 .claude/skills/thesis-control/scripts/check_thesis_control.py examples/lost-in-conversation-bench/treatment --strict --json

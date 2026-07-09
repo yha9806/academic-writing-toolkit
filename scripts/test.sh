@@ -1062,8 +1062,11 @@ test_T73() {
     [[ -f "$bench/chapters/desensitized_section.md" ]] || return 1
     [[ -f "$bench/requirements/multi_turn_requirements.md" ]] || return 1
     [[ -f "$bench/requirements/consolidated_prompt.md" ]] || return 1
+    [[ -f "$bench/baselines/baseline_a_edited_section.md" ]] || return 1
     [[ -f "$bench/baselines/baseline_a_review.md" ]] || return 1
+    [[ -f "$bench/baselines/baseline_b_edited_section.md" ]] || return 1
     [[ -f "$bench/baselines/baseline_b_review.md" ]] || return 1
+    [[ -f "$bench/comparison_report.md" ]] || return 1
     [[ -f "$bench/treatment/source_excerpts/lost-conversation-section.md" ]] || return 1
     [[ -f "$bench/treatment/edited_section.md" ]] || return 1
     [[ -f "$bench/treatment/review_report.md" ]] || return 1

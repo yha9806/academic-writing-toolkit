@@ -21,8 +21,11 @@ REQUIRED_FILES = [
     "chapters/desensitized_section.md",
     "requirements/multi_turn_requirements.md",
     "requirements/consolidated_prompt.md",
+    "baselines/baseline_a_edited_section.md",
     "baselines/baseline_a_review.md",
+    "baselines/baseline_b_edited_section.md",
     "baselines/baseline_b_review.md",
+    "comparison_report.md",
     "treatment/source_excerpts/lost-conversation-section.md",
     "treatment/edited_section.md",
     "treatment/review_report.md",
@@ -43,6 +46,12 @@ REQUIRED_REVIEW_HEADINGS = [
     "## Workflow",
     "## Metric Review",
     "## Control Finding",
+]
+
+REQUIRED_COMPARISON_HEADINGS = [
+    "## Summary",
+    "## Three-Way Metric Comparison",
+    "## Human Review Decision",
 ]
 
 
@@ -99,6 +108,23 @@ def validate_review(path: Path, root: Path, issues: List[dict]) -> None:
             add_issue(issues, "missing-review-metric", rel, f"review does not address {metric}")
 
 
+def validate_comparison_report(root: Path, issues: List[dict]) -> None:
+    path = root / "comparison_report.md"
+    if not path.is_file():
+        return
+    text = read_text(path)
+    rel = str(path.relative_to(root))
+    for heading in REQUIRED_COMPARISON_HEADINGS:
+        if heading not in text:
+            add_issue(issues, "missing-comparison-heading", rel, f"comparison report is missing heading {heading}")
+    for workflow in ["Baseline A", "Baseline B", "Treatment"]:
+        if workflow not in text:
+            add_issue(issues, "missing-comparison-workflow", rel, f"comparison report does not address {workflow}")
+    for metric in REQUIRED_METRICS:
+        if metric not in text:
+            add_issue(issues, "missing-comparison-metric", rel, f"comparison report does not address {metric}")
+
+
 def validate_treatment_packet(root: Path, issues: List[dict]) -> None:
     treatment = root / "treatment"
     spine_path = treatment / "thesis_control" / "spine_cards.csv"
@@ -137,6 +163,7 @@ def validate_bench(root: Path) -> dict:
     validate_review(root / "baselines" / "baseline_a_review.md", root, issues)
     validate_review(root / "baselines" / "baseline_b_review.md", root, issues)
     validate_review(root / "treatment" / "review_report.md", root, issues)
+    validate_comparison_report(root, issues)
     validate_treatment_packet(root, issues)
     return {
         "schema_version": 1,
