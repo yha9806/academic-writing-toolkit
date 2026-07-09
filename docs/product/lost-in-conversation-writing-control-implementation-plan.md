@@ -10,7 +10,39 @@
 
 **Current extension:** The initial single-case fixture has been expanded into a three-case fixture. `scripts/check_lost_in_conversation_bench.py` validates the root case plus `cases/*`, T73 runs strict `/thesis-control` validation for every case treatment packet, and T74 requires the skill to stop and diagnose repeated revisions instead of applying a fourth prose patch.
 
-**Revision escalation architecture:** Keep revision escalation inside `/thesis-control`. The skill counts unsuccessful outcomes against the same edit contract, stops after three, allows earlier escalation for high-risk control failures, and routes the author to a corrected local contract, section restructure, evidence-boundary decision, approved-version restore, or full reframing. The structural validator remains unchanged because it cannot judge semantic convergence.
+**Revision escalation architecture:** Keep revision escalation inside `/thesis-control`. The skill groups unsuccessful contract versions under one revision issue, stops after three, allows earlier escalation for high-risk control failures, and routes the author to a corrected local contract, section restructure, evidence-boundary decision, approved-version restore, or full reframing. The validator enforces structural attempt and approval gates without claiming to judge semantic convergence.
+
+**Execution-layer extension:** Track one unresolved problem across contract versions with `revision_issue_id` and `attempt_no`. Add `revision_escalations.csv` as the durable diagnosis and author-approval record. Strict validation must require an escalation record after three unsuccessful contracts and must reject a later `approved` or `applied` contract until the escalation is human-approved. Non-strict validation remains compatible with legacy packets.
+
+## Revision Escalation Execution Extension
+
+### File Map
+
+- Modify `.claude/skills/thesis-control/scripts/check_thesis_control.py`: validate revision families, attempts, escalation records, and the fourth-edit gate.
+- Modify `.claude/skills/thesis-control/scripts/scaffold_thesis_control.py`: emit revision identity fields and an empty escalation CSV.
+- Create `.claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py`: upgrade legacy packets without inferring historical revision families.
+- Modify `.claude/skills/thesis-control/SKILL.md`: document durable attempt recording and the strict checker gate.
+- Modify `scripts/test.sh`: add red-green tests for schema requirements, blocking, approval, scaffold output, and legacy migration.
+- Modify `examples/lost-in-conversation-bench/**/thesis_control/*.csv`: move all strict public fixtures to the revision-tracking schema.
+- Regenerate `plugins/academic-writing-toolkit/skills/thesis-control/` with `make plugin-sync`.
+
+### Checker Contract
+
+- A revision issue id is a safe identifier shared by contracts for the same unresolved problem.
+- Attempt numbers are positive, unique, and sequential within one issue.
+- A contract counts as unsuccessful once when any linked audit decides `revise` or `rollback`.
+- Three unsuccessful contracts require a linked escalation row.
+- A later draft or rejected contract is inspectable, but a later approved or applied contract requires a matching human-approved escalation.
+- An approved escalation must reference the first three unsuccessful contracts in `trigger_contracts`.
+
+### Test Sequence
+
+1. Add T75 and verify strict validation rejects a fourth applied contract without escalation.
+2. Add T76 and verify a correctly linked, human-approved escalation permits the fourth contract.
+3. Add T77 and verify malformed attempt families and escalation references fail.
+4. Add T78 and verify the scaffold emits revision identity plus the escalation header.
+5. Add T79 and verify the migration helper preserves legacy rows while adding isolated issue identities.
+6. Run `make plugin-sync`, `make test`, public-content audit, and `git diff --check`.
 
 ---
 

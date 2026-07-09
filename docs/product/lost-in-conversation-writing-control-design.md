@@ -127,11 +127,39 @@ If any of these occur during the bench run, the outcome should be recorded as a 
 
 ### Revision Escalation
 
-Three unsuccessful attempts against the same edit contract are an operational stop threshold, not a research claim that every task fails after three turns. Only author rejection or a `revise` or `rollback` drift decision counts as an unsuccessful attempt; clarification and unexecuted proposals do not count. At that point the workflow must not apply a fourth prose patch.
+Three unsuccessful attempts against the same revision issue are an operational stop threshold, not a research claim that every task fails after three turns. Contract versions remain in the same issue family through `revision_issue_id`. Only author rejection or a `revise` or `rollback` drift decision counts as an unsuccessful attempt; clarification and unexecuted proposals do not count. At that point the workflow must not apply a fourth prose patch.
 
 The workflow may escalate earlier when claim drift, an evidence gap, an unclear spine, loss of the latest author-approved version, or version contamination is already visible. Before any further edit, it consolidates the valid requirements, compares them with the control packet and approved source, classifies the problem, and asks the author to approve the next action.
 
 The diagnosis separates underspecified or conflicting intent, local execution failure, structural mismatch, evidence gap, and version contamination. It also distinguishes a local patch, section-level restructure, and full reframing. A new branch or manuscript version is an isolation mechanism for approved structural work, not a substitute for repairing an unclear specification.
+
+### Revision Escalation Execution Layer
+
+The instruction rule is not sufficient on its own. Strict thesis-control packets must make revision attempts and escalation approval structurally inspectable.
+
+`edit_contracts.csv` adds two fields:
+
+- `revision_issue_id` groups multiple contract versions that address the same unresolved writing problem;
+- `attempt_no` is a positive, unique, sequential number within that issue.
+
+An unsuccessful attempt is one contract whose audit decision is `revise` or `rollback`. Author rejection must be recorded as one of those two decisions so the outcome is durable and countable. Multiple audits for one contract still count as one attempt.
+
+`revision_escalations.csv` records:
+
+```text
+escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
+```
+
+The execution gate is:
+
+1. Find the first three unsuccessful contracts in one `revision_issue_id` family.
+2. Require a revision-escalation row that references those trigger contracts.
+3. Permit draft planning, but reject any later contract marked `approved` or `applied` until a matching escalation row has `human_approved=true` and `status=approved`.
+4. Keep early escalation available with fewer than three trigger contracts; it does not weaken the three-strike gate.
+
+The checker remains structural. It can verify identities, attempt order, audit outcomes, escalation linkage, and human approval. It cannot decide whether feedback is semantically ambiguous, whether evidence is academically sufficient, or whether a full reframing is intellectually correct.
+
+For compatibility, non-strict checking continues to accept legacy packets without revision-tracking columns. Strict checking requires the new fields and escalation file. A local migration helper adds the new schema without guessing historical issue relationships: each legacy contract starts as its own issue and authors may explicitly regroup known revision families.
 
 ## Acceptance Criteria
 
