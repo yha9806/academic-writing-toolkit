@@ -132,7 +132,7 @@ passes.
 - [x] Synchronise skill, public docs, fixtures, and generated plugin copies.
 - [x] Run the complete test, plugin, ChatGPT App, public-content, release-packet,
   syntax, sync, and diff gates.
-- [ ] Obtain two independent full-range reviews and resolve every Critical and
+- [x] Obtain two independent full-range reviews and resolve every Critical and
   Important finding.
 - [ ] Commit and push verified changes, update PR #22 evidence, and confirm
   GitHub Actions passes while leaving the PR open and unmerged.
