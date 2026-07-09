@@ -125,7 +125,7 @@ passes.
 - Regenerate `plugins/academic-writing-toolkit/skills/thesis-control/`
 - Modify `scripts/test.sh` when an audit case exposes an uncovered defect
 
-- [x] Add T106-T110 for multiple-audit, trigger-order, candidate-integrity,
+- [x] Add T106-T111 for multiple-audit, trigger-order, candidate-integrity,
   path-boundary, rollback, encoding, legacy/non-strict, and retry combinations.
 - [x] Record each adversarial case, expected exit and issue kind, observed
   result, and regression-test mapping.

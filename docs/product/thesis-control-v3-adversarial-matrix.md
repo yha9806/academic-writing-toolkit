@@ -9,7 +9,7 @@ approval remains the authority for edits, escalation decisions, merge, and
 release.
 
 Observed results below come from `bash scripts/test.sh` on 2026-07-09. The run
-passed all 107 tests. T91-T110 are the dedicated v3 hardening range; earlier
+passed all 108 tests. T91-T111 are the dedicated v3 hardening range; earlier
 tests are included where they establish a compatibility or approval baseline.
 
 ## Matrix
@@ -18,6 +18,7 @@ tests are included where they establish a compatibility or approval baseline.
 |---|---|---|---|---|
 | Checker | Duplicate headers in any control CSV, including conflicting `human_approved` values | Exit 1; `duplicate-column`; no traceback | Pass | T91 |
 | Checker | Extra, missing, truncated, invalid-quote, or invalid UTF-8 cells | Exit 1; structured shape/decode issue; no traceback | Pass | T92, T110 |
+| Checker | Empty or invalid `drift_decision` and audit `status` values | Exit 1; located enum issues; no traceback | Pass | T111 |
 | Checker | Legacy packet or v2 escalation inspected non-strictly | Non-strict inspection remains available; strict mode requires v3 | Pass | T82, T93 |
 | Checker | Approved cycle gate before all three applied contracts have resolved failed audits | Exit 1; `premature-cycle-gate-approval` | Pass | T94 |
 | Checker | Approved early diagnosis followed by a completed failure group | Early row never unlocks; distinct cycle gate required | Pass | T95 |

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (107 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T110 revision escalation and human gates) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (108 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -2469,6 +2469,24 @@ PY
     return "$rc"
 }
 
+test_T111() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_migration_v2_packet "$tmp"
+    _write_valid_cycle_gate "$tmp"
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-empty-decision,ec-001,none,none,none,none,,true,failed
+da-empty-status,ec-002,none,none,none,none,revise,true,
+da-invalid-both,ec-003,none,none,none,none,maybe,true,done
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$out" != *"Traceback"* ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; locations={i['location'] for i in d['issues']}; assert {'invalid-drift-decision','invalid-audit-status'} <= kinds; assert 'thesis_control/drift_audits.csv:row 2' in locations and 'thesis_control/drift_audits.csv:row 3' in locations"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -2730,6 +2748,7 @@ run_test "T107 cycle gates require trigger contracts in attempt order" test_T107
 run_test "T108 scaffold validates the complete candidate packet before mutation" test_T108
 run_test "T109 scaffold and migration reject internal symlink paths" test_T109
 run_test "T110 batch rollback and invalid UTF-8 fail cleanly" test_T110
+run_test "T111 empty and invalid audit outcomes return located issues" test_T111
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
