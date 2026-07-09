@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (93 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T96 revision escalation and human gates) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (97 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T100 revision escalation and human gates) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -1867,6 +1867,162 @@ PY
     return "$rc"
 }
 
+_tree_digest() {
+    python3 - "$1" <<'PY'
+import hashlib
+import os
+import stat
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+digest = hashlib.sha256()
+if root.exists():
+    for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
+        relative = path.relative_to(root).as_posix()
+        mode = path.lstat().st_mode
+        digest.update(relative.encode("utf-8") + b"\0")
+        digest.update(str(stat.S_IMODE(mode)).encode("ascii") + b"\0")
+        if path.is_symlink():
+            digest.update(b"L" + os.readlink(path).encode("utf-8"))
+        elif path.is_file():
+            digest.update(b"F" + path.read_bytes())
+        elif path.is_dir():
+            digest.update(b"D")
+print(digest.hexdigest())
+PY
+}
+
+test_T97() {
+    local tmp before after out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters" "$tmp/thesis_control" "$tmp/source_excerpts"
+    printf '# Chapter\n\nnew source\n' > "$tmp/chapters/ch.md"
+    printf 'KEEP ORIGINAL\n' > "$tmp/source_excerpts/ch.md"
+    cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
+escalation_id,bad_column
+EOF
+
+    before=$(_tree_digest "$tmp") || {
+        rm -rf "$tmp"
+        return 1
+    }
+    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch.md \
+        --unit-id ch \
+        --revision-issue-id ri-ch \
+        --attempt-no 1 \
+        --copy-source \
+        --force \
+        --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$tmp")
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$before" == "$after" ]] || return 1
+    [[ "$out" == *"missing column"* ]]
+}
+
+test_T98() {
+    local tmp case_dir before after rc
+    tmp=$(mktemp -d) || return 1
+
+    case_dir="$tmp/review-collision"
+    mkdir -p "$case_dir/chapters" "$case_dir/thesis_control"
+    printf '# Chapter\n\nsource\n' > "$case_dir/chapters/ch.md"
+    printf 'KEEP PACKET\n' > "$case_dir/thesis_control/ch_review_packet.md"
+    before=$(_tree_digest "$case_dir") || return 1
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$case_dir" \
+        --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --copy-source --json >/dev/null 2>&1
+    rc=$?
+    after=$(_tree_digest "$case_dir")
+    [[ "$rc" -eq 1 && "$before" == "$after" ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    case_dir="$tmp/spine-collision"
+    mkdir -p "$case_dir/chapters" "$case_dir/thesis_control"
+    printf '# Chapter\n\nsource\n' > "$case_dir/chapters/ch.md"
+    cat > "$case_dir/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch,chapters/ch.md,Chapter,existing spine,one unit,claim,boundary
+EOF
+    before=$(_tree_digest "$case_dir") || return 1
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$case_dir" \
+        --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --copy-source --json >/dev/null 2>&1
+    rc=$?
+    after=$(_tree_digest "$case_dir")
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$before" == "$after" ]]
+}
+
+test_T99() {
+    local tmp first second checked
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    printf '# Chapter\n\nsource\n' > "$tmp/chapters/ch.md"
+
+    first=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --attempt-no 1 --copy-source --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    second=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --attempt-no 2 --copy-source --force --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$first" "$second" "$checked" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+first = json.loads(sys.argv[2])
+second = json.loads(sys.argv[3])
+checked = json.loads(sys.argv[4])
+rows = list(csv.DictReader((root / "thesis_control/edit_contracts.csv").open(encoding="utf-8")))
+assert first["contract_id"] == "ec-ch-001"
+assert second["contract_id"] == "ec-ch-002"
+assert [(row["contract_id"], row["attempt_no"]) for row in rows] == [
+    ("ec-ch-001", "1"),
+    ("ec-ch-002", "2"),
+]
+assert checked["issue_count"] == 0
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T100() {
+    local tmp before after out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters" "$tmp/thesis_control"
+    printf '# Chapter\n\nsource\n' > "$tmp/chapters/ch.md"
+    cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
+unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+EOF
+    cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
+contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status,owner_note
+ec-a-001,a,ri-a,1,scope,allowed,forbidden,adjacent,checks,false,draft,keep-a
+ec-b-001,b,ri-b,1,scope,allowed,forbidden,adjacent,checks,false,draft,keep-b
+EOF
+    before=$(_tree_digest "$tmp") || return 1
+    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+        --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --attempt-no 1 --copy-source --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$tmp")
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$before" == "$after" ]] || return 1
+    [[ "$out" == *"unsupported column"*"owner_note"* ]]
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -2114,6 +2270,10 @@ run_test "T93 strict thesis-control requires schema v3 escalation fields" test_T
 run_test "T94 cycle gate approval requires a completed failure group" test_T94
 run_test "T95 early diagnostics never close a failure cycle" test_T95
 run_test "T96 cycle gates require exact trigger count and attempt boundary" test_T96
+run_test "T97 scaffold rejects malformed headers without mutation" test_T97
+run_test "T98 scaffold collisions leave the packet unchanged" test_T98
+run_test "T99 scaffold default contract IDs follow attempt numbers" test_T99
+run_test "T100 scaffold rejects extension columns without mutation" test_T100
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

@@ -9,12 +9,13 @@ audited. The author still owns the scholarly judgement.
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
+from thesis_control_io import atomic_write_batch, read_csv_table, render_csv_table
 
 
 SPINE_COLUMNS = [
@@ -139,62 +140,54 @@ def infer_section_title(excerpt: str, source: Path) -> str:
     return source.stem.replace("_", " ").replace("-", " ").strip() or source.name
 
 
-def ensure_csv(path: Path, columns: Sequence[str]) -> List[Dict[str, str]]:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def read_owned_csv(path: Path, columns: Sequence[str]) -> List[Dict[str, str]]:
+    """Read one scaffold-owned CSV without changing the project tree."""
+
     if not path.exists():
-        with path.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(columns))
-            writer.writeheader()
         return []
 
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        fieldnames = reader.fieldnames or []
-        missing = [column for column in columns if column not in fieldnames]
-        if missing:
-            raise ValueError(f"{path} missing column(s): {', '.join(missing)}")
-        return list(reader)
+    fieldnames, rows = read_csv_table(path)
+    missing = [column for column in columns if column not in fieldnames]
+    if missing:
+        raise ValueError(f"{path} missing column(s): {', '.join(missing)}")
+    unsupported = [column for column in fieldnames if column not in columns]
+    if unsupported:
+        raise ValueError(f"{path} unsupported column(s): {', '.join(unsupported)}")
+    return rows
 
 
-def write_csv(path: Path, columns: Sequence[str], rows: Sequence[Dict[str, str]]) -> None:
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(columns))
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def upsert_row(
+def upsert_row_candidate(
     path: Path,
-    columns: Sequence[str],
+    rows: Sequence[Dict[str, str]],
     key: str,
     row: Dict[str, str],
     force: bool,
-) -> str:
-    rows = ensure_csv(path, columns)
-    found = False
+) -> Tuple[List[Dict[str, str]], str]:
+    matches = sum(1 for existing in rows if existing.get(key) == row[key])
+    if matches > 1:
+        raise ValueError(f"{path} contains duplicate {key}={row[key]}")
+    if matches == 1 and not force:
+        raise ValueError(f"{path} already contains {key}={row[key]}; pass --force to replace it")
+
     output: List[Dict[str, str]] = []
     for existing in rows:
         if existing.get(key) == row[key]:
-            if not force:
-                raise ValueError(f"{path} already contains {key}={row[key]}; pass --force to replace it")
             output.append(row)
-            found = True
         else:
             output.append(existing)
-    if not found:
+    if matches == 0:
         output.append(row)
-    write_csv(path, columns, output)
-    return "replaced" if found else "added"
+    return output, "replaced" if matches == 1 else "added"
 
 
 def validate_revision_attempt(
     path: Path,
+    rows: Sequence[Dict[str, str]],
     contract_id: str,
     revision_issue_id: str,
     attempt_no: int,
     force: bool,
 ) -> None:
-    rows = ensure_csv(path, CONTRACT_COLUMNS) if path.exists() else []
     candidate_rows: List[Dict[str, str]] = []
     for row in rows:
         if row.get("contract_id", "").strip() == contract_id:
@@ -234,20 +227,14 @@ def validate_revision_attempt(
             )
 
 
-def write_review_packet(
-    output_dir: Path,
+def render_review_packet(
     unit_id: str,
     section_title: str,
     excerpt_path: str,
     spine_row: Dict[str, str],
     contract_row: Dict[str, str],
-    force: bool,
-) -> Path:
-    packet_path = output_dir / "thesis_control" / f"{unit_id}_review_packet.md"
-    if packet_path.exists() and not force:
-        raise ValueError(f"{packet_path} already exists; pass --force to replace it")
-
-    body = f"""# Thesis-Control Review Packet: {unit_id}
+) -> str:
+    return f"""# Thesis-Control Review Packet: {unit_id}
 
 ## Unit
 
@@ -280,10 +267,9 @@ def write_review_packet(
 - After any applied edit, add a drift-audit row before accepting the prose.
 - Reuse the same revision issue id and increment the attempt number when a new contract retries the same unresolved problem.
 - Count an attempt as unsuccessful only after an applied contract receives a resolved `revise` or `rollback` audit with `status=failed`.
-- After three unsuccessful attempts, approve a distinct escalation that lists exactly those three trigger contracts before applying a later contract.
+- An `early_diagnostic` escalation may record one or two warning triggers, but it never closes or pre-authorises a failure cycle.
+- After three unsuccessful attempts, create a distinct `cycle_gate` that lists exactly those three trigger contracts, records the third attempt as its approval boundary, and receives explicit author approval before applying a later contract.
 """
-    packet_path.write_text(body, encoding="utf-8")
-    return packet_path
 
 
 def scaffold(args: argparse.Namespace) -> dict:
@@ -296,9 +282,9 @@ def scaffold(args: argparse.Namespace) -> dict:
     excerpt = read_excerpt(source, args.start_line, args.end_line)
     unit_id = args.unit_id or infer_unit_id(source, args.start_line, args.end_line)
     section_title = args.section_title or infer_section_title(excerpt, source)
-    contract_id = args.contract_id or f"ec-{unit_id}-001"
-    revision_issue_id = args.revision_issue_id or f"ri-{contract_id}"
     attempt_no = args.attempt_no
+    contract_id = args.contract_id or f"ec-{unit_id}-{attempt_no:03d}"
+    revision_issue_id = args.revision_issue_id or f"ri-{contract_id}"
     validate_identifier("unit_id", unit_id)
     validate_identifier("contract_id", contract_id)
     validate_identifier("revision_issue_id", revision_issue_id)
@@ -310,21 +296,13 @@ def scaffold(args: argparse.Namespace) -> dict:
     contract_path = control_dir / "edit_contracts.csv"
     audit_path = control_dir / "drift_audits.csv"
     escalation_path = control_dir / "revision_escalations.csv"
-    validate_revision_attempt(
-        contract_path,
-        contract_id,
-        revision_issue_id,
-        attempt_no,
-        args.force,
-    )
+    packet_path = control_dir / f"{unit_id}_review_packet.md"
 
     if args.copy_source:
         excerpt_dir = output_dir / "source_excerpts"
-        excerpt_dir.mkdir(parents=True, exist_ok=True)
         excerpt_file = excerpt_dir / f"{unit_id}.md"
         if excerpt_file.exists() and not args.force:
             raise ValueError(f"{excerpt_file} already exists; pass --force to replace it")
-        excerpt_file.write_text(excerpt, encoding="utf-8")
         source_display = relative_display(excerpt_file, output_dir)
     else:
         try:
@@ -333,8 +311,21 @@ def scaffold(args: argparse.Namespace) -> dict:
             raise ValueError("source must be inside output-dir when --copy-source is not used") from exc
         source_display = relative_display(source, output_dir)
 
-    ensure_csv(audit_path, AUDIT_COLUMNS)
-    ensure_csv(escalation_path, ESCALATION_COLUMNS)
+    if packet_path.exists() and not args.force:
+        raise ValueError(f"{packet_path} already exists; pass --force to replace it")
+
+    spine_rows = read_owned_csv(spine_path, SPINE_COLUMNS)
+    contract_rows = read_owned_csv(contract_path, CONTRACT_COLUMNS)
+    audit_rows = read_owned_csv(audit_path, AUDIT_COLUMNS)
+    escalation_rows = read_owned_csv(escalation_path, ESCALATION_COLUMNS)
+    validate_revision_attempt(
+        contract_path,
+        contract_rows,
+        contract_id,
+        revision_issue_id,
+        attempt_no,
+        args.force,
+    )
 
     spine_row = {
         "unit_id": unit_id,
@@ -359,20 +350,35 @@ def scaffold(args: argparse.Namespace) -> dict:
         "status": "draft",
     }
 
-    spine_action = upsert_row(spine_path, SPINE_COLUMNS, "unit_id", spine_row, args.force)
-    contract_action = upsert_row(contract_path, CONTRACT_COLUMNS, "contract_id", contract_row, args.force)
-    packet_path = write_review_packet(
-        output_dir,
+    spine_rows, spine_action = upsert_row_candidate(
+        spine_path, spine_rows, "unit_id", spine_row, args.force
+    )
+    contract_rows, contract_action = upsert_row_candidate(
+        contract_path, contract_rows, "contract_id", contract_row, args.force
+    )
+    review_packet = render_review_packet(
         unit_id,
         section_title,
         source_display,
         spine_row,
         contract_row,
-        args.force,
     )
 
+    contents = {
+        spine_path: render_csv_table(SPINE_COLUMNS, spine_rows),
+        contract_path: render_csv_table(CONTRACT_COLUMNS, contract_rows),
+        packet_path: review_packet.encode("utf-8"),
+    }
+    if not audit_path.exists():
+        contents[audit_path] = render_csv_table(AUDIT_COLUMNS, audit_rows)
+    if not escalation_path.exists():
+        contents[escalation_path] = render_csv_table(ESCALATION_COLUMNS, escalation_rows)
+    if args.copy_source:
+        contents[excerpt_file] = excerpt.encode("utf-8")
+    atomic_write_batch(contents)
+
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "output_dir": str(output_dir),
         "unit_id": unit_id,
         "contract_id": contract_id,
@@ -402,7 +408,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source", required=True, help="Markdown source file, absolute or relative to project_root")
     parser.add_argument("--output-dir", help="Directory where thesis_control/ should be written; defaults to project_root")
     parser.add_argument("--unit-id", help="Stable unit id; defaults to source stem plus line range")
-    parser.add_argument("--contract-id", help="Stable contract id; defaults to ec-<unit-id>-001")
+    parser.add_argument(
+        "--contract-id",
+        help="Stable contract id; defaults to ec-<unit-id>-<attempt-no padded to three digits>",
+    )
     parser.add_argument(
         "--revision-issue-id",
         help="Stable issue id shared by contract versions for the same unresolved problem",
