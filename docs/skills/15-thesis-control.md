@@ -10,6 +10,7 @@ Use `/thesis-control` when AI-assisted editing may make a thesis draft smoother 
 - Runs a post-edit drift audit for changed claims, changed boundaries, new unsupported claims, and missed adjacent updates.
 - Tracks repeated contracts under one revision issue and blocks a fourth applied revision until escalation is author-approved.
 - Requires human review for high-risk changes.
+- Blocks strict validation while an applied edit remains `needs_review`.
 - Provides an optional validator for durable `thesis_control/` packets.
 
 ## Control Files
@@ -26,6 +27,10 @@ Validate them with:
 ```bash
 python3 .claude/skills/thesis-control/scripts/check_thesis_control.py . --strict
 ```
+
+Use `needs_review` only while the author decision is pending. Record accepted or
+partially accepted audits as `passed`; record `revise` or `rollback` outcomes as
+`failed`. Only resolved failed audits count towards revision escalation.
 
 Upgrade a legacy packet before strict validation:
 
@@ -50,9 +55,9 @@ edit contract with `human_approved=false`. Replace `AUTHOR_REVIEW_REQUIRED`
 fields with concrete author judgement before changing thesis prose.
 
 Reuse the same `revision_issue_id` and increment `attempt_no` when a new
-contract retries the same unresolved problem. After three `revise` or
-`rollback` outcomes, record and approve a revision escalation before applying
-a later contract.
+contract retries the same unresolved problem. After three resolved `revise` or
+`rollback` outcomes with `status=failed`, record and approve a revision
+escalation before applying a later contract.
 
 ## Typical Prompts
 

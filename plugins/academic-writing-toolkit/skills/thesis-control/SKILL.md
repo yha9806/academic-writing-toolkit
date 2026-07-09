@@ -132,13 +132,19 @@ After editing, compare the new prose against the contract and report:
 
 If any claim, boundary, or caveat changed, the result needs human review even if the prose is smoother.
 
+Use audit `status=needs_review` only while the author's post-edit decision is
+pending. Strict validation blocks an applied contract in that state. After the
+author decides, record `status=passed` for `accept` or `partial_accept`, and
+`status=failed` for `revise` or `rollback`. Do not treat a pending audit as a
+completed unsuccessful attempt.
+
 ### 5. Record Human Gate Outcome
 
 The author decides whether to accept, partially accept, revise, or rollback. Do not mark a high-risk edit as accepted without explicit human approval.
 
 ## Revision Escalation Rule
 
-Treat three unsuccessful attempts on the same revision issue as an operational escalation threshold, not as evidence that every task fails after three turns. Use `revision_issue_id` to keep successive contract versions attached to that issue. Only count an attempt when its drift decision is `revise` or `rollback`. Record author rejection as one of those decisions. Multiple audits of one contract still count as one attempt. Clarifying discussion and unexecuted proposals do not count.
+Treat three unsuccessful attempts on the same revision issue as an operational escalation threshold, not as evidence that every task fails after three turns. Use `revision_issue_id` to keep successive contract versions attached to that issue. Only count an attempt when its drift decision is `revise` or `rollback` and its audit status is `failed`. Record author rejection as one of those decisions. Multiple audits of one contract still count as one attempt. Clarifying discussion, pending human reviews, and unexecuted proposals do not count.
 
 After three unsuccessful attempts, stop. Do not apply a fourth prose patch. Record a row in `revision_escalations.csv`; a later contract may become `approved` or `applied` only after the matching escalation has `human_approved=true` and `status=approved`.
 

@@ -407,10 +407,22 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
 
         if decision not in DRIFT_DECISIONS:
             add_issue(issues, "invalid-drift-decision", location, f"invalid drift_decision: {decision}")
-        elif decision in {"revise", "rollback"} and contract_id:
-            unsuccessful_contracts.add(contract_id)
         if status not in AUDIT_STATUSES:
             add_issue(issues, "invalid-audit-status", location, f"invalid audit status: {status}")
+        if decision in DRIFT_DECISIONS and status in AUDIT_STATUSES:
+            resolved_decisions = {
+                "passed": {"accept", "partial_accept"},
+                "failed": {"revise", "rollback"},
+            }
+            if status in resolved_decisions and decision not in resolved_decisions[status]:
+                add_issue(
+                    issues,
+                    "invalid-audit-outcome",
+                    location,
+                    f"audit status={status} is inconsistent with drift_decision={decision}",
+                )
+            if decision in {"revise", "rollback"} and status == "failed" and contract_id:
+                unsuccessful_contracts.add(contract_id)
         if review_required is None:
             add_issue(issues, "invalid-human-review-required", location, "human_review_required must be true or false")
 
@@ -422,6 +434,17 @@ def validate_packet(root: Path, strict: bool = False) -> dict:
             add_issue(issues, "missing-human-review", location, "claim/boundary/adjacent drift requires human_review_required=true")
         if high_risk and decision == "accept":
             add_issue(issues, "unsafe-accept", location, "high-risk drift cannot be accepted without revision or partial acceptance")
+        if (
+            strict
+            and contract_statuses.get(contract_id) == "applied"
+            and status == "needs_review"
+        ):
+            add_issue(
+                issues,
+                "pending-human-review",
+                location,
+                "applied contract requires the author to resolve this drift audit before strict validation can pass",
+            )
         if not is_empty(new_claims) and status == "passed":
             add_issue(issues, "unsupported-claim-passed", location, "new unsupported claims cannot have status=passed")
         if not is_empty(missed_adjacent) and status == "passed":

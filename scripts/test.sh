@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (79 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T82 revision escalation) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (82 automated tests: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T85 revision escalation and human gates) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -1109,8 +1109,8 @@ required_clauses = (
     "revision_issue_id",
     "three unsuccessful attempts",
     "operational escalation threshold",
-    "Only count an attempt when its drift decision is `revise` or `rollback`.",
-    "Clarifying discussion and unexecuted proposals do not count.",
+    "Only count an attempt when its drift decision is `revise` or `rollback` and its audit status is `failed`.",
+    "Clarifying discussion, pending human reviews, and unexecuted proposals do not count.",
     "Do not apply a fourth prose patch",
     "Escalate earlier",
     "section spine cannot be stated consistently",
@@ -1159,9 +1159,9 @@ ec-004,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,c
 EOF
     cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
-da-001,ec-001,none,none,none,none,revise,true,needs_review
-da-002,ec-002,none,none,none,none,rollback,true,needs_review
-da-003,ec-003,none,none,none,none,revise,true,needs_review
+da-001,ec-001,none,none,none,none,revise,true,failed
+da-002,ec-002,none,none,none,none,rollback,true,failed
+da-003,ec-003,none,none,none,none,revise,true,failed
 da-004,ec-004,none,none,none,none,accept,false,passed
 EOF
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
@@ -1323,12 +1323,12 @@ ec-007,ch03,ri-ch03-clarity,7,clarify the claim,improve clarity,do not broaden,c
 EOF
     cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
-da-001,ec-001,none,none,none,none,revise,true,needs_review
-da-002,ec-002,none,none,none,none,rollback,true,needs_review
-da-003,ec-003,none,none,none,none,revise,true,needs_review
-da-004,ec-004,none,none,none,none,revise,true,needs_review
-da-005,ec-005,none,none,none,none,rollback,true,needs_review
-da-006,ec-006,none,none,none,none,revise,true,needs_review
+da-001,ec-001,none,none,none,none,revise,true,failed
+da-002,ec-002,none,none,none,none,rollback,true,failed
+da-003,ec-003,none,none,none,none,revise,true,failed
+da-004,ec-004,none,none,none,none,revise,true,failed
+da-005,ec-005,none,none,none,none,rollback,true,failed
+da-006,ec-006,none,none,none,none,revise,true,failed
 da-007,ec-007,none,none,none,none,accept,false,passed
 EOF
     out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
@@ -1374,6 +1374,91 @@ EOF
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
     echo "$strict" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-column','missing-file'} <= kinds"
+}
+
+test_T83() {
+    local tmp pending resolved rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_thesis_control_packet "$tmp"
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,accept,false,needs_review
+EOF
+
+    pending=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+    echo "$pending" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'pending-human-review' for i in d['issues'])" || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    sed -i.bak 's/,needs_review$/,passed/' "$tmp/thesis_control/drift_audits.csv"
+    resolved=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$resolved" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0"
+}
+
+test_T84() {
+    local tmp pending failed rc
+    tmp=$(mktemp -d) || return 1
+    _make_revision_escalation_packet "$tmp"
+    sed -i.bak '/^da-003,/ s/,failed$/,needs_review/' "$tmp/thesis_control/drift_audits.csv"
+
+    pending=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+    echo "$pending" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'pending-human-review' in kinds and 'missing-revision-escalation' not in kinds and 'revision-escalation-required' not in kinds" || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    sed -i.bak '/^da-003,/ s/,needs_review$/,failed/' "$tmp/thesis_control/drift_audits.csv"
+    failed=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$failed" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-revision-escalation','revision-escalation-required'} <= kinds"
+}
+
+test_T85() {
+    local tmp mismatch rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_thesis_control_packet "$tmp"
+
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,revise,false,passed
+EOF
+    mismatch=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+    echo "$mismatch" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'invalid-audit-outcome' for i in d['issues'])" || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
+audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
+da-001,ec-001,none,none,none,none,accept,false,failed
+EOF
+    mismatch=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$mismatch" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'invalid-audit-outcome' for i in d['issues'])"
 }
 
 test_T50() {
@@ -1609,6 +1694,9 @@ run_test "T79 thesis-control upgrades legacy revision tracking" test_T79
 run_test "T80 revision escalation fixture blocks then releases fourth edit" test_T80
 run_test "T81 revision escalation requires a new gate after another three failures" test_T81
 run_test "T82 non-strict checker accepts legacy packets while strict requires upgrade" test_T82
+run_test "T83 strict checker blocks applied edits pending human review" test_T83
+run_test "T84 revision escalation counts only resolved failed audits" test_T84
+run_test "T85 thesis-control rejects contradictory resolved audit outcomes" test_T85
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
