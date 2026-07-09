@@ -67,6 +67,7 @@ The manifest follows the OpenAI Codex plugin docs:
 - `audit`
 - `release-governance`
 - `manuscript-reframe`
+- `revision-escalation`
 - `style`
 - `logic-review`
 - `verify-refs`
