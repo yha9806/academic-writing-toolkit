@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
+from project_intent_control import validate_project_intent_layer
 from thesis_control_io import CsvShapeError, read_csv_table
 
 
@@ -203,6 +204,7 @@ def add_issue(issues: List[dict], kind: str, location: str, message: str) -> Non
 def validate_packet(
     root: Path,
     strict: bool = False,
+    require_project_intent: Optional[bool] = None,
     table_overrides: Optional[
         Mapping[str, Tuple[Sequence[str], Sequence[Mapping[str, str]]]]
     ] = None,
@@ -232,15 +234,27 @@ def validate_packet(
         column in contract_fields for column in REVISION_CONTRACT_COLUMNS
     )
 
+    intent_state, intent_issues = validate_project_intent_layer(
+        root,
+        required=strict if require_project_intent is None else require_project_intent,
+        table_overrides=overrides,
+    )
+    intent_tracking = intent_state["enabled"]
+
+    spine_columns = list(REQUIRED_FILES["spine_cards.csv"])
+    if intent_tracking:
+        spine_columns.append("manuscript_id")
     spine_rows, spine_issues = validate_columns(
         root,
         "spine_cards.csv",
-        REQUIRED_FILES["spine_cards.csv"],
+        spine_columns,
         table=overrides.get("spine_cards.csv"),
     )
     contract_columns = list(REQUIRED_FILES["edit_contracts.csv"])
     if revision_tracking:
         contract_columns.extend(REVISION_CONTRACT_COLUMNS)
+    if intent_tracking:
+        contract_columns.append("global_audit_id")
     contract_rows, contract_issues = validate_columns(
         root,
         "edit_contracts.csv",
@@ -269,9 +283,16 @@ def validate_packet(
             allow_empty=True,
             table=overrides.get("revision_escalations.csv"),
         )
-    issues.extend(spine_issues + contract_issues + audit_issues + escalation_issues)
+    issues.extend(
+        intent_issues
+        + spine_issues
+        + contract_issues
+        + audit_issues
+        + escalation_issues
+    )
 
     spine_ids = set()
+    spine_manuscripts: Dict[str, str] = {}
     for index, row in enumerate(spine_rows):
         location = row_location("spine_cards.csv", index)
         unit_id = row.get("unit_id", "").strip()
@@ -299,6 +320,31 @@ def validate_packet(
         )
         if path_issue:
             add_issue(issues, "invalid-source-path", location, path_issue)
+        if intent_tracking:
+            manuscript_id = row.get("manuscript_id", "").strip()
+            if not manuscript_id:
+                add_issue(
+                    issues,
+                    "missing-manuscript-id",
+                    location,
+                    "spine card has no manuscript_id",
+                )
+            elif not is_valid_identifier(manuscript_id):
+                add_issue(
+                    issues,
+                    "invalid-manuscript-id",
+                    location,
+                    "manuscript_id must be a safe identifier",
+                )
+            elif manuscript_id not in intent_state["manuscripts_by_id"]:
+                add_issue(
+                    issues,
+                    "unknown-manuscript-id",
+                    location,
+                    f"spine card references unknown manuscript_id: {manuscript_id}",
+                )
+            if unit_id and manuscript_id:
+                spine_manuscripts[unit_id] = manuscript_id
 
     contract_ids = set()
     applied_contracts = set()
@@ -315,6 +361,7 @@ def validate_packet(
         approved = parse_bool(row.get("human_approved", ""))
         revision_issue_id = row.get("revision_issue_id", "").strip()
         attempt_text = row.get("attempt_no", "").strip()
+        global_audit_id = row.get("global_audit_id", "").strip()
 
         if not contract_id:
             add_issue(issues, "missing-contract-id", location, "edit contract has no contract_id")
@@ -349,6 +396,49 @@ def validate_packet(
             add_issue(issues, "invalid-human-approved", location, "human_approved must be true or false")
         if status in {"approved", "applied"} and approved is not True:
             add_issue(issues, "missing-human-approval", location, "approved/applied contracts require human_approved=true")
+
+        if intent_tracking:
+            if not global_audit_id:
+                add_issue(
+                    issues,
+                    "missing-global-audit-id",
+                    location,
+                    "edit contract has no global_audit_id",
+                )
+            elif not is_valid_identifier(global_audit_id):
+                add_issue(
+                    issues,
+                    "invalid-global-audit-id",
+                    location,
+                    "global_audit_id must be a safe identifier",
+                )
+            elif global_audit_id not in intent_state["audits_by_id"]:
+                add_issue(
+                    issues,
+                    "unknown-global-audit-id",
+                    location,
+                    f"edit contract references unknown global_audit_id: {global_audit_id}",
+                )
+            else:
+                audit_record = intent_state["audits_by_id"][global_audit_id]
+                spine_manuscript = spine_manuscripts.get(unit_id)
+                if spine_manuscript and audit_record["manuscript_id"] != spine_manuscript:
+                    add_issue(
+                        issues,
+                        "contract-global-audit-mismatch",
+                        location,
+                        "edit contract global audit does not cover the spine card's manuscript contract",
+                    )
+                if (
+                    status in {"approved", "applied"}
+                    and global_audit_id not in intent_state["ready_audit_ids"]
+                ):
+                    add_issue(
+                        issues,
+                        "global-thesis-gate-required",
+                        location,
+                        "approved/applied edits require a passed global thesis audit for the active project intent and manuscript contract",
+                    )
 
         for column in ["change_scope", "allowed_changes", "forbidden_changes", "adjacent_context", "acceptance_checks"]:
             if is_empty(row.get(column, "")):
@@ -759,6 +849,27 @@ def validate_packet(
                                 f"contract {contract_id} cannot proceed before revision issue {revision_issue_id} has an approved cycle_gate for {trigger_list}",
                             )
 
+    executable_contracts = [
+        contract_id
+        for contract_id, status in contract_statuses.items()
+        if status in {"approved", "applied"}
+    ]
+    if intent_tracking and executable_contracts:
+        if len(intent_state["active_intent_ids"]) != 1:
+            add_issue(
+                issues,
+                "active-project-intent-required",
+                "thesis_control/project_intent.csv",
+                "approved/applied edits require exactly one active author-approved project intent",
+            )
+        if len(intent_state["active_manuscript_ids"]) != 1:
+            add_issue(
+                issues,
+                "active-manuscript-contract-required",
+                "thesis_control/manuscript_contracts.csv",
+                "approved/applied edits require exactly one active author-approved manuscript contract",
+            )
+
     if strict:
         missing_audits = sorted(applied_contracts - audited_contracts)
         for contract_id in missing_audits:
@@ -780,6 +891,10 @@ def validate_packet(
             "revision_escalations": len(escalation_rows),
             "revision_tracking": revision_tracking,
             "escalation_schema_version": 3 if escalation_v3 else 2,
+            "project_intent_tracking": intent_tracking,
+            "project_intents": len(intent_state["intent_rows"]),
+            "manuscript_contracts": len(intent_state["manuscript_rows"]),
+            "global_thesis_audits": len(intent_state["audit_rows"]),
         },
         "issues": issues,
         "issue_count": len(issues),

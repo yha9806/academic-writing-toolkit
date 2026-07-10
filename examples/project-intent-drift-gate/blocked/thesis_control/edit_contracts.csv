@@ -1,0 +1,2 @@
+contract_id,unit_id,global_audit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-survey-001,survey-introduction,ga-heritage-001,ri-survey-positioning,1,polish the introduction,improve flow and terminology,do not alter the current framework hierarchy,check title and abstract,section spine preserved,true,approved

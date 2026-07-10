@@ -1,0 +1,2 @@
+unit_id,manuscript_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+survey-introduction,mc-heritage-001,chapters/survey.md,Survey Introduction,This unit introduces the evolution and validation of AI systems for visual heritage.,visual heritage remains the primary domain,systems progress from recognition toward grounded interpretation,do not reduce visual heritage to a stress-test example

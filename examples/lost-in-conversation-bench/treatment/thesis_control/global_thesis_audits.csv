@@ -1,0 +1,2 @@
+global_audit_id,intent_id,manuscript_id,manuscript_version,title_alignment,abstract_alignment,primary_domain_alignment,research_object_alignment,research_question_alignment,contribution_alignment,structure_alignment,detected_reframe,reframe_summary,human_review_required,human_decision,status
+ga-project-001,pi-project-001,mc-project-001,1,aligned,aligned,aligned,aligned,aligned,aligned,aligned,false,no project-level drift detected,false,accept,passed

@@ -1,0 +1,2 @@
+manuscript_id,intent_id,manuscript_version,supersedes_manuscript_id,title,abstract_focus,primary_domain,research_object,research_question,contribution_scope,structure_summary,change_summary,human_approved,status
+mc-project-001,pi-project-001,1,,Revision Traceability,File-based edit records within one writing project,academic writing control,revision traceability,How can edit records preserve traceability within one project?,traceability only,claim then boundary then examples,initial manuscript contract,true,active

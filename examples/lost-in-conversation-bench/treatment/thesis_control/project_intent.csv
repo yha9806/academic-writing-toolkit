@@ -1,0 +1,2 @@
+intent_id,intent_version,supersedes_intent_id,primary_domain,research_object,core_research_question,target_venue,must_include_concepts,excluded_reframes,amendment_reason,approval_evidence,human_approved,status
+pi-project-001,1,,academic writing control,AI-assisted thesis revision,How can visible edit boundaries preserve author control across multi-turn revision?,academic writing researchers,author control;edit boundaries;evidence boundaries,do not reframe the paper as universal model safety,initial project intent,fixture author approval,true,active

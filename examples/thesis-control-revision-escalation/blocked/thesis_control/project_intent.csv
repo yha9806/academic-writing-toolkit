@@ -1,0 +1,2 @@
+intent_id,intent_version,supersedes_intent_id,primary_domain,research_object,core_research_question,target_venue,must_include_concepts,excluded_reframes,amendment_reason,approval_evidence,human_approved,status
+pi-project-001,1,,academic writing control,revision traceability,How can edit records preserve traceability within one project?,writing workflow readers,traceability;one-project boundary,do not claim scholarly quality improvement,initial project intent,fixture author approval,true,active

@@ -16,6 +16,11 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from check_thesis_control import validate_packet
+from project_intent_control import (
+    GLOBAL_THESIS_AUDIT_COLUMNS,
+    MANUSCRIPT_CONTRACT_COLUMNS,
+    PROJECT_INTENT_COLUMNS,
+)
 from thesis_control_io import (
     atomic_write_batch,
     ensure_internal_paths,
@@ -26,6 +31,7 @@ from thesis_control_io import (
 
 SPINE_COLUMNS = [
     "unit_id",
+    "manuscript_id",
     "path",
     "section_title",
     "spine_sentence",
@@ -37,6 +43,7 @@ SPINE_COLUMNS = [
 CONTRACT_COLUMNS = [
     "contract_id",
     "unit_id",
+    "global_audit_id",
     "revision_issue_id",
     "attempt_no",
     "change_scope",
@@ -237,6 +244,9 @@ def render_review_packet(
     unit_id: str,
     section_title: str,
     excerpt_path: str,
+    intent_id: str,
+    manuscript_id: str,
+    global_audit_id: str,
     spine_row: Dict[str, str],
     contract_row: Dict[str, str],
 ) -> str:
@@ -247,6 +257,9 @@ def render_review_packet(
 - Source: `{excerpt_path}`
 - Section: {section_title}
 - Contract: `{contract_row['contract_id']}`
+- Project intent: `{intent_id}`
+- Manuscript contract: `{manuscript_id}`
+- Global thesis audit: `{global_audit_id}`
 - Revision issue: `{contract_row['revision_issue_id']}`
 - Attempt: {contract_row['attempt_no']}
 - Status: draft, not approved
@@ -268,6 +281,9 @@ def render_review_packet(
 
 ## Author Gate
 
+- Approve the project intent and manuscript contract before approving any edit contract.
+- Resolve the global thesis audit as `passed` only when every alignment field is `aligned` and no reframe is detected.
+- If title, abstract, primary domain, research object, research question, contribution, or structure drifts, revise or roll back the manuscript, or create an explicitly approved new intent version. Never overwrite the earlier intent row.
 - Before editing prose, replace every `{AUTHOR_REVIEW}` field with a concrete judgement.
 - Keep `human_approved=false` until the author explicitly approves the contract.
 - After any applied edit, add a drift-audit row before accepting the prose.
@@ -298,6 +314,9 @@ def scaffold(args: argparse.Namespace) -> dict:
         raise ValueError("--attempt-no must be >= 1")
 
     control_dir = output_dir / "thesis_control"
+    intent_path = control_dir / "project_intent.csv"
+    manuscript_path = control_dir / "manuscript_contracts.csv"
+    global_audit_path = control_dir / "global_thesis_audits.csv"
     spine_path = control_dir / "spine_cards.csv"
     contract_path = control_dir / "edit_contracts.csv"
     audit_path = control_dir / "drift_audits.csv"
@@ -316,6 +335,9 @@ def scaffold(args: argparse.Namespace) -> dict:
         source_display = relative_display(source, output_dir)
 
     output_targets = [
+        intent_path,
+        manuscript_path,
+        global_audit_path,
         spine_path,
         contract_path,
         audit_path,
@@ -334,6 +356,12 @@ def scaffold(args: argparse.Namespace) -> dict:
     if packet_path.exists() and not args.force:
         raise ValueError(f"{packet_path} already exists; pass --force to replace it")
 
+    intent_rows = read_owned_csv(intent_path, PROJECT_INTENT_COLUMNS)
+    manuscript_rows = read_owned_csv(manuscript_path, MANUSCRIPT_CONTRACT_COLUMNS)
+    global_audit_rows = read_owned_csv(global_audit_path, GLOBAL_THESIS_AUDIT_COLUMNS)
+    intent_needs_write = not intent_rows
+    manuscript_needs_write = not manuscript_rows
+    global_audit_needs_write = not global_audit_rows
     spine_rows = read_owned_csv(spine_path, SPINE_COLUMNS)
     contract_rows = read_owned_csv(contract_path, CONTRACT_COLUMNS)
     audit_rows = read_owned_csv(audit_path, AUDIT_COLUMNS)
@@ -347,8 +375,140 @@ def scaffold(args: argparse.Namespace) -> dict:
         args.force,
     )
 
+    if not intent_rows:
+        intent_id = args.intent_id or "pi-project-001"
+        validate_identifier("intent_id", intent_id)
+        intent_rows = [
+            {
+                "intent_id": intent_id,
+                "intent_version": "1",
+                "supersedes_intent_id": "",
+                "primary_domain": review_required("Name the manuscript's primary scholarly domain."),
+                "research_object": review_required("Define the object being studied or reviewed."),
+                "core_research_question": review_required("State the author-approved project-level research question."),
+                "target_venue": review_required("Name the intended venue or audience."),
+                "must_include_concepts": review_required("List concepts that must remain visible in the title or abstract."),
+                "excluded_reframes": review_required("List reframes that require a new approved intent version."),
+                "amendment_reason": review_required("Record that this is the initial intent contract."),
+                "approval_evidence": review_required("Record how and when the author approved this intent."),
+                "human_approved": "false",
+                "status": "draft",
+            }
+        ]
+    else:
+        intent_candidates = [
+            row
+            for row in intent_rows
+            if args.intent_id
+            and row.get("intent_id", "").strip() == args.intent_id
+        ]
+        if not args.intent_id:
+            active = [row for row in intent_rows if row.get("status", "").strip().lower() == "active"]
+            intent_candidates = active or [
+                row for row in intent_rows if row.get("status", "").strip().lower() == "draft"
+            ]
+        if len(intent_candidates) != 1:
+            raise ValueError("select exactly one current project intent with --intent-id")
+        intent_id = intent_candidates[0].get("intent_id", "").strip()
+        validate_identifier("intent_id", intent_id)
+
+    if not manuscript_rows:
+        manuscript_id = args.manuscript_id or "mc-project-001"
+        validate_identifier("manuscript_id", manuscript_id)
+        manuscript_rows = [
+            {
+                "manuscript_id": manuscript_id,
+                "intent_id": intent_id,
+                "manuscript_version": "1",
+                "supersedes_manuscript_id": "",
+                "title": review_required("Record the current manuscript title."),
+                "abstract_focus": review_required("Summarise the current abstract's primary focus."),
+                "primary_domain": review_required("Record the domain currently treated as primary."),
+                "research_object": review_required("Record the manuscript's current research object."),
+                "research_question": review_required("Record the manuscript's current research question."),
+                "contribution_scope": review_required("Record the current contribution boundary."),
+                "structure_summary": review_required("Summarise the manuscript's current section logic."),
+                "change_summary": review_required("Record that this is the initial manuscript contract."),
+                "human_approved": "false",
+                "status": "draft",
+            }
+        ]
+    else:
+        manuscript_candidates = [
+            row
+            for row in manuscript_rows
+            if args.manuscript_id
+            and row.get("manuscript_id", "").strip() == args.manuscript_id
+        ]
+        if not args.manuscript_id:
+            active = [
+                row
+                for row in manuscript_rows
+                if row.get("status", "").strip().lower() == "active"
+                and row.get("intent_id", "").strip() == intent_id
+            ]
+            manuscript_candidates = active or [
+                row
+                for row in manuscript_rows
+                if row.get("status", "").strip().lower() == "draft"
+                and row.get("intent_id", "").strip() == intent_id
+            ]
+        if len(manuscript_candidates) != 1:
+            raise ValueError("select exactly one current manuscript contract with --manuscript-id")
+        manuscript_id = manuscript_candidates[0].get("manuscript_id", "").strip()
+        validate_identifier("manuscript_id", manuscript_id)
+
+    manuscript_version = next(
+        row.get("manuscript_version", "").strip()
+        for row in manuscript_rows
+        if row.get("manuscript_id", "").strip() == manuscript_id
+    )
+    if not global_audit_rows:
+        global_audit_id = args.global_audit_id or "ga-project-001"
+        validate_identifier("global_audit_id", global_audit_id)
+        global_audit_rows = [
+            {
+                "global_audit_id": global_audit_id,
+                "intent_id": intent_id,
+                "manuscript_id": manuscript_id,
+                "manuscript_version": manuscript_version,
+                "title_alignment": "not_assessed",
+                "abstract_alignment": "not_assessed",
+                "primary_domain_alignment": "not_assessed",
+                "research_object_alignment": "not_assessed",
+                "research_question_alignment": "not_assessed",
+                "contribution_alignment": "not_assessed",
+                "structure_alignment": "not_assessed",
+                "detected_reframe": "false",
+                "reframe_summary": review_required("Compare the manuscript contract with the approved project intent."),
+                "human_review_required": "true",
+                "human_decision": "pending",
+                "status": "needs_review",
+            }
+        ]
+    else:
+        audit_candidates = [
+            row
+            for row in global_audit_rows
+            if args.global_audit_id
+            and row.get("global_audit_id", "").strip() == args.global_audit_id
+        ]
+        if not args.global_audit_id:
+            audit_candidates = [
+                row
+                for row in global_audit_rows
+                if row.get("intent_id", "").strip() == intent_id
+                and row.get("manuscript_id", "").strip() == manuscript_id
+                and row.get("manuscript_version", "").strip() == manuscript_version
+            ]
+        if len(audit_candidates) != 1:
+            raise ValueError("select exactly one current global thesis audit with --global-audit-id")
+        global_audit_id = audit_candidates[0].get("global_audit_id", "").strip()
+        validate_identifier("global_audit_id", global_audit_id)
+
     spine_row = {
         "unit_id": unit_id,
+        "manuscript_id": manuscript_id,
         "path": source_display,
         "section_title": section_title,
         "spine_sentence": args.spine_sentence or review_required("State the one-sentence argument spine for this unit."),
@@ -359,6 +519,7 @@ def scaffold(args: argparse.Namespace) -> dict:
     contract_row = {
         "contract_id": contract_id,
         "unit_id": unit_id,
+        "global_audit_id": global_audit_id,
         "revision_issue_id": revision_issue_id,
         "attempt_no": str(attempt_no),
         "change_scope": args.change_scope or review_required("Specify exact paragraphs, lines, or local issue before editing."),
@@ -380,6 +541,9 @@ def scaffold(args: argparse.Namespace) -> dict:
         unit_id,
         section_title,
         source_display,
+        intent_id,
+        manuscript_id,
+        global_audit_id,
         spine_row,
         contract_row,
     )
@@ -388,6 +552,9 @@ def scaffold(args: argparse.Namespace) -> dict:
         output_dir,
         strict=True,
         table_overrides={
+            "project_intent.csv": (PROJECT_INTENT_COLUMNS, intent_rows),
+            "manuscript_contracts.csv": (MANUSCRIPT_CONTRACT_COLUMNS, manuscript_rows),
+            "global_thesis_audits.csv": (GLOBAL_THESIS_AUDIT_COLUMNS, global_audit_rows),
             "spine_cards.csv": (SPINE_COLUMNS, spine_rows),
             "edit_contracts.csv": (CONTRACT_COLUMNS, contract_rows),
             "drift_audits.csv": (AUDIT_COLUMNS, audit_rows),
@@ -407,6 +574,16 @@ def scaffold(args: argparse.Namespace) -> dict:
         contract_path: render_csv_table(CONTRACT_COLUMNS, contract_rows),
         packet_path: review_packet.encode("utf-8"),
     }
+    if intent_needs_write:
+        contents[intent_path] = render_csv_table(PROJECT_INTENT_COLUMNS, intent_rows)
+    if manuscript_needs_write:
+        contents[manuscript_path] = render_csv_table(
+            MANUSCRIPT_CONTRACT_COLUMNS, manuscript_rows
+        )
+    if global_audit_needs_write:
+        contents[global_audit_path] = render_csv_table(
+            GLOBAL_THESIS_AUDIT_COLUMNS, global_audit_rows
+        )
     if not audit_path.exists():
         contents[audit_path] = render_csv_table(AUDIT_COLUMNS, audit_rows)
     if not escalation_path.exists():
@@ -416,7 +593,7 @@ def scaffold(args: argparse.Namespace) -> dict:
     atomic_write_batch(contents)
 
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "output_dir": str(output_dir),
         "unit_id": unit_id,
         "contract_id": contract_id,
@@ -428,12 +605,18 @@ def scaffold(args: argparse.Namespace) -> dict:
         "edit_contracts": str(contract_path),
         "drift_audits": str(audit_path),
         "revision_escalations": str(escalation_path),
+        "project_intent": str(intent_path),
+        "manuscript_contracts": str(manuscript_path),
+        "global_thesis_audits": str(global_audit_path),
         "review_packet": str(packet_path),
         "actions": {
             "spine_card": spine_action,
             "edit_contract": contract_action,
             "drift_audits": "ensured-header",
             "revision_escalations": "ensured-header",
+            "project_intent": "ensured-current-contract",
+            "manuscript_contracts": "ensured-current-contract",
+            "global_thesis_audits": "ensured-current-audit",
         },
     }
 
@@ -454,6 +637,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--revision-issue-id",
         help="Stable issue id shared by contract versions for the same unresolved problem",
     )
+    parser.add_argument("--intent-id", help="Project intent id to bind this section to")
+    parser.add_argument("--manuscript-id", help="Manuscript contract id to bind this section to")
+    parser.add_argument("--global-audit-id", help="Global thesis audit id that must gate this edit")
     parser.add_argument("--attempt-no", type=int, default=1, help="Positive attempt number within the revision issue")
     parser.add_argument("--section-title", help="Section title; defaults to first Markdown heading in the excerpt")
     parser.add_argument("--start-line", type=int, help="1-based start line for a source excerpt")

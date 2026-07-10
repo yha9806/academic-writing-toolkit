@@ -25,7 +25,7 @@ AWT turns those risks into visible objects:
 |---|---|
 | Source and citation drift | independent reading notes, source-status labels, BibTeX checks |
 | Argument drift | gap → contribution → claim → evidence maps |
-| AI revision drift | spine cards, edit contracts, drift audits, human gates |
+| AI revision drift | project-intent contracts, global thesis audits, spine cards, edit contracts, human gates |
 | Repeated failed edits | three-attempt escalation with stop-and-diagnose semantics |
 | Review contamination | clean-room manifests and source-bounded findings |
 | Release mismatch | exact ref + artifact + evidence state + gate + owner |
@@ -106,6 +106,8 @@ A valid run reports no blocking issues. Then compare the matched blocked and app
 
 For multi-turn drift evaluation, [`examples/lost-in-conversation-bench/`](examples/lost-in-conversation-bench/) compares normal editing, consolidated prompting, and `/thesis-control` artifacts across multiple public-safe cases.
 
+For project-level thesis drift, [`examples/project-intent-drift-gate/`](examples/project-intent-drift-gate/) shows strict validation blocking a domain survey after its primary domain becomes a secondary stress test, then passing the restored manuscript contract.
+
 ## 20 composable skills
 
 | Lane | Skills | What the lane produces |
@@ -132,7 +134,7 @@ AWT's deterministic helpers verify structural facts that software can check reli
 - source-note citation shape and in-text citation consistency
 - malformed or duplicate BibTeX records
 - claim/evidence and clean-room packet structure
-- revision-attempt ordering, drift-audit state, and human-gate completeness
+- project-intent lineage, manuscript/global-audit links, revision-attempt ordering, drift-audit state, and human-gate completeness
 - plugin sync, public-content boundaries, local-path leakage, and packaging integrity
 
 They do **not** prove that a scientific claim is true, that evidence is sufficient for a venue, that a paper will be accepted, or that an AI-generated revision expresses the author's intent. Those remain human scholarly judgments.
@@ -143,7 +145,7 @@ Safe fixers are deliberately narrow. They may normalise conservative citation pu
 
 ```bash
 make doctor             # read-only environment and project health
-make test               # 112 regression tests
+make test               # 120 regression tests
 make plugin-check       # plugin metadata, skill sync, bundled helpers
 make chatgpt-app-check  # ChatGPT App server tests
 
