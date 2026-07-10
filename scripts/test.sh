@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (120 automated tests, labelled T2-T123: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T123 project-intent control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (121 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -2757,6 +2757,36 @@ test_T123() {
     [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"partial project-intent schema"* ]]
 }
 
+test_T124() {
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    _make_legacy_v3_project_intent_packet "$tmp" || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[2])
+from upgrade_thesis_control_project_intent import upgrade
+
+root = Path(sys.argv[1])
+alias = root.parent / f"{root.name}-path-alias"
+try:
+    alias.symlink_to(root, target_is_directory=True)
+    payload = upgrade(alias)
+finally:
+    alias.unlink(missing_ok=True)
+assert payload["status"] == "upgraded_blocked"
+assert payload["author_action_required"] is True
+assert Path(payload["project_intent"]).resolve() == (root / "thesis_control/project_intent.csv").resolve()
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
 test_T112() {
     local tmp rc
     tmp=$(mktemp -d) || return 1
@@ -3110,6 +3140,7 @@ run_test "T120 scaffold creates an unapproved project-intent gate" test_T120
 run_test "T121 scaffold populates header-only project-intent files" test_T121
 run_test "T122 project-intent migration creates a blocked draft atomically" test_T122
 run_test "T123 project-intent migration rejects partial schema without mutation" test_T123
+run_test "T124 project-intent migration normalises direct-call roots" test_T124
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

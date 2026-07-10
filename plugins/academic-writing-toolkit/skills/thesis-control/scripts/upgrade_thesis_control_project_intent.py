@@ -106,6 +106,7 @@ def insert_after(columns: Sequence[str], anchor: str, column: str) -> List[str]:
 
 
 def upgrade(project_root: Path) -> dict:
+    project_root = project_root.expanduser().resolve()
     control_dir = project_root / "thesis_control"
     intent_path = control_dir / "project_intent.csv"
     manuscript_path = control_dir / "manuscript_contracts.csv"

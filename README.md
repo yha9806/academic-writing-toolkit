@@ -145,7 +145,7 @@ Safe fixers are deliberately narrow. They may normalise conservative citation pu
 
 ```bash
 make doctor             # read-only environment and project health
-make test               # 120 regression tests
+make test               # 121 regression tests
 make plugin-check       # plugin metadata, skill sync, bundled helpers
 make chatgpt-app-check  # ChatGPT App server tests
 
