@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs 145 regression tests (T2-T5 and T8-T148), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T148 research-relation, focus-review, and assistant routing.
+# scripts/test.sh — runs 146 regression tests (T2-T5 and T8-T149), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T149 research-relation, focus-review, assistant routing, and claim-licence locking.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3344,6 +3344,45 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); locations={i['location'] for i in d['issues'] if i['kind']=='invalid-focus-snapshot'}; assert any(x.endswith(':intent_ids') for x in locations); assert any(x.endswith(':current_primary_ids') for x in locations); assert any(x.endswith(':author_approved_manuscript_path') for x in locations); assert any(x.endswith(':captured_from_files') for x in locations)"
 }
 
+test_T149() {
+    local skill="$REPO_ROOT/.claude/skills/academic-writing-assistant/SKILL.md"
+    local ref="$REPO_ROOT/.claude/skills/academic-writing-assistant/references/argument_level_lock.md"
+    local plugin_skill="$REPO_ROOT/plugins/academic-writing-toolkit/skills/academic-writing-assistant/SKILL.md"
+    local plugin_ref="$REPO_ROOT/plugins/academic-writing-toolkit/skills/academic-writing-assistant/references/argument_level_lock.md"
+    local guide="$REPO_ROOT/docs/skills/00-academic-writing-assistant.md"
+    local files=("$skill" "$ref" "$plugin_skill" "$plugin_ref" "$guide")
+    local term private_re
+
+    [[ -f "$ref" && -f "$plugin_ref" ]] || return 1
+    grep -q 'references/argument_level_lock.md' "$skill" || return 1
+    grep -q 'six-line `Paper Claim Licence`' "$skill" || return 1
+    grep -q 'Six-Line Paper Claim Licence' "$ref" || return 1
+    for term in \
+        'Broad problem' \
+        'Exact paper contribution' \
+        'Primary empirical claim' \
+        'Headline or extrapolative claim' \
+        'Licensed scope' \
+        'Explicitly unlicensed claims'; do
+        grep -q "$term" "$ref" || return 1
+    done
+    grep -qi 'field-level gap' "$ref" || return 1
+    grep -qi 'paper-level contribution' "$ref" || return 1
+    grep -qi 'data-level empirical finding' "$ref" || return 1
+    grep -qi 'extrapolation-level claim' "$ref" || return 1
+    grep -q '`wording`' "$ref" || return 1
+    grep -q '`argument_design`' "$ref" || return 1
+    grep -q '`research_design`' "$ref" || return 1
+    grep -q 'decisive study' "$ref" || return 1
+    grep -q 'narrow or reclassify the headline claim' "$ref" || return 1
+    grep -q 'scope_propagation_failure' "$ref" || return 1
+    grep -q '| Transition | Evidence or relation IDs | evidence_status | support_balance | scope_match | Missing evidence | Decision |' "$ref" || return 1
+    grep -q 'contribution_focus.csv.*current_role' "$ref" || return 1
+    private_re='Reviewer yh''eE|Reviewer QP''E2|Reviewer Pn''Mw|76''\.34|EM''NLP|H''SG|oo''cyte|CS''UR'
+    ! grep -Eqi "$private_re" "${files[@]}" || return 1
+    ! grep -q 'TODO' "$skill" "$ref" "$guide" || return 1
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -3643,6 +3682,7 @@ run_test "T145 a valid focus snapshot satisfies the decision gate" test_T145
 run_test "T146 academic writing assistant routes without duplicating governance" test_T146
 run_test "T147 contribution focus candidates cannot cross intent boundaries" test_T147
 run_test "T148 stale or unrelated focus snapshots fail semantic validation" test_T148
+run_test "T149 academic writing assistant locks argument levels and claim licence" test_T149
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

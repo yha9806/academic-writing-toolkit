@@ -1,4 +1,4 @@
 interface:
   display_name: "Academic Writing Assistant / 学术写作助手"
   short_description: "Project-centred writing / 项目主线与证据梳理"
-  default_prompt: "Use $academic-writing-assistant to map my research project, assess evidence balance, and select the next controlled writing step；用它梳理项目主线、证据关系和下一步。"
+  default_prompt: "Use $academic-writing-assistant to lock the paper's argument levels, assess its evidence licence, and select the next controlled step；用它锁定论证层级、证据许可和下一步。"
