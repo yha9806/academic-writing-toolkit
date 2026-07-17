@@ -45,11 +45,20 @@ The original five-table packet remains supported. The additional files are requi
 - Every main claim belongs to a contribution or the paper-level thesis.
 - Every lower-level claim supports a parent claim.
 - Every claim has the right type and amount of evidence.
+- Field-level gap, paper-level contribution, data-level finding, and
+  extrapolative claim remain separate; every upward inference needs its own
+  evidence anchor.
 - Data are recorded as inputs and results as derived outputs; the two are not interchangeable.
 - Every result used in the paper reaches a claim through an explicit relation.
 - Every innovation statement names a comparison set and comparison evidence.
 - Too little means a required argumentative function or relation is absent; too much means content is duplicated, orphaned, citation-padded, or doing no distinct argumentative work.
 - Background, method, workflow, or governance evidence is not promoted into empirical, causal, outcome, or deployment validation.
+- Licensed scope is checked across the title, research question, denominator,
+  estimand, abstract, contribution list, result headings, conclusion, and
+  limitations. A limitation-only disclaimer does not close an oversized chain.
+- Tables, ledgers, guardrails, qualifiers, and appendices do not substitute for
+  missing construct, reliability, sampling, baseline, power, or transfer
+  evidence; the action is `evidence_needed` or a narrower claim.
 - High-risk reviewer attacks have adequate defenses or revision actions.
 
 ## Deterministic Helper
@@ -78,6 +87,7 @@ When a focus candidate is emitted, freeze the affected intent IDs, all current p
 ## Argument Governance Report
 
 ### Paper Spine
+### Argument Licence And Headline Scope
 ### Alignment Issues
 ### Claim-Evidence Balance
 ### Functional Balance

@@ -44,7 +44,7 @@
                       "privacyPolicyURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/privacy.md",
                       "termsOfServiceURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/terms.md",
                       "defaultPrompt":  [
-                                            "Use the academic writing assistant to map my research project and select the next controlled workflow / 使用学术写作助手梳理项目并选择下一项受控工作流。",
+                                            "Use the academic writing assistant to lock argument levels, assess evidence licence, and select the next controlled workflow / 使用学术写作助手锁定论证层级、判断证据许可并选择下一项受控工作流。",
                                             "Create an edit contract, drift audit, and reframe plan for this thesis section.",
                                             "Prepare a release-governance packet."
                                         ],

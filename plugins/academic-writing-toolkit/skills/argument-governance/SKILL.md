@@ -48,6 +48,9 @@ When the user explicitly enables an API-key-backed reviewer, Codex may request a
 11. Keep contribution and innovation separate: contribution states what the project delivers; innovation states how it differs from an explicit comparison set.
 12. Judge over- or under-balance by missing, duplicated, orphaned, conflicting, or scope-mismatched functions. Do not infer quality from raw counts, word count, citation count, dataset count, or one composite score.
 13. Treat contribution-focus changes as advisory candidates. Require an explicit author decision before changing the title, abstract, research question, contribution order, or manuscript spine.
+14. Keep the field-level gap, paper-level contribution, data-level finding, and extrapolative claim separate. A true field gap does not prove that this paper closes it; require evidence for every upward inference.
+15. Treat boundary as a paper-wide evidence licence across intent, population or denominator, estimand, evidence scope, title, abstract, contribution list, result headings, and conclusion, not as a limitation-only disclaimer.
+16. Do not treat tables, ledgers, guardrails, qualifiers, or appendices as substitutes for missing construct validity, reliability, sampling, baseline, power, or transfer evidence. Record `evidence_needed` or narrow the claim.
 
 ## Workflow
 
@@ -82,11 +85,21 @@ These files form the explicit relation profile. Legacy five-table packets remain
 For each paper-level intent:
 
 1. State the central problem and target reader.
-2. Name the dominant narrative or missing frame the paper corrects.
-3. Link each gap to one or more contributions.
-4. Link each contribution to primary claims.
-5. Link each claim to evidence IDs, citation keys, or declared evidence gaps.
-6. Link each high-risk claim to boundary language and reviewer defenses.
+2. Separate the broad problem, exact paper contribution, primary empirical
+   claim, headline or extrapolative claim, licensed scope, and explicitly
+   unlicensed claims. Reuse existing object IDs and boundary fields; do not
+   create a second schema.
+3. Name the dominant narrative or missing frame the paper corrects.
+4. Link each gap to one or more contributions.
+5. Link each contribution to primary claims.
+6. Link each claim to evidence IDs, citation keys, or declared evidence gaps.
+7. Audit every upward inference from finding to headline or generalisation and
+   require a new evidence anchor for each escalation.
+8. Compare the licence with the title, abstract thesis, contribution list,
+   result headings, and conclusion.
+9. If framing exceeds the research design, record `narrow` or
+   `evidence_needed`; boundary prose alone does not complete the chain.
+10. Link each high-risk claim to boundary language and reviewer defenses.
 
 ### 4. Audit Evidence Balance
 
@@ -172,6 +185,16 @@ For edit tasks, wait for user approval before modifying manuscript prose.
 - Main contributions:
 - Paper-level thesis:
 
+### Argument Licence And Headline Scope
+- Broad problem:
+- Exact paper contribution:
+- Primary empirical claim:
+- Headline or extrapolative claim:
+- Licensed scope:
+- Explicitly unlicensed claims:
+- Repair layer: wording / argument design / research design
+- Boundary propagation status:
+
 ### Alignment Issues
 | Severity | Location | Issue | Required action |
 
@@ -203,3 +226,8 @@ Stop and report a blocker if:
 - the current primary contribution or latest author-approved manuscript spine cannot be identified
 - data and results cannot be distinguished from the available project artifacts
 - an innovation claim has no declared comparison set but the user asks to present it as established novelty
+- the field gap, paper contribution, data-level finding, and extrapolative claim cannot be separated
+- a headline claim exceeds the licensed scope and no new evidence or narrowing decision is available
+- a late higher-level framing has no matching estimand or research design
+- the user asks prose editing to repair a construct, reliability, sampling, baseline, power, or transfer-evidence deficit
+- boundary language appears only in limitations while stronger claims remain in the title, abstract, contribution list, result headings, or conclusion

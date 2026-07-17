@@ -110,7 +110,7 @@ For multi-turn drift evaluation, [`examples/lost-in-conversation-bench/`](exampl
 
 | Lane | Skills | What the lane produces |
 |---|---|---|
-| **Navigate the whole project** | `/academic-writing-assistant` | canonical project snapshots, research-spine summaries, one controlled specialist route, author decisions, blockers, and session logs |
+| **Navigate the whole project** | `/academic-writing-assistant` | canonical project snapshots, argument-level locks, evidence licences, research-spine summaries, one controlled specialist route, author decisions, blockers, and session logs |
 | **Read and ground** | `/read`, `/note`, `/verify`, `/map`, `/evidence-review` | source notes, status labels, gap maps, claim registers, citation-role plans |
 | **Design and review the argument** | `/argument-governance`, `/peer-review`, `/self-review` | gap-data-result-claim-contribution-innovation maps, evidence-balance and contribution-focus reviews, reviewer attack maps, clean-room findings |
 | **Write without losing control** | `/integrate`, `/thesis-control`, `/revision-escalation`, `/manuscript-reframe` | approved integrations, edit contracts, drift audits, escalation gates, reframe plans |
@@ -144,7 +144,7 @@ Safe fixers are deliberately narrow. They may normalise conservative citation pu
 
 ```bash
 make doctor             # read-only environment and project health
-make test               # 112 regression tests
+make test               # 137 regression tests
 make plugin-check       # plugin metadata, skill sync, bundled helpers
 make chatgpt-app-check  # ChatGPT App server tests
 
