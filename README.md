@@ -106,12 +106,13 @@ A valid run reports no blocking issues. Then compare the matched blocked and app
 
 For multi-turn drift evaluation, [`examples/lost-in-conversation-bench/`](examples/lost-in-conversation-bench/) compares normal editing, consolidated prompting, and `/thesis-control` artifacts across multiple public-safe cases.
 
-## 20 composable skills
+## 21 composable skills
 
 | Lane | Skills | What the lane produces |
 |---|---|---|
+| **Navigate the whole project** | `/academic-writing-assistant` | canonical project snapshots, research-spine summaries, one controlled specialist route, author decisions, blockers, and session logs |
 | **Read and ground** | `/read`, `/note`, `/verify`, `/map`, `/evidence-review` | source notes, status labels, gap maps, claim registers, citation-role plans |
-| **Design and review the argument** | `/argument-governance`, `/peer-review`, `/self-review` | contribution chains, claim hierarchies, reviewer attack maps, clean-room findings |
+| **Design and review the argument** | `/argument-governance`, `/peer-review`, `/self-review` | gap-data-result-claim-contribution-innovation maps, evidence-balance and contribution-focus reviews, reviewer attack maps, clean-room findings |
 | **Write without losing control** | `/integrate`, `/thesis-control`, `/revision-escalation`, `/manuscript-reframe` | approved integrations, edit contracts, drift audits, escalation gates, reframe plans |
 | **Audit, package, and release** | `/audit`, `/release-governance`, `/style`, `/logic-review`, `/verify-refs`, `/human-eval-handoff-repair`, `/progress`, `/export` | consistency findings, release packets, reference checks, progress views, Word/ZIP exports |
 

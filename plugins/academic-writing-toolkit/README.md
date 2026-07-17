@@ -8,12 +8,13 @@ An enhanced advisory mode can use API-key-backed external review when the user e
 
 ## Included Skills
 
+- `academic-writing-assistant`: inventory a research project, summarise its argument spine, select one controlled specialist workflow, preserve author gates, and append factual session logs
 - `read`: read academic PDFs page by page with structured output
 - `note`: record source notes in the toolkit notes format
 - `verify`: fact-check historical or empirical claims during reading
 - `map`: map literature coverage against thesis chapters
 - `evidence-review`: build evidence-controlled literature gap maps, claim registers, citation plans, and overclaim audits
-- `argument-governance`: build and audit intent, gap-contribution chains, claim hierarchies, evidence balance, and reviewer risks
+- `argument-governance`: map gaps, data, results, claims, contributions, and innovation evidence; audit functional balance; and review contribution focus without automatic reframing
 - `integrate`: integrate completed reading notes into chapter drafts
 - `thesis-control`: keep AI-assisted thesis edits bounded with spine cards, edit contracts, drift audits, human gates, and draft packet scaffolding
 - `manuscript-reframe`: turn report-like drafts into paper-form scientific arguments with clear gap, contribution, result narrative, figure/table roles, and submission blockers
