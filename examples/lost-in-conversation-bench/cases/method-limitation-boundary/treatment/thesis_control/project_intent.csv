@@ -1,0 +1,2 @@
+intent_id,intent_version,supersedes_intent_id,primary_domain,research_object,core_research_question,target_venue,must_include_concepts,excluded_reframes,amendment_reason,approval_evidence,human_approved,status
+pi-project-001,1,,qualitative writing research,small-corpus revision analysis,What can a small qualitative corpus show about revision-control visibility?,research methods readers,qualitative corpus;analytic visibility;limited generalisation,do not reframe local observations as population estimates,initial project intent,fixture author approval,true,active

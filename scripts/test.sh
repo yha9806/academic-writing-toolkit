@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (112 automated tests, labelled T2-T115: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (121 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -728,6 +728,23 @@ if missing:
 PY
 }
 
+_write_valid_project_intent_layer() {
+    local root="$1"
+    mkdir -p "$root/thesis_control"
+    cat > "$root/thesis_control/project_intent.csv" <<'EOF'
+intent_id,intent_version,supersedes_intent_id,primary_domain,research_object,core_research_question,target_venue,must_include_concepts,excluded_reframes,amendment_reason,approval_evidence,human_approved,status
+pi-project-001,1,,academic writing control,AI-assisted manuscript revision,How can authors keep manuscript revisions aligned with their approved research intent?,research methods readers,author intent;research question;scope boundary,do not replace the primary research object with a generic tooling survey,initial project intent,explicit fixture author approval,true,active
+EOF
+    cat > "$root/thesis_control/manuscript_contracts.csv" <<'EOF'
+manuscript_id,intent_id,manuscript_version,supersedes_manuscript_id,title,abstract_focus,primary_domain,research_object,research_question,contribution_scope,structure_summary,change_summary,human_approved,status
+mc-project-001,pi-project-001,1,,Author-controlled manuscript revision,Bounded revision control for AI-assisted academic writing,academic writing control,AI-assisted manuscript revision,How can authors keep manuscript revisions aligned with their approved research intent?,structural governance without claims of scholarly truth,intent then section contracts then audits,initial manuscript contract,true,active
+EOF
+    cat > "$root/thesis_control/global_thesis_audits.csv" <<'EOF'
+global_audit_id,intent_id,manuscript_id,manuscript_version,title_alignment,abstract_alignment,primary_domain_alignment,research_object_alignment,research_question_alignment,contribution_alignment,structure_alignment,detected_reframe,reframe_summary,human_review_required,human_decision,status
+ga-project-001,pi-project-001,mc-project-001,1,aligned,aligned,aligned,aligned,aligned,aligned,aligned,false,no project-level drift detected,false,accept,passed
+EOF
+}
+
 _make_valid_thesis_control_packet() {
     local tmp="$1"
     mkdir -p "$tmp/thesis_control" "$tmp/chapters"
@@ -736,13 +753,14 @@ _make_valid_thesis_control_packet() {
 
 Local-first writing workflows can make source notes inspectable, but this section only claims that file-based records improve traceability within one project. It does not claim that such workflows improve scholarly quality by themselves.
 EOF
+    _write_valid_project_intent_layer "$tmp"
     cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
-unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
-ch02-s1,chapters/ch02.md,Local workflow control,This unit argues that file-based records improve traceability within one writing project by keeping notes and claims inspectable.,single-project workflow traceability only,file-based records improve traceability;the workflow does not prove scholarly quality,do not claim quality improvement;preserve single-project boundary
+unit_id,manuscript_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch02-s1,mc-project-001,chapters/ch02.md,Local workflow control,This unit argues that file-based records improve traceability within one writing project by keeping notes and claims inspectable.,single-project workflow traceability only,file-based records improve traceability;the workflow does not prove scholarly quality,do not claim quality improvement;preserve single-project boundary
 EOF
     cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
-ec-001,ch02-s1,ri-ch02-traceability,1,clarify topic sentence in first paragraph,make the traceability claim clearer without changing its scope,do not add quality improvement claims;do not remove single-project boundary,check following paragraph for repeated boundary language,spine sentence preserved;no new unsupported claim,true,applied
+contract_id,unit_id,global_audit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch02-s1,ga-project-001,ri-ch02-traceability,1,clarify topic sentence in first paragraph,make the traceability claim clearer without changing its scope,do not add quality improvement claims;do not remove single-project boundary,check following paragraph for repeated boundary language,spine sentence preserved;no new unsupported claim,true,applied
 EOF
     cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
@@ -1182,16 +1200,17 @@ _make_revision_escalation_packet() {
 
 This section argues that repeated revisions need a durable stop-and-diagnose gate.
 EOF
+    _write_valid_project_intent_layer "$tmp"
     cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
-unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
-ch03,chapters/ch03.md,Revision control,This unit argues that repeated revisions need a durable escalation gate.,one section only,revision attempts require a stop gate,do not broaden beyond revision control
+unit_id,manuscript_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch03,mc-project-001,chapters/ch03.md,Revision control,This unit argues that repeated revisions need a durable escalation gate.,one section only,revision attempts require a stop gate,do not broaden beyond revision control
 EOF
     cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
-ec-001,ch03,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
-ec-002,ch03,ri-ch03-clarity,2,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
-ec-003,ch03,ri-ch03-clarity,3,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
-ec-004,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+contract_id,unit_id,global_audit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch03,ga-project-001,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-002,ch03,ga-project-001,ri-ch03-clarity,2,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-003,ch03,ga-project-001,ri-ch03-clarity,3,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+ec-004,ch03,ga-project-001,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
 EOF
     cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
@@ -1549,11 +1568,11 @@ test_T87() {
     tmp=$(mktemp -d) || return 1
     _make_revision_escalation_packet "$tmp"
     cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
-ec-001,ch03,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,false,draft
-ec-002,ch03,ri-ch03-clarity,2,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,approved
-ec-003,ch03,ri-ch03-clarity,3,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,false,rejected
-ec-004,ch03,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
+contract_id,unit_id,global_audit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch03,ga-project-001,ri-ch03-clarity,1,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,false,draft
+ec-002,ch03,ga-project-001,ri-ch03-clarity,2,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,approved
+ec-003,ch03,ga-project-001,ri-ch03-clarity,3,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,false,rejected
+ec-004,ch03,ga-project-001,ri-ch03-clarity,4,clarify the claim,improve clarity,do not broaden,check next paragraph,spine preserved,true,applied
 EOF
     cat > "$tmp/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
@@ -2048,13 +2067,14 @@ test_T100() {
     tmp=$(mktemp -d) || return 1
     mkdir -p "$tmp/chapters" "$tmp/thesis_control"
     printf '# Chapter\n\nsource\n' > "$tmp/chapters/ch.md"
+    _write_valid_project_intent_layer "$tmp"
     cat > "$tmp/thesis_control/spine_cards.csv" <<'EOF'
-unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+unit_id,manuscript_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
 EOF
     cat > "$tmp/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status,owner_note
-ec-a-001,a,ri-a,1,scope,allowed,forbidden,adjacent,checks,false,draft,keep-a
-ec-b-001,b,ri-b,1,scope,allowed,forbidden,adjacent,checks,false,draft,keep-b
+contract_id,unit_id,global_audit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status,owner_note
+ec-a-001,a,ga-project-001,ri-a,1,scope,allowed,forbidden,adjacent,checks,false,draft,keep-a
+ec-b-001,b,ga-project-001,ri-b,1,scope,allowed,forbidden,adjacent,checks,false,draft,keep-b
 EOF
     before=$(_tree_digest "$tmp") || return 1
     out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
@@ -2070,16 +2090,17 @@ _make_migration_v2_packet() {
     local root="$1"
     mkdir -p "$root/chapters" "$root/thesis_control"
     printf '# Chapter\n\nBounded migration fixture.\n' > "$root/chapters/ch.md"
+    _write_valid_project_intent_layer "$root"
     cat > "$root/thesis_control/spine_cards.csv" <<'EOF'
-unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
-ch,chapters/ch.md,Chapter,Preserve the bounded claim,one section,one claim,do not broaden
+unit_id,manuscript_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+ch,mc-project-001,chapters/ch.md,Chapter,Preserve the bounded claim,one section,one claim,do not broaden
 EOF
     cat > "$root/thesis_control/edit_contracts.csv" <<'EOF'
-contract_id,unit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
-ec-001,ch,ri-ch-clarity,1,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
-ec-002,ch,ri-ch-clarity,2,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
-ec-003,ch,ri-ch-clarity,3,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
-ec-004,ch,ri-ch-clarity,4,clarify,improve wording,do not broaden,check neighbours,spine preserved,false,draft
+contract_id,unit_id,global_audit_id,revision_issue_id,attempt_no,change_scope,allowed_changes,forbidden_changes,adjacent_context,acceptance_checks,human_approved,status
+ec-001,ch,ga-project-001,ri-ch-clarity,1,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
+ec-002,ch,ga-project-001,ri-ch-clarity,2,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
+ec-003,ch,ga-project-001,ri-ch-clarity,3,clarify,improve wording,do not broaden,check neighbours,spine preserved,true,applied
+ec-004,ch,ga-project-001,ri-ch-clarity,4,clarify,improve wording,do not broaden,check neighbours,spine preserved,false,draft
 EOF
     cat > "$root/thesis_control/drift_audits.csv" <<'EOF'
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
@@ -2519,6 +2540,253 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; locations={i['location'] for i in d['issues']}; assert {'invalid-drift-decision','invalid-audit-status'} <= kinds; assert 'thesis_control/drift_audits.csv:row 2' in locations and 'thesis_control/drift_audits.csv:row 3' in locations"
 }
 
+test_T116() {
+    local fixture blocked aligned rc
+    fixture="$REPO_ROOT/examples/project-intent-drift-gate"
+    blocked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$fixture/blocked" --strict --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$blocked" | python3 -c "import json,sys; d=json.load(sys.stdin); assert {i['kind'] for i in d['issues']} == {'global-thesis-gate-required'}" || return 1
+
+    aligned=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$fixture/aligned" --strict --json) || return 1
+    echo "$aligned" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0 and d['summary']['project_intent_tracking'] is True"
+}
+
+test_T117() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    cp -R "$REPO_ROOT/examples/project-intent-drift-gate/blocked/." "$tmp" || return 1
+    cat > "$tmp/thesis_control/global_thesis_audits.csv" <<'EOF'
+global_audit_id,intent_id,manuscript_id,manuscript_version,title_alignment,abstract_alignment,primary_domain_alignment,research_object_alignment,research_question_alignment,contribution_alignment,structure_alignment,detected_reframe,reframe_summary,human_review_required,human_decision,status
+ga-heritage-001,pi-heritage-001,mc-heritage-001,1,drifted,drifted,drifted,drifted,drifted,drifted,drifted,true,visual heritage moved from the primary research domain to a stress-test example,false,accept,passed
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-global-human-review','unsafe-global-pass','invalid-global-pass','global-thesis-gate-required'} <= kinds"
+}
+
+test_T118() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_thesis_control_packet "$tmp"
+    rm -f \
+        "$tmp/thesis_control/project_intent.csv" \
+        "$tmp/thesis_control/manuscript_contracts.csv" \
+        "$tmp/thesis_control/global_thesis_audits.csv"
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); missing={i['message'] for i in d['issues'] if i['kind']=='missing-file'}; assert {'missing project_intent.csv','missing manuscript_contracts.csv','missing global_thesis_audits.csv'} <= missing"
+}
+
+test_T119() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_thesis_control_packet "$tmp"
+    cat >> "$tmp/thesis_control/project_intent.csv" <<'EOF'
+pi-project-002,2,,general AI tooling,tool adoption across disciplines,How are general AI tools adopted?,general technology readers,tool adoption,do not retain the original research object,unrecorded reframe,author approval claimed,true,active
+EOF
+    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'multiple-active-intents','missing-intent-amendment','active-project-intent-required'} <= kinds"
+}
+
+test_T120() {
+    local tmp out checked
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    printf '# Chapter\n\nBounded source.\n' > "$tmp/chapters/ch.md"
+    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/ch.md --copy-source --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$out" "$checked" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+payload = json.loads(sys.argv[2])
+checked = json.loads(sys.argv[3])
+intent = next(csv.DictReader((root / "thesis_control/project_intent.csv").open(encoding="utf-8")))
+manuscript = next(csv.DictReader((root / "thesis_control/manuscript_contracts.csv").open(encoding="utf-8")))
+audit = next(csv.DictReader((root / "thesis_control/global_thesis_audits.csv").open(encoding="utf-8")))
+assert payload["schema_version"] == 4
+assert checked["issue_count"] == 0
+assert (intent["status"], intent["human_approved"]) == ("draft", "false")
+assert (manuscript["status"], manuscript["human_approved"]) == ("draft", "false")
+assert (audit["status"], audit["human_decision"]) == ("needs_review", "pending")
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T121() {
+    local tmp checked
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    printf '# First\n\nFirst bounded source.\n' > "$tmp/chapters/first.md"
+    printf '# Second\n\nSecond bounded source.\n' > "$tmp/chapters/second.md"
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/first.md --copy-source --json >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp/thesis_control" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for name in ("project_intent.csv", "manuscript_contracts.csv", "global_thesis_audits.csv"):
+    path = root / name
+    header = path.read_text(encoding="utf-8").splitlines()[0]
+    path.write_text(header + "\n", encoding="utf-8")
+PY
+    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/second.md --copy-source --json >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$checked" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0 and d['summary']['project_intents'] == d['summary']['manuscript_contracts'] == d['summary']['global_thesis_audits'] == 1"
+}
+
+_make_legacy_v3_project_intent_packet() {
+    local root="$1"
+    _make_valid_thesis_control_packet "$root"
+    rm -f \
+        "$root/thesis_control/project_intent.csv" \
+        "$root/thesis_control/manuscript_contracts.csv" \
+        "$root/thesis_control/global_thesis_audits.csv"
+    python3 - "$root" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]) / "thesis_control"
+for filename, removed in (
+    ("spine_cards.csv", "manuscript_id"),
+    ("edit_contracts.csv", "global_audit_id"),
+):
+    path = root / filename
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fields = [field for field in (reader.fieldnames or []) if field != removed]
+    for row in rows:
+        row.pop(removed, None)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+PY
+}
+
+test_T122() {
+    local tmp first second before after checked rc
+    tmp=$(mktemp -d) || return 1
+    _make_legacy_v3_project_intent_packet "$tmp" || {
+        rm -rf "$tmp"
+        return 1
+    }
+    first=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    before=$(_tree_digest "$tmp") || return 1
+    second=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    after=$(_tree_digest "$tmp")
+    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    python3 - "$tmp" "$first" "$second" "$checked" "$before" "$after" "$rc" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+first = json.loads(sys.argv[2])
+second = json.loads(sys.argv[3])
+checked = json.loads(sys.argv[4])
+assert first["status"] == "upgraded_blocked"
+assert first["author_action_required"] is True
+assert second["status"] == "unchanged"
+assert sys.argv[5] == sys.argv[6]
+assert sys.argv[7] == "1"
+kinds = {issue["kind"] for issue in checked["issues"]}
+assert {"global-thesis-gate-required", "active-project-intent-required", "active-manuscript-contract-required"} <= kinds
+with (root / "thesis_control/spine_cards.csv").open(encoding="utf-8") as handle:
+    assert "manuscript_id" in (csv.DictReader(handle).fieldnames or [])
+with (root / "thesis_control/edit_contracts.csv").open(encoding="utf-8") as handle:
+    assert "global_audit_id" in (csv.DictReader(handle).fieldnames or [])
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
+test_T123() {
+    local tmp before after out rc
+    tmp=$(mktemp -d) || return 1
+    _make_legacy_v3_project_intent_packet "$tmp" || {
+        rm -rf "$tmp"
+        return 1
+    }
+    printf 'intent_id\n' > "$tmp/thesis_control/project_intent.csv"
+    before=$(_tree_digest "$tmp") || return 1
+    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json 2>&1)
+    rc=$?
+    after=$(_tree_digest "$tmp")
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"partial project-intent schema"* ]]
+}
+
+test_T124() {
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    _make_legacy_v3_project_intent_packet "$tmp" || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[2])
+from upgrade_thesis_control_project_intent import upgrade
+
+root = Path(sys.argv[1])
+alias = root.parent / f"{root.name}-path-alias"
+try:
+    alias.symlink_to(root, target_is_directory=True)
+    payload = upgrade(alias)
+finally:
+    alias.unlink(missing_ok=True)
+assert payload["status"] == "upgraded_blocked"
+assert payload["author_action_required"] is True
+assert Path(payload["project_intent"]).resolve() == (root / "thesis_control/project_intent.csv").resolve()
+PY
+    rc=$?
+    rm -rf "$tmp"
+    return "$rc"
+}
+
 test_T112() {
     local tmp rc
     tmp=$(mktemp -d) || return 1
@@ -2864,6 +3132,15 @@ run_test "T112 argument governance validator accepts a clean packet" test_T112
 run_test "T113 argument governance validator flags weak main support" test_T113
 run_test "T114 self-review packet validator accepts clean-room manifest" test_T114
 run_test "T115 self-review packet validator rejects contamination" test_T115
+run_test "T116 project-intent fixture blocks domain drift and accepts alignment" test_T116
+run_test "T117 global audit cannot pass recorded project-level drift" test_T117
+run_test "T118 strict thesis-control requires project-intent files" test_T118
+run_test "T119 project-intent amendments require explicit lineage" test_T119
+run_test "T120 scaffold creates an unapproved project-intent gate" test_T120
+run_test "T121 scaffold populates header-only project-intent files" test_T121
+run_test "T122 project-intent migration creates a blocked draft atomically" test_T122
+run_test "T123 project-intent migration rejects partial schema without mutation" test_T123
+run_test "T124 project-intent migration normalises direct-call roots" test_T124
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

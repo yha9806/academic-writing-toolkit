@@ -28,6 +28,9 @@ REQUIRED_FILES = [
     "comparison_report.md",
     "treatment/edited_section.md",
     "treatment/review_report.md",
+    "treatment/thesis_control/project_intent.csv",
+    "treatment/thesis_control/manuscript_contracts.csv",
+    "treatment/thesis_control/global_thesis_audits.csv",
     "treatment/thesis_control/spine_cards.csv",
     "treatment/thesis_control/edit_contracts.csv",
     "treatment/thesis_control/drift_audits.csv",
@@ -167,6 +170,9 @@ def validate_treatment_packet(case_root: Path, bench_root: Path, issues: List[di
     contract_path = treatment / "thesis_control" / "edit_contracts.csv"
     audit_path = treatment / "thesis_control" / "drift_audits.csv"
     escalation_path = treatment / "thesis_control" / "revision_escalations.csv"
+    intent_path = treatment / "thesis_control" / "project_intent.csv"
+    manuscript_path = treatment / "thesis_control" / "manuscript_contracts.csv"
+    global_audit_path = treatment / "thesis_control" / "global_thesis_audits.csv"
     if not source_dir.is_dir() or not any(source_dir.glob("*.md")):
         add_issue(
             issues,
@@ -179,13 +185,25 @@ def validate_treatment_packet(case_root: Path, bench_root: Path, issues: List[di
         and contract_path.is_file()
         and audit_path.is_file()
         and escalation_path.is_file()
+        and intent_path.is_file()
+        and manuscript_path.is_file()
+        and global_audit_path.is_file()
     ):
         return
 
+    intent_rows = read_csv_rows(intent_path)
+    manuscript_rows = read_csv_rows(manuscript_path)
+    global_audit_rows = read_csv_rows(global_audit_path)
     spine_rows = read_csv_rows(spine_path)
     contract_rows = read_csv_rows(contract_path)
     audit_rows = read_csv_rows(audit_path)
     escalation_rows = read_csv_rows(escalation_path)
+    if len(intent_rows) != 1:
+        add_issue(issues, "unexpected-intent-count", rel_path(intent_path, bench_root), "bench treatment should have exactly one project intent row")
+    if len(manuscript_rows) != 1:
+        add_issue(issues, "unexpected-manuscript-count", rel_path(manuscript_path, bench_root), "bench treatment should have exactly one manuscript contract row")
+    if len(global_audit_rows) != 1:
+        add_issue(issues, "unexpected-global-audit-count", rel_path(global_audit_path, bench_root), "bench treatment should have exactly one global thesis audit row")
     if len(spine_rows) != 1:
         add_issue(issues, "unexpected-spine-count", rel_path(spine_path, bench_root), "bench treatment should have exactly one spine row")
     if len(contract_rows) != 1:
@@ -201,6 +219,8 @@ def validate_treatment_packet(case_root: Path, bench_root: Path, issues: List[di
         )
     if contract_rows:
         row = contract_rows[0]
+        if not row.get("global_audit_id", "").strip():
+            add_issue(issues, "missing-global-audit", rel_path(contract_path, bench_root), "treatment contract needs global_audit_id")
         if row.get("status", "").strip().lower() != "applied":
             add_issue(issues, "contract-not-applied", rel_path(contract_path, bench_root), "treatment contract must be status=applied")
         if row.get("human_approved", "").strip().lower() != "true":

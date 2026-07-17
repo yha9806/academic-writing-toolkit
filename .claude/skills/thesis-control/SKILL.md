@@ -8,7 +8,7 @@ allowed-tools: Read, Glob, Grep, Edit, Write, Bash
 
 ## Purpose
 
-Prevent AI-assisted writing from becoming fluent but distorted. Use this before and after substantive thesis edits when the risk is not spelling or style, but loss of author control: widened claims, blurred section purpose, missing caveats, unsynchronised adjacent paragraphs, or local edits that weaken the chapter spine.
+Prevent AI-assisted writing from becoming fluent but distorted. Use this before and after substantive thesis edits when the risk is not spelling or style, but loss of author control: project-level reframing, a primary domain becoming a secondary example, a changed research object or question, widened claims, blurred section purpose, missing caveats, unsynchronised adjacent paragraphs, or local edits that weaken the chapter spine.
 
 ## Trigger Words
 
@@ -16,7 +16,9 @@ This skill activates on: `thesis control`, `drift audit`, `edit contract`, `spin
 
 ## Core Rule
 
-Do not edit thesis prose until the intended change has an explicit contract.
+Do not edit thesis prose until the project intent, current manuscript contract,
+global thesis audit, section spine, and intended local change form one explicit
+and traceable contract chain.
 
 The contract must answer:
 
@@ -26,10 +28,30 @@ This edit is allowed to change [specific local issue] in [specific unit], while 
 
 If this sentence cannot be written, stop and diagnose the section instead of rewriting it.
 
+The control hierarchy is:
+
+```text
+Author-approved Project Intent
+→ Author-approved Manuscript Contract
+→ Passed Global Thesis Audit
+→ Section Spine Card
+→ Edit Contract
+→ Post-edit Drift Audit
+```
+
+A lower layer cannot amend a higher one. If the title, abstract, primary
+domain, research object, research question, contribution scope, or manuscript
+structure no longer matches the approved intent, stop. Revise or roll back the
+manuscript, or create a new explicitly approved intent version that preserves
+the earlier row as history.
+
 ## Control Files
 
 Use a `thesis_control/` directory when the project needs durable tracking:
 
+- `project_intent.csv`
+- `manuscript_contracts.csv`
+- `global_thesis_audits.csv`
 - `spine_cards.csv`
 - `edit_contracts.csv`
 - `drift_audits.csv`
@@ -41,7 +63,16 @@ Run the optional validator when Python is available:
 python {skill_dir}/scripts/check_thesis_control.py <project_root> --strict
 ```
 
-The validator checks packet structure and gate consistency. It does not judge scholarly truth.
+Strict validation requires the project-intent layer. It blocks approved or
+applied edit contracts unless they reference a passed global thesis audit for
+the active author-approved intent and manuscript contract. Non-strict mode can
+still inspect legacy packets that do not yet have this layer.
+
+The validator checks packet structure and recorded gate consistency. It does
+not infer semantic alignment or judge scholarly truth. The author or reviewer
+must compare the manuscript with the intent and record each alignment field
+honestly; the validator then prevents an unresolved or drifted audit from being
+used as authorisation.
 
 Strict validation requires revision-tracking schema v3. Upgrade a complete
 legacy packet without guessing historical revision families:
@@ -62,10 +93,12 @@ python {skill_dir}/scripts/scaffold_thesis_control.py <project_root> \
   --copy-source
 ```
 
-The scaffold writes `human_approved=false`, `status=draft`, and
+The scaffold writes schema v4 draft project-intent and manuscript contracts, a
+pending global thesis audit, `human_approved=false`, `status=draft`, and
 `AUTHOR_REVIEW_REQUIRED` fields. Replace those fields with concrete author
-judgement before applying a substantive edit. Its default contract id includes
-the attempt number, so attempts 1 and 2 become `ec-<unit>-001` and
+judgement before applying a substantive edit. A scaffolded packet may be
+structurally valid while remaining non-executable. Its default contract id
+includes the attempt number, so attempts 1 and 2 become `ec-<unit>-001` and
 `ec-<unit>-002`. Reuse an explicit `revision_issue_id` for retries.
 
 The migration helper stops without writing when revision metadata is partial or
@@ -74,7 +107,52 @@ resolved audits. It preserves named extension columns and converts one- or
 two-trigger legacy rows to `early_diagnostic`; a three-trigger row becomes a
 `cycle_gate` only when it already matches one completed failure group.
 
+Upgrade a complete schema-v3 packet into a deliberately blocked schema-v4
+draft without guessing author intent:
+
+```bash
+python {skill_dir}/scripts/upgrade_thesis_control_project_intent.py \
+  <project_root> --json
+```
+
+The helper adds `manuscript_id` and `global_audit_id` links, preserves named
+extension columns, and creates `AUTHOR_REVIEW_REQUIRED` draft intent,
+manuscript, and global-audit rows through one atomic batch. Previously approved
+or applied edits remain blocked. Replace the draft fields with real author
+judgement, approve the active intent and manuscript contract, and resolve the
+global audit before strict validation can pass. A partial project-intent schema
+stops without mutation.
+
 ## Workflow
+
+### 0. Establish The Project Intent And Manuscript Contract
+
+Before section-level planning, record:
+
+- the primary scholarly domain
+- the research object
+- the core research question
+- the target venue or audience
+- concepts that must remain visible in the title or abstract
+- reframes that require fresh author approval
+- the current title, abstract focus, contribution scope, and structure
+- concrete approval evidence and the active version ids
+
+Keep one active author-approved project intent and one active author-approved
+manuscript contract. A later intent version must identify the immediately
+previous version in `supersedes_intent_id`, record the amendment reason, and
+leave the earlier version as `superseded`. Do not overwrite the original row.
+
+Run a global thesis audit whenever the title, abstract, primary domain,
+research object, research question, contribution scope, or overall structure
+changes. Record each dimension as `aligned`, `drifted`, or `not_assessed`.
+Only a fully aligned audit with `detected_reframe=false` can have
+`status=passed` and `human_decision=accept`.
+
+If any dimension is `drifted`, set `human_review_required=true` and use
+`needs_review` or `failed`. The author must choose to revise the manuscript,
+roll back, or approve a versioned intent amendment. Merely accepting the audit
+cannot authorise the reframe.
 
 ### 1. Establish Or Read The Spine Card
 
@@ -87,6 +165,7 @@ Before editing a chapter, section, or paragraph cluster, identify:
 - scope boundary
 - core claims
 - do-not-change items
+- the active manuscript contract id
 
 The spine sentence should be narrow:
 
@@ -107,6 +186,7 @@ For every substantive edit, state:
 - adjacent context that must be checked
 - acceptance checks
 - whether human approval is required before editing
+- the passed global thesis audit id that covers the spine card's manuscript contract
 
 When using the scaffold helper, treat its output as a draft control packet, not
 as approval. A generated contract becomes actionable only after the author has
@@ -120,10 +200,13 @@ Always require human approval for:
 - moving evidence between sections
 - rewriting more than one paragraph
 - merging or splitting sections
+- changing the title, abstract, primary domain, research object, research question, contribution scope, or manuscript structure
 
 ### 3. Apply Only Approved Changes
 
-After approval, edit only the approved scope.
+After approval, edit only the approved scope. Do not apply the edit if the
+linked global thesis audit is pending, failed, stale, drifted, or attached to a
+different manuscript contract.
 
 Keep mechanical fixes separate from argument changes. Do not bundle style, structure, evidence, and claim changes into one patch unless the contract explicitly allows it.
 
@@ -285,3 +368,6 @@ Stop and ask for author direction if:
 - the user asks for a full-chapter rewrite without a spine map
 - previous AI edits cannot be distinguished from author-approved text
 - the edit would remove caveats, limitations, or uncertainty language without explicit approval
+- the active project intent or manuscript contract cannot be identified
+- a global thesis audit is missing, unresolved, stale, or records project-level drift
+- a proposed local contract would preserve a section spine that conflicts with the author-approved project intent

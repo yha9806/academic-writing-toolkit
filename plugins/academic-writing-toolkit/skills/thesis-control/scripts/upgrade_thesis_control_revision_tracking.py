@@ -297,6 +297,7 @@ def validate_candidate(
     payload = validate_packet(
         project_root,
         strict=True,
+        require_project_intent=False,
         table_overrides={
             "spine_cards.csv": spine_table,
             "edit_contracts.csv": contract_table,

@@ -1,2 +1,2 @@
-unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
-traceability-section,chapters/section.md,Traceability Boundary,This unit argues that file-based edit records improve traceability within one writing project.,one-project traceability only,file-based records make scope and changes inspectable,do not claim scholarly quality improvement;do not universalise the workflow
+unit_id,manuscript_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+traceability-section,mc-project-001,chapters/section.md,Traceability Boundary,This unit argues that file-based edit records improve traceability within one writing project.,one-project traceability only,file-based records make scope and changes inspectable,do not claim scholarly quality improvement;do not universalise the workflow

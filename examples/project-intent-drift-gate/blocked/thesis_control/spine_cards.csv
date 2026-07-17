@@ -1,0 +1,2 @@
+unit_id,manuscript_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_change
+survey-introduction,mc-heritage-001,chapters/survey.md,Survey Introduction,This unit introduces a general multimodal evaluation framework with visual heritage as a stress test.,general evaluation framing,benchmark scores need claim-level interpretation,keep the score-to-claim framework central

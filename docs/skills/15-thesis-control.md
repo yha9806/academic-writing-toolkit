@@ -5,6 +5,9 @@ Use `/thesis-control` when AI-assisted editing may make a thesis draft smoother 
 ## What It Does
 
 - Builds spine cards for chapters, sections, or paragraph clusters.
+- Records the author-approved project intent above the manuscript and section layers.
+- Runs a global thesis audit across title, abstract, primary domain, research object, research question, contribution, and structure.
+- Blocks a locally coherent edit when its manuscript-level framing has drifted from the active project intent.
 - Requires an edit contract before substantive rewriting.
 - Separates mechanical fixes from argument, structure, evidence, and claim changes.
 - Runs a post-edit drift audit for changed claims, changed boundaries, new unsupported claims, and missed adjacent updates.
@@ -18,6 +21,9 @@ Use `/thesis-control` when AI-assisted editing may make a thesis draft smoother 
 
 Durable projects can keep:
 
+- `thesis_control/project_intent.csv`
+- `thesis_control/manuscript_contracts.csv`
+- `thesis_control/global_thesis_audits.csv`
 - `thesis_control/spine_cards.csv`
 - `thesis_control/edit_contracts.csv`
 - `thesis_control/drift_audits.csv`
@@ -34,7 +40,15 @@ partially accepted audits as `passed`; record `revise` or `rollback` outcomes as
 `failed`. Only applied contracts with resolved failed audits count towards
 revision escalation; pending reviews and non-applied contracts do not count.
 
-Upgrade a legacy packet before strict validation:
+Strict validation requires exactly one active author-approved project intent
+and manuscript contract before any edit contract can be approved or applied.
+The edit contract must reference a passed global thesis audit for the same
+manuscript contract as its spine card. A global audit passes only when every
+alignment field is `aligned` and `detected_reframe=false`. Recorded drift must
+be revised, rolled back, or handled through a new author-approved intent
+version; changing the audit decision to `accept` is not a bypass.
+
+Upgrade legacy revision tracking with:
 
 ```bash
 python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py .
@@ -43,6 +57,21 @@ python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tr
 The helper requires a complete packet. It preserves named extension columns,
 but stops without mutation when revision metadata is partial or a legacy
 escalation cannot be classified from the current contracts and resolved audits.
+It does not invent project intent. Establish the real author-approved intent,
+manuscript contract, and global audit before expecting the complete strict gate
+to pass.
+
+For an existing schema-v3 packet, create a blocked schema-v4 draft with:
+
+```bash
+python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py . --json
+```
+
+This helper adds the cross-layer link columns and
+`AUTHOR_REVIEW_REQUIRED` rows atomically. It never marks intent as approved and
+never releases existing edits. A partial project-intent schema stops without
+mutation. The author must fill and approve the intent and manuscript contracts,
+then resolve the global audit.
 
 Create a draft packet from a real Markdown section with:
 
@@ -56,9 +85,11 @@ python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py . \
   --copy-source
 ```
 
-The scaffold is intentionally conservative: it creates a draft spine card and
-edit contract with `human_approved=false`. Replace `AUTHOR_REVIEW_REQUIRED`
-fields with concrete author judgement before changing thesis prose. It rejects
+The scaffold is intentionally conservative: it creates draft project-intent
+and manuscript contracts, a pending global audit, a draft spine card, and a
+draft edit contract with `human_approved=false`. Replace
+`AUTHOR_REVIEW_REQUIRED` fields with concrete author judgement before changing
+thesis prose. A structurally valid draft is not executable. It rejects
 attempt numbers that would make a revision issue duplicate or non-sequential,
 validates the full candidate packet, and commits outputs through a
 rollback-capable batch write. The default contract id includes the padded
@@ -94,4 +125,6 @@ Run a drift audit on the last edit and tell me whether the change should be acce
 
 ## Key Guardrail
 
-Do not accept fluent rewritten prose until changed claims, changed boundaries, unsupported additions, and missed adjacent updates have been checked.
+Do not let a section spine become the highest authority. Confirm that the
+manuscript still matches the author-approved project intent before accepting
+fluent rewritten prose or checking only local claim drift.
