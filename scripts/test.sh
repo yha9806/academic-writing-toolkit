@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (121 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control) for academic-writing-toolkit.
+# scripts/test.sh — runs 145 regression tests (T2-T5 and T8-T148), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T148 research-relation, focus-review, and assistant routing.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -16,10 +16,15 @@ cd "$REPO_ROOT"
 
 PASSES=0
 FAIL_LIST=()
+TEST_ONLY="${TEST_ONLY:-}"
 
 run_test() {
     local name="$1"
     local fn="$2"
+    local test_id="${name%% *}"
+    if [[ -n "$TEST_ONLY" && " $TEST_ONLY " != *" $test_id "* ]]; then
+        return 0
+    fi
     if "$fn"; then
         pass "$name"
         PASSES=$((PASSES+1))
@@ -483,6 +488,7 @@ test_T42() {
 }
 
 test_T43() {
+    grep -q "/academic-writing-assistant" "$REPO_ROOT/README.md" || return 1
     grep -q "/verify-refs" "$REPO_ROOT/README.md" || return 1
     grep -q "/human-eval-handoff-repair" "$REPO_ROOT/README.md" || return 1
     grep -q "/argument-governance" "$REPO_ROOT/README.md" || return 1
@@ -797,6 +803,85 @@ EOF
     cat > "$tmp/evidence/reviewer_attack_matrix.csv" <<'EOF'
 attack_id,target_type,target_id,reviewer_question,attack_category,severity,likely_reviewer_profile,current_defense,evidence_needed,current_evidence_ids,defense_strength,revision_needed,response_strategy,owner,status
 A1,contribution,C1,Is this governance rather than validity?,scope_boundary,medium,methods reviewer,Boundary language states structure only,script and schema,E1,adequate,no,Keep limitation explicit,author,open
+EOF
+}
+
+_make_valid_relation_argument_packet() {
+    local tmp="$1"
+    mkdir -p "$tmp/evidence"
+    cat > "$tmp/evidence/intent_register.csv" <<'EOF'
+intent_id,paper_title,central_problem,target_venue,target_readers,field_positioning,core_gap,current_dominant_narrative,narrative_to_correct,why_now,main_contribution_ids,boundary_statement,success_criterion,reviewer_risk_level,notes
+I1,Example paper,Current reviews lack traceable argument checks,Example venue,reviewers and authors,writing tools,Gap-contribution and claim-evidence links are implicit,Manuscripts can be judged by citation count alone,Argument systems need explicit links,Review workflows increasingly use agents,CON-001,This is a governance aid not a scientific validity guarantee,All main claims are source anchored,medium,fixture
+EOF
+    cat > "$tmp/evidence/contribution_chain.csv" <<'EOF'
+contribution_id,intent_id,gap_id,gap_statement,gap_type,why_gap_matters,insight,contribution_statement,contribution_type,method_or_artifact_id,primary_claim_ids,required_evidence_type,current_evidence_ids,evidence_coverage,limitation,boundary_language,reviewer_defense_note
+CON-001,I1,GAP-001,Manuscript claims often lack explicit hierarchy,governance_gap,Flat claims hide weak evidence,Argument structure can be checked separately from scientific validity,We provide an argument-governance schema,governance_framework,ART-001,CLM-001,governance schema evidence,EVD-001,adequate,Does not prove manuscript quality,Validates structure only,Checker reports structural issues
+EOF
+    cat > "$tmp/evidence/claim_hierarchy.csv" <<'EOF'
+claim_id,parent_claim_id,root_intent_id,contribution_id,section_id,claim_level,claim_role,claim_text,depends_on_claim_ids,evidence_requirement,evidence_ids,citation_keys,evidence_status,evidence_strength,support_balance,system_role,overclaim_risk,boundary_language,revision_action
+CLM-000,,I1,,intro,paper_thesis,interpretive_claim,Argument systems need explicit governance,,packet evidence,EVD-001,,verified_full_text_supported,adequate,adequately_supported,states_implication,low,Within the packet scope,none
+CLM-001,CLM-000,I1,CON-001,intro,contribution_claim,artifact_claim,The schema links gaps contributions claims data results and innovation evidence,,schema evidence,EVD-001,,governance_support_only,adequate,adequately_supported,answers_gap,low,Structure only,none
+CLM-002,CLM-001,I1,CON-001,methods,paragraph_claim,method_claim,The checker validates required links,,script evidence,EVD-001,,governance_support_only,adequate,adequately_supported,justifies_method,low,It does not judge science,none
+EOF
+    cat > "$tmp/evidence/argument_system_map.csv" <<'EOF'
+node_id,parent_node_id,node_type,node_label,linked_gap_id,linked_contribution_id,linked_claim_id,linked_evidence_ids,section_id,status,risk_level,notes
+N1,,intent,Argument governance,,,,,intro,active,medium,root
+N2,N1,gap,Implicit argument links,GAP-001,,,,intro,active,medium,gap
+N3,N2,contribution,Schema,,CON-001,CLM-001,EVD-001,methods,active,low,contribution
+EOF
+    cat > "$tmp/evidence/reviewer_attack_matrix.csv" <<'EOF'
+attack_id,target_type,target_id,reviewer_question,attack_category,severity,likely_reviewer_profile,current_defense,evidence_needed,current_evidence_ids,defense_strength,revision_needed,response_strategy,owner,status
+A1,contribution,CON-001,Is this governance rather than validity?,scope_boundary,medium,methods reviewer,Boundary language states structure only,script and schema,EVD-001,adequate,no,Keep limitation explicit,author,open
+EOF
+    cat > "$tmp/evidence/gap_register.csv" <<'EOF'
+gap_id,intent_id,gap_statement,gap_type,gap_priority,gap_status,scope,search_or_problem_evidence_ids,boundary_language,notes
+GAP-001,I1,Manuscript claims often lack explicit hierarchy,governance_gap,core,evidence_supported,argument structure within one manuscript,SRC-001,Does not establish scientific quality,fixture
+EOF
+    cat > "$tmp/evidence/evidence_objects.csv" <<'EOF'
+object_id,object_type,statement_or_description,artifact_or_source,version,scope,method_or_measure,provenance_status,quality_status,uncertainty,status,notes
+SRC-001,source,Prior writing-governance work lacks this explicit relation packet,reading note,1,writing governance,literature comparison,verified,checked,Comparison set is bounded,verified,fixture source
+DAT-001,data,Synthetic relation fixture,fixture.csv,1,one synthetic packet,row-level records,verified,validated,Synthetic only,verified,fixture data
+RES-001,result,The checker identifies missing typed links,validator output,1,one synthetic packet,deterministic validation,verified,validated,Structural validity only,verified,fixture result
+EVD-001,evidence,Schema and checker files are present,local files,1,one toolkit packet,file inspection,verified,validated,Does not prove scholarship,verified,fixture evidence
+ART-001,artifact,Argument governance schema,argument_schema.md,1,one toolkit packet,file inspection,verified,validated,Structure only,verified,fixture artifact
+EOF
+    cat > "$tmp/evidence/innovation_register.csv" <<'EOF'
+innovation_id,contribution_id,innovation_type,innovation_dimension,comparison_set,difference_statement,materiality_statement,novelty_scope,comparison_evidence_ids,comparison_status,boundary_language,notes
+NOV-001,CON-001,new_workflow,typed argument relations,prior writing-governance packet formats,Adds explicit data-result-claim and innovation relations,Improves inspectability of the packet,toolkit workflow only,SRC-001,supported,Not a scientific novelty guarantee,fixture
+EOF
+    cat > "$tmp/evidence/argument_relations.csv" <<'EOF'
+relation_id,source_type,source_id,relation_type,target_type,target_id,evidence_ids,directness,scope_match,status,rationale,notes
+REL-001,source,SRC-001,supports,gap,GAP-001,SRC-001,direct,exact,verified,Source bounds the gap,fixture
+REL-002,contribution,CON-001,addresses,gap,GAP-001,EVD-001,direct,exact,verified,Contribution addresses the gap,fixture
+REL-003,data,DAT-001,produces,result,RES-001,DAT-001,direct,exact,verified,Fixture data produce the result,fixture
+REL-004,result,RES-001,supports,claim,CLM-001,RES-001,direct,exact,verified,Result supports the contribution claim,fixture
+REL-005,claim,CLM-001,substantiates,contribution,CON-001,EVD-001,direct,exact,verified,Claim substantiates the contribution,fixture
+REL-006,innovation,NOV-001,characterises,contribution,CON-001,SRC-001,direct,exact,verified,Innovation characterises the contribution,fixture
+REL-007,source,SRC-001,supports,innovation,NOV-001,SRC-001,direct,exact,verified,Comparison evidence supports bounded difference,fixture
+REL-008,evidence,EVD-001,supports,claim,CLM-000,EVD-001,direct,exact,verified,Evidence supports the paper thesis,fixture
+REL-009,source,SRC-001,supports,claim,CLM-001,SRC-001,direct,exact,verified,Source support fits governance contribution type,fixture
+EOF
+    cat > "$tmp/evidence/contribution_focus.csv" <<'EOF'
+contribution_id,current_role,core_gap_fit,target_reader_fit,narrative_emphasis,author_locked,section_ids,decision_status,notes
+CON-001,primary,direct,high,balanced,false,intro;methods,current,fixture
+EOF
+}
+
+_add_valid_focus_candidate() {
+    local tmp="$1"
+    cat >> "$tmp/evidence/contribution_chain.csv" <<'EOF'
+CON-002,I1,GAP-001,Manuscript claims often lack explicit hierarchy,governance_gap,Flat claims hide weak evidence,A compact relation view makes the project easier to inspect,We provide a compact project relation view,governance_framework,ART-001,CLM-003,governance schema evidence,EVD-001,adequate,Does not prove manuscript quality,Validates structure only,Checker reports structural issues
+EOF
+    cat >> "$tmp/evidence/claim_hierarchy.csv" <<'EOF'
+CLM-003,CLM-000,I1,CON-002,intro,contribution_claim,artifact_claim,The compact relation view exposes the project spine,,schema evidence,EVD-001,,governance_support_only,adequate,adequately_supported,answers_gap,low,Structure only,none
+EOF
+    cat >> "$tmp/evidence/contribution_focus.csv" <<'EOF'
+CON-002,secondary,direct,high,light,false,intro,current,focus candidate fixture
+EOF
+    cat >> "$tmp/evidence/argument_relations.csv" <<'EOF'
+REL-010,contribution,CON-002,addresses,gap,GAP-001,EVD-001,direct,exact,verified,Candidate addresses the core gap,fixture
+REL-011,claim,CLM-003,substantiates,contribution,CON-002,EVD-001,direct,exact,verified,Candidate claim substantiates the contribution,fixture
+REL-012,source,SRC-001,supports,claim,CLM-003,SRC-001,direct,exact,verified,Source support fits governance contribution type,fixture
 EOF
 }
 
@@ -2866,6 +2951,399 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'forbidden-source-allowed' in kinds and 'missing-required-forbidden-source' in kinds"
 }
 
+test_T125() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['profile']=='research-relations-v2' and d['issue_count']==0; assert d['relation_summary']['data_objects']==1 and d['relation_summary']['result_objects']==1 and not d['focus_review_candidates']"
+}
+
+test_T126() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_argument_packet "$tmp"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); missing={i['location'] for i in d['issues'] if i['kind']=='missing-file'}; assert d['profile']=='research-relations-v2'; assert {'gap_register.csv','evidence_objects.csv','innovation_register.csv','argument_relations.csv','contribution_focus.csv'} <= {x.rsplit('/',1)[-1].rsplit(chr(92),1)[-1] for x in missing}"
+}
+
+test_T127() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    sed 's/,produces,result,/,bounds,result,/' "$tmp/evidence/argument_relations.csv" > "$tmp/evidence/argument_relations.tmp"
+    mv "$tmp/evidence/argument_relations.tmp" "$tmp/evidence/argument_relations.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); rules={i.get('rule_id') for i in d['issues']}; assert {'DATA-01','DATA-02'} <= rules"
+}
+
+test_T128() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    _add_valid_focus_candidate "$tmp"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i.get('rule_id')=='FIT-02' for i in d['issues']); assert any(i['kind']=='missing-focus-snapshot' for i in d['issues']); c=d['focus_review_candidates'][0]; assert c['current_primary_id']=='CON-001' and c['candidate_id']=='CON-002' and c['requires_author_approval'] is True; assert c['recommended_next_skill']=='pending_author_decision' and 'remove' in c['candidate_actions']; assert {'manuscript-reframe','thesis-control'} <= set(c['post_approval_routes']); assert 'contribution order' not in c['post_approval_routes']['manuscript-reframe']"
+}
+
+test_T129() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    cat >> "$tmp/evidence/argument_relations.csv" <<'EOF'
+REL-010,claim,CLM-001,depends_on,claim,CLM-002,EVD-001,direct,exact,verified,First half of invalid cycle,fixture
+REL-011,claim,CLM-002,depends_on,claim,CLM-001,EVD-001,direct,exact,verified,Second half of invalid cycle,fixture
+EOF
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind']=='relation-cycle' for i in d['issues'])"
+}
+
+test_T130() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    sed 's/,direct,exact,verified,/,unverified,unknown,candidate,/g' "$tmp/evidence/argument_relations.csv" > "$tmp/evidence/argument_relations.tmp"
+    mv "$tmp/evidence/argument_relations.tmp" "$tmp/evidence/argument_relations.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert not d['focus_review_candidates']; assert not any(i.get('rule_id')=='FIT-02' for i in d['issues']); assert any(i.get('rule_id')=='CON-01' for i in d['issues'])"
+}
+
+test_T131() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    cat >> "$tmp/evidence/gap_register.csv" <<'EOF'
+GAP-002,I1,A secondary governance gap,governance_gap,supporting,evidence_supported,argument structure within one manuscript,SRC-001,Does not establish scientific quality,wrong-target fixture
+EOF
+    sed -e 's/REL-002,contribution,CON-001,addresses,gap,GAP-001/REL-002,contribution,CON-001,addresses,gap,GAP-002/' -e 's/REL-005,claim,CLM-001,substantiates,contribution,CON-001/REL-005,claim,CLM-001,substantiates,contribution,CON-002/' -e 's/REL-006,innovation,NOV-001,characterises,contribution,CON-001/REL-006,innovation,NOV-001,characterises,contribution,CON-002/' "$tmp/evidence/argument_relations.csv" > "$tmp/evidence/argument_relations.tmp"
+    mv "$tmp/evidence/argument_relations.tmp" "$tmp/evidence/argument_relations.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); mismatches=[i for i in d['issues'] if i['kind']=='cross-table-relation-mismatch']; assert len(mismatches) >= 3"
+}
+
+test_T132() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,direct,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert not d['focus_review_candidates']; assert not any(i.get('rule_id')=='FIT-02' for i in d['issues'])"
+}
+
+test_T133() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    sed '/^REL-010,/d' "$tmp/evidence/argument_relations.csv" > "$tmp/evidence/argument_relations.tmp"
+    mv "$tmp/evidence/argument_relations.tmp" "$tmp/evidence/argument_relations.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert not d['focus_review_candidates']; assert not any(i.get('rule_id')=='FIT-02' for i in d['issues'])"
+}
+
+test_T134() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    sed 's/REL-007,source,SRC-001,supports,innovation/REL-007,source,SRC-001,contradicts,innovation/' "$tmp/evidence/argument_relations.csv" > "$tmp/evidence/argument_relations.tmp"
+    mv "$tmp/evidence/argument_relations.tmp" "$tmp/evidence/argument_relations.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); rules={i.get('rule_id') for i in d['issues']}; assert {'NOV-01','NOV-02'} <= rules; assert not d['focus_review_candidates']"
+}
+
+test_T135() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    cat >> "$tmp/evidence/innovation_register.csv" <<'EOF'
+NOV-002,CON-002,new_workflow,compact relation view,prior writing-governance packet formats,Claims a difference that comparison evidence contradicts,Would improve inspectability if supported,toolkit workflow only,SRC-001,contradicted,Do not promote as established novelty,fixture
+EOF
+    cat >> "$tmp/evidence/argument_relations.csv" <<'EOF'
+REL-013,source,SRC-001,contradicts,innovation,NOV-002,SRC-001,direct,exact,verified,Comparison contradicts the claimed difference,fixture
+EOF
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert not d['focus_review_candidates']; assert any(i.get('rule_id')=='NOV-02' for i in d['issues'])"
+}
+
+test_T136() {
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    _make_valid_argument_packet "$tmp"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --json) || {
+        rm -rf "$tmp"
+        return 1
+    }
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['schema_version']==1 and d['profile']=='legacy-v1'"
+}
+
+test_T137() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    cat >> "$tmp/evidence/argument_relations.csv" <<'EOF'
+REL-010,source,SRC-001,contradicts,claim,CLM-001,SRC-001,direct,exact,verified,Source records counter-evidence,fixture
+EOF
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert not any(i['kind']=='invalid-relation-triple' for i in d['issues']); assert any(i.get('rule_id')=='FIT-01' for i in d['issues'])"
+}
+
+test_T138() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    sed 's/core,evidence_supported/core,closed/' "$tmp/evidence/gap_register.csv" > "$tmp/evidence/gap_register.tmp"
+    mv "$tmp/evidence/gap_register.tmp" "$tmp/evidence/gap_register.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind']=='primary-relies-on-inactive-gap' for i in d['issues'])"
+}
+
+test_T139() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    cat >> "$tmp/evidence/argument_relations.csv" <<'EOF'
+REL-010,claim,CLM-001,depends_on,claim,CLM-002,EVD-001,unverified,unknown,candidate,First provisional cycle edge,fixture
+REL-011,claim,CLM-002,depends_on,claim,CLM-001,EVD-001,unverified,unknown,candidate,Second provisional cycle edge,fixture
+EOF
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert 'provisional-relation-cycle' in kinds and 'relation-cycle' not in kinds; assert all(i.get('confidence')=='possible' for i in d['issues'] if i['kind']=='provisional-relation-cycle')"
+}
+
+test_T140() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    cat >> "$tmp/evidence/argument_relations.csv" <<'EOF'
+REL-013,result,RES-001,supports,claim,CLM-003,RES-001,direct,exact,verified,Same result also supports the duplicate candidate,fixture
+EOF
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i.get('rule_id')=='CON-02' and i['kind']=='redundant-contribution-candidate' for i in d['issues'])"
+}
+
+test_T141() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    sed 's/,verified,Source bounds the gap,fixture/,verified,,fixture/' "$tmp/evidence/argument_relations.csv" > "$tmp/evidence/argument_relations.tmp"
+    mv "$tmp/evidence/argument_relations.tmp" "$tmp/evidence/argument_relations.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind']=='missing-required-value' and i['location'].endswith(':rationale') for i in d['issues'])"
+}
+
+test_T142() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    sed 's/SRC-001,source,Prior writing-governance work lacks this explicit relation packet,reading note,1,writing governance,literature comparison,verified,checked/SRC-001,source,Prior writing-governance work lacks this explicit relation packet,reading note,1,writing governance,literature comparison,unverified,contradicted/' "$tmp/evidence/evidence_objects.csv" > "$tmp/evidence/evidence_objects.tmp"
+    mv "$tmp/evidence/evidence_objects.tmp" "$tmp/evidence/evidence_objects.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i.get('rule_id')=='CON-01' for i in d['issues']); assert not d['focus_review_candidates']"
+}
+
+test_T143() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,high,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    sed '/^REL-002,/d' "$tmp/evidence/argument_relations.csv" > "$tmp/evidence/argument_relations.tmp"
+    mv "$tmp/evidence/argument_relations.tmp" "$tmp/evidence/argument_relations.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert not d['focus_review_candidates']; assert not any(i.get('rule_id')=='FIT-02' and i['kind']=='contribution-focus-review' for i in d['issues'])"
+}
+
+test_T144() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    cat >> "$tmp/evidence/innovation_register.csv" <<'EOF'
+NOV-002,CON-002,new_workflow,compact relation view,prior writing-governance packet formats,Adds a compact relation view,Improves inspectability within the declared scope,toolkit workflow only,SRC-001,supported,The comparison also records limits,fixture
+EOF
+    cat >> "$tmp/evidence/argument_relations.csv" <<'EOF'
+REL-013,source,SRC-001,supports,innovation,NOV-002,SRC-001,direct,exact,verified,Comparison supports the bounded difference,fixture
+REL-014,source,SRC-001,limits,innovation,NOV-002,SRC-001,direct,exact,verified,Comparison limits the novelty scope,fixture
+REL-015,innovation,NOV-002,characterises,contribution,CON-002,SRC-001,direct,exact,verified,Innovation characterises the candidate,fixture
+EOF
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); c=d['focus_review_candidates'][0]; counters=[x for x in c['counter_signals'] if x['dimension']=='innovation_limits']; assert counters and counters[0]['relation_ids']==['REL-014']"
+}
+
+test_T145() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    cat > "$tmp/manuscript.md" <<'EOF'
+# Author-approved manuscript
+
+Synthetic fixture for the frozen focus snapshot.
+EOF
+    cat > "$tmp/evidence/contribution_focus_snapshot.json" <<'EOF'
+{
+  "schema_version": 1,
+  "intent_ids": ["I1"],
+  "current_primary_ids": ["CON-001"],
+  "author_approved_manuscript_path": "manuscript.md",
+  "author_approved_manuscript_sha256": "unavailable",
+  "relation_packet_sha256": "unavailable",
+  "captured_from_files": ["evidence/*.csv", "hash unavailable: synthetic fixture"],
+  "status": "pending_author_review"
+}
+EOF
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['focus_review_candidates']; assert not any(i['kind'] in {'missing-focus-snapshot','invalid-focus-snapshot'} for i in d['issues'])"
+}
+
+test_T146() {
+    local skill="$REPO_ROOT/.claude/skills/academic-writing-assistant/SKILL.md"
+    [[ -f "$skill" ]] || return 1
+    grep -q '\$argument-governance' "$skill" || return 1
+    grep -q -- '--strict-relations --json' "$skill" || return 1
+    grep -q 'pending_author_decision' "$skill" || return 1
+    grep -q '\$revision-escalation' "$skill" || return 1
+    grep -q 'three unsuccessful attempts' "$skill" || return 1
+    grep -q 'academic-writing-log' "$skill" || return 1
+    ! grep -q 'TODO' "$skill" || return 1
+}
+
+test_T147() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    cat >> "$tmp/evidence/intent_register.csv" <<'EOF'
+I2,Other paper,Another project has a different problem,Other venue,other readers,another field,A separate project gap,Separate project narrative,Separate correction,Separate timing,,Keep the projects separate,Preserve intent boundaries,medium,cross-intent fixture
+EOF
+    cat >> "$tmp/evidence/gap_register.csv" <<'EOF'
+GAP-002,I2,A separate project gap,governance_gap,core,evidence_supported,another manuscript,SRC-001,Does not belong to I1,cross-intent fixture
+EOF
+    sed 's/CON-002,I1,GAP-001/CON-002,I2,GAP-002/' "$tmp/evidence/contribution_chain.csv" > "$tmp/evidence/contribution_chain.tmp"
+    mv "$tmp/evidence/contribution_chain.tmp" "$tmp/evidence/contribution_chain.csv"
+    sed 's/CLM-003,CLM-000,I1,CON-002/CLM-003,,I2,CON-002/' "$tmp/evidence/claim_hierarchy.csv" > "$tmp/evidence/claim_hierarchy.tmp"
+    mv "$tmp/evidence/claim_hierarchy.tmp" "$tmp/evidence/claim_hierarchy.csv"
+    sed 's/CON-002,addresses,gap,GAP-001/CON-002,addresses,gap,GAP-002/' "$tmp/evidence/argument_relations.csv" > "$tmp/evidence/argument_relations.tmp"
+    mv "$tmp/evidence/argument_relations.tmp" "$tmp/evidence/argument_relations.csv"
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert not d['focus_review_candidates']; assert not any(i['kind']=='contribution-focus-review' for i in d['issues'])"
+}
+
+test_T148() {
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    _make_valid_relation_argument_packet "$tmp"
+    _add_valid_focus_candidate "$tmp"
+    sed 's/CON-001,primary,direct,high,balanced/CON-001,primary,weak,low,balanced/' "$tmp/evidence/contribution_focus.csv" > "$tmp/evidence/contribution_focus.tmp"
+    mv "$tmp/evidence/contribution_focus.tmp" "$tmp/evidence/contribution_focus.csv"
+    cat > "$tmp/unrelated.csv" <<'EOF'
+unrelated
+value
+EOF
+    cat > "$tmp/evidence/contribution_focus_snapshot.json" <<'EOF'
+{
+  "schema_version": 1,
+  "intent_ids": ["I9"],
+  "current_primary_ids": ["CON-999"],
+  "author_approved_manuscript_path": "does-not-exist.md",
+  "author_approved_manuscript_sha256": "unavailable",
+  "relation_packet_sha256": "unavailable",
+  "captured_from_files": ["unrelated.csv", "hash unavailable: synthetic fixture"],
+  "status": "pending_author_review"
+}
+EOF
+    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --strict-relations --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); locations={i['location'] for i in d['issues'] if i['kind']=='invalid-focus-snapshot'}; assert any(x.endswith(':intent_ids') for x in locations); assert any(x.endswith(':current_primary_ids') for x in locations); assert any(x.endswith(':author_approved_manuscript_path') for x in locations); assert any(x.endswith(':captured_from_files') for x in locations)"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -3141,6 +3619,30 @@ run_test "T121 scaffold populates header-only project-intent files" test_T121
 run_test "T122 project-intent migration creates a blocked draft atomically" test_T122
 run_test "T123 project-intent migration rejects partial schema without mutation" test_T123
 run_test "T124 project-intent migration normalises direct-call roots" test_T124
+run_test "T125 strict relation profile accepts a clean packet" test_T125
+run_test "T126 strict relation profile rejects a legacy-only packet" test_T126
+run_test "T127 strict relation profile separates data from results" test_T127
+run_test "T128 strict relation profile proposes an approval-gated focus review" test_T128
+run_test "T129 strict relation profile rejects relation cycles" test_T129
+run_test "T130 provisional evidence cannot complete a contribution chain" test_T130
+run_test "T131 strict relations reject cross-table target mismatches" test_T131
+run_test "T132 one focus weakness cannot trigger a focus shift" test_T132
+run_test "T133 candidates require a reliable active core-gap relation" test_T133
+run_test "T134 contradictory innovation evidence is not positive support" test_T134
+run_test "T135 contradicted secondary innovation cannot become a focus candidate" test_T135
+run_test "T136 legacy output preserves schema version one" test_T136
+run_test "T137 verified counter-evidence uses an allowed relation triple" test_T137
+run_test "T138 primary contributions cannot rely on inactive gaps" test_T138
+run_test "T139 provisional relation cycles stay advisory" test_T139
+run_test "T140 semantic support overlap detects duplicate contributions" test_T140
+run_test "T141 strict relation rows require key values" test_T141
+run_test "T142 unreliable evidence objects cannot complete a chain" test_T142
+run_test "T143 one gap-fit defect cannot count as two focus weaknesses" test_T143
+run_test "T144 innovation limits remain traceable counter-signals" test_T144
+run_test "T145 a valid focus snapshot satisfies the decision gate" test_T145
+run_test "T146 academic writing assistant routes without duplicating governance" test_T146
+run_test "T147 contribution focus candidates cannot cross intent boundaries" test_T147
+run_test "T148 stale or unrelated focus snapshots fail semantic validation" test_T148
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

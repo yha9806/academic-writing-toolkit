@@ -9,6 +9,9 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 ## Pipeline
 
 ```text
+/academic-writing-assistant (project inventory -> one primary route -> summary and human gate)
+             |
+             v
 /read -> /note -> /map -> /evidence-review -> /argument-governance -> /integrate -> /thesis-control -> /manuscript-reframe -> /audit -> /release-governance -> /style -> /logic-review -> /export
              |                         |                                           |                                      |
              v                         v                                           v                                      v
@@ -22,12 +25,14 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 
 /human-eval-handoff-repair is an evaluation-package QC and annotation repair workflow outside the thesis-writing pipeline.
 /revision-escalation is a 3-strike stop-and-diagnose workflow for repeated failed writing, coding, rebuttal, or manuscript revisions.
+/academic-writing-assistant is the project-centred front door. It chooses one primary specialist route and never replaces that skill's schema, checker, or author gate.
 ```
 
 ## Guides
 
 | Skill | Guide |
 |-------|-------|
+| `/academic-writing-assistant` | [00-academic-writing-assistant.md](00-academic-writing-assistant.md) |
 | `/read` | [01-read.md](01-read.md) |
 | `/note` | [02-note.md](02-note.md) |
 | `/verify` | [03-verify.md](03-verify.md) |

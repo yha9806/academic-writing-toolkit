@@ -1,7 +1,7 @@
 {
     "name":  "academic-writing-toolkit",
     "version":  "0.4.0",
-    "description":  "Academic reading, thesis writing, thesis drift control, manuscript reframing, revision escalation, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
+    "description":  "Project-centred academic writing, argument and evidence governance, thesis drift control, manuscript reframing, revision escalation, review synthesis, release governance, citation auditing, reference verification, and export skills for Codex.",
     "author":  {
                    "name":  "Academic Writing Toolkit Maintainers",
                    "url":  "https://github.com/yha9806"
@@ -24,13 +24,15 @@
                      "manuscript-reframe",
                      "revision-escalation",
                      "thesis-control",
-                     "scientific-writing"
+                     "scientific-writing",
+                     "project-planning",
+                     "argument-governance"
                  ],
     "skills":  "./skills/",
     "interface":  {
                       "displayName":  "Academic Writing Toolkit",
-                      "shortDescription":  "Structured research, thesis drift control, manuscript reframing, revision escalation, evidence-review, release governance, citation, style, and export workflows.",
-                      "longDescription":  "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, controlling AI-assisted thesis edits with spine cards and drift audits, reframing report-like drafts into scientific manuscripts, stopping repeated failed revisions for diagnosis before more patches, integrating arguments, auditing citations and consistency, preparing release-governance packets, validating and repairing human-evaluation handoff packages, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
+                      "shortDescription":  "Project navigation, argument-evidence governance, controlled writing, revision escalation, audit, and release workflows.",
+                      "longDescription":  "Academic Writing Toolkit packages a project-centred academic writing assistant plus local Codex skills for locating the canonical project state, mapping gap-data-result-claim-contribution-innovation relations, reviewing evidence balance and contribution focus, reading PDFs, recording source notes, building evidence-controlled gap reviews, controlling AI-assisted edits with spine cards and drift audits, reframing scientific manuscripts after author approval, stopping repeated failed revisions before another patch, auditing consistency, preparing release packets, validating human-evaluation handoffs, checking British English, verifying references, tracking progress, and exporting thesis materials.",
                       "developerName":  "Academic Writing Toolkit Maintainers",
                       "category":  "Productivity",
                       "capabilities":  [
@@ -42,7 +44,7 @@
                       "privacyPolicyURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/privacy.md",
                       "termsOfServiceURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/terms.md",
                       "defaultPrompt":  [
-                                            "Read this paper and extract thesis connections.",
+                                            "Use the academic writing assistant to map my research project and select the next controlled workflow / 使用学术写作助手梳理项目并选择下一项受控工作流。",
                                             "Create an edit contract, drift audit, and reframe plan for this thesis section.",
                                             "Prepare a release-governance packet."
                                         ],
