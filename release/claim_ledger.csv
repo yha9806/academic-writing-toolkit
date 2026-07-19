@@ -1,6 +1,8 @@
 claim_id,claim_text,artifact_ids,evidence_state,denominator,scope_boundary,human_gate_required,status
-c1,The v0.3.1 candidate has ChatGPT App and Codex plugin package metadata aligned at version 0.3.1,codex-plugin;chatgpt-app,verified_artifact,two package manifests,repository package metadata only,false,supported
-c2,The Codex plugin package includes the manuscript-reframe skill,manuscript-reframe;codex-plugin,verified_artifact,one new skill across canonical and plugin surfaces,local plugin package only,false,supported
-c3,The Agent skill entry for manuscript-reframe is a symlink to the canonical Claude skill,manuscript-reframe,verified_artifact,one symlink checked by T42,repository skill discovery only,false,supported
-c4,The ChatGPT App remains a narrower pasted-text MCP server and not the full local project workflow,chatgpt-app;publishing-docs,verified_artifact,five app tools,repository app surface only,false,supported
-c5,OpenAI dashboard publication still requires maintainer-controlled business verification and manual Submit for Review,publishing-docs,draft_advisory,external dashboard action,repository cannot prove external publication,true,needs human gate
+c1,The local v0.5.0 plugin candidate contains 21 packaged Skills and manifest version 0.5.0,plugin-source,verified_artifact,21 packaged Skills,product commit repository content only,false,supported
+c2,The submission packet defines five positive and three negative cases,submission-packet,verified_artifact,eight case definitions,static case definitions only and not forward-test outcomes,false,supported
+c3,The listing package contains two tracked 1600x1000 workflow screenshots,listing-assets,verified_artifact,two screenshots,local listing assets only,false,supported
+c4,The repository App package is version-aligned at 0.5.0 and passes 12 local tests,app-source,verified_artifact,12 Node tests,local source only and not hosted runtime,false,supported
+c5,Release archives are byte-reproducible for one immutable Git ref,candidate-source-zip;candidate-plugin-zip,verified_artifact,two consecutive builds of each archive,same-ref build reproducibility only,false,supported
+c6,Repository evidence does not establish identity permission region forward-test upload submission approval or publication,portal-state,draft_advisory,nine owner-controlled or external checks,external OpenAI account and portal only,true,needs_human_gate
+c7,The complete 149-test Linux regression result is not established locally,plugin-source,draft_advisory,142 non-platform cases passed and 7 environment-sensitive cases deferred,Linux PR CI required,false,not_claimed
