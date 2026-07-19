@@ -1,3 +1,4 @@
+import { accessSync, constants, statSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -8,6 +9,139 @@ const SOURCE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(SOURCE_DIR, "..");
 const REPO_ROOT = path.resolve(APP_ROOT, "../..");
 const SCRIPTS_DIR = path.join(REPO_ROOT, "scripts");
+
+function envValue(env, name) {
+  const direct = env[name];
+  if (direct !== undefined) {
+    return direct;
+  }
+
+  const matchedKey = Object.keys(env).find((key) => key.toLowerCase() === name.toLowerCase());
+  return matchedKey === undefined ? undefined : env[matchedKey];
+}
+
+function stripOuterQuotes(value) {
+  const trimmed = value.trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function isUsableExecutable(candidate, platform) {
+  try {
+    if (!statSync(candidate).isFile()) {
+      return false;
+    }
+    if (platform !== "win32") {
+      accessSync(candidate, constants.X_OK);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function executableMatches(command, { env, platform }) {
+  const normalizedCommand = stripOuterQuotes(command);
+  if (!normalizedCommand || normalizedCommand.includes("\0")) {
+    return [];
+  }
+
+  const hasPathSeparator =
+    normalizedCommand.includes("/") || normalizedCommand.includes("\\");
+  if (path.isAbsolute(normalizedCommand) || hasPathSeparator) {
+    const candidate = path.resolve(normalizedCommand);
+    return isUsableExecutable(candidate, platform) ? [candidate] : [];
+  }
+
+  const pathValue = envValue(env, "PATH") ?? "";
+  const delimiter = platform === "win32" ? ";" : ":";
+  const extensions =
+    platform === "win32" && path.extname(normalizedCommand) === "" ? [".exe"] : [""];
+  const matches = [];
+
+  for (const rawDirectory of pathValue.split(delimiter)) {
+    const directory = stripOuterQuotes(rawDirectory);
+    if (!directory) {
+      continue;
+    }
+    for (const extension of extensions) {
+      const candidate = path.join(directory, `${normalizedCommand}${extension}`);
+      if (isUsableExecutable(candidate, platform)) {
+        matches.push(candidate);
+      }
+    }
+  }
+  return matches;
+}
+
+function isWindowsStoreAlias(candidate, platform) {
+  if (platform !== "win32") {
+    return false;
+  }
+  const normalized = candidate.replaceAll("\\", "/").toLowerCase();
+  return normalized.includes("/microsoft/windowsapps/");
+}
+
+/**
+ * Resolve the Python process without invoking a shell.
+ *
+ * AWT_PYTHON and PYTHON must name one executable, not a command line. Windows
+ * Store aliases are deliberately ignored because they can exist while failing
+ * with spawn UNKNOWN instead of starting Python.
+ */
+export function resolvePythonInterpreter({
+  env = process.env,
+  platform = process.platform,
+  findExecutables = (command) => executableMatches(command, { env, platform }),
+} = {}) {
+  const explicitVariables = ["AWT_PYTHON", "PYTHON"];
+  for (const variable of explicitVariables) {
+    const configured = envValue(env, variable);
+    if (typeof configured !== "string" || configured.trim() === "") {
+      continue;
+    }
+
+    const matches = findExecutables(stripOuterQuotes(configured));
+    const command = matches.find((candidate) => !isWindowsStoreAlias(candidate, platform));
+    if (!command) {
+      throw new Error(
+        `${variable} does not resolve to a usable Python executable. ` +
+          "Set it to one executable path; Windows Store aliases are not supported.",
+      );
+    }
+    return { command, args: [], source: variable };
+  }
+
+  const candidates =
+    platform === "win32"
+      ? [
+          { command: "python.exe", args: [] },
+          { command: "py.exe", args: ["-3"] },
+        ]
+      : [
+          { command: "python3", args: [] },
+          { command: "python", args: [] },
+        ];
+
+  for (const candidate of candidates) {
+    const matches = findExecutables(candidate.command);
+    const command = matches.find((match) => !isWindowsStoreAlias(match, platform));
+    if (command) {
+      return { command, args: candidate.args, source: "PATH" };
+    }
+  }
+
+  throw new Error(
+    "No usable Python interpreter found. Set AWT_PYTHON or PYTHON to a real executable. " +
+      "Windows Store aliases are ignored.",
+  );
+}
 
 function summarize(kind, count) {
   if (count === 0) {
@@ -29,10 +163,15 @@ async function withTempProject(callback) {
 
 function runPythonScript(scriptName, args, { allowIssuesExit = true } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn("python3", [path.join(SCRIPTS_DIR, scriptName), ...args], {
-      cwd: REPO_ROOT,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const interpreter = resolvePythonInterpreter();
+    const child = spawn(
+      interpreter.command,
+      [...interpreter.args, path.join(SCRIPTS_DIR, scriptName), ...args],
+      {
+        cwd: REPO_ROOT,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
 
     let stdout = "";
     let stderr = "";
@@ -44,7 +183,14 @@ function runPythonScript(scriptName, args, { allowIssuesExit = true } = {}) {
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
     });
-    child.on("error", reject);
+    child.on("error", (error) => {
+      reject(
+        new Error(
+          `Could not start Python via ${interpreter.source} (${interpreter.command}): ` +
+            error.message,
+        ),
+      );
+    });
     child.on("close", (code) => {
       if (code !== 0 && !(allowIssuesExit && code === 1)) {
         reject(new Error(`${scriptName} exited ${code}: ${stderr || stdout}`));

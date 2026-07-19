@@ -18,20 +18,23 @@ relation table, score, or checker when a specialist skill already owns it.
 ## Operating Rules
 
 1. Locate the canonical, author-approved project version before proposing edits.
-2. Inventory the project spine and distinguish unknown from absent information.
-3. Before rewriting or reframing, separate the domain gap, exact paper
+2. If a `thesis_control/` project-intent layer exists, validate and reuse its
+   active author-approved intent, manuscript contract, and passed global audit.
+   Never treat scaffold defaults or draft rows as approval.
+3. Inventory the project spine and distinguish unknown from absent information.
+4. Before rewriting or reframing, separate the domain gap, exact paper
    contribution, scoped empirical finding, and extrapolative claim.
-4. Read `references/argument_level_lock.md` when the task involves a headline
+5. Read `references/argument_level_lock.md` when the task involves a headline
    claim, evidence sufficiency, licensed scope, late framing, contribution
    hierarchy, or paper-wide boundary.
-5. Select exactly one primary specialist route for the current turn.
-6. Read and follow that specialist skill, including its approval and stop gates.
-7. Preserve its object IDs, rule IDs, evidence status, and uncertainty.
-8. Never turn a candidate contribution focus into a manuscript change without
+6. Select exactly one primary specialist route for the current turn.
+7. Read and follow that specialist skill, including its approval and stop gates.
+8. Preserve its object IDs, rule IDs, evidence status, and uncertainty.
+9. Never turn a candidate contribution focus into a manuscript change without
    explicit author approval.
-9. Record inspected, changed, deliberately unchanged, decided, and deferred
+10. Record inspected, changed, deliberately unchanged, decided, and deferred
    items. Do not record hidden reasoning, credentials, or sensitive text.
-10. Match the report language to the user's language. Keep canonical object IDs,
+11. Match the report language to the user's language. Keep canonical object IDs,
    rule IDs, file names, and evidence-status values unchanged when translating.
 
 ## Build the Project Snapshot
@@ -50,6 +53,27 @@ Identify, without inventing missing content:
 If the user requests only quantitative reading, writing, or coverage status,
 route to `$progress`. Otherwise keep this inventory as navigation context, not
 a new source of truth.
+
+## Lock The Canonical Project Intent
+
+When any of these files exists, treat them as one indivisible control layer:
+
+- `thesis_control/project_intent.csv`
+- `thesis_control/manuscript_contracts.csv`
+- `thesis_control/global_thesis_audits.csv`
+
+Read `$thesis-control` and run its checker with `--strict --json`. Continue
+towards argument or manuscript changes only when the packet identifies exactly
+one active, author-approved project intent; one active, author-approved
+manuscript contract for it; and a passed global audit for that manuscript.
+Reuse the same `intent_id` as the root of the argument-governance packet.
+
+If the layer is partial, draft, unapproved, multiply active, failed, drifted, or
+uses an `intent_id` that conflicts with `evidence/intent_register.csv`, stop and
+route to `$thesis-control`. Do not manufacture approval, silently rename IDs,
+overwrite an earlier intent, or create a second project truth. If the layer is
+absent, label the navigation snapshot provisional; create durable control files
+only when the user authorises that write.
 
 ## Lock the Argument Levels
 
@@ -172,6 +196,7 @@ Return a concise `Research Project Navigation Report`:
 ### Project Snapshot
 
 - goal, intended output, audience, canonical files, approved version, stage;
+- active project-intent, manuscript-contract, and global-audit IDs when present;
 - unknown or conflicting information.
 
 ### Argument Level Lock
@@ -214,6 +239,8 @@ report in chat without creating a file.
 Stop editing and report the blocker when:
 
 - no canonical manuscript or latest approved version can be identified;
+- the project-intent control layer is partial, unapproved, multiply active, or
+  inconsistent with the argument-governance `intent_id`;
 - the core question or gap cannot be stated from supplied material;
 - data and results cannot be distinguished;
 - a core claim lacks an evidence anchor;

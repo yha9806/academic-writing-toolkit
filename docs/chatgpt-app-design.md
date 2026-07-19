@@ -7,9 +7,15 @@ Build a `tool-only` ChatGPT App for the Academic Writing Toolkit while keeping t
 This gives the project two distribution tracks:
 
 - ChatGPT App: public MCP server submitted through OpenAI Platform Apps Manage.
-- Codex plugin: local plugin package under `plugins/academic-writing-toolkit`, with official public distribution following OpenAI's app approval and publication flow.
+- OpenAI skills-only plugin: local plugin package under
+  `plugins/academic-writing-toolkit`, submitted independently through the
+  OpenAI plugin portal.
 
-Both surfaces use package version `0.4.0` for the current release. The ChatGPT App server reads its version from `apps/chatgpt-academic-writing-toolkit/package.json`, and the test suite checks that it matches the Codex plugin manifest version.
+Both repository packages use version `0.5.0` for the current candidate. The
+ChatGPT App server reads its version from
+`apps/chatgpt-academic-writing-toolkit/package.json`, and the test suite checks
+that it matches the plugin manifest. Hosted App deployment is a separate state:
+package-version alignment does not prove that `/health` has been redeployed.
 
 ## User Flows
 

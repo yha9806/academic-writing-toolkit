@@ -8,9 +8,11 @@ Use this for the full workflow. The agent can read and write your local project 
 
 Start here when you use Claude Code, Codex, Gemini CLI, Cursor, or another compatible local agent host.
 
-## Codex Plugin
+## OpenAI Skills-Only Plugin
 
-Use this when you want the same local skills packaged as an installable Codex plugin. The plugin is a distribution wrapper, not a different workflow.
+Use this when you want the same 21 local Skills packaged for the OpenAI plugin
+surface. The plugin is a distribution wrapper around the local workflow, not a
+hosted writing service or a separate evidence system.
 
 ## ChatGPT App MCP Server
 
@@ -18,4 +20,6 @@ Use this for pasted-text checks and reading-note template generation. The ChatGP
 
 ## Quick Rule
 
-If the task needs project files, use local agent skills. If the task only needs pasted text, the ChatGPT App surface can be enough.
+If the task needs project files, use local agent Skills or the skills-only
+plugin. If the task only needs pasted text, the ChatGPT App surface can be
+enough.

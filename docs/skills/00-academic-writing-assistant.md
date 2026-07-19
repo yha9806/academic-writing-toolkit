@@ -8,6 +8,8 @@ next. Its centre is project organisation, not rebuttal writing.
 ## What it produces
 
 - a canonical project snapshot and explicit unknowns;
+- when present, the unique active author-approved project-intent,
+  manuscript-contract, and passed global-audit IDs;
 - a research-spine summary across gap, data, results, claims, contributions, and
   innovation evidence;
 - an argument-level lock separating the field gap, exact paper contribution,
@@ -25,6 +27,12 @@ next. Its centre is project organisation, not rebuttal writing.
 It does not create a second relationship schema or a scientific-quality score.
 Relationship work is delegated to `/argument-governance`, including its strict
 checker, object IDs, rule IDs, focus candidates, and author-decision gate.
+
+When a `thesis_control/` project-intent layer exists, the assistant validates
+the three control files before argument or manuscript changes. It reuses the
+same active author-approved `intent_id`; a draft, partial, multiply active, or
+conflicting layer stops the workflow and routes to `/thesis-control`. Scaffold
+defaults never count as author approval.
 
 ## Lock the paper before rewriting it
 
@@ -119,6 +127,9 @@ The assistant normally routes one current need to one specialist:
   or paper-spine change happens before that approval.
 - A candidate must stay within the same `intent_id`; evidence from a different
   paper or manuscript unit cannot justify swapping the current primary.
+- If project-intent control files exist, the argument packet must reuse their
+  unique active author-approved `intent_id`; it must not create a second project
+  truth.
 - "Too little" means a required argumentative function or reliable relation is
   missing. "Too much" means duplication, padding, orphaning, conflict, scope
   mismatch, or no distinct argumentative function. Raw counts are not proof.

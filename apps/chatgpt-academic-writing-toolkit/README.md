@@ -20,6 +20,13 @@ npm test
 npm start
 ```
 
+The four audit tools require Python 3. Interpreter selection is deterministic:
+`AWT_PYTHON`, then `PYTHON`, then a real interpreter on `PATH`. Windows supports
+`python.exe` and the `py -3` launcher; POSIX uses `python3` before `python`.
+Windows Store execution aliases are ignored because they do not start Python
+reliably. Set `AWT_PYTHON` to the full executable path when automatic discovery
+is not appropriate.
+
 The server listens on `http://127.0.0.1:3000/mcp` by default. Override with:
 
 ```sh

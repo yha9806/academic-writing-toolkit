@@ -12,6 +12,7 @@ source "$SCRIPT_DIR/lib.sh"
 PLUGIN_ROOT="$REPO_ROOT/plugins/academic-writing-toolkit"
 PLUGIN_JSON="$PLUGIN_ROOT/.codex-plugin/plugin.json"
 MARKETPLACE_JSON="$REPO_ROOT/.agents/plugins/marketplace.json"
+APP_PACKAGE_JSON="$REPO_ROOT/apps/chatgpt-academic-writing-toolkit/package.json"
 
 find_python() {
     if [[ -n "${PYTHON:-}" ]]; then
@@ -33,27 +34,32 @@ PYTHON_BIN="$(find_python)"
 
 [[ -f "$PLUGIN_JSON" ]] || die "missing plugin manifest: $PLUGIN_JSON"
 [[ -f "$MARKETPLACE_JSON" ]] || die "missing marketplace manifest: $MARKETPLACE_JSON"
+[[ -f "$APP_PACKAGE_JSON" ]] || die "missing ChatGPT App package: $APP_PACKAGE_JSON"
 
 PYTHON="$PYTHON_BIN" bash "$SCRIPT_DIR/sync-plugin.sh" --check >/dev/null
 
 "$PYTHON_BIN" -m json.tool "$PLUGIN_JSON" >/dev/null
 "$PYTHON_BIN" -m json.tool "$MARKETPLACE_JSON" >/dev/null
 
-"$PYTHON_BIN" - "$PLUGIN_JSON" "$MARKETPLACE_JSON" <<'PY'
+"$PYTHON_BIN" - "$PLUGIN_JSON" "$MARKETPLACE_JSON" "$APP_PACKAGE_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 plugin_path = Path(sys.argv[1])
 marketplace_path = Path(sys.argv[2])
+app_package_path = Path(sys.argv[3])
 plugin = json.loads(plugin_path.read_text(encoding="utf-8"))
 marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
+app_package = json.loads(app_package_path.read_text(encoding="utf-8"))
 
 name = "academic-writing-toolkit"
 if plugin.get("name") != name:
     raise SystemExit("plugin name must be academic-writing-toolkit")
 if plugin.get("skills") != "./skills/":
     raise SystemExit("plugin skills path must be ./skills/")
+if plugin.get("version") != app_package.get("version"):
+    raise SystemExit("plugin and ChatGPT App package versions must match")
 if "hooks" in plugin or "mcpServers" in plugin or "apps" in plugin:
     raise SystemExit("plugin manifest should not reference absent hooks, MCP, or app manifests")
 
@@ -151,6 +157,9 @@ done
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/check_thesis_control.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/scaffold_thesis_control.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/self-review/scripts/check_self_review_packet.py" --help >/dev/null
+"$PYTHON_BIN" "$SCRIPT_DIR/check-skills-only-submission.py" --repo-root "$REPO_ROOT" >/dev/null
+"$PYTHON_BIN" "$SCRIPT_DIR/build-plugin-release.py" --help >/dev/null
 
 ok "plugin package validates"

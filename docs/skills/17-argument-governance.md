@@ -39,6 +39,12 @@ For the explicit research-relation profile, also create:
 
 The original five-table packet remains supported. The additional files are required only when the strict relation profile is requested.
 
+If any project-intent control file exists under `thesis_control/`, first run
+the strict `/thesis-control` validator. The argument packet must reuse the
+unique active author-approved project `intent_id`. A partial, draft,
+multiply-active, or conflicting project-intent layer is a stop condition, not
+permission to create a second root.
+
 ## Main Checks
 
 - Every contribution answers a named gap.

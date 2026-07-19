@@ -1,6 +1,6 @@
 # Academic Writing Toolkit Plugin
 
-This Codex plugin packages the academic-writing-toolkit skills for structured research and thesis writing workflows.
+This OpenAI skills-only plugin packages the 21 academic-writing-toolkit skills for project-centred research and thesis writing workflows in Codex and ChatGPT plugin surfaces.
 
 The plugin is Codex-complete: it does not require Gemini, gemini-agent, subagents, or external model review. External review tools may be used as optional advisory inputs, but local files and bundled checks remain the evidence boundary.
 
@@ -53,3 +53,9 @@ The plugin manifest references local PNG assets under `assets/`:
 - `screenshot-progress.png`
 
 Run `make plugin-check` before publishing to validate the manifest, marketplace entry, bundled helpers, and asset paths.
+
+Regenerate the two listing screenshots from their deterministic source with:
+
+```bash
+python3 scripts/render-plugin-assets.py
+```

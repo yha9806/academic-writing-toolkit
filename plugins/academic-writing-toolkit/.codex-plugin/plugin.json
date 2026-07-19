@@ -1,6 +1,6 @@
 {
     "name":  "academic-writing-toolkit",
-    "version":  "0.4.0",
+    "version":  "0.5.0",
     "description":  "Project-centred academic writing, argument and evidence governance, thesis drift control, manuscript reframing, revision escalation, review synthesis, release governance, citation auditing, reference verification, and export skills for Codex.",
     "author":  {
                    "name":  "Academic Writing Toolkit Maintainers",
@@ -31,8 +31,8 @@
     "skills":  "./skills/",
     "interface":  {
                       "displayName":  "Academic Writing Toolkit",
-                      "shortDescription":  "Project navigation, argument-evidence governance, controlled writing, revision escalation, audit, and release workflows.",
-                      "longDescription":  "Academic Writing Toolkit packages a project-centred academic writing assistant plus local Codex skills for locating the canonical project state, mapping gap-data-result-claim-contribution-innovation relations, reviewing evidence balance and contribution focus, reading PDFs, recording source notes, building evidence-controlled gap reviews, controlling AI-assisted edits with spine cards and drift audits, reframing scientific manuscripts after author approval, stopping repeated failed revisions before another patch, auditing consistency, preparing release packets, validating human-evaluation handoffs, checking British English, verifying references, tracking progress, and exporting thesis materials.",
+                      "shortDescription":  "Organise research, govern claims and evidence, and revise without drift.",
+                      "longDescription":  "Academic Writing Toolkit helps authors recover the canonical state of a research project, distinguish gaps, data, results, claims, contributions, and innovation evidence, lock the scope of headline claims, review contribution focus without silently changing it, stop after three failed revisions, and preserve factual session summaries. Its 21 local skills support evidence-controlled reading, writing, review, revision, audit, and release workflows while keeping author approval at structural decision points.",
                       "developerName":  "Academic Writing Toolkit Maintainers",
                       "category":  "Productivity",
                       "capabilities":  [
@@ -44,9 +44,9 @@
                       "privacyPolicyURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/privacy.md",
                       "termsOfServiceURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/terms.md",
                       "defaultPrompt":  [
-                                            "Use the academic writing assistant to lock argument levels, assess evidence licence, and select the next controlled workflow / 使用学术写作助手锁定论证层级、判断证据许可并选择下一项受控工作流。",
-                                            "Create an edit contract, drift audit, and reframe plan for this thesis section.",
-                                            "Prepare a release-governance packet."
+                                            "Map my research gap, claims, evidence, contributions, and innovation before revising.",
+                                            "锁定论文论证层级和证据许可，判断贡献侧重，再选择下一项受控工作流。",
+                                            "After three failed revisions, stop and diagnose drift before another edit."
                                         ],
                       "brandColor":  "#2563EB",
                       "composerIcon":  "./assets/icon.png",

@@ -22,11 +22,17 @@ The app-specific check runs the Node test suite for the MCP server and tool wrap
 - Submission import file: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
 - Privacy URL source: `docs/privacy.md`
 - Terms URL source: `docs/terms.md`
-- App package version: `0.4.0`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
+- Local App package version: `0.5.0`, aligned with
+  `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
 
-## Current v0.4.0 Submission Endpoint
+Package alignment is a repository test invariant. It does not prove that the
+hosted App has been redeployed.
 
-For the zero-cost v0.4.0 update of the already-published ChatGPT App, keep the existing Hugging Face Space MCP base URL:
+## Separate v0.5.0 App Update Endpoint
+
+This MCP App update is independent from the OpenAI skills-only plugin
+submission. If the existing ChatGPT App is updated to `v0.5.0`, keep its
+Hugging Face Space MCP base URL:
 
 ```text
 https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
@@ -48,11 +54,16 @@ curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/healt
 curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 ```
 
-After the hosted Space is updated from the `v0.4.0` package, `/health` should return version `0.4.0` and `status: ok`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
+After the hosted Space is updated from the `v0.5.0` package, `/health` should
+return version `0.5.0` and `status: ok`. `GET /mcp` should return `405`; MCP
+traffic uses `POST /mcp`.
 
 OpenAI currently requires an updated app draft to keep the same MCP base URL as the published version. Use the Render URL only for backup smoke testing or for a separate future app listing.
 
-For the previous v0.3.0 draft, OpenAI Platform accepted the Hugging Face Space URL, confirmed domain verification, scanned 5 tools, and applied 5 imported tool justifications. For v0.4.0, keep the same MCP base URL and re-import the same submission file after the hosted Space reports version `0.4.0`.
+For the previous draft, OpenAI Platform accepted the Hugging Face Space URL,
+confirmed domain verification, scanned five tools, and applied the imported
+tool justifications. Re-scan and re-import the App submission file only after
+the hosted Space reports the version actually being submitted.
 
 ## Deployment Requirement
 
@@ -147,15 +158,16 @@ curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/.well-known/openai-apps-challenge
 ```
 
-Latest hosted verification:
+Latest hosted observation:
 
-- Date: 2026-07-08
-- Space repo/runtime SHA: `5c0703a256460782fa4551ac2b4eadb919b92058`
-- `/health`: version `0.4.0`, `status: ok`
-- `GET /mcp`: `405 Method not allowed`
-- `/.well-known/openai-apps-challenge`: returned the configured OpenAI challenge token
+- Date: 2026-07-18
+- `/health`: version `0.3.2`, `status: ok`
+- Interpretation: the hosted App is stale relative to the repository package
+  and must not be described as a live `v0.5.0` deployment
+- Required next step for the App route: redeploy, wait for runtime convergence,
+  then repeat `/health`, `GET /mcp`, challenge, tool-scan, and test checks
 
-Latest OpenAI dashboard check:
+Historical OpenAI dashboard check:
 
 - Date: 2026-07-08
 - App draft: `Academic Writing Toolkit`
@@ -165,8 +177,10 @@ Latest OpenAI dashboard check:
 - Tool scan: 5 tools with explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint`
 - Tests: 5 positive test cases and 3 negative test cases present
 - Country availability: allow all countries
-- Submit status: blocked by OpenAI Platform with `Business verification is not complete. Please verify as a business before submitting.`
-- Next gate: complete OpenAI organization Business verification for the publisher organization, then return to the same draft and click `Submit for Review`.
+- Submit status on 2026-07-08: blocked by OpenAI Platform with
+  `Business verification is not complete. Please verify as a business before submitting.`
+- Interpretation: this is historical App state. Re-check current identity and
+  Apps Management permissions before another App submission.
 
 ## Render Deployment
 
@@ -227,7 +241,8 @@ curl -fsS https://YOUR_AWT_DOMAIN/.well-known/openai-apps-challenge
 Before pressing Submit for review:
 
 - Complete OpenAI organization verification for the publisher name.
-- Confirm the submitting account has `api.apps.write`; use `api.apps.read` to view drafts and review status.
+- Confirm the submitting account has Apps Management Write; use the matching
+  read access to view drafts and review status.
 - Use a public HTTPS MCP URL that OpenAI can reach during automated checks and manual review.
 - For updates to the already-published app, use the Hugging Face Space MCP URL because OpenAI Platform requires the MCP base URL to match the current published version.
 - Pre-warm the Hugging Face Space with `/health` immediately before saving or submitting the OpenAI dashboard draft.
@@ -238,16 +253,25 @@ Before pressing Submit for review:
 - Audit realistic tool responses for unnecessary personal data, debug fields, request IDs, logs, or secrets before submission.
 - Confirm `docs/privacy.md` and `docs/terms.md` match the deployed app behaviour.
 
-## Official Review Flow
+## Official Review Flows
 
-As of 2026-07-08, use OpenAI Platform Apps Manage after deployment:
+For the hosted MCP App, use OpenAI Platform Apps Manage after deployment:
 
 https://platform.openai.com/apps-manage
 
-OpenAI's Apps SDK submission docs state that the dashboard app review flow is the current path to public distribution, and that publishing an approved app creates the Codex distribution plugin. Self-serve standalone Codex plugin publishing is documented as coming soon.
+For the repository's current **skills-only plugin** candidate, use the separate
+plugin portal:
+
+https://platform.openai.com/plugins
+
+OpenAI now documents skills-only plugin submission directly. The MCP App and
+skills-only plugin have separate bundles, reviewer cases, runtime requirements,
+and owner gates; neither submission is evidence that the other is ready.
 
 Relevant docs:
 
+- https://learn.chatgpt.com/docs/build-plugins
+- https://learn.chatgpt.com/docs/submit-plugins
 - https://developers.openai.com/apps-sdk/deploy/submission
 - https://developers.openai.com/apps-sdk/app-submission-guidelines
 - https://developers.openai.com/apps-sdk/build/mcp-server

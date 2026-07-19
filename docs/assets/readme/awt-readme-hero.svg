@@ -53,7 +53,7 @@
 
     <g transform="translate(0 405)">
       <g>
-        <text x="0" y="36" fill="#F7F9FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="34" font-weight="730">20</text>
+        <text x="0" y="36" fill="#F7F9FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="34" font-weight="730">21</text>
         <text x="0" y="61" fill="#8897BC" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="600" letter-spacing="1">COMPOSABLE SKILLS</text>
       </g>
       <path d="M168 5V65" stroke="#34405F"/>

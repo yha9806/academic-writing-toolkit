@@ -51,12 +51,25 @@ When the user explicitly enables an API-key-backed reviewer, Codex may request a
 14. Keep the field-level gap, paper-level contribution, data-level finding, and extrapolative claim separate. A true field gap does not prove that this paper closes it; require evidence for every upward inference.
 15. Treat boundary as a paper-wide evidence licence across intent, population or denominator, estimand, evidence scope, title, abstract, contribution list, result headings, and conclusion, not as a limitation-only disclaimer.
 16. Do not treat tables, ledgers, guardrails, qualifiers, or appendices as substitutes for missing construct validity, reliability, sampling, baseline, power, or transfer evidence. Record `evidence_needed` or narrow the claim.
+17. When a `thesis_control/` project-intent layer exists, reuse its unique active
+    author-approved `intent_id`. A draft, unapproved, partial, multiply active,
+    or conflicting layer is a stop condition, not permission to create another
+    intent root.
 
 ## Workflow
 
 ### 1. Locate The Manuscript And Evidence Base
 
 Inspect the manuscript, references, reading notes, evidence registers, figures, tables, and any existing review or release packets. Record which files are canonical and which are exploratory.
+
+If any of `thesis_control/project_intent.csv`,
+`thesis_control/manuscript_contracts.csv`, or
+`thesis_control/global_thesis_audits.csv` exists, read `$thesis-control` and run
+its checker with `--strict --json` before changing the argument packet. Use the
+unique active author-approved project `intent_id` in `intent_register.csv`,
+`contribution_chain.csv`, `claim_hierarchy.csv`, and `gap_register.csv`. Stop
+when the layer is partial or unresolved, or when an existing argument intent
+conflicts with it. Do not treat a scaffolded draft as author approval.
 
 ### 2. Build Or Update The Governance Tables
 
@@ -224,6 +237,8 @@ Stop and report a blocker if:
 - requested edits would require inventing evidence, venue expectations, reviewer opinions, or unpublished results
 - a requested focus shift lacks an explicit author decision
 - the current primary contribution or latest author-approved manuscript spine cannot be identified
+- an existing project-intent layer is partial, unapproved, multiply active, or
+  inconsistent with the argument packet's `intent_id`
 - data and results cannot be distinguished from the available project artifacts
 - an innovation claim has no declared comparison set but the user asks to present it as established novelty
 - the field gap, paper contribution, data-level finding, and extrapolative claim cannot be separated

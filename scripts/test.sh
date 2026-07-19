@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs 146 regression tests (T2-T5 and T8-T149), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T149 research-relation, focus-review, assistant routing, and claim-licence locking.
+# scripts/test.sh — runs 148 regression tests (T2-T5 and T8-T151), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T151 research-relation, focus-review, assistant routing, claim-licence locking, and OpenAI submission gates.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3383,6 +3383,100 @@ test_T149() {
     ! grep -q 'TODO' "$skill" "$ref" "$guide" || return 1
 }
 
+test_T150() {
+    local assistant="$REPO_ROOT/.claude/skills/academic-writing-assistant/SKILL.md"
+    local governance="$REPO_ROOT/.claude/skills/argument-governance/SKILL.md"
+    local plugin_assistant="$REPO_ROOT/plugins/academic-writing-toolkit/skills/academic-writing-assistant/SKILL.md"
+    local plugin_governance="$REPO_ROOT/plugins/academic-writing-toolkit/skills/argument-governance/SKILL.md"
+    local file
+
+    for file in "$assistant" "$governance" "$plugin_assistant" "$plugin_governance"; do
+        grep -q 'thesis_control/project_intent.csv' "$file" || return 1
+        grep -q 'author-approved' "$file" || return 1
+        grep -q 'intent_id' "$file" || return 1
+    done
+    grep -q 'Never treat scaffold defaults or draft rows as approval' "$assistant" || return 1
+    grep -q 'Do not treat a scaffolded draft as author approval' "$governance" || return 1
+    grep -q 'inconsistent with the argument-governance `intent_id`' "$assistant" || return 1
+    grep -q "inconsistent with the argument packet's \`intent_id\`" "$governance" || return 1
+}
+
+test_T151() {
+    local checker="$REPO_ROOT/scripts/check-skills-only-submission.py"
+    local tmp submission export_skill rc
+
+    python3 "$checker" --repo-root "$REPO_ROOT" >/dev/null || return 1
+    tmp=$(mktemp -d) || return 1
+    mkdir -p \
+        "$tmp/.claude" \
+        "$tmp/plugins" \
+        "$tmp/submission/openai"
+    cp -R "$REPO_ROOT/.claude/skills" "$tmp/.claude/skills" || return 1
+    cp -R \
+        "$REPO_ROOT/plugins/academic-writing-toolkit" \
+        "$tmp/plugins/academic-writing-toolkit" || return 1
+    cp \
+        "$REPO_ROOT/submission/openai/skills-only-submission.json" \
+        "$tmp/submission/openai/skills-only-submission.json" || return 1
+    submission="$tmp/submission/openai/skills-only-submission.json"
+    export_skill="$tmp/plugins/academic-writing-toolkit/skills/export/SKILL.md"
+    rc=0
+
+    python3 - "$submission" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["test_cases"].pop()
+path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+    if python3 "$checker" --repo-root "$tmp" >/dev/null 2>&1; then
+        rc=1
+    fi
+
+    cp \
+        "$REPO_ROOT/submission/openai/skills-only-submission.json" \
+        "$submission" || rc=1
+    python3 - "$submission" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["test_cases"][0]["entry_skill"] = "unknown-skill"
+path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+    if python3 "$checker" --repo-root "$tmp" >/dev/null 2>&1; then
+        rc=1
+    fi
+
+    cp \
+        "$REPO_ROOT/submission/openai/skills-only-submission.json" \
+        "$submission" || rc=1
+    python3 - "$export_skill" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace(
+    "description:",
+    "disable-model-invocation: true\ndescription:",
+    1,
+)
+path.write_text(text, encoding="utf-8")
+PY
+    if python3 "$checker" --repo-root "$tmp" >/dev/null 2>&1; then
+        rc=1
+    fi
+
+    rm -rf "$tmp"
+    return "$rc"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -3683,6 +3777,8 @@ run_test "T146 academic writing assistant routes without duplicating governance"
 run_test "T147 contribution focus candidates cannot cross intent boundaries" test_T147
 run_test "T148 stale or unrelated focus snapshots fail semantic validation" test_T148
 run_test "T149 academic writing assistant locks argument levels and claim licence" test_T149
+run_test "T150 assistant and argument governance reuse project intent" test_T150
+run_test "T151 skills-only submission validator rejects drift" test_T151
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
