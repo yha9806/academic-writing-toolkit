@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import re
 import subprocess
 import sys
+import tarfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -36,6 +39,20 @@ def run_git(repo_root: Path, *args: str, capture: bool = True) -> str:
     return (result.stdout or "").strip()
 
 
+def run_git_bytes(repo_root: Path, *args: str) -> bytes:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ReleaseBuildError(f"git {' '.join(args)} failed: {stderr}")
+    return result.stdout
+
+
 def read_manifest_at_ref(repo_root: Path, ref: str) -> dict[str, object]:
     raw = run_git(
         repo_root,
@@ -57,6 +74,53 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def build_plugin_zip(repo_root: Path, ref: str, output: Path) -> None:
+    """Create a byte-reproducible plugin ZIP from the commit-scoped subtree."""
+    archive = run_git_bytes(
+        repo_root,
+        "archive",
+        "--format=tar",
+        ref,
+        "plugins/academic-writing-toolkit",
+    )
+    source_prefix = "plugins/"
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar_handle:
+        members = sorted(
+            (member for member in tar_handle.getmembers() if member.isfile()),
+            key=lambda member: member.name,
+        )
+        with zipfile.ZipFile(
+            output,
+            mode="w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=9,
+        ) as zip_handle:
+            for member in members:
+                if not member.name.startswith(source_prefix):
+                    raise ReleaseBuildError(
+                        f"unexpected plugin archive path: {member.name}"
+                    )
+                archived_name = member.name[len(source_prefix) :]
+                extracted = tar_handle.extractfile(member)
+                if extracted is None:
+                    raise ReleaseBuildError(
+                        f"could not read plugin archive member: {member.name}"
+                    )
+                info = zipfile.ZipInfo(
+                    archived_name,
+                    date_time=tuple(time.gmtime(member.mtime)[:6]),
+                )
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.create_system = 3
+                info.external_attr = (member.mode & 0xFFFF) << 16
+                zip_handle.writestr(
+                    info,
+                    extracted.read(),
+                    compress_type=zipfile.ZIP_DEFLATED,
+                    compresslevel=9,
+                )
 
 
 def verify_plugin_zip(path: Path) -> None:
@@ -129,15 +193,7 @@ def build(
         ref,
         capture=False,
     )
-    run_git(
-        repo_root,
-        "archive",
-        "--format=zip",
-        "--prefix=academic-writing-toolkit/",
-        f"--output={plugin_zip}",
-        f"{ref}:plugins/academic-writing-toolkit",
-        capture=False,
-    )
+    build_plugin_zip(repo_root, ref, plugin_zip)
     verify_plugin_zip(plugin_zip)
     sums.write_text(
         "\n".join(

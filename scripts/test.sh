@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs 148 regression tests (T2-T5 and T8-T151), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T151 research-relation, focus-review, assistant routing, claim-licence locking, and OpenAI submission gates.
+# scripts/test.sh — runs 149 regression tests (T2-T5 and T8-T152), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T152 research-relation, focus-review, assistant routing, claim-licence locking, OpenAI submission, and reproducible release gates.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3477,6 +3477,48 @@ PY
     return "$rc"
 }
 
+test_T152() {
+    local tmp version first_source second_source first_plugin second_plugin
+
+    tmp=$(mktemp -d) || return 1
+    version=$(python3 - "$REPO_ROOT/plugins/academic-writing-toolkit/.codex-plugin/plugin.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["version"])
+PY
+) || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    python3 "$REPO_ROOT/scripts/build-plugin-release.py" \
+        --repo-root "$REPO_ROOT" \
+        --ref HEAD \
+        --version "$version" \
+        --out-dir "$tmp/first" >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    python3 "$REPO_ROOT/scripts/build-plugin-release.py" \
+        --repo-root "$REPO_ROOT" \
+        --ref HEAD \
+        --version "$version" \
+        --out-dir "$tmp/second" >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+
+    first_source=$(sha256sum "$tmp/first/academic-writing-toolkit-v${version}.zip" | awk '{print $1}')
+    second_source=$(sha256sum "$tmp/second/academic-writing-toolkit-v${version}.zip" | awk '{print $1}')
+    first_plugin=$(sha256sum "$tmp/first/academic-writing-toolkit-openai-plugin-v${version}.zip" | awk '{print $1}')
+    second_plugin=$(sha256sum "$tmp/second/academic-writing-toolkit-openai-plugin-v${version}.zip" | awk '{print $1}')
+
+    rm -rf "$tmp"
+    [[ "$first_source" == "$second_source" && "$first_plugin" == "$second_plugin" ]]
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -3779,6 +3821,7 @@ run_test "T148 stale or unrelated focus snapshots fail semantic validation" test
 run_test "T149 academic writing assistant locks argument levels and claim licence" test_T149
 run_test "T150 assistant and argument governance reuse project intent" test_T150
 run_test "T151 skills-only submission validator rejects drift" test_T151
+run_test "T152 release builder produces reproducible archives" test_T152
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
