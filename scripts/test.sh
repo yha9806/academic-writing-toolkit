@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs 149 regression tests (T2-T5 and T8-T152), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T152 research-relation, focus-review, assistant routing, claim-licence locking, OpenAI submission, and reproducible release gates.
+# scripts/test.sh — runs 150 regression tests (T2-T5 and T8-T153), including T112-T115 argument and clean-room review governance, T116-T124 project-intent control, and T125-T153 research-relation, focus-review, assistant routing, claim-licence locking, OpenAI submission, reproducible release, and structured escalation gates.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3519,6 +3519,17 @@ PY
     [[ "$first_source" == "$second_source" && "$first_plugin" == "$second_plugin" ]]
 }
 
+test_T153() {
+    local skill="$REPO_ROOT/.claude/skills/revision-escalation/SKILL.md"
+    grep -q "Count an attempt only when all of the following are true" "$skill" &&
+        grep -q "Trigger contracts:" "$skill" &&
+        grep -q "Counted failed attempts:" "$skill" &&
+        grep -q "Revision scope:" "$skill" &&
+        grep -q "Author decision required: yes" "$skill" &&
+        grep -q "classify the revision" "$skill" &&
+        grep -q "Full reframing" "$skill"
+}
+
 test_T50() {
     bash scripts/sync-plugin.sh --check >/dev/null
 }
@@ -3822,6 +3833,7 @@ run_test "T149 academic writing assistant locks argument levels and claim licenc
 run_test "T150 assistant and argument governance reuse project intent" test_T150
 run_test "T151 skills-only submission validator rejects drift" test_T151
 run_test "T152 release builder produces reproducible archives" test_T152
+run_test "T153 revision escalation emits an auditable structured gate" test_T153
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
