@@ -1,6 +1,6 @@
 ref_name,sha,date,status,canonical_for,caveat
-candidate-code,d0dbd625e0724597189eff86e7d23a74c3bbd5d8,2026-07-18,clean,"v0.5.0 plugin, submission packet, App source, docs, tests, and release builder","local candidate branch; PR and Linux CI are not yet available"
-plugin-tree,8cec435b8454eb99d4162bf741cb550b8d1cc6bd,2026-07-18,verified,v0.5.0 skills-only plugin content,"tree identity remains useful if the release packet is committed separately"
-app-tree,f2ececd3089ef2073fab9f4ce26e2b9375254093,2026-07-18,verified,v0.5.0 repository App source,"does not establish hosted deployment"
-origin-main,c81c907a6c4653aec93e1ad298e3aab2027023ac,2026-07-18,fetched,remote baseline before the v0.5.0 candidate,"candidate commits are not yet on the remote"
-v0.4.0,cd7fbb5bd7dd1e9af3c9079e85a6af8e1c1b8ab0,2026-07-18,tagged,previous release baseline,"historical release only"
+candidate-code,bc3e319869779eca2b13e01e188d0a58202d83f1,2026-07-19,clean,"v0.5.0 plugin, submission packet, App source, docs, tests, and release builder","local candidate branch; PR and Linux CI are not yet available"
+plugin-tree,908d1034b8e16853823fdc8991bdef13a5cebc85,2026-07-19,verified,v0.5.0 skills-only plugin content,"tree identity remains useful if the release packet is committed separately"
+app-tree,f2ececd3089ef2073fab9f4ce26e2b9375254093,2026-07-19,verified,v0.5.0 repository App source,"does not establish hosted deployment"
+origin-main,c81c907a6c4653aec93e1ad298e3aab2027023ac,2026-07-19,fetched,remote baseline before the v0.5.0 candidate,"candidate commits are not yet on the remote"
+v0.4.0,cd7fbb5bd7dd1e9af3c9079e85a6af8e1c1b8ab0,2026-07-19,tagged,previous release baseline,"historical release only"

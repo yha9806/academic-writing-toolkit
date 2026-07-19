@@ -1,6 +1,6 @@
 path,status,file_count,size,role,release_action
-.,tracked,405,git-tree,product source tree at d0dbd625e0724597189eff86e7d23a74c3bbd5d8,tag only after PR CI and release-packet review
-plugins/academic-writing-toolkit,tracked,55,681136 bytes,skills-only plugin source,include in final v0.5.0 plugin build
+.,tracked,405,git-tree,product source tree at bc3e319869779eca2b13e01e188d0a58202d83f1,tag only after PR CI and release-packet review
+plugins/academic-writing-toolkit,tracked,55,682955 bytes,skills-only plugin source,include in final v0.5.0 plugin build
 plugins/academic-writing-toolkit/assets,tracked,4,194418 bytes,listing icons and screenshots,include in plugin ZIP
 submission/openai/skills-only-submission.json,tracked,1,14207 bytes,OpenAI submission specification,include in source release and portal handoff
 apps/chatgpt-academic-writing-toolkit,tracked,10,78524 bytes,separate ChatGPT App source,do not use as proof of skills-only publication or hosted deployment
