@@ -1,7 +1,7 @@
 {
     "name":  "academic-writing-toolkit",
-    "version":  "0.4.0",
-    "description":  "Academic reading, thesis writing, thesis drift control, manuscript reframing, revision escalation, evidence-controlled review synthesis, release governance, citation auditing, British English checking, reference verification, human-evaluation handoff repair, and export skills for Codex.",
+    "version":  "0.5.0",
+    "description":  "Project-centred academic writing, argument and evidence governance, thesis drift control, manuscript reframing, revision escalation, review synthesis, release governance, citation auditing, reference verification, and export skills for Codex.",
     "author":  {
                    "name":  "Academic Writing Toolkit Maintainers",
                    "url":  "https://github.com/yha9806"
@@ -24,13 +24,15 @@
                      "manuscript-reframe",
                      "revision-escalation",
                      "thesis-control",
-                     "scientific-writing"
+                     "scientific-writing",
+                     "project-planning",
+                     "argument-governance"
                  ],
     "skills":  "./skills/",
     "interface":  {
                       "displayName":  "Academic Writing Toolkit",
-                      "shortDescription":  "Structured research, thesis drift control, manuscript reframing, revision escalation, evidence-review, release governance, citation, style, and export workflows.",
-                      "longDescription":  "Academic Writing Toolkit packages local Codex skills for reading PDFs, recording source notes, mapping literature to chapters, building evidence-controlled gap reviews, controlling AI-assisted thesis edits with spine cards and drift audits, reframing report-like drafts into scientific manuscripts, stopping repeated failed revisions for diagnosis before more patches, integrating arguments, auditing citations and consistency, preparing release-governance packets, validating and repairing human-evaluation handoff packages, checking British English, reviewing paragraph logic, verifying BibTeX records, tracking progress, and exporting thesis materials.",
+                      "shortDescription":  "Organise research, govern claims and evidence, and revise without drift.",
+                      "longDescription":  "Academic Writing Toolkit helps authors recover the canonical state of a research project, distinguish gaps, data, results, claims, contributions, and innovation evidence, lock the scope of headline claims, review contribution focus without silently changing it, stop after three failed revisions, and preserve factual session summaries. Its 21 local skills support evidence-controlled reading, writing, review, revision, audit, and release workflows while keeping author approval at structural decision points.",
                       "developerName":  "Academic Writing Toolkit Maintainers",
                       "category":  "Productivity",
                       "capabilities":  [
@@ -42,9 +44,9 @@
                       "privacyPolicyURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/privacy.md",
                       "termsOfServiceURL":  "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/terms.md",
                       "defaultPrompt":  [
-                                            "Read this paper and extract thesis connections.",
-                                            "Create an edit contract, drift audit, and reframe plan for this thesis section.",
-                                            "Prepare a release-governance packet."
+                                            "Map my research gap, claims, evidence, contributions, and innovation before revising.",
+                                            "锁定论文论证层级和证据许可，判断贡献侧重，再选择下一项受控工作流。",
+                                            "After three failed revisions, stop and diagnose drift before another edit."
                                         ],
                       "brandColor":  "#2563EB",
                       "composerIcon":  "./assets/icon.png",

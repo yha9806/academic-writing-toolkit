@@ -1,7 +1,6 @@
 ---
 name: export
-description: Convert thesis chapters and reading notes from Markdown to Word (.docx) and package for submission. Use when preparing materials for supervisors or examiners.
-disable-model-invocation: true
+description: Convert thesis chapters and reading notes from Markdown to Word (.docx) and package them for submission. Use only when the user explicitly asks to export, convert, or package materials for supervisors or examiners.
 allowed-tools: Bash(python *), Read, Glob, Write
 ---
 
@@ -57,7 +56,7 @@ Examples:
 
 ## Constraints
 
-1. **User-invoked only.** This skill has `disable-model-invocation: true` and must not run unless the user explicitly calls `/export`.
+1. **User-invoked only.** Do not run the conversion unless the user explicitly asks to export, convert, or package the materials.
 2. **No hardcoded paths.** All paths are derived from arguments or project root.
 3. **No emoji** in output.
 4. **Preserve formatting** as much as possible during conversion -- headings, tables, block quotes, inline code.

@@ -5,6 +5,9 @@ Use `/revision-escalation` when the same writing, code, rebuttal, or manuscript 
 ## What It Does
 
 - Stops the fourth patch after three failed revision attempts.
+- Counts only applied contracts for the same issue whose resolved drift audits
+  failed; proposed, unapplied, pending, and unresolved work does not consume an
+  attempt.
 - Classifies the failure as underspecified request, ambiguous feedback, local execution problem, structural mismatch, evidence gap, or version contamination.
 - Separates local wording fixes from section restructuring and full reframing.
 - Forces unsupported claims to be downgraded or backed with evidence before revision continues.
@@ -27,10 +30,20 @@ The rebuttal keeps getting longer but not clearer. Run the 3-strike revision che
 ## Expected Output
 
 - category
+- exact issue and counted contract IDs when supplied
+- counted failed-attempt total
+- revision scope and latest author-approved version
+- acceptance condition
 - reason for the diagnosis
 - missing or conflicting information
-- recommended next action
+- safe next action and an explicit author-decision gate
 - options for clarifying, consolidating, branching, restructuring, or reframing
+
+When structured revision metadata is available, the output is a
+`Revision Escalation Check`. Unsupported universal, causal, clinical,
+cross-lingual, cross-population, or cross-benchmark headlines are classified as
+an evidence gap; changing an abstract, title, main contribution, or paper-wide
+evidence licence is full reframing even if the requested patch is short.
 
 ## Key Guardrail
 

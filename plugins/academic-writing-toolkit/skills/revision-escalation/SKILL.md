@@ -20,6 +20,17 @@ If the same issue remains unresolved after 3 revision attempts, treat it as a sp
 
 Do not make a fourth patch immediately.
 
+Count an attempt only when all of the following are true:
+
+- it belongs to the same revision issue;
+- its edit contract was actually applied;
+- its drift audit is resolved; and
+- that resolved audit records a failed acceptance outcome, whether the action was
+  `revise` or `rollback`.
+
+Do not count proposed, abandoned, unapplied, pending-review, or unresolved
+contracts. List the exact counted contract IDs so the threshold is auditable.
+
 ## Revision Escalation Check
 
 Before editing again, classify the problem:
@@ -56,6 +67,32 @@ C. Create a new version or branch and restructure the section/module.
 D. Reframe the paper/project from the research question, gap, and evidence chain.
 ```
 
+When the user supplies issue IDs, contract IDs, audit outcomes, an approved
+version, or an acceptance condition, replace the generic response with this
+structured record:
+
+```md
+## Revision Escalation Check
+
+- Issue:
+- Trigger contracts:
+- Counted failed attempts:
+- Primary category:
+- Secondary risk:
+- Revision scope:
+- Latest author-approved version:
+- Acceptance condition:
+- Missing or conflicting evidence:
+- Safe next action:
+- Author decision required: yes
+```
+
+Preserve every supplied identifier and status exactly. If a field was not
+provided, write `unknown`; do not infer it. After three counted failures, do not
+offer an immediate targeted rewrite as an option. The safe routes are to narrow
+the claim, obtain the missing evidence, approve a bounded reframe, or return to
+the latest author-approved version and issue a new controlled contract.
+
 ## Academic Writing Rule
 
 Classify manuscript work before editing:
@@ -65,6 +102,14 @@ Classify manuscript work before editing:
 - Full reframing: title, abstract, introduction, research question, gap, contribution, methods-results alignment, discussion, or venue framing changes.
 
 For full reframing, do not directly rewrite the manuscript. First produce a reframing brief with target venue, research question, gap, core claim, available evidence, claims that must not be made, and proposed new structure.
+
+An unsupported universal, causal, clinical, cross-lingual, cross-population, or
+cross-benchmark headline is primarily an **Evidence gap** when the requested
+scope exceeds the available evidence. If repairing it changes the abstract,
+title, main contribution, or paper-wide evidence licence, classify the revision
+scope as **Full reframing** even when the user asks for a one-sentence patch.
+Record version contamination only as a secondary risk unless mixed versions or
+conflicting requirements are actually evidenced.
 
 ## Red Flags
 

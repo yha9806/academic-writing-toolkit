@@ -5,10 +5,120 @@ import {
   auditCitations,
   checkBritishEnglish,
   createReadingNoteTemplate,
+  resolvePythonInterpreter,
   reviewParagraphLogic,
   verifyBibtexReferences,
 } from "../src/tool-runner.js";
 import { TOOL_DEFINITIONS } from "../src/tool-definitions.js";
+
+function executableLookup(entries) {
+  const commands = new Map(entries);
+  return (command) => commands.get(command) ?? [];
+}
+
+test("Python resolver gives AWT_PYTHON precedence over PYTHON", () => {
+  const result = resolvePythonInterpreter({
+    env: {
+      AWT_PYTHON: "C:\\Python312\\python.exe",
+      PYTHON: "C:\\OtherPython\\python.exe",
+    },
+    platform: "win32",
+    findExecutables: executableLookup([
+      ["C:\\Python312\\python.exe", ["C:\\Python312\\python.exe"]],
+      ["C:\\OtherPython\\python.exe", ["C:\\OtherPython\\python.exe"]],
+    ]),
+  });
+
+  assert.deepEqual(result, {
+    command: "C:\\Python312\\python.exe",
+    args: [],
+    source: "AWT_PYTHON",
+  });
+});
+
+test("Python resolver uses the standard PYTHON environment variable", () => {
+  const result = resolvePythonInterpreter({
+    env: { PYTHON: "/opt/project/python" },
+    platform: "linux",
+    findExecutables: executableLookup([["/opt/project/python", ["/opt/project/python"]]]),
+  });
+
+  assert.deepEqual(result, {
+    command: "/opt/project/python",
+    args: [],
+    source: "PYTHON",
+  });
+});
+
+test("Python resolver skips Windows Store aliases and selects a real python.exe", () => {
+  const result = resolvePythonInterpreter({
+    env: {},
+    platform: "win32",
+    findExecutables: executableLookup([
+      [
+        "python.exe",
+        [
+          "C:\\Users\\reader\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe",
+          "C:\\Python312\\python.exe",
+        ],
+      ],
+    ]),
+  });
+
+  assert.deepEqual(result, {
+    command: "C:\\Python312\\python.exe",
+    args: [],
+    source: "PATH",
+  });
+});
+
+test("Python resolver falls back to the Windows py launcher", () => {
+  const result = resolvePythonInterpreter({
+    env: {},
+    platform: "win32",
+    findExecutables: executableLookup([
+      [
+        "python.exe",
+        ["C:\\Users\\reader\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe"],
+      ],
+      ["py.exe", ["C:\\Windows\\py.exe"]],
+    ]),
+  });
+
+  assert.deepEqual(result, {
+    command: "C:\\Windows\\py.exe",
+    args: ["-3"],
+    source: "PATH",
+  });
+});
+
+test("Python resolver uses python3 on POSIX and fails clearly without a runtime", () => {
+  const result = resolvePythonInterpreter({
+    env: {},
+    platform: "linux",
+    findExecutables: executableLookup([["python3", ["/usr/bin/python3"]]]),
+  });
+  assert.deepEqual(result, {
+    command: "/usr/bin/python3",
+    args: [],
+    source: "PATH",
+  });
+
+  assert.throws(
+    () =>
+      resolvePythonInterpreter({
+        env: {},
+        platform: "win32",
+        findExecutables: executableLookup([
+          [
+            "python.exe",
+            ["C:\\Users\\reader\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe"],
+          ],
+        ]),
+      }),
+    /No usable Python interpreter found.*Windows Store aliases are ignored/,
+  );
+});
 
 test("checkBritishEnglish reports conservative US spelling replacements", async () => {
   const result = await checkBritishEnglish({

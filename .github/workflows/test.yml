@@ -21,13 +21,25 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.8'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/chatgpt-academic-writing-toolkit/package-lock.json
       - name: Verify python3.8 binary on PATH
         run: python3.8 --version
       - name: Install conversion backend (T17 smoke-import dependency)
         run: pip install python-docx markdown
+      - name: Install ChatGPT App dependencies
+        run: npm --prefix apps/chatgpt-academic-writing-toolkit ci
+      - name: Audit ChatGPT App production dependencies
+        run: npm --prefix apps/chatgpt-academic-writing-toolkit audit --omit=dev --audit-level=high
       - name: Install pandoc (system binary; make doctor probes for it)
         run: sudo apt-get update && sudo apt-get install -y pandoc
       - name: Configure git core.fileMode false (make doctor expects this)
         run: git config core.fileMode false
       - run: make doctor
+      - run: make plugin-check
+      - run: make chatgpt-app-check
       - run: make test
+      - run: python3 scripts/audit-public-content.py --base-dir . --json

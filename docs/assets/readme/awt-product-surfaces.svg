@@ -1,6 +1,6 @@
 <svg width="1440" height="640" viewBox="0 0 1440 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Three product surfaces, one governed workflow</title>
-  <desc id="desc">Local agent skills provide the full project workflow, the Codex plugin distributes those skills, and the ChatGPT App exposes bounded pasted-text tools.</desc>
+  <desc id="desc">Local agent skills provide the full project workflow, the OpenAI skills-only plugin distributes those skills, and the ChatGPT App exposes bounded pasted-text tools.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1440" y2="640" gradientUnits="userSpaceOnUse">
       <stop stop-color="#0D1428"/>
@@ -40,7 +40,7 @@
     <rect x="542" y="216" width="356" height="64" rx="18" fill="#223254"/>
     <circle cx="578" cy="248" r="16" fill="#7690FF"/>
     <path d="M570 248L576 254L587 242" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="612" y="246" fill="#F2F5FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="720">Codex plugin</text>
+    <text x="612" y="246" fill="#F2F5FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="720">OpenAI skills plugin</text>
     <text x="612" y="266" fill="#A4B1D2" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="600" letter-spacing="0.8">DISTRIBUTION SURFACE</text>
 
     <text x="548" y="326" fill="#F2F5FF" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="650">Packages the same local skills</text>

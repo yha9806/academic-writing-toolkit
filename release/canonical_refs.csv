@@ -1,5 +1,6 @@
 ref_name,sha,date,status,canonical_for,caveat
-master,e6a0c1c399d558991aa28ab2aa9910c33ad39f96,2026-06-20,clean,v0.3.1 package metadata candidate,local branch ahead of origin before push
-origin/master,fd2237bbbe6822f0d578ae6838f8a9a5b4529fdb,2026-06-20,fetched,remote baseline before v0.3.1 push,behind local master by package metadata commit
-v0.3.0,726d80b0e0810cf4e35dbf69d937749722b58f4b,2026-06-20,tagged,previous release baseline,ancestor of master
-detached-codex-worktree,d3986c07b629376a76c90cb1dd8ea4e13ef70964,2026-06-20,excluded,temporary review worktree,not canonical for v0.3.1
+candidate-code,bc3e319869779eca2b13e01e188d0a58202d83f1,2026-07-19,clean,"v0.5.0 plugin, submission packet, App source, docs, tests, and release builder","local candidate branch; PR and Linux CI are not yet available"
+plugin-tree,908d1034b8e16853823fdc8991bdef13a5cebc85,2026-07-19,verified,v0.5.0 skills-only plugin content,"tree identity remains useful if the release packet is committed separately"
+app-tree,f2ececd3089ef2073fab9f4ce26e2b9375254093,2026-07-19,verified,v0.5.0 repository App source,"does not establish hosted deployment"
+origin-main,c81c907a6c4653aec93e1ad298e3aab2027023ac,2026-07-19,fetched,remote baseline before the v0.5.0 candidate,"candidate commits are not yet on the remote"
+v0.4.0,cd7fbb5bd7dd1e9af3c9079e85a6af8e1c1b8ab0,2026-07-19,tagged,previous release baseline,"historical release only"

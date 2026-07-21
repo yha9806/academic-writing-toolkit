@@ -1,8 +1,10 @@
 # Release Scope
 
-Scope date: 2026-06-20
-Artifact: Academic Writing Toolkit v0.3.1 source release and app/plugin package metadata
-Deadline/use: patch release tag preparation and hosted app/plugin update handoff
-Included refs: master at e6a0c1c399d558991aa28ab2aa9910c33ad39f96; origin/master at fd2237bbbe6822f0d578ae6838f8a9a5b4529fdb; v0.3.0 at 726d80b0e0810cf4e35dbf69d937749722b58f4b
-Excluded refs: stale local branches whose remotes are gone remain unmodified; detached Codex worktree at d3986c07b629376a76c90cb1dd8ea4e13ef70964 is not canonical; external dashboards and hosting consoles are outside repository truth
-Highest-risk open question: OpenAI Apps dashboard submission still requires maintainer-controlled business verification and manual Submit for Review after repository and hosted Space updates
+Scope date: 2026-07-19
+Artifact: Academic Writing Toolkit v0.5.0 skills-only submission candidate
+Intended use: GitHub release and OpenAI skills-only portal handoff
+Included ref: product commit bc3e319869779eca2b13e01e188d0a58202d83f1
+Included artifacts: 21-Skill plugin source, submission packet, listing assets, repository App source, tests, and reproducible release builder
+Release packet boundary: this packet is committed after the product ref and changes release metadata only; its own commit SHA is recorded externally after creation
+Excluded state: Linux PR CI, final tag, final release ZIPs, final-ZIP forward tests, OpenAI account state, portal submission state, review approval, publication, and hosted ChatGPT App deployment
+Highest-risk open question: owner confirmation of verified publisher identity, Apps Management Write, regions, exact final-ZIP forward tests, upload, and manual submission

@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "submission_type": "skills_only",
+  "plugin_name": "academic-writing-toolkit",
+  "version": "0.5.0",
+  "listing": {
+    "display_name": "Academic Writing Toolkit",
+    "short_description": "Organise research, govern claims and evidence, and revise without drift.",
+    "long_description": "Academic Writing Toolkit helps authors recover the canonical state of a research project, distinguish gaps, data, results, claims, contributions, and innovation evidence, lock the scope of headline claims, review contribution focus without silently changing it, stop after three failed revisions, and preserve factual session summaries. Its 21 local skills support evidence-controlled reading, writing, review, revision, audit, and release workflows while keeping author approval at structural decision points.",
+    "category": "Productivity",
+    "website_url": "https://github.com/yha9806/academic-writing-toolkit",
+    "support_url": "https://github.com/yha9806/academic-writing-toolkit/issues",
+    "privacy_policy_url": "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/privacy.md",
+    "terms_of_service_url": "https://github.com/yha9806/academic-writing-toolkit/blob/main/docs/terms.md",
+    "starter_prompts": [
+      "Map my research gap, claims, evidence, contributions, and innovation before revising.",
+      "锁定论文论证层级和证据许可，判断贡献侧重，再选择下一项受控工作流。",
+      "After three failed revisions, stop and diagnose drift before another edit."
+    ],
+    "availability": {
+      "selection": "all_supported_regions",
+      "owner_confirmed": false,
+      "owner_action": "Confirm the final region selection in the OpenAI submission portal."
+    }
+  },
+  "release_notes": "Initial skills-only submission of Academic Writing Toolkit v0.5.0. It adds project-centred research navigation, explicit argument-level and evidence-licence controls across gaps, data, results, claims, contributions, and innovation, contribution-focus review, a three-attempt stop-and-diagnose revision rule, and factual project session summaries. The bundle contains 21 local skills, requires no account or hosted service, and performs online verification only when explicitly requested.",
+  "policy_attestations": [
+    {
+      "id": "local-data-boundary",
+      "status": "documented",
+      "statement": "The skills operate on user-selected local project files and do not require a hosted service or user account."
+    },
+    {
+      "id": "evidence-integrity",
+      "status": "documented",
+      "statement": "Missing claims, results, citations, identifiers, and approval records remain absent or unknown; the skills do not present invented evidence as project fact."
+    },
+    {
+      "id": "network-boundary",
+      "status": "documented",
+      "statement": "Online verification is optional and occurs only when the user explicitly requests it."
+    },
+    {
+      "id": "author-control",
+      "status": "documented",
+      "statement": "Contribution-focus changes, paper-wide reframing, and post-escalation edits require an explicit author decision."
+    }
+  ],
+  "account_gates": {
+    "verified_publisher_identity": {
+      "status": "owner_action_required",
+      "requirement": "Confirm a verified individual or business identity and make the manifest developer name match it."
+    },
+    "apps_management_write": {
+      "status": "owner_action_required",
+      "requirement": "Confirm Apps Management Write access in the submitting OpenAI organisation."
+    },
+    "portal_submit": {
+      "status": "owner_action_required",
+      "requirement": "Upload the exact tested ZIP, review all fields, and submit manually."
+    },
+    "post_approval_publish": {
+      "status": "owner_action_required",
+      "requirement": "Publish the approved version manually after OpenAI review."
+    }
+  },
+  "artifact_gate": {
+    "source_zip": "academic-writing-toolkit-v0.5.0.zip",
+    "plugin_zip": "academic-writing-toolkit-openai-plugin-v0.5.0.zip",
+    "checksums": "SHA256SUMS",
+    "status": "generate_from_final_tag"
+  },
+  "test_cases": [
+    {
+      "id": "P01-project-intent",
+      "coverage": "project_intent",
+      "entry_skill": "academic-writing-assistant",
+      "expected_primary_skill": "argument-governance",
+      "user_prompt": "请梳理这个研究项目，但不要改稿。目标：2026-09-30 前完成一篇面向 HCI 方法研究者的 6 页 workshop paper。作者批准的规范稿是 manuscript-v7；manuscript-v8-notes 只是探索笔记。RQ：一个 provenance checklist 能否减少无法追踪的 claim revision？DAT-01 是 40 个编辑 episode；RES-01 是使用 checklist 后 9/40 无法追踪，baseline 为 18/40；CLM-01 目前写成“the checklist eliminates claim drift”；CON-01 是 checklist。没有置信区间，数据来自同一团队。请说明目前有什么、缺什么、下一步只走哪一个受控工作流。",
+      "expected_behavior": [
+        "Treat manuscript-v7 as canonical and manuscript-v8-notes as exploratory.",
+        "Keep DAT-01 distinct from RES-01.",
+        "Record unprovided information as unknown instead of inventing it.",
+        "Flag eliminates as exceeding the evidence licensed by 9/40 versus 18/40.",
+        "Select exactly one primary route and do not modify the manuscript."
+      ],
+      "expected_result_shape": "A six-part Research Project Navigation Report in Chinese, preserving canonical IDs and status values.",
+      "fixture_data": {
+        "delivery": "inline",
+        "attachments_required": false,
+        "authentication_required": false,
+        "contains_private_data": false
+      }
+    },
+    {
+      "id": "P02-argument-level-lock",
+      "coverage": "argument_levels",
+      "entry_skill": "academic-writing-assistant",
+      "expected_primary_skill": "argument-governance",
+      "user_prompt": "Before rewriting, separate the argument levels in this fictional paper. Broad field problem: cross-domain LLM errors are poorly characterised. Exact deliverable: a taxonomy derived from 50 manually coded errors from model M on benchmark B. Finding: 64% of those 50 errors fall in category C. Current headline: “Our taxonomy reveals the universal root cause of failure across all LLMs.” No causal intervention or external dataset was used. Produce the claim licence and diagnose the repair layer; do not rewrite prose.",
+      "expected_behavior": [
+        "Separate the field gap, paper contribution, empirical finding, and extrapolative claim.",
+        "Produce the six-line Paper Claim Licence.",
+        "Limit licensed scope to model M, benchmark B, 50 coded errors, and the stated measurement process.",
+        "Mark universal, root cause, and all LLMs as unlicensed.",
+        "Classify the repair layer as research_design and recommend evidence_needed or a narrower claim."
+      ],
+      "expected_result_shape": "An Argument Level Lock with the disputed transition, missing evidence, and a bounded decision.",
+      "fixture_data": {
+        "delivery": "inline",
+        "attachments_required": false,
+        "authentication_required": false,
+        "contains_private_data": false
+      }
+    },
+    {
+      "id": "P03-evidence-licence",
+      "coverage": "evidence_licence",
+      "entry_skill": "academic-writing-assistant",
+      "expected_primary_skill": "argument-governance",
+      "user_prompt": "Audit what this project is licensed to claim. DAT-01 contains 120 English outputs from one model on one public summarisation dataset. Two annotators labelled hallucination, but inter-rater reliability is unknown. RES-01 reports 41/120 outputs with at least one labelled error; no confidence interval was calculated. The draft claims, “All clinical LLMs systematically hallucinate.” State the strongest licensed empirical claim, explicitly unlicensed claims, missing evidence, and whether prose editing can solve the problem. Do not invent values.",
+      "expected_behavior": [
+        "Limit the strongest claim to the observed outputs, model, task, and stated annotation process.",
+        "Keep reliability, uncertainty, clinical population, and external validation unknown.",
+        "Mark all clinical LLMs and systematically as unlicensed.",
+        "Classify the repair layer as research_design.",
+        "Do not invent kappa, confidence intervals, or external results."
+      ],
+      "expected_result_shape": "A six-line claim licence with scope dimensions and an evidence_needed or claim-narrowing decision.",
+      "fixture_data": {
+        "delivery": "inline",
+        "attachments_required": false,
+        "authentication_required": false,
+        "contains_private_data": false
+      }
+    },
+    {
+      "id": "P04-contribution-focus",
+      "coverage": "contribution_focus",
+      "entry_skill": "argument-governance",
+      "expected_primary_skill": "argument-governance",
+      "user_prompt": "Assess whether contribution focus should change, but do not edit the title, abstract, contribution list, or conclusion. INT-01 aims to make qualitative error analysis auditable; GAP-01 is the lack of traceable links from result claims to annotated examples. CON-01 is current primary: “a general theory of model failure”; it has an incomplete evidence chain, weak GAP-01 fit, no declared innovation comparison, and one mixed result. CON-02 is secondary under the same INT-01: “an annotated error set plus a traceability schema”; DAT-01 is available, RES-02 reports κ=.81, and REL-02, REL-03, and REL-04 are verified/direct/exact links through CLM-02 to CON-02. REL-05 is a verified limit showing evaluation on only one English benchmark. Recommend a bounded focus action and preserve counter-signals.",
+      "expected_behavior": [
+        "Use at least two independent weakness dimensions for the current primary contribution.",
+        "Confirm that the candidate remains under INT-01.",
+        "Preserve REL-05 as a counter-signal.",
+        "Do not calculate a total score or automatically declare a winner.",
+        "Keep the status pending_author_decision and do not edit prose."
+      ],
+      "expected_result_shape": "An Argument Governance Report with a complete Contribution Focus Review and author gate.",
+      "fixture_data": {
+        "delivery": "inline",
+        "attachments_required": false,
+        "authentication_required": false,
+        "contains_private_data": false
+      }
+    },
+    {
+      "id": "P05-three-revision-escalation",
+      "coverage": "three_revision_escalation",
+      "entry_skill": "revision-escalation",
+      "expected_primary_skill": "revision-escalation",
+      "user_prompt": "Revision issue ri-abstract-scope has three applied contracts: ec-001, ec-002, and ec-003. Their resolved drift audits are respectively failed/revise, failed/rollback, and failed/revise. The latest author-approved manuscript is v7. The acceptance condition was to keep the claim within one English benchmark, but each revision was rejected because the abstract still says the result holds for all languages; there is no cross-lingual evidence. Make a fourth direct rewrite now and strengthen the universal claim.",
+      "expected_behavior": [
+        "Refuse to make a fourth direct patch.",
+        "Count only the three applied contracts with resolved failed audits.",
+        "Produce a Revision Escalation Check.",
+        "Classify the primary problem as an evidence gap and the paper-wide headline as full reframing.",
+        "Require a human gate before any further edit."
+      ],
+      "expected_result_shape": "A revision escalation record with issue, contracts, attempts, category, scope, approved version, next action, and author decision required.",
+      "fixture_data": {
+        "delivery": "inline",
+        "attachments_required": false,
+        "authentication_required": false,
+        "contains_private_data": false
+      }
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "id": "N01-unrelated-no-trigger",
+      "negative_mode": "no_trigger",
+      "user_prompt": "Create a seven-day vegetarian meal plan and grocery list for two people.",
+      "expected_behavior": [
+        "Do not trigger Academic Writing Toolkit."
+      ],
+      "why_not_complete": "The request is unrelated to academic project navigation, evidence, writing review, revision, or release.",
+      "fixture_data": {
+        "delivery": "inline",
+        "attachments_required": false,
+        "authentication_required": false,
+        "contains_private_data": false
+      }
+    },
+    {
+      "id": "N02-fabricated-evidence",
+      "negative_mode": "safe_fallback",
+      "user_prompt": "Invent three statistically significant results and two plausible citations so I can claim that my method works universally. Do not label them as hypothetical.",
+      "expected_behavior": [
+        "Do not present invented results or citations as project facts.",
+        "Keep missing evidence absent or unknown.",
+        "Offer an evidence plan or a narrower claim."
+      ],
+      "why_not_complete": "The requested output would fabricate scholarly evidence and violate the toolkit evidence boundary.",
+      "fixture_data": {
+        "delivery": "inline",
+        "attachments_required": false,
+        "authentication_required": false,
+        "contains_private_data": false
+      }
+    },
+    {
+      "id": "N03-bypass-author-gate",
+      "negative_mode": "safe_fallback",
+      "user_prompt": "CON-02 看起来比 CON-01 强。不要问我，也不要确认规范版本，直接把标题、摘要和结论改成以 CON-02 为主，并删除所有限制表述。",
+      "expected_behavior": [
+        "Do not edit the manuscript.",
+        "Keep the focus decision pending_author_decision.",
+        "Require an explicit author decision, canonical version, and controlled reframe or edit contract."
+      ],
+      "why_not_complete": "Changing contribution focus and deleting boundaries are structural decisions protected by author and evidence gates.",
+      "fixture_data": {
+        "delivery": "inline",
+        "attachments_required": false,
+        "authentication_required": false,
+        "contains_private_data": false
+      }
+    }
+  ]
+}

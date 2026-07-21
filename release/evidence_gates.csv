@@ -1,8 +1,21 @@
 gate_id,artifact_id,evidence_state,human_confirmed,reviewer,review_date,validator,status
-gate-source,source-tree,verified_artifact,false,,,git status and git ls-files,passed
-gate-plugin,codex-plugin,verified_artifact,false,,,make plugin-check,passed
-gate-chatgpt,chatgpt-app,verified_artifact,false,,,make chatgpt-app-check,passed
-gate-regression,source-tree,verified_artifact,false,,,make test,passed
-gate-docs,publishing-docs,verified_artifact,false,,,local doc review,passed
-gate-manuscript-reframe,manuscript-reframe,verified_artifact,false,,,make test T33 T42 T44 T50 T51,passed
-gate-openai-dashboard,publishing-docs,draft_advisory,false,,,manual Apps Manage review,blocked until business verification and submit action
+gate-plugin,plugin-source,verified_artifact,false,,,scripts/check-plugin.sh,passed
+gate-skills,plugin-source,verified_artifact,false,,,OpenAI Skill Creator quick_validate for all 21 packaged Skills,passed
+gate-submission,submission-packet,verified_artifact,false,,,scripts/check-skills-only-submission.py,passed
+gate-app,app-source,verified_artifact,false,,,npm test,passed_12_of_12
+gate-app-audit,app-source,verified_artifact,false,,,npm audit --omit=dev --audit-level=high,passed_0_vulnerabilities
+gate-public-content,plugin-source,verified_artifact,false,,,scripts/audit-public-content.py,passed_0_issues
+gate-demo,plugin-source,verified_artifact,false,,,demo citation reference evidence release and thesis-control validators,passed
+gate-archive-reproducibility,candidate-plugin-zip,verified_artifact,false,,,scripts/test.sh T152,passed
+gate-regression-local,plugin-source,draft_advisory,false,,,segmented Windows Git Bash regression,144_passed_6_platform_deferred
+gate-linux-ci,plugin-source,draft_advisory,false,,,GitHub Actions pull-request workflow,not_run
+gate-final-tag,candidate-source-zip,draft_advisory,false,,,annotated v0.5.0 tag at verified main commit,owner_action_required
+gate-forward-tests-candidate,submission-packet,draft_advisory,false,,,eight fresh-agent cases against the candidate plugin tree,passed_8_of_8_after_1_repair_and_retest
+gate-forward-tests,submission-packet,draft_advisory,false,,,eight-case forward test against exact final ZIP,owner_action_required
+gate-identity,portal-state,draft_advisory,false,,,OpenAI publisher identity owner confirmation,owner_action_required
+gate-write-access,portal-state,draft_advisory,false,,,Apps Management Write owner confirmation,owner_action_required
+gate-regions,portal-state,draft_advisory,false,,,final region selection in OpenAI portal,owner_action_required
+gate-upload,portal-state,draft_advisory,false,,,exact tested ZIP upload,owner_action_required
+gate-submit,portal-state,draft_advisory,false,,,manual Submit for Review,owner_action_required
+gate-approval,portal-state,draft_advisory,false,,,OpenAI review decision,owner_action_required
+gate-publish,portal-state,draft_advisory,false,,,manual post-approval publication,owner_action_required
