@@ -1,6 +1,6 @@
 ---
 name: argument-governance
-description: Build and audit the manuscript argument system: intent, gap-contribution alignment, hierarchical claims, evidence balance, limitations, and reviewer attack surfaces. Use when a paper, thesis chapter, review article, or rebuttal needs explicit intent registers, contribution chains, claim hierarchy, argument maps, evidence-fit checks, or reviewer-risk matrices before drafting, revision, peer review, or self-review.
+description: "Build and audit the manuscript argument system: intent, gap-contribution alignment, hierarchical claims, evidence balance, limitations, and reviewer attack surfaces. Use when a paper, thesis chapter, review article, or rebuttal needs explicit intent registers, contribution chains, claim hierarchy, argument maps, evidence-fit checks, or reviewer-risk matrices before drafting, revision, peer review, or self-review."
 allowed-tools: Read, Glob, Grep, Bash, Edit, Write
 ---
 
