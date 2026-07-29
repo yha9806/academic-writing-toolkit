@@ -66,10 +66,12 @@ reviewed deployment unchanged until the review decision and submit the stable
 runtime through the next permitted review update.
 
 At the GitHub v0.5.0 release gate, the endpoint under active OpenAI review still
-reports `0.5.0-rc.4` from Space SHA
-`876c6cf357de4dbdd2057066570b4f5a4366caa9`. Publishing the stable wheel and
-Codex plugin does not promote that hosted runtime. Stable App deployment remains
-a separate post-review action until the portal permits a new scan and submission.
+reported `0.5.0-rc.4` from Space SHA
+`876c6cf357de4dbdd2057066570b4f5a4366caa9`. The hosted package metadata was
+subsequently promoted to `0.5.0` at Space SHA
+`c88871ef8d1ce7629c10f038deab10c7421696f4`; the core server and tool source
+bytes were unchanged. This deployment does not itself approve or publish the
+ChatGPT App.
 
 ## Deployment Requirement
 
@@ -177,18 +179,22 @@ Stable deployment gate:
 Latest OpenAI dashboard check:
 
 - Date: 2026-07-29
-- App draft: `Academic Writing Toolkit`
+- App: `Academic Writing Toolkit`
+- Portal status: `0.5.0` in review; not approved or published
 - MCP Server URL: `https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp`
 - Authentication: `No Auth`
 - Domain verification: verified
-- Tool scan: 5 tools with explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint`
+- Space repo/runtime SHA: `c88871ef8d1ce7629c10f038deab10c7421696f4`
+- Live `/health` and MCP initialize version: `0.5.0`
+- Live tool check: 5 tools with explicit `readOnlyHint`, `openWorldHint`,
+  `destructiveHint`, and `outputSchema`; 5 public-safe calls passed
 - Tests: 5 positive test cases and 3 negative test cases present
 - Country availability: allow all countries
 - Portal label submitted for review: `0.5.0`
-- Reviewed runtime snapshot: `0.5.0-rc.4`; this is a known version mismatch,
-  not evidence that the stable App runtime has been deployed or reviewed
-- Stable App status: pending deployment, re-scan, and a permitted review update
-- Portal evidence: the portal confirmed `Academic Writing Toolkit has been submitted for review`
+- Reviewed metadata remains the portal's submission-time snapshot; the live
+  `0.5.0` deployment is not evidence of approval
+- Stable App status: deployed and under review; publication remains a separate
+  post-approval action
 - Known review risk: the submitted demonstration video covers ChatGPT Web only;
   the maintainer explicitly accepted the mobile-coverage risk before submission
 
