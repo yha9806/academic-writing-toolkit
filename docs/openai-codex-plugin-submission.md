@@ -25,8 +25,8 @@ accepts the production MCP URL directly.
 - Plugin name: `academic-writing-toolkit`
 - Display name: `Academic Writing Toolkit`
 - Repository: `https://github.com/yha9806/academic-writing-toolkit`
-- Package version: `0.5.0-rc.4`
-- Tagged release ref for external review: `v0.5.0rc4`
+- Package version: `0.5.0`
+- Tagged release ref for external review: `v0.5.0`
 - Current default branch ref used for local marketplace tracking: `main`
 - Plugin path: `plugins/academic-writing-toolkit`
 - Manifest: `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
@@ -42,10 +42,10 @@ Use `main` for current default-branch testing:
 codex marketplace add yha9806/academic-writing-toolkit --ref main --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
 ```
 
-Use the immutable release tag after `v0.5.0rc4` has been created:
+Use the immutable release tag after `v0.5.0` has been created:
 
 ```bash
-codex marketplace add yha9806/academic-writing-toolkit --ref v0.5.0rc4 --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
+codex marketplace add yha9806/academic-writing-toolkit --ref v0.5.0 --sparse .agents/plugins --sparse plugins/academic-writing-toolkit
 ```
 
 The local CLI currently exposes `codex marketplace add`. Some newer OpenAI docs show `codex plugin marketplace add`; use the command supported by the installed Codex CLI version.
@@ -94,8 +94,9 @@ The manifest follows the OpenAI Codex plugin docs:
 - Use `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json` as the
   reviewed source when entering exactly five positive and three negative tests and the
   annotation justifications in OpenAI Platform.
-- Submit the MCP URL only after `/health` and MCP `serverInfo` both report
-  `0.5.0-rc.4`, all five tools scan correctly, and production dependency audit is clean.
+- Submit or update the MCP URL only after `/health` and MCP `serverInfo` both
+  report `0.5.0`, all five tools scan correctly, and the production dependency
+  audit is clean.
 - The standalone plugin manifest does not declare `.app.json`. A local combined plugin
   would need a Developer Mode connection ID; the portal **With MCP** flow uses the URL.
 

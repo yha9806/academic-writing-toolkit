@@ -104,7 +104,7 @@ from importlib.resources import files
 import awt
 from awt.mvp import WORKFLOWS
 
-assert awt.__version__ == "0.5.0rc4"
+assert awt.__version__ == "0.5.0"
 assert len(WORKFLOWS) == 5
 assert files("awt").joinpath("mvp_index.html").is_file()
 assert files("awt").joinpath("demo-paper.md").is_file()
@@ -112,7 +112,7 @@ PY
     PYTHONDONTWRITEBYTECODE=1 "$temporary/venv/bin/python" -m unittest discover \
         -s "$REPO_ROOT/tests/runtime" -p 'test_*.py' >/dev/null
     "$temporary/venv/bin/awt" --help >/dev/null
-    "$temporary/venv/bin/awt" --version | grep -q '0.5.0rc4'
+    [[ "$("$temporary/venv/bin/awt" --version)" == "awt 0.5.0" ]]
     AWT_CODEX_BIN="$temporary/fake-codex" \
         AWT_SESSION_DIR="$temporary/sessions" \
         "$temporary/venv/bin/awt" --check | grep -q 'Local preflight: ready'

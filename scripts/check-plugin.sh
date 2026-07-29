@@ -297,6 +297,70 @@ for asset in assets:
         raise SystemExit(f"asset is too small: {asset}")
 PY
 
+"$PYTHON_BIN" - "$PLUGIN_ROOT" <<'PY'
+import ast
+import sys
+from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
+plugin_root = Path(sys.argv[1])
+skill_paths = sorted((plugin_root / "skills").glob("*/SKILL.md"))
+if len(skill_paths) != 20:
+    raise SystemExit(f"expected 20 plugin skills, observed {len(skill_paths)}")
+
+for path in skill_paths:
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        raise SystemExit(f"missing YAML frontmatter: {path}")
+    try:
+        frontmatter = text.split("---", 2)[1]
+    except IndexError as error:
+        raise SystemExit(f"unterminated YAML frontmatter: {path}") from error
+
+    if yaml is not None:
+        try:
+            metadata = yaml.safe_load(frontmatter)
+        except yaml.YAMLError as error:
+            raise SystemExit(f"invalid YAML frontmatter in {path}: {error}") from error
+    else:
+        metadata = {}
+        for line_number, line in enumerate(frontmatter.splitlines(), start=2):
+            if not line.strip():
+                continue
+            if line[:1].isspace() or ":" not in line:
+                raise SystemExit(
+                    f"unsupported YAML frontmatter at {path}:{line_number}"
+                )
+            key, raw_value = line.split(":", 1)
+            raw_value = raw_value.strip()
+            if raw_value.startswith(("'", '"')):
+                try:
+                    value = ast.literal_eval(raw_value)
+                except (SyntaxError, ValueError) as error:
+                    raise SystemExit(
+                        f"invalid quoted YAML scalar at {path}:{line_number}"
+                    ) from error
+            else:
+                if ": " in raw_value:
+                    raise SystemExit(
+                        f"ambiguous unquoted YAML scalar at {path}:{line_number}"
+                    )
+                value = raw_value
+            metadata[key.strip()] = value
+
+    if not isinstance(metadata, dict):
+        raise SystemExit(f"frontmatter must be a mapping: {path}")
+    if metadata.get("name") != path.parent.name:
+        raise SystemExit(f"skill name does not match directory: {path}")
+    description = metadata.get("description")
+    if not isinstance(description, str) or not description.strip():
+        raise SystemExit(f"skill description is required: {path}")
+PY
+
 if grep -R "\[TODO\]\|TODO:" "$PLUGIN_ROOT" "$MARKETPLACE_JSON" >/dev/null; then
     die "plugin package contains TODO placeholders"
 fi

@@ -153,7 +153,7 @@ esac
                 env=environment,
             )
             self.assertEqual(version.returncode, 0)
-            self.assertIn("0.5.0rc4", version.stdout)
+            self.assertEqual(version.stdout.strip(), "mvp.py 0.5.0")
             check = subprocess.run(
                 [sys.executable, "-m", "awt.mvp", "--check"],
                 text=True,

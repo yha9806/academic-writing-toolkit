@@ -22,11 +22,11 @@ The app-specific check runs the Node test suite for the MCP server and tool wrap
 - Submission checklist file: `apps/chatgpt-academic-writing-toolkit/chatgpt-app-submission.json`
 - Privacy URL source: `docs/privacy.md`
 - Terms URL source: `docs/terms.md`
-- App package version target: `0.5.0-rc.4`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
+- App package version target: `0.5.0`, aligned with `plugins/academic-writing-toolkit/.codex-plugin/plugin.json`
 
-## Current v0.5.0-rc.4 Submission Endpoint
+## v0.5.0 Submission And Deployment Endpoint
 
-For the v0.5.0-rc.4 update of the existing ChatGPT App draft, keep the existing
+For the v0.5.0 update of the existing ChatGPT App submission, keep the existing
 Hugging Face Space MCP base URL:
 
 ```text
@@ -49,16 +49,27 @@ curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/healt
 curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 ```
 
-After deployment, `/health` and MCP `serverInfo` must return version
-`0.5.0-rc.4`. `GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
+After deployment, `/health` and MCP `serverInfo` must return version `0.5.0`.
+`GET /mcp` should return `405`; MCP traffic uses `POST /mcp`.
 
 The existing registered draft already uses the Hugging Face endpoint. Keep that
 verified endpoint for this update unless the live portal explicitly permits and verifies
 a replacement. The Render URL remains a backup smoke-test endpoint.
 
-The endpoint previously passed domain verification and exposed five tools. Re-scan the
-deployed RC4 endpoint and enter the reviewed checklist values again; prior scan results
-do not prove the new deployment.
+The endpoint previously passed domain verification and exposed five tools.
+Re-scan the deployed stable endpoint after deployment; prior scan results do not
+prove the new deployment.
+
+Do not silently replace the endpoint bytes while an OpenAI review is active.
+Either complete the stable deployment and re-scan before submitting, or keep the
+reviewed deployment unchanged until the review decision and submit the stable
+runtime through the next permitted review update.
+
+At the GitHub v0.5.0 release gate, the endpoint under active OpenAI review still
+reports `0.5.0-rc.4` from Space SHA
+`876c6cf357de4dbdd2057066570b4f5a4366caa9`. Publishing the stable wheel and
+Codex plugin does not promote that hosted runtime. Stable App deployment remains
+a separate post-review action until the portal permits a new scan and submission.
 
 ## Deployment Requirement
 
@@ -152,20 +163,20 @@ curl -i https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp
 curl -fsS https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/.well-known/openai-apps-challenge
 ```
 
-Latest hosted verification:
+Stable deployment gate:
 
-- Date: 2026-07-29
-- Space repo/runtime SHA: `876c6cf357de4dbdd2057066570b4f5a4366caa9`
-- `/health`: version `0.5.0-rc.4`, `status: ok`
-- `GET /mcp`: `405 Method not allowed`
-- MCP initialize: server version `0.5.0-rc.4`
-- MCP scan smoke: five tools; all five declare the three required annotations and
-  `outputSchema`; five safe calls passed
-- `/.well-known/openai-apps-challenge`: returned the configured OpenAI challenge token
+- Space repo SHA and runtime SHA must match.
+- `/health` must return version `0.5.0` and `status: ok`.
+- `GET /mcp` must return `405 Method not allowed`.
+- MCP initialize must report server version `0.5.0`.
+- The scan must list five tools with the three required annotations and
+  `outputSchema`.
+- Five public-safe smoke calls must pass.
+- `/.well-known/openai-apps-challenge` must return the configured challenge token.
 
 Latest OpenAI dashboard check:
 
-- Date: 2026-07-08
+- Date: 2026-07-29
 - App draft: `Academic Writing Toolkit`
 - MCP Server URL: `https://harryhurry-academic-writing-toolkit-chatgpt-app.hf.space/mcp`
 - Authentication: `No Auth`
@@ -173,8 +184,13 @@ Latest OpenAI dashboard check:
 - Tool scan: 5 tools with explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint`
 - Tests: 5 positive test cases and 3 negative test cases present
 - Country availability: allow all countries
-- Submit status: blocked by OpenAI Platform with `Business verification is not complete. Please verify as a business before submitting.`
-- Next gate: complete OpenAI organization Business verification for the publisher organization, then return to the same draft and click `Submit for Review`.
+- Portal label submitted for review: `0.5.0`
+- Reviewed runtime snapshot: `0.5.0-rc.4`; this is a known version mismatch,
+  not evidence that the stable App runtime has been deployed or reviewed
+- Stable App status: pending deployment, re-scan, and a permitted review update
+- Portal evidence: the portal confirmed `Academic Writing Toolkit has been submitted for review`
+- Known review risk: the submitted demonstration video covers ChatGPT Web only;
+  the maintainer explicitly accepted the mobile-coverage risk before submission
 
 ## Render Deployment
 
