@@ -13,6 +13,12 @@ Academic Writing Toolkit (AWT) is an open-source, local-first system for evidenc
 
 The core promise is simple: **agents may help operate the workflow; the author keeps control of claims, boundaries, approvals, and the exact artifact that ships.**
 
+> **Current stable release: [v0.5.0](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.5.0).**
+> The local Workbench wheel and Codex plugin are available now. The ChatGPT App
+> package is aligned at `0.5.0`, but stable hosted deployment and public App
+> distribution remain separate OpenAI review steps; do not treat the App as the
+> current stable installation route.
+
 AWT is not a hosted writing service and does not operate a manuscript-storage
 backend. Its deterministic tools stay local. The optional Agent-powered local
 workbench sends only the manuscript and evidence files you explicitly select to
@@ -66,11 +72,14 @@ See [Choose the right product surface](docs/use-cases/choose-product-surface.md)
 
 ## Try the local review workbench
 
-The local workbench is the smallest end-to-end AWT product surface:
+The local Workbench is the simplest end-to-end product for an author. It
+requires Python 3.9+ and an installed, authenticated Codex CLI. Install the
+immutable v0.5.0 wheel directly from GitHub Releases:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install .
+.venv/bin/python -m pip install \
+  https://github.com/yha9806/academic-writing-toolkit/releases/download/v0.5.0/academic_writing_toolkit-0.5.0-py3-none-any.whl
 .venv/bin/awt --check
 .venv/bin/awt
 ```
@@ -120,7 +129,32 @@ Local sessions default to
 `~/.local/share/academic-writing-toolkit/sessions` and can be deleted from the
 workbench.
 
-## Quick start
+## Install the Codex plugin
+
+Use this route when you want the 20 AWT skills inside Codex rather than the
+single-review Workbench interface. Current Codex Desktop and Codex CLI builds
+support:
+
+```bash
+codex plugin marketplace add yha9806/academic-writing-toolkit \
+  --ref v0.5.0 \
+  --sparse .agents/plugins \
+  --sparse plugins/academic-writing-toolkit
+
+codex plugin add academic-writing-toolkit@academic-writing-toolkit
+codex plugin list
+```
+
+This installs the plugin from the immutable `v0.5.0` tag. It does not install
+the Workbench wheel and does not give the ChatGPT App access to local files.
+See the [Codex plugin submission and compatibility notes](docs/openai-codex-plugin-submission.md)
+if an older Codex build does not expose the `codex plugin` command.
+
+## Use the full repository from source
+
+Use this route when you want the complete skill sources, examples, validators,
+and project templates, or when you plan to contribute to AWT. Most authors who
+want one manuscript review should use the Workbench above instead.
 
 Use `git clone`, not GitHub's **Download ZIP**. AWT uses symlinks under `.agents/skills/` so compatible local agents discover the same canonical skills.
 
@@ -253,10 +287,10 @@ Edit `CLAUDE.md` for project-specific directories, page limits, British English 
 
 ## Release and distribution
 
+- [v0.5.0 stable release](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.5.0)
 - [Codex plugin publishing checklist](docs/plugin-publishing-checklist.md)
 - [OpenAI Codex plugin submission notes](docs/openai-codex-plugin-submission.md)
 - [ChatGPT App publishing guide](docs/chatgpt-app-publishing.md)
-- [v0.4.0 release-readiness record](docs/product/v0.4.0-release-readiness.md)
 - [Privacy policy](docs/privacy.md) and [terms](docs/terms.md)
 - [README visual source in Figma](https://www.figma.com/design/HhaFm0uorv5oS7MsezWDN5)
 
