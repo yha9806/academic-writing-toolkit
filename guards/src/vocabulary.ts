@@ -31,12 +31,31 @@ export type PageDenialCode = (typeof PAGE_DENIAL_CODES)[number]
 
 /**
  * Every denial code a mounted AWT guard can emit today. ESCALATION_REQUIRED
- * (parent spec §7, 3-strike row) is deliberately NOT here: it ships in P2
- * session 2 as an `ask` on the tools/pre-execute waterfall, not a guard
- * denial, so listing it would claim an enforcement that does not exist yet.
+ * (parent spec §7, 3-strike row) is deliberately NOT here: it is an `ask`
+ * reason on the tools/pre-execute waterfall (see ESCALATION_ASK_CODE below),
+ * not a guard denial — a rejected or unavailable ask surfaces as the
+ * harness's own tool error, and the revision fold counts it as 'failed',
+ * never as a strike.
  */
 export const ALL_DENIAL_CODES = [...CHAPTER_DENIAL_CODES, ...PAGE_DENIAL_CODES] as const
 export type AnyDenialCode = (typeof ALL_DENIAL_CODES)[number]
+
+// --- escalation ask (P2 session 2) --------------------------------------------
+
+/**
+ * The 3-strike escalation returns `{ kind: 'ask' }` on the tools/pre-execute
+ * waterfall, so dsh's approval seam produces the immutable audit pair
+ * (`approval/asked` + `approval/decided`) — parent spec §8 "approvals are
+ * harness events". With no answerer composed (headless, CI) the seam fails
+ * closed to a denial; nothing about a grant persists past the one asked call
+ * (`allowed-once` only).
+ */
+export const ESCALATION_ASK_CODE = 'ESCALATION_REQUIRED' as const
+
+/** Ask reason: rule, observed count, limit, contract identity — never content. */
+export function escalationAskReason(contract: string, denied: number): string {
+  return `${ESCALATION_ASK_CODE}: contract '${contract}' has ${denied} typed-denial attempts (threshold ${REVISION_ESCALATION_THRESHOLD}); author approval is required for further chapter writes under this contract`
+}
 
 // --- denial wire format ---------------------------------------------------------
 

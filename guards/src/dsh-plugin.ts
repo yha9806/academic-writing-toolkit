@@ -30,12 +30,22 @@ import {
   decide,
   decidePdfRead,
   foldPdfRead,
+  shouldAskEscalation,
   type PageBudgetConfig,
   type PageBudgetState,
   type RepoView,
   type ToolCall,
 } from './decisions.ts'
-import { GuardConfigError, PAGE_BUDGET_KEY, denialReason, type PageBudgetValue } from './vocabulary.ts'
+import {
+  GuardConfigError,
+  PAGE_BUDGET_KEY,
+  REVISION_ATTEMPTS_KEY,
+  REVISION_ESCALATION_THRESHOLD,
+  denialReason,
+  escalationAskReason,
+  type PageBudgetValue,
+  type RevisionAttemptsValue,
+} from './vocabulary.ts'
 import {
   createIntegrationStatusProjection,
   createRevisionAttemptsProjection,
@@ -69,13 +79,21 @@ export interface GuardHostContext {
     guard(guard: (execution: GuardedExecution) => string | undefined): () => void
   }
   /**
-   * Cordis event subscription (optional in the structural slice). Only feeds
-   * the registry-less fallback page counter.
+   * Cordis event subscription (optional in the structural slice).
+   * 'tools/result' feeds the registry-less fallback counters; the
+   * 'tools/pre-execute' waterfall carries the session-2 escalation ask
+   * (return `{ kind: 'ask', reason }` or delegate with `next()`).
    */
-  on?(
-    event: 'tools/result',
-    listener: (execution: GuardedExecution, result: { isError: boolean }) => void
-  ): () => void
+  on?: {
+    (
+      event: 'tools/result',
+      listener: (execution: GuardedExecution, result: { isError: boolean }) => void
+    ): () => void
+    (
+      event: 'tools/pre-execute',
+      listener: (execution: GuardedExecution, next: () => Promise<unknown>) => Promise<unknown>
+    ): () => void
+  }
   /** rc.6 projection registry, when the assembly mounts one (dsh-base does). */
   sessionProjections?: ProjectionRegistryLike
   /**
@@ -124,7 +142,7 @@ export function fsRepoView(projectRoot: string): RepoView {
         if (!name.endsWith('.md')) continue
         const parsed = parseContractSource(readFileSync(join(dir, name), 'utf8'))
         if (!parsed.active) continue
-        return { mayChange: parsed.mayChange, mustNotChange: parsed.mustNotChange }
+        return { path: `contracts/${name}`, mayChange: parsed.mayChange, mustNotChange: parsed.mustNotChange }
       }
       return undefined
     },
@@ -232,8 +250,54 @@ export function apply(ctx: GuardHostContext, config?: Config): void {
       decide(call, repo) ?? decidePdfRead(call, { pagesRead: pagesReadFor(execution) }, budget)
     return denial ? denialReason(denial.code, denial.message) : undefined
   })
+
+  // Session-2 ask-gate (spec item 2): the 3-strike escalation returns `ask`
+  // on the tools/pre-execute waterfall, so dsh-user-approval records the
+  // immutable approval/asked + approval/decided pair and fails closed with
+  // no answerer. The escalation state comes from the revision-attempts
+  // session-log fold — never from files: the contract's own agent-writable
+  // ledger is exactly the self-approval attack surface.
+  const fallbackDenied = new Map<string, number>()
+  const escalationFor = (execution: GuardedExecution): { contract: string; denied: number } | undefined => {
+    const session = execution.agent?.session
+    if (registry !== undefined && session !== undefined) {
+      const value = registry.snapshot(session).values[REVISION_ATTEMPTS_KEY]
+      if (typeof value === 'object' && value !== null && Array.isArray((value as RevisionAttemptsValue).contracts)) {
+        const row = (value as RevisionAttemptsValue).contracts.find((c) => c.active && c.escalationPending)
+        return row === undefined ? undefined : { contract: row.contract, denied: row.denied }
+      }
+      return undefined
+    }
+    // Registry-less fallback ONLY (minimal hosts): per-process error counts
+    // keyed by the on-disk active contract. Over-counts untyped failures as
+    // strikes — the conservative, ask-earlier direction — and is never
+    // consulted when the projection snapshot is available.
+    const contract = repo.activeContract()
+    if (contract?.path === undefined) return undefined
+    const denied = fallbackDenied.get(contract.path) ?? 0
+    return denied >= REVISION_ESCALATION_THRESHOLD ? { contract: contract.path, denied } : undefined
+  }
+  ctx.on?.('tools/pre-execute', async (execution, next) => {
+    const call: ToolCall = { tool: execution.name, args: callArgs(execution) }
+    const escalation = shouldAskEscalation(call, repo, escalationFor(execution))
+    if (escalation !== undefined) {
+      return { kind: 'ask', reason: escalationAskReason(escalation.contract, escalation.denied) }
+    }
+    return next()
+  })
+
   ctx.on?.('tools/result', (execution, result) => {
-    if (result.isError) return
-    fallbackPages = foldPdfRead(fallbackPages, { tool: execution.name, args: callArgs(execution) })
+    const call: ToolCall = { tool: execution.name, args: callArgs(execution) }
+    if (result.isError) {
+      const rel = typeof call.args.file_path === 'string' ? repo.relative(call.args.file_path) : undefined
+      if (rel !== undefined && rel.startsWith('chapters/') && (call.tool === 'write' || call.tool === 'edit')) {
+        const contract = repo.activeContract()
+        if (contract?.path !== undefined) {
+          fallbackDenied.set(contract.path, (fallbackDenied.get(contract.path) ?? 0) + 1)
+        }
+      }
+      return
+    }
+    fallbackPages = foldPdfRead(fallbackPages, call)
   })
 }

@@ -1,6 +1,11 @@
 # P2 — Projections, Approvals, Scaffold
 
-- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2 in progress: harness pin DECIDED (below) and `awt init`/`awt verify` LANDED (scaffold/awt.mjs; manifest + refusal gates in guards/tests/scaffold.test.ts; 70/70; init→verify 4/4 end-to-end, verified locally). Remaining: ask-seam approvals; structured-fact writer BLOCKED on a published ignorable-append harness (tripwire armed).
+- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2: harness pin DECIDED (below), `awt init`/`awt verify` LANDED (scaffold/awt.mjs; manifest + refusal gates), ask-seam approvals LANDED (item 2: escalation `ask` via dsh-user-approval, self-approval attack re-run and blocked; 74/74, live e2e green). Remaining: item 6 docs reshape; structured-fact writer BLOCKED on a published ignorable-append harness (tripwire armed).
+- **Arming condition (recorded honestly):** the escalation gate arms from the
+  revision fold, so it covers contracts that entered through logged writes —
+  the real lifecycle. A contract file placed on disk outside dsh never arms
+  the gate (the §"projections" derived-channel gap; closes with the fact
+  writer when the pin lifts). Scope checks still enforce from disk either way.
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §8, §14
 - **Inputs:** P1 close-out discoveries; `docs/research/2026-08-16-ecosystem-practices.md`
   adoptions #1-#4, #6, #7 (this spec instantiates them; #5/#8 land in P3).

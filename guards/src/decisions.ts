@@ -29,7 +29,7 @@ export interface RepoView {
   /** first-author surname (lowercase) + year for every lint-conforming notes file. */
   conformingSources(): ReadonlyArray<{ surname: string; year: string }>
   /** Active contract scopes (contracts/*.md with an unchecked attempt box), if any. */
-  activeContract(): { mayChange: string[]; mustNotChange: string[] } | undefined
+  activeContract(): { path?: string; mayChange: string[]; mustNotChange: string[] } | undefined
 }
 
 const CHAPTER_PREFIX = 'chapters/'
@@ -165,6 +165,36 @@ export function decide(call: ToolCall, repo: RepoView): Denial | undefined {
     decideQuoteIntegrity(call, repo) ??
     decideNotesBeforeChapters(call, repo)
   )
+}
+
+// --- 3-strike escalation ask (P2 session 2) -----------------------------------
+
+/**
+ * Pure ask-gate: once a contract's session-log fold has reached the
+ * escalation threshold (typed-denial attempts), every further in-scope
+ * chapter write must be approved by the author through the harness approval
+ * seam. Returns the escalation payload when the call needs an `ask`,
+ * undefined otherwise.
+ *
+ * Two deliberate properties: the escalation state is INJECTED from the
+ * session-log fold, never read from files — the contract's own attempt
+ * ledger is agent-writable and is exactly the self-approval attack this
+ * gate exists to block; and a call that decide() would deny anyway never
+ * asks, so an author approval can never be spent on a doomed call.
+ */
+export function shouldAskEscalation(
+  call: ToolCall,
+  repo: RepoView,
+  escalation: { contract: string; denied: number } | undefined,
+): { contract: string; denied: number } | undefined {
+  if (escalation === undefined) return undefined
+  if (call.tool !== 'write' && call.tool !== 'edit') return undefined
+  const raw = targetPath(call)
+  if (raw === undefined) return undefined
+  const rel = repo.relative(raw)
+  if (rel === undefined || !isChapterPath(rel)) return undefined
+  if (decide(call, repo) !== undefined) return undefined
+  return escalation
 }
 
 // --- PAGE BUDGETS (P1 session 2) ---------------------------------------------
