@@ -289,10 +289,11 @@ Edit `CLAUDE.md` for project-specific directories, page limits, British English 
 ## Release and distribution
 
 - [v0.5.0 stable release](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.5.0)
+  — the last release carrying the ChatGPT App, its privacy/terms documents,
+  the Cloud Run/Render deployments, and the local workbench wheel; those
+  surfaces are decommissioned on main (v0.1 design §13)
 - [Codex plugin publishing checklist](docs/plugin-publishing-checklist.md)
 - [OpenAI Codex plugin submission notes](docs/openai-codex-plugin-submission.md)
-- [ChatGPT App publishing guide](docs/chatgpt-app-publishing.md)
-- [Privacy policy](docs/privacy.md) and [terms](docs/terms.md)
 - [README visual source in Figma](https://www.figma.com/design/HhaFm0uorv5oS7MsezWDN5)
 
 Every release should identify one exact Git ref, the packaged artifact and hash, its evidence state, the gate that approved it, and the owner of any remaining human decision.
