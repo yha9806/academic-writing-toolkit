@@ -4,10 +4,20 @@
   credential probe green; bundle contract + pack smoke green; E1 offline
   lane discriminates on all four metrics — 84/84 guards, make test 123/123,
   audit clean). The canonical profile also gained the real pdftotext-backed
-  `read_pdf` plugin (the e2e stub is now e2e-only). Session 2 remaining:
-  legacy decommission (same release as the replacement — never before) and
-  the E2 handoff; the E1 REAL lane awaits the author's three PDFs + a key
-  (`e1/pdfs.example.json`).
+  `read_pdf` plugin (the e2e stub is now e2e-only). Session 2: §13
+  decommission EXECUTED (mvp workbench + wheel packaging; ChatGPT App +
+  Cloud Run/Render deploys + App listing docs; plugins/ mirror + sync
+  scripts + old marketplace manifest; stale release/ packet — with the bash
+  suite, CI jobs, README, and use-case docs reshaped in the same commits;
+  every removal points at v0.5.0). **Deliberate deviation from §13's
+  archive note:** `archive/skills/` is RETAINED — its validators are
+  exercised by ~60 suite tests (thesis-control, evidence-review,
+  release-governance against temp fixtures) and §13 never named it; the 11
+  bundles are out of the catalogue, which is the property that matters. The
+  E2 runbook is `docs/e2-dogfood-runbook.md`. Remaining, author-executed:
+  E2 chapter cycle; E1 real lane (three PDFs + key). One P3-scope item from
+  the parent's non-goals (a one-shot thesis-control CSV import script) is
+  NOT built — flagged, not silently dropped.
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §11 (evidence
   classes), §13 (decommission table), §14 (P3 row)
 - **Inputs:** `docs/research/2026-08-16-ecosystem-practices.md` adoptions

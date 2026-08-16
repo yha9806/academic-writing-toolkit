@@ -3037,9 +3037,13 @@ test_T59() {
         grep -q "release-governance" "$doc" || return 1
     done
 
-    grep -q "Local agent skills" "$REPO_ROOT/README.md" || return 1
-    grep -q "ChatGPT App MCP server" "$REPO_ROOT/README.md" || return 1
-    grep -q "pasted-text" "$REPO_ROOT/README.md" || return 1
+    # The README pins the v0.1 surface truth: the two-mode vocabulary,
+    # the dsh app as the enforced surface, and the pointer to the last
+    # release that carried the retired surfaces.
+    grep -q "AWT dsh app" "$REPO_ROOT/README.md" || return 1
+    grep -q "Advisory" "$REPO_ROOT/README.md" || return 1
+    grep -q "Enforced" "$REPO_ROOT/README.md" || return 1
+    grep -q "v0.5.0" "$REPO_ROOT/README.md" || return 1
 }
 
 # ----------------------------------------------------------------------------
