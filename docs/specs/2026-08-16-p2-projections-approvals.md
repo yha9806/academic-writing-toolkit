@@ -1,6 +1,6 @@
 # P2 — Projections, Approvals, Scaffold
 
-- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2 pending: awt init/verify, ask-seam approvals, structured-fact writer.
+- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2 in progress: harness pin DECIDED (below; 67/67 with pin probes); remaining: awt init/verify, ask-seam approvals; structured-fact writer BLOCKED on a published ignorable-append harness (tripwire armed).
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §8, §14
 - **Inputs:** P1 close-out discoveries; `docs/research/2026-08-16-ecosystem-practices.md`
   adoptions #1-#4, #6, #7 (this spec instantiates them; #5/#8 land in P3).
@@ -69,3 +69,44 @@ multi-user. Budget: two working sessions; §12 standing rule applies.
    notice channel — before enabling the writer. No fold changes required.
 3. `ESCALATION_REQUIRED` is deliberately absent from the vocabulary until the
    ask-seam ships — no denial code exists before its enforcement does.
+
+## Session 2 — harness pin decision (2026-08-16, local)
+
+**Decision: stay on published npm at exact `0.1.0-rc.6` everywhere; the
+structured-fact writer remains OFF, gated on the first PUBLISHED harness
+version whose `Session.append` honors `{ ignorable: true }`.**
+
+Evidence (verified 2026-08-16 via GitHub compare API + npm registry API):
+
+- The ignorable-append surface exists upstream only as three commits
+  referenced by **no branch** (repo's sole branch is master, frozen at the
+  2026-08-13 launch push): master + `9a20e17a` (feat: expose the ignorable
+  envelope marker on Session.append) → `f5be34d7` (docs) → `8c690c7` (test),
+  authored 2026-08-14. The PR surface of the repo is disabled; the commits
+  are reachable by SHA only.
+- npm has published nothing since 2026-08-13; `dist-tags.latest` still points
+  at `0.0.1-rc.1` (the known latest/next trap) and `next` at `0.1.0-rc.6`.
+
+Alternatives rejected:
+
+1. *Pin/vendor a from-source build at `8c690c7`* — pins an unreferenced,
+   rebase-vulnerable commit of a ~50-package monorepo and abandons the
+   npm-exact discipline; the payoff is only an earlier writer.
+2. *Model-visible user-message notice channel* — puts governance facts into
+   model context, violating §7 content-free separation. Off the table, not
+   deferred.
+
+Mechanism (the VULCA seam-probe/tripwire pattern), in
+`guards/tests/harness-pin-probe.test.ts`:
+
+- **Tripwire**: asserts the pinned harness still *drops* the ignorable
+  marker on append. The first pin bump where the marker is honored turns
+  this red, forcing: enable the writer + re-run the refold gate.
+- **Characterization**: asserts an unmarked unknown event type still
+  *refuses* to reload (the resume-poison this decision avoids). Expected to
+  keep passing after the bump — unknown-and-unmarked refusal is upstream's
+  deliberate fail-closed default.
+
+Consequences: session 2 proceeds with `awt init`/`awt verify` and the
+ask-seam approvals (neither depends on the writer); projections keep folding
+the derived channel with their documented gaps until the gate lifts.
