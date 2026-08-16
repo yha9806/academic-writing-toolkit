@@ -34,13 +34,3 @@ jobs:
       - name: Guards package tests (notes lint + catalogue truth tests)
         run: npm --prefix guards ci && npm --prefix guards test
 
-  plugin-app:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-      - name: Install plugin helper dependencies
-        run: pip install python-docx markdown
-      - run: make plugin-check

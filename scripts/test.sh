@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (123 automated tests, labelled T2-T126: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (123 automated tests, labelled T2-T126: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -2907,26 +2907,18 @@ EOF
 }
 
 test_T50() {
-    bash scripts/sync-plugin.sh --check >/dev/null
-}
-
-test_T51() {
-    bash scripts/check-plugin.sh >/dev/null
-}
-
-test_T52() {
-    local cache rc
-    cache="$REPO_ROOT/.claude/skills/export/scripts/__pycache__"
-    mkdir -p "$cache"
-    printf 'bytecode cache fixture\n' > "$cache/convert_to_docx.cpython-38.pyc"
-    bash scripts/sync-plugin.sh --check >/dev/null 2>&1
-    rc=$?
-    rm -rf "$cache"
-    return "$rc"
-}
-
-test_T53() {
-    ! grep -Rq 'removeprefix' "$REPO_ROOT/scripts/check-plugin.sh" "$REPO_ROOT/scripts/sync-plugin.sh"
+    # Single canonical skills tree (v0.1 design §13): every .claude/skills
+    # entry is exposed 1:1 through the repo-root .agents/skills links (dsh,
+    # Codex, and Claude Code all read the same files), every link resolves
+    # to a real SKILL.md, and no stray link points anywhere else.
+    local canonical linked name
+    canonical=$(ls "$REPO_ROOT/.claude/skills" | sort)
+    linked=$(ls "$REPO_ROOT/.agents/skills" | sort)
+    [[ "$canonical" == "$linked" ]] || return 1
+    for name in $linked; do
+        [[ -L "$REPO_ROOT/.agents/skills/$name" ]] || return 1
+        [[ -f "$REPO_ROOT/.agents/skills/$name/SKILL.md" ]] || return 1
+    done
 }
 
 _make_valid_release_packet() {
@@ -3108,10 +3100,7 @@ run_test "T48 verify-refs arXiv fixture verifies metadata" test_T48
 run_test "T49 verify-refs documents online flags" test_T49
 run_test "T125 verify-refs parses unbraced numeric fields" test_T125
 run_test "T126 verify-refs preserves nested-brace values" test_T126
-run_test "T50 plugin skills are synced" test_T50
-run_test "T51 plugin package validates" test_T51
-run_test "T52 plugin sync ignores bytecode caches" test_T52
-run_test "T53 plugin checks are Python 3.8 compatible" test_T53
+run_test "T50 canonical skills tree is exposed 1:1 via .agents/skills" test_T50
 run_test "T54 release packet validator accepts a clean packet" test_T54
 run_test "T55 release packet validator rejects invalid evidence state" test_T55
 run_test "T56 release packet validator rejects missing columns" test_T56

@@ -129,26 +129,14 @@ Local sessions default to
 `~/.local/share/academic-writing-toolkit/sessions` and can be deleted from the
 workbench.
 
-## Install the Codex plugin
+## Use the skills in Codex
 
-Use this route when you want the 20 AWT skills inside Codex rather than the
-single-review Workbench interface. Current Codex Desktop and Codex CLI builds
-support:
-
-```bash
-codex plugin marketplace add yha9806/academic-writing-toolkit \
-  --ref v0.5.0 \
-  --sparse .agents/plugins \
-  --sparse plugins/academic-writing-toolkit
-
-codex plugin add academic-writing-toolkit@academic-writing-toolkit
-codex plugin list
-```
-
-This installs the plugin from the immutable `v0.5.0` tag. It does not install
-the Workbench wheel and does not give the ChatGPT App access to local files.
-See the [Codex plugin submission and compatibility notes](docs/openai-codex-plugin-submission.md)
-if an older Codex build does not expose the `codex plugin` command.
+The canonical skill tree is exposed at `.agents/skills/` (the same files
+Claude Code reads from `.claude/skills/` and dsh discovers per workspace) —
+clone the repo and point Codex at it, or let `awt init` link the skills
+into your thesis workspace. The former packaged Codex plugin (`plugins/`)
+was decommissioned with the v0.1 rebuild; it remains installable from the
+immutable [v0.5.0 tag](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.5.0).
 
 ## Use the full repository from source
 
@@ -244,8 +232,6 @@ Safe fixers are deliberately narrow. They may normalise conservative citation pu
 ```bash
 make doctor             # read-only environment and project health
 make test               # regression suite
-make plugin-check       # plugin metadata, skill sync, bundled helpers
-make chatgpt-app-check  # ChatGPT App server tests
 
 npm --prefix guards test  # notes-contract lint + catalogue truth tests
 python3 scripts/audit-public-content.py --base-dir .
@@ -292,8 +278,6 @@ Edit `CLAUDE.md` for project-specific directories, page limits, British English 
   — the last release carrying the ChatGPT App, its privacy/terms documents,
   the Cloud Run/Render deployments, and the local workbench wheel; those
   surfaces are decommissioned on main (v0.1 design §13)
-- [Codex plugin publishing checklist](docs/plugin-publishing-checklist.md)
-- [OpenAI Codex plugin submission notes](docs/openai-codex-plugin-submission.md)
 - [README visual source in Figma](https://www.figma.com/design/HhaFm0uorv5oS7MsezWDN5)
 
 Every release should identify one exact Git ref, the packaged artifact and hash, its evidence state, the gate that approved it, and the owner of any remaining human decision.
