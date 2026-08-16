@@ -120,3 +120,33 @@ test('decide() reports contract scope before quote/notes issues', () => {
   )
   assert.equal(d?.code, 'CONTRACT_SCOPE')
 })
+
+// --- page budgets: red first ---------------------------------------------------
+
+import { decidePdfRead, foldPdfRead, type PageBudgetState } from '../src/decisions.ts'
+
+const BUDGET = { perInvocation: 15, perSession: 90 }
+const pdf = (first: number, last: number) => ({ tool: 'read_pdf', args: { file_path: 'literature/a.pdf', first_page: first, last_page: last } })
+
+test('a 16-page range is denied PAGE_RANGE_EXCEEDED', () => {
+  assert.equal(decidePdfRead(pdf(1, 16), { pagesRead: 0 }, BUDGET)?.code, 'PAGE_RANGE_EXCEEDED')
+})
+
+test('a read that would cross the 90-page session budget is denied', () => {
+  assert.equal(decidePdfRead(pdf(1, 10), { pagesRead: 85 }, BUDGET)?.code, 'PAGE_BUDGET_EXCEEDED')
+})
+
+test('in-budget reads pass and fold accumulates exactly', () => {
+  let state: PageBudgetState = { pagesRead: 0 }
+  for (let i = 0; i < 6; i++) {
+    assert.equal(decidePdfRead(pdf(1, 15), state, BUDGET), undefined)
+    state = foldPdfRead(state, pdf(1, 15))
+  }
+  assert.equal(state.pagesRead, 90)
+  assert.equal(decidePdfRead(pdf(1, 1), state, BUDGET)?.code, 'PAGE_BUDGET_EXCEEDED')
+})
+
+test('non-read_pdf tools and malformed ranges are ignored by the budget', () => {
+  assert.equal(decidePdfRead({ tool: 'read', args: { file_path: 'a.md' } }, { pagesRead: 89 }, BUDGET), undefined)
+  assert.equal(decidePdfRead(pdf(9, 3), { pagesRead: 0 }, BUDGET), undefined)
+})

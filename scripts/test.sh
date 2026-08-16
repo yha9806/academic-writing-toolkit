@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (121 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (123 automated tests, labelled T2-T126: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -615,6 +615,46 @@ EOF
     }
     rm -rf "$tmp"
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(v['source']=='arxiv' for v in d['verified'])"
+}
+
+
+test_T125() {
+    # red-first: unbraced numeric fields must parse (regex parser regression)
+    local tmp; tmp="$(mktemp -d)"
+    cat > "$tmp/refs.bib" <<'BIB'
+@article{plain2024,
+  title = {Plain Year Entry},
+  author = {Smith, Jane},
+  year = 2024,
+  journal = {Journal of Tools}
+}
+BIB
+    out="$(python3 "$REPO_ROOT/scripts/verify-refs.py" --bib "$tmp/refs.bib" --json)" || { rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+    ! echo "$out" | grep -q "missing-required-field" || return 1
+}
+
+test_T126() {
+    # red-first: brace-protected values must not truncate at inner braces
+    local tmp; tmp="$(mktemp -d)"
+    cat > "$tmp/refs.bib" <<'BIB'
+@article{nested2024,
+  title = {The {AWT} Story: Nested {Braces} Survive},
+  author = {Smith, Jane},
+  year = {2024},
+  journal = {Journal of Tools}
+}
+BIB
+    out="$(python3 - "$tmp/refs.bib" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("vr", "scripts/verify-refs.py")
+vr = importlib.util.module_from_spec(spec); spec.loader.exec_module(vr)
+entries = vr.parse_bibtex(open(sys.argv[1]).read())
+print(entries[0]["fields"]["title"])
+PY
+)" || { rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+    [[ "$out" == "The {AWT} Story: Nested {Braces} Survive" ]] || return 1
 }
 
 test_T49() {
@@ -3066,6 +3106,8 @@ run_test "T46 verify-refs flags Crossref title mismatch" test_T46
 run_test "T47 verify-refs flags Crossref year mismatch" test_T47
 run_test "T48 verify-refs arXiv fixture verifies metadata" test_T48
 run_test "T49 verify-refs documents online flags" test_T49
+run_test "T125 verify-refs parses unbraced numeric fields" test_T125
+run_test "T126 verify-refs preserves nested-brace values" test_T126
 run_test "T50 plugin skills are synced" test_T50
 run_test "T51 plugin package validates" test_T51
 run_test "T52 plugin sync ignores bytecode caches" test_T52

@@ -243,7 +243,7 @@ Safe fixers are deliberately narrow. They may normalise conservative citation pu
 
 ```bash
 make doctor             # read-only environment and project health
-make test               # 121 regression tests
+make test               # 123 regression tests
 make mvp-test           # lean workbench behaviour and file-safety checks
 make mvp-install-check  # exact wheel allowlist + fresh-install HTTP smoke
 make plugin-check       # plugin metadata, skill sync, bundled helpers

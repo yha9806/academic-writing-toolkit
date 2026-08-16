@@ -1,6 +1,6 @@
 # P1 — Guards and Headless Profile
 
-- **Status:** In progress (session 1 of the 2-session budget)
+- **Status:** Session 2 complete; ONE gate remains open (live dsh e2e) and the 2-session budget is consumed — see Closing status
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §7, §14
 - **Approved constraints:** pure-TypeScript guards; headless-first.
 
@@ -25,9 +25,9 @@
 | --- | --- | --- |
 | Decision kernel (`guards/src/decisions.ts`): pure, dependency-injected, unit-tested red-first | 1 | this change |
 | dsh plugin adapter (`guards/src/dsh-plugin.ts`) wiring the kernel into `ctx.tools.guard` | 1 | this change (structural types; not yet mounted) |
-| `awt-headless` profile package + live e2e (deny observed against a real dsh run with a scripted provider) | 2 | pending |
-| PDF ingestion decision + page-budget guard | 2 | pending |
-| `verify-refs` parser swap to `bibtexparser` | 2 | pending |
+| `awt-headless` profile package + live e2e (deny observed against a real dsh run with a scripted provider) | 2 | **open** — not attempted; budget consumed |
+| PDF ingestion decision + page-budget guard | 2 | done — decision: profile bundles a pdftotext-backed `read_pdf` tool (`file_path`, `first_page`, `last_page`); kernel `decidePdfRead`/`foldPdfRead` enforce 15/90 with red-first tests |
+| `verify-refs` parser swap to `bibtexparser` | 2 | done — **amended**: replaced by a stdlib balanced-brace parser instead. Rationale: `bibtexparser` failed to build in the pinned environment; a dependency the gate cannot install would make the gate non-deterministic, and the two measured defects (unbraced numeric fields reported missing; nested-brace truncation) are fixed directly with regression tests T125/T126. The amendment keeps the self-contained-tools principle the toolchain already enforces |
 
 ## Enforced rows implemented in session 1
 
@@ -67,3 +67,16 @@ Typed denials are content-free: code, rule, offending path, and remedy only.
   typed denial is observed in the session log. Until this gate is green,
   README and skills must keep describing these rules as *not yet enforced
   in any shipped runtime* (Claude Code surface remains advisory).
+
+## Closing status (end of session 2)
+
+Delivered: three chapter-write guards + page budgets in the pure kernel
+(24/24 red-first tests), dsh adapter on the monotonic guard seam, verify-refs
+parser rebuilt (suite now 123 tests), PDF ingestion decision recorded.
+
+Open: the live `awt-headless` e2e gate. Per parent spec §12's standing rule,
+the phase stops at its budget instead of expanding. Until that gate is green,
+every surface must keep describing these rules as not yet enforced in any
+shipped runtime. Author decision required: (a) grant P1 one closing session
+for profile packaging + live e2e, or (b) proceed to P2 and fold the e2e into
+P2's self-approval-attack gate.

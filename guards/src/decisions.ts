@@ -161,3 +161,61 @@ export function decide(call: ToolCall, repo: RepoView): Denial | undefined {
     decideNotesBeforeChapters(call, repo)
   )
 }
+
+// --- PAGE BUDGETS (P1 session 2) ---------------------------------------------
+// The awt profile's PDF ingestion tool is `read_pdf` (pdftotext-backed;
+// args: file_path, first_page, last_page). These decisions enforce the
+// per-invocation and per-session budgets; the session counter is plugin
+// state in P1 and becomes a session-log fold in P2.
+
+export type PageDenialCode = 'PAGE_RANGE_EXCEEDED' | 'PAGE_BUDGET_EXCEEDED'
+
+export interface PageDenial {
+  code: PageDenialCode
+  message: string
+}
+
+export interface PageBudgetConfig {
+  perInvocation: number // parent spec: 15
+  perSession: number // parent spec: 90
+}
+
+export interface PageBudgetState {
+  pagesRead: number
+}
+
+export function requestedPages(call: ToolCall): number | undefined {
+  if (call.tool !== 'read_pdf') return undefined
+  const first = call.args.first_page
+  const last = call.args.last_page
+  if (typeof first !== 'number' || typeof last !== 'number' || last < first) return undefined
+  return last - first + 1
+}
+
+export function decidePdfRead(
+  call: ToolCall,
+  state: PageBudgetState,
+  config: PageBudgetConfig
+): PageDenial | undefined {
+  const pages = requestedPages(call)
+  if (pages === undefined) return undefined
+  if (pages > config.perInvocation) {
+    return {
+      code: 'PAGE_RANGE_EXCEEDED',
+      message: `requested ${pages} pages; the per-invocation limit is ${config.perInvocation}. Split the range.`,
+    }
+  }
+  if (state.pagesRead + pages > config.perSession) {
+    return {
+      code: 'PAGE_BUDGET_EXCEEDED',
+      message: `session has read ${state.pagesRead} pages; ${pages} more would exceed the ${config.perSession}-page budget. Start a new session.`,
+    }
+  }
+  return undefined
+}
+
+/** Fold a completed read into the session counter (call after the tool ran). */
+export function foldPdfRead(state: PageBudgetState, call: ToolCall): PageBudgetState {
+  const pages = requestedPages(call)
+  return pages === undefined ? state : { pagesRead: state.pagesRead + pages }
+}
