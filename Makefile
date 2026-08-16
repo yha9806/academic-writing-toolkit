@@ -2,7 +2,7 @@
 # Run `make` (or `make help`) to see available targets.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup init sync plugin-sync plugin-check chatgpt-app-check doctor repair test mvp-test mvp-install-check
+.PHONY: help setup init sync plugin-sync plugin-check chatgpt-app-check doctor repair test
 
 EDITOR ?= vi
 
@@ -44,11 +44,5 @@ doctor:  ## Run all read-only health checks (CI-suitable, exit 0/1)
 repair:  ## Apply idempotent fixes for issues doctor flags
 	@bash scripts/repair.sh
 
-test:  ## Run the existing public regression suite (123 automated tests)
+test:  ## Run the existing public regression suite
 	@bash scripts/test.sh
-
-mvp-test:  ## Run the lean local-workbench regression tests
-	@PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/runtime -p 'test_*.py' -v
-
-mvp-install-check:  ## Build and verify the exact public runtime wheel allowlist
-	@bash scripts/check-mvp-install.sh
