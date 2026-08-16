@@ -93,3 +93,21 @@ test('verify refuses a directory that is not an AWT workspace', () => {
   assert.notEqual(res.status, 0)
   assert.match(res.stderr, /AWT_VERIFY_NOT_WORKSPACE/)
 })
+
+test('install-profile lands the canonical profile in a DSH_HOME and refuses to overwrite', () => {
+  const home = scratch()
+  const res = awt('install-profile', home)
+  assert.equal(res.status, 0, res.stderr)
+  const profile = join(home, 'profiles', 'awt-headless')
+  for (const file of ['package.json', 'cordis.patch.yml', join('awt-guards', 'dsh-plugin.js')]) {
+    assert.ok(lstatSync(join(profile, file)).isFile(), `missing ${file}`)
+  }
+  // No secret material anywhere in the installed profile files.
+  const patch = readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')
+  assert.match(patch, /apiKeyEnv/)
+  assert.doesNotMatch(patch, /sk-|api[-_]?key\s*[:=]\s*['"][A-Za-z0-9]/i)
+
+  const again = awt('install-profile', home)
+  assert.notEqual(again.status, 0)
+  assert.match(again.stderr, /AWT_PROFILE_EXISTS/)
+})

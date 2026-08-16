@@ -1,0 +1,39 @@
+# awt-headless — the canonical AWT profile patch (P3 spec item 1), applied
+# after the dsh-base and dsh-headless bundle layers.
+#
+# Credential discipline (eco #8): provider routes carry `apiKeyEnv`
+# credential REFERENCES only — no secret ever enters this file. A configured
+# reference that resolves to nothing fails the request with typed
+# MISSING_CREDENTIAL before any network I/O (asserted keylessly by
+# e2e/run-credential-probe.mjs, `awt verify` stage 5); it never falls
+# through to whatever unrelated key the ambient environment holds.
+#
+# The guards row has no projectRoot: it defaults to the process working
+# directory, so `dsh --profile awt-headless` runs INSIDE the thesis
+# workspace — and profile boot is itself a truth test (guards refuse to
+# mount against a directory that is not an AWT workspace).
+#
+# `awt install-profile` copies this directory plus the built guards bundle
+# into $DSH_HOME/profiles/awt-headless. A patch replaces whole row configs,
+# so rows below restate every field they keep.
+
+# Cost route by default; switch to the prose-fidelity route per session
+# with the headless model flags or a $DSH_HOME patch overlay.
+- id: agent-default-model
+  config:
+    provider: deepseek
+    model: deepseek-v4-flash
+
+# pi-ai multi-provider routes (mounted dormant by dsh-base; these profiles
+# bring them live). One credential reference per route.
+- id: llm-pi-ai
+  config:
+    providers:
+      deepseek:
+        apiKeyEnv: DEEPSEEK_API_KEY
+      anthropic:
+        apiKeyEnv: ANTHROPIC_API_KEY
+
+- insert:
+    - id: awt-guards
+      name: './awt-guards/dsh-plugin.js'

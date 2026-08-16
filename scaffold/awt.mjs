@@ -34,6 +34,7 @@ const SKILLS_SRC = join(PRODUCT_ROOT, '.claude', 'skills')
 const TEMPLATE_SRC = join(PRODUCT_ROOT, 'literature', 'reading_notes', '_template_NOTES.md')
 const GUARDS_DIR = join(PRODUCT_ROOT, 'guards')
 const E2E_DIR = join(PRODUCT_ROOT, 'e2e')
+const PROFILE_SRC = join(PRODUCT_ROOT, 'profiles', 'awt-headless')
 const DSH_BIN = join(E2E_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 const RUN_TIMEOUT_MS = 300_000
 
@@ -128,6 +129,36 @@ function init(target) {
 function relativeToCwd(path) {
   const cwd = process.cwd()
   return path.startsWith(cwd) ? path.slice(cwd.length + 1) : path
+}
+
+// --- install-profile ---------------------------------------------------------------
+
+/**
+ * Copy the canonical awt-headless profile template plus the built guards
+ * bundle into a real $DSH_HOME (default ~/.dsh). Never merges: an existing
+ * profile is a typed refusal — remove it first to upgrade.
+ */
+function installProfile(targetHome) {
+  const home = resolve(targetHome ?? process.env.DSH_HOME ?? join(process.env.HOME ?? '', '.dsh'))
+  const target = join(home, 'profiles', 'awt-headless')
+  if (existsSync(target)) {
+    throw new AwtError(
+      'AWT_PROFILE_EXISTS',
+      `refusing to overwrite the existing profile at ${target}`,
+      'remove that directory first (upgrades reinstall, never merge in place)',
+    )
+  }
+  const guardsDist = join(GUARDS_DIR, 'dist')
+  if (!existsSync(join(guardsDist, 'dsh-plugin.js'))) {
+    throw new AwtError('AWT_PROFILE_GUARDS_UNBUILT', `built guards bundle missing at ${guardsDist}`, `cd ${GUARDS_DIR} && npm install && npm run build`)
+  }
+  mkdirSync(target, { recursive: true })
+  cpSync(join(PROFILE_SRC, 'package.json'), join(target, 'package.json'))
+  cpSync(join(PROFILE_SRC, 'cordis.patch.yml'), join(target, 'cordis.patch.yml'))
+  cpSync(guardsDist, join(target, 'awt-guards'), { recursive: true })
+  console.log(`profile installed: ${target}`)
+  console.log('  routes need DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in the environment at run time (never in files)')
+  console.log(`verify composition: DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless --dump-config | grep awt-guards`)
 }
 
 // --- verify ------------------------------------------------------------------------
@@ -227,7 +258,13 @@ async function verify(target) {
   run('AWT_VERIFY_E2E', process.execPath, ['run-e2e.mjs'], { cwd: E2E_DIR })
   record('scripted-denial', 'live e2e evidence table green (5 scenarios)')
 
-  console.log(`\nVERIFY PASSED (${stages.length}/4): ${ws}`)
+  // 5. credential discipline (P3, keyless): a configured apiKeyEnv reference
+  // that resolves to nothing must fail typed (MISSING_CREDENTIAL), never
+  // fall through to ambient keys.
+  run('AWT_VERIFY_CREDENTIAL', process.execPath, ['run-credential-probe.mjs'], { cwd: E2E_DIR })
+  record('credential-probe', 'MISSING_CREDENTIAL fails typed and keyless')
+
+  console.log(`\nVERIFY PASSED (${stages.length}/5): ${ws}`)
 }
 
 // --- entry -------------------------------------------------------------------------
@@ -236,7 +273,8 @@ const [command, target] = process.argv.slice(2)
 try {
   if (command === 'init') init(target)
   else if (command === 'verify') await verify(target)
-  else fail(new AwtError('AWT_USAGE', 'usage: awt <init|verify> <dir>'))
+  else if (command === 'install-profile') installProfile(target)
+  else fail(new AwtError('AWT_USAGE', 'usage: awt <init|verify> <dir> | awt install-profile [dsh-home]'))
 } catch (error) {
   fail(error instanceof AwtError ? error : new AwtError('AWT_UNEXPECTED', error?.stack ?? String(error)))
 }

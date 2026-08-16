@@ -1,0 +1,14 @@
+{
+  "name": "dsh-profile-awt-headless",
+  "private": true,
+  "type": "module",
+  "dependencies": {},
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-headless"
+      ]
+    }
+  }
+}
