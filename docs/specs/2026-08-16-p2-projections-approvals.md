@@ -1,6 +1,6 @@
 # P2 — Projections, Approvals, Scaffold
 
-- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2 in progress: harness pin DECIDED (below; 67/67 with pin probes); remaining: awt init/verify, ask-seam approvals; structured-fact writer BLOCKED on a published ignorable-append harness (tripwire armed).
+- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2 in progress: harness pin DECIDED (below) and `awt init`/`awt verify` LANDED (scaffold/awt.mjs; manifest + refusal gates in guards/tests/scaffold.test.ts; 70/70; init→verify 4/4 end-to-end, verified locally). Remaining: ask-seam approvals; structured-fact writer BLOCKED on a published ignorable-append harness (tripwire armed).
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §8, §14
 - **Inputs:** P1 close-out discoveries; `docs/research/2026-08-16-ecosystem-practices.md`
   adoptions #1-#4, #6, #7 (this spec instantiates them; #5/#8 land in P3).
