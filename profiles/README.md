@@ -38,5 +38,25 @@ npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless "task"
 Remove by deleting `$DSH_HOME/profiles/awt-headless`; upgrade by
 re-running `install-profile` after removing (never merges in place).
 
+## awt-web
+
+The same enforcement, behind dsh's own web UI: **identical patch rows**
+(guards, `read_pdf`, apiKeyEnv routes) with `dsh-web-app` in place of the
+headless bundle — the difference between the two surfaces is exactly one
+bundle name, which is the point: the product is the composition, not the
+shell. `awt install-profile` installs both profiles together.
+
+```bash
+cd <your-thesis-workspace-or-anywhere>
+export DEEPSEEK_API_KEY=...
+npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180
+```
+
+Then open http://127.0.0.1:3180, add your workspace via the native folder
+picker, and converse. Port 3180 avoids colliding with other local dsh
+instances on the stock 3080. Composition verified live 2026-08-16: the web
+session injects the workspace contract (AGENTS.md/CLAUDE.md) and the
+skill catalog, and requests reach the configured provider route.
+
 Validated baseline: `@deepseek-ai/dsh@0.1.0-rc.6` — see `COMPAT.json` at
 the repo root for the dated, machine-readable claim.

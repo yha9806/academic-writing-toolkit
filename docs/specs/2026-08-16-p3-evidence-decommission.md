@@ -88,6 +88,18 @@
   clean; no reference to a removed surface outside README pointers.
 - E2 (s2): the author's chapter-cycle session log exists and replays.
 
+## Amendment: awt-web ships in v0.1 (2026-08-16, author-directed)
+
+Parent §15 Q3 deferred the web UI to v0.2 on the assumption it would cost
+material P1 scope. It cost one bundle name: `profiles/awt-web` is the
+identical enforcement patch over `dsh-base + dsh-web-app`, validated live
+before landing (workspace contract + skill catalog injected into a real
+web session; the request reached the provider route and failed only on
+account balance — 402, not toolchain). `awt install-profile` installs both
+surfaces; the scaffold test pins that their patches stay byte-identical.
+The headless-first sequencing that Q3 actually protected (P1 e2e without a
+browser) is unchanged.
+
 ## Non-goals
 
 No npm publication or adoption claims (publishing machinery is tested, not

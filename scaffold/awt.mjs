@@ -134,32 +134,37 @@ function relativeToCwd(path) {
 // --- install-profile ---------------------------------------------------------------
 
 /**
- * Copy the canonical awt-headless profile template plus the built guards
- * bundle into a real $DSH_HOME (default ~/.dsh). Never merges: an existing
- * profile is a typed refusal — remove it first to upgrade.
+ * Copy the canonical AWT profiles (awt-headless and awt-web) plus the built
+ * guards bundle into a real $DSH_HOME (default ~/.dsh). Both profiles share
+ * the same patch rows — guards, read_pdf, apiKeyEnv routes — and differ
+ * only in bundles (headless runner vs the dsh web UI). Never merges: an
+ * existing profile is a typed refusal — remove it first to upgrade.
  */
 function installProfile(targetHome) {
   const home = resolve(targetHome ?? process.env.DSH_HOME ?? join(process.env.HOME ?? '', '.dsh'))
-  const target = join(home, 'profiles', 'awt-headless')
-  if (existsSync(target)) {
-    throw new AwtError(
-      'AWT_PROFILE_EXISTS',
-      `refusing to overwrite the existing profile at ${target}`,
-      'remove that directory first (upgrades reinstall, never merge in place)',
-    )
-  }
   const guardsDist = join(GUARDS_DIR, 'dist')
   if (!existsSync(join(guardsDist, 'dsh-plugin.js'))) {
     throw new AwtError('AWT_PROFILE_GUARDS_UNBUILT', `built guards bundle missing at ${guardsDist}`, `cd ${GUARDS_DIR} && npm install && npm run build`)
   }
-  mkdirSync(target, { recursive: true })
-  cpSync(join(PROFILE_SRC, 'package.json'), join(target, 'package.json'))
-  cpSync(join(PROFILE_SRC, 'cordis.patch.yml'), join(target, 'cordis.patch.yml'))
-  cpSync(join(PROFILE_SRC, 'awt-read-pdf.plugin.mjs'), join(target, 'awt-read-pdf.plugin.mjs'))
-  cpSync(guardsDist, join(target, 'awt-guards'), { recursive: true })
-  console.log(`profile installed: ${target}`)
+  for (const name of ['awt-headless', 'awt-web']) {
+    const target = join(home, 'profiles', name)
+    if (existsSync(target)) {
+      throw new AwtError(
+        'AWT_PROFILE_EXISTS',
+        `refusing to overwrite the existing profile at ${target}`,
+        'remove that directory first (upgrades reinstall, never merge in place)',
+      )
+    }
+    mkdirSync(target, { recursive: true })
+    cpSync(join(PRODUCT_ROOT, 'profiles', name, 'package.json'), join(target, 'package.json'))
+    cpSync(join(PROFILE_SRC, 'cordis.patch.yml'), join(target, 'cordis.patch.yml'))
+    cpSync(join(PROFILE_SRC, 'awt-read-pdf.plugin.mjs'), join(target, 'awt-read-pdf.plugin.mjs'))
+    cpSync(guardsDist, join(target, 'awt-guards'), { recursive: true })
+    console.log(`profile installed: ${target}`)
+  }
   console.log('  routes need DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in the environment at run time (never in files)')
   console.log(`verify composition: DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless --dump-config | grep awt-guards`)
+  console.log(`web UI: run from your workspace — DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180`)
 }
 
 // --- verify ------------------------------------------------------------------------

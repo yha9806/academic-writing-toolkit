@@ -82,10 +82,13 @@ provider key at run time.
 
 ```bash
 node scaffold/awt.mjs init ~/thesis          # clean workspace + skill links
-node scaffold/awt.mjs install-profile        # profile into ~/.dsh (refuses to overwrite)
+node scaffold/awt.mjs install-profile        # awt-headless + awt-web into ~/.dsh
 cd ~/thesis
 export DEEPSEEK_API_KEY=...                  # or ANTHROPIC_API_KEY
 npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless "task"
+
+# or the same enforcement behind dsh's web UI:
+npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180
 ```
 
 `node scaffold/awt.mjs verify ~/thesis` runs the five-stage verification

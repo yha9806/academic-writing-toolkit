@@ -94,18 +94,30 @@ test('verify refuses a directory that is not an AWT workspace', () => {
   assert.match(res.stderr, /AWT_VERIFY_NOT_WORKSPACE/)
 })
 
-test('install-profile lands the canonical profile in a DSH_HOME and refuses to overwrite', () => {
+test('install-profile lands both canonical profiles in a DSH_HOME and refuses to overwrite', () => {
   const home = scratch()
   const res = awt('install-profile', home)
   assert.equal(res.status, 0, res.stderr)
-  const profile = join(home, 'profiles', 'awt-headless')
-  for (const file of ['package.json', 'cordis.patch.yml', join('awt-guards', 'dsh-plugin.js')]) {
-    assert.ok(lstatSync(join(profile, file)).isFile(), `missing ${file}`)
+  for (const name of ['awt-headless', 'awt-web']) {
+    const profile = join(home, 'profiles', name)
+    for (const file of ['package.json', 'cordis.patch.yml', 'awt-read-pdf.plugin.mjs', join('awt-guards', 'dsh-plugin.js')]) {
+      assert.ok(lstatSync(join(profile, file)).isFile(), `${name}: missing ${file}`)
+    }
+    // No secret material anywhere in the installed profile files.
+    const patch = readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')
+    assert.match(patch, /apiKeyEnv/)
+    assert.doesNotMatch(patch, /sk-|api[-_]?key\s*[:=]\s*['"][A-Za-z0-9]/i)
   }
-  // No secret material anywhere in the installed profile files.
-  const patch = readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')
-  assert.match(patch, /apiKeyEnv/)
-  assert.doesNotMatch(patch, /sk-|api[-_]?key\s*[:=]\s*['"][A-Za-z0-9]/i)
+  // The two profiles differ ONLY in bundles: same guard rows, same routes.
+  const headless = JSON.parse(readFileSync(join(home, 'profiles', 'awt-headless', 'package.json'), 'utf8'))
+  const web = JSON.parse(readFileSync(join(home, 'profiles', 'awt-web', 'package.json'), 'utf8'))
+  assert.deepEqual(headless.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless'])
+  assert.deepEqual(web.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+  assert.equal(
+    readFileSync(join(home, 'profiles', 'awt-headless', 'cordis.patch.yml'), 'utf8'),
+    readFileSync(join(home, 'profiles', 'awt-web', 'cordis.patch.yml'), 'utf8'),
+    'the enforcement patch must be identical across surfaces',
+  )
 
   const again = awt('install-profile', home)
   assert.notEqual(again.status, 0)
