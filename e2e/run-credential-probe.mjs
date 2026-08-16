@@ -39,8 +39,9 @@ try {
   const profile = join(home, 'profiles', 'awt-headless')
   mkdirSync(profile, { recursive: true })
   cpSync(join(PROFILE_SRC, 'package.json'), join(profile, 'package.json'))
-  cpSync(join(PROFILE_SRC, 'cordis.patch.yml'), join(profile, 'cordis.patch.yml'))
-  cpSync(join(PROFILE_SRC, 'awt-read-pdf.plugin.mjs'), join(profile, 'awt-read-pdf.plugin.mjs'))
+  for (const shared of ['cordis.patch.yml', 'awt-read-pdf.plugin.mjs', 'awt-brand.plugin.mjs']) {
+    cpSync(join(PROFILE_SRC, shared), join(profile, shared))
+  }
   cpSync(GUARDS_DIST, join(profile, 'awt-guards'), { recursive: true })
 
   // Minimal valid workspace (the guards refuse inert mounts).

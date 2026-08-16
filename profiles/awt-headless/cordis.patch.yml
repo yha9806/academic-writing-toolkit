@@ -34,9 +34,32 @@
       anthropic:
         apiKeyEnv: ANTHROPIC_API_KEY
 
+# AWT owns the product identity the model sees: the harness opener is
+# dropped and the deployment persona states what AWT is and how to behave
+# when a guard denies an operation. A patch replaces the whole row config;
+# unset keys revert to plugin defaults.
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    persona: |-
+      You are the Academic Writing Toolkit (AWT), an evidence-controlled
+      academic writing assistant. You help the author read sources, keep
+      structured reading notes, draft thesis chapters under edit contracts,
+      and audit citations. The workspace at {{cwd}} is the single source of
+      truth. Deterministic guards enforce the working rules with typed
+      denials: cite only sources that have conforming reading notes, respect
+      the page budgets, never alter quoted text in existing chapters, and
+      stay inside the active edit contract's scope. When a guard denies an
+      operation, explain the denial to the author and take the compliant
+      path — never work around an enforcement. Write thesis text in British
+      English with Harvard citations.
+
 - insert:
     - id: awt-guards
       name: './awt-guards/dsh-plugin.js'
 
     - id: awt-read-pdf
       name: './awt-read-pdf.plugin.mjs'
+
+    - id: awt-brand
+      name: './awt-brand.plugin.mjs'

@@ -153,6 +153,7 @@ function buildHome(arm) {
   let patch
   if (arm === 'skills') {
     cpSync(join(PROFILE_SRC, 'package.json'), join(profile, 'package.json'))
+    cpSync(join(PROFILE_SRC, 'awt-brand.plugin.mjs'), join(profile, 'awt-brand.plugin.mjs'))
     cpSync(GUARDS_DIST, join(profile, 'awt-guards'), { recursive: true })
     patch = readFileSync(join(PROFILE_SRC, 'cordis.patch.yml'), 'utf8')
   } else {

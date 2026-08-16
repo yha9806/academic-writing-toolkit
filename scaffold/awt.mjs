@@ -157,8 +157,9 @@ function installProfile(targetHome) {
     }
     mkdirSync(target, { recursive: true })
     cpSync(join(PRODUCT_ROOT, 'profiles', name, 'package.json'), join(target, 'package.json'))
-    cpSync(join(PROFILE_SRC, 'cordis.patch.yml'), join(target, 'cordis.patch.yml'))
-    cpSync(join(PROFILE_SRC, 'awt-read-pdf.plugin.mjs'), join(target, 'awt-read-pdf.plugin.mjs'))
+    for (const shared of ['cordis.patch.yml', 'awt-read-pdf.plugin.mjs', 'awt-brand.plugin.mjs']) {
+      cpSync(join(PROFILE_SRC, shared), join(target, shared))
+    }
     cpSync(guardsDist, join(target, 'awt-guards'), { recursive: true })
     console.log(`profile installed: ${target}`)
   }
