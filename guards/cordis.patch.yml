@@ -1,0 +1,8 @@
+# @awt/guards bundle patch: one composition row with enforcement-on
+# defaults (projectRoot = process cwd; page budgets 15/90). Installing the
+# package into a profile (`dsh plugin --profile <name> add <pkg>`) is the
+# whole install — the row mounts the guards, and an invalid workspace or
+# inert config is a typed profile-boot FAILURE, never a silent no-op.
+- insert:
+    - id: awt-guards
+      name: '@awt/guards'

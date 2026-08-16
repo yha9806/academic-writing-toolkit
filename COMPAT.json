@@ -1,0 +1,12 @@
+{
+  "harness": "@deepseek-ai/dsh@0.1.0-rc.6",
+  "upstreamAuditCommit": "47f943859bef60e4160492346772ded9b24f765a",
+  "lastVerified": "2026-08-16",
+  "gates": [
+    "guards test suite (testkit tier, pin probes, refold, ask-seam)",
+    "live headless e2e denial table (5 scenarios)",
+    "credential probe (typed MISSING_CREDENTIAL, keyless)",
+    "pack-and-install smoke (tarball into scratch DSH_HOME, dump-config row)"
+  ],
+  "notes": "A compatibility claim without a version and a date rots. The scheduled re-attestation workflow re-runs these gates; a red run is the report — this file is only ever updated by a human commit."
+}

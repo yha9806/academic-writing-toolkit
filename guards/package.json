@@ -3,11 +3,40 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "AWT deterministic guards: notes-contract lint and catalogue truth tests (P0); dsh guard plugins grow here in P1.",
+  "description": "AWT deterministic guards as an installable dsh bundle: chapter-write/page-budget enforcement, session-log projections, escalation ask-gate.",
+  "main": "./dist/dsh-plugin.js",
+  "exports": {
+    ".": "./dist/dsh-plugin.js",
+    "./notes-lint": "./dist/notes-lint.js",
+    "./vocabulary": "./dist/vocabulary.js"
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": "^22.12 || >=24",
+    "dsh": ">=0.1.0-rc.6"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
   "scripts": {
     "test": "node --import tsx --test tests/*.test.ts",
     "build": "tsc -p tsconfig.json",
     "lint:notes": "node --import tsx src/notes-lint.ts"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-session-projection": ">=0.1.0-rc.6 <0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-session-projection": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1",
