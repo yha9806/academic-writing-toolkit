@@ -25,6 +25,7 @@
     }
   },
   "scripts": {
+    "pretest": "npm run build",
     "test": "node --import tsx --test tests/*.test.ts",
     "build": "tsc -p tsconfig.json",
     "lint:notes": "node --import tsx src/notes-lint.ts"
