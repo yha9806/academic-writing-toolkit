@@ -15,3 +15,7 @@ node_modules/
 # Local worktrees (created by superpowers:using-git-worktrees skill)
 .worktrees/
 .gemini-agent/
+
+# E1 instrument: author-local inputs and producer outputs
+e1/pdfs.json
+e1/results/

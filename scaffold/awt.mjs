@@ -155,6 +155,7 @@ function installProfile(targetHome) {
   mkdirSync(target, { recursive: true })
   cpSync(join(PROFILE_SRC, 'package.json'), join(target, 'package.json'))
   cpSync(join(PROFILE_SRC, 'cordis.patch.yml'), join(target, 'cordis.patch.yml'))
+  cpSync(join(PROFILE_SRC, 'awt-read-pdf.plugin.mjs'), join(target, 'awt-read-pdf.plugin.mjs'))
   cpSync(guardsDist, join(target, 'awt-guards'), { recursive: true })
   console.log(`profile installed: ${target}`)
   console.log('  routes need DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in the environment at run time (never in files)')

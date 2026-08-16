@@ -1,9 +1,13 @@
 # P3 — Evidence, Distribution Hardening, Decommission
 
-- **Status:** Session 1 in progress. Sequenced: real-route profile +
-  credential discipline → distribution hardening → E1 instrument (this
-  session); legacy decommission + E2 handoff (session 2, same release as the
-  replacement — never before).
+- **Status:** Session 1 COMPLETE (items 1–3 landed and locally verified:
+  credential probe green; bundle contract + pack smoke green; E1 offline
+  lane discriminates on all four metrics — 84/84 guards, make test 123/123,
+  audit clean). The canonical profile also gained the real pdftotext-backed
+  `read_pdf` plugin (the e2e stub is now e2e-only). Session 2 remaining:
+  legacy decommission (same release as the replacement — never before) and
+  the E2 handoff; the E1 REAL lane awaits the author's three PDFs + a key
+  (`e1/pdfs.example.json`).
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §11 (evidence
   classes), §13 (decommission table), §14 (P3 row)
 - **Inputs:** `docs/research/2026-08-16-ecosystem-practices.md` adoptions

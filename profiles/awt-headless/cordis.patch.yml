@@ -37,3 +37,6 @@
 - insert:
     - id: awt-guards
       name: './awt-guards/dsh-plugin.js'
+
+    - id: awt-read-pdf
+      name: './awt-read-pdf.plugin.mjs'
