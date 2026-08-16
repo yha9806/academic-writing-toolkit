@@ -219,16 +219,26 @@ All guards are ordinary dsh plugins registered on public seams. No dsh source
 is patched. Denials are typed and content-free (operation, rule, observed,
 limit, correlation id — never prompt or manuscript text).
 
-| Constraint | Mode | Mechanism | Typed denial |
+Enforced rows, in the ecosystem's enforcement-semantics format (as
+implemented; the guards' own README carries the per-guard "what this does
+not do" sections):
+
+| Constraint | Seam | What is counted / diffed | Typed outcome |
 | --- | --- | --- | --- |
-| No chapter write without a conforming notes file for cited sources | Enforced | `tools/pre-execute` on write/edit targeting `chapters/**`; consults notes lint output | `NOTES_MISSING` |
-| ≤15 pages per read invocation | Enforced | tool-wrapper validates `pages` ranges | `PAGE_RANGE_EXCEEDED` |
-| ≤90 pages per conversation | Enforced | session counter plugin folds read events from the session log | `PAGE_BUDGET_EXCEEDED` |
-| Quote integrity: no edit may alter text inside quotation spans of existing chapter files | Enforced | `tools/pre-execute` diff check on quotation-delimited spans | `QUOTE_SPAN_MODIFIED` |
-| Edit-contract scope: writes restricted to the contract's allowed files/sections | Enforced | `tools/pre-execute` path/section check against the active contract | `CONTRACT_SCOPE` |
-| 3-strike revision escalation | Enforced (count), Advisory (diagnosis) | attempts counted by folding revision events per contract from the session log; at 3, the guard injects the escalation stop via `agent/pre-step` | `ESCALATION_REQUIRED` |
-| British English, citation punctuation | Advisory | model instruction + optional opt-in linter with disclosed false-positive rates | — |
-| Read-first writing posture, review rubrics | Advisory | skill text | — |
+| No chapter write may cite a source without a conforming notes file | `ctx.tools.guard` | author-year citations in the written text vs lint-conforming notes files | deny `NOTES_MISSING` |
+| Quoted text in existing chapters is immutable | `ctx.tools.guard` | quotation-delimited spans before vs after the proposed write/edit | deny `QUOTE_SPAN_MODIFIED` |
+| Chapter writes stay inside the active contract's scope | `ctx.tools.guard` | target path vs the active contract's `May change:` / `Must not change:` | deny `CONTRACT_SCOPE` |
+| ≤15 pages per read invocation | `ctx.tools.guard` | requested `first_page`..`last_page` | deny `PAGE_RANGE_EXCEEDED` |
+| ≤90 pages per session | `ctx.tools.guard` | successful reads folded from the session log (projection) | deny `PAGE_BUDGET_EXCEEDED` |
+| 3-strike revision escalation | `tools/pre-execute` waterfall | per-contract typed-denial attempts folded from the session log | `ask` `ESCALATION_REQUIRED` via the harness approval seam (fail-closed without an answerer) |
+| No inert enforcement mounts | plugin `apply()` at profile boot | config limits, notes root, contracts source | typed `GuardConfigError` boot failure |
+
+Advisory rows (instruction text; never described with enforcement
+vocabulary): British English and citation punctuation (optional opt-in
+linter with disclosed false-positive rates); read-first writing posture and
+review rubrics (skill text). The escalation *diagnosis* — why revisions
+keep failing — is likewise advisory; only the count and the author gate are
+enforced.
 
 CI proves every Enforced row with a red-first test: the forbidden operation is
 attempted against a live headless profile and must be denied with the exact

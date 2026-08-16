@@ -1,6 +1,6 @@
 # P2 — Projections, Approvals, Scaffold
 
-- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2: harness pin DECIDED (below), `awt init`/`awt verify` LANDED (scaffold/awt.mjs; manifest + refusal gates), ask-seam approvals LANDED (item 2: escalation `ask` via dsh-user-approval, self-approval attack re-run and blocked; 74/74, live e2e green). Remaining: item 6 docs reshape; structured-fact writer BLOCKED on a published ignorable-append harness (tripwire armed).
+- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2: harness pin DECIDED (below), `awt init`/`awt verify` LANDED (scaffold/awt.mjs; manifest + refusal gates), ask-seam approvals LANDED (item 2: escalation `ask` via dsh-user-approval, self-approval attack re-run and blocked; 74/74, live e2e green). Item 6 docs reshape LANDED (guards/README.md enforcement-semantics + "what this does not do"; parent §7 table reshaped as-implemented). **Session 2 complete**; the sole open item is the structured-fact writer, BLOCKED on a published ignorable-append harness (tripwire armed).
 - **Arming condition (recorded honestly):** the escalation gate arms from the
   revision fold, so it covers contracts that entered through logged writes —
   the real lifecycle. A contract file placed on disk outside dsh never arms
@@ -101,8 +101,9 @@ Alternatives rejected:
    model context, violating §7 content-free separation. Off the table, not
    deferred.
 
-Mechanism (the VULCA seam-probe/tripwire pattern), in
-`guards/tests/harness-pin-probe.test.ts`:
+Mechanism (a seam-probe/tripwire discipline: characterize what the pinned
+harness actually does, so behavior changes force re-review instead of
+rotting silently), in `guards/tests/harness-pin-probe.test.ts`:
 
 - **Tripwire**: asserts the pinned harness still *drops* the ignorable
   marker on append. The first pin bump where the marker is honored turns

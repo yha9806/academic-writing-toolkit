@@ -14,10 +14,10 @@
 // model-visible user-message notice channel (governance facts must never
 // enter model context — parent spec §7 "content-free").
 //
-// These probes are the VULCA seam-probe/tripwire pattern: they characterize
-// what the PINNED harness actually does, so a future pin bump that changes
-// the behavior turns a probe red and forces the deferred work instead of
-// letting it rot silently.
+// These probes are seam-probe tripwires: they characterize what the PINNED
+// harness actually does, so a future pin bump that changes the behavior
+// turns a probe red and forces the deferred work instead of letting it rot
+// silently.
 
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
