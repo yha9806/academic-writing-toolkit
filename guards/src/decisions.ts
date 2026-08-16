@@ -2,8 +2,13 @@
 // the three chapter-write guards (see docs/specs/2026-08-16-p1-guards-headless.md).
 // No dsh imports — the dsh adapter (dsh-plugin.ts) and any future harness
 // adapter both call into this module.
+//
+// P2: the denial-code unions live in vocabulary.ts (single owner shared by
+// guard, reducers, and tests); this module keeps its P1 export names.
 
-export type DenialCode = 'NOTES_MISSING' | 'QUOTE_SPAN_MODIFIED' | 'CONTRACT_SCOPE'
+import type { ChapterDenialCode, PageDenialCode as VocabularyPageDenialCode } from './vocabulary.ts'
+
+export type DenialCode = ChapterDenialCode
 
 export interface Denial {
   code: DenialCode
@@ -168,7 +173,7 @@ export function decide(call: ToolCall, repo: RepoView): Denial | undefined {
 // per-invocation and per-session budgets; the session counter is plugin
 // state in P1 and becomes a session-log fold in P2.
 
-export type PageDenialCode = 'PAGE_RANGE_EXCEEDED' | 'PAGE_BUDGET_EXCEEDED'
+export type PageDenialCode = VocabularyPageDenialCode
 
 export interface PageDenial {
   code: PageDenialCode

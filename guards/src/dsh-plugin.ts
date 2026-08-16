@@ -1,21 +1,29 @@
-// dsh adapter for the P1 decision kernel. Compiles against structural
-// interfaces only — no @deepseek-ai/dsh import — so upstream developer-preview
-// churn cannot break this package's tests. Mounted for real in P1's closing
-// live e2e (see e2e/): a profile patch row loads guards/dist/dsh-plugin.js
-// with `inject: [tools]` and the kernel decisions run on the monotonic
-// `ctx.tools.guard` seam of a real dsh process.
+// dsh adapter for the AWT guard kernel and the P2 session-log projections.
+// Compiles against structural interfaces only — no @deepseek-ai/dsh import —
+// so upstream developer-preview churn cannot break this package's tests.
+// Mounted for real by the live e2e (see e2e/): a profile patch row loads
+// guards/dist/dsh-plugin.js with `inject: [tools]` and the kernel decisions
+// run on the monotonic `ctx.tools.guard` seam of a real dsh process.
 //
 // rc.6 seam facts this adapter matches (verified against the installed
-// @deepseek-ai/dsh-tools 0.1.0-rc.6 type declarations):
+// @deepseek-ai/dsh* 0.1.0-rc.6 type declarations):
 // - `ToolGuard = (execution: Readonly<ToolExecution>) => string | undefined`
 // - `ToolExecution` carries the parsed call as `arguments` (frozen, lossless
 //   JSON), NOT `args` — the earlier structural assumption. `callArgs()` reads
 //   both so the adapter stays compatible with either field name.
+// - `ToolExecution.agent?.session` is the live session whose log is the
+//   durable source of truth; the page-budget guard reads the projection
+//   snapshot of exactly that session.
+// - `ctx.sessionProjections` (@deepseek-ai/dsh-session-projection, mounted
+//   by dsh-base) registers `{key, schema, init, apply, view, stateVersion}`
+//   units and serves synchronous, consistent `snapshot(session)` cuts. The
+//   adapter registers the three P2 projections there; in assemblies without
+//   the registry (minimal hosts) the guard falls back to a plugin-local
+//   fold, clearly marked non-authoritative below.
 // - `tools/result` is an emit event `(execution, result)` observed after the
-//   authoritative outcome; the page-budget fold hooks it when the host
-//   exposes `ctx.on` (optional, so a minimal guard host still works).
+//   authoritative outcome; it only drives the fallback counter.
 
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs'
 import { join, relative, resolve, isAbsolute } from 'node:path'
 import { lintNotes, hasErrors } from './notes-lint.ts'
 import {
@@ -27,6 +35,15 @@ import {
   type RepoView,
   type ToolCall,
 } from './decisions.ts'
+import { GuardConfigError, PAGE_BUDGET_KEY, denialReason, type PageBudgetValue } from './vocabulary.ts'
+import {
+  createIntegrationStatusProjection,
+  createRevisionAttemptsProjection,
+  pageBudgetProjection,
+  parseContractSource,
+  parseNotesSource,
+  type ProjectionDefinitionLike,
+} from './projections.ts'
 
 /** One in-pipeline tool call, as this plugin needs to see it (structural). */
 export interface GuardedExecution {
@@ -35,6 +52,14 @@ export interface GuardedExecution {
   arguments?: unknown
   /** Legacy structural field name kept for compatibility. */
   args?: unknown
+  /** The agent on whose behalf the call runs (rc.6: set by the agent loop). */
+  agent?: { session?: unknown }
+}
+
+/** Structural slice of rc.6's `ctx.sessionProjections` registry. */
+export interface ProjectionRegistryLike {
+  register<S, V>(definition: ProjectionDefinitionLike<S, V>): () => void
+  snapshot(session: unknown): { asOfSeq: number; values: Record<string, unknown> }
 }
 
 /** Structural slice of the dsh Cordis context this plugin needs. */
@@ -44,13 +69,21 @@ export interface GuardHostContext {
     guard(guard: (execution: GuardedExecution) => string | undefined): () => void
   }
   /**
-   * Cordis event subscription (optional in the structural slice). Used only
-   * to fold completed `read_pdf` calls into the per-session page counter.
+   * Cordis event subscription (optional in the structural slice). Only feeds
+   * the registry-less fallback page counter.
    */
   on?(
     event: 'tools/result',
     listener: (execution: GuardedExecution, result: { isError: boolean }) => void
   ): () => void
+  /** rc.6 projection registry, when the assembly mounts one (dsh-base does). */
+  sessionProjections?: ProjectionRegistryLike
+  /**
+   * Cordis dependency gate (optional in the structural slice). Preferred
+   * registration path: the callback runs once `sessionProjections` is
+   * available, so load order against dsh-base cannot race.
+   */
+  inject?(deps: string[], callback: (ctx: GuardHostContext) => void): unknown
 }
 
 function callArgs(execution: GuardedExecution): Record<string, unknown> {
@@ -79,10 +112,8 @@ export function fsRepoView(projectRoot: string): RepoView {
         if (!name.endsWith('_NOTES.md')) continue
         const text = readFileSync(join(dir, name), 'utf8')
         if (hasErrors(lintNotes(text))) continue
-        const source = text.match(/^\*\*Source\*\*:\s*(.+)$/m)?.[1] ?? ''
-        const surname = source.match(/^([A-Za-z'’-]+)\s*,/)?.[1]?.toLowerCase()
-        const year = source.match(/\((\d{4})[a-z]?\)/)?.[1] ?? source.match(/\b(\d{4})\b/)?.[1]
-        if (surname && year) out.push({ surname, year })
+        const source = parseNotesSource(text)
+        if (source) out.push(source)
       }
       return out
     },
@@ -91,14 +122,9 @@ export function fsRepoView(projectRoot: string): RepoView {
       if (!existsSync(dir)) return undefined
       for (const name of readdirSync(dir)) {
         if (!name.endsWith('.md')) continue
-        const text = readFileSync(join(dir, name), 'utf8')
-        if (!/^- \[ \] Attempt/m.test(text)) continue
-        const scope = (label: string) =>
-          (text.match(new RegExp(`^- ${label}:\\s*(.+)$`, 'm'))?.[1] ?? '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0 && !s.startsWith('{'))
-        return { mayChange: scope('May change'), mustNotChange: scope('Must not change') }
+        const parsed = parseContractSource(readFileSync(join(dir, name), 'utf8'))
+        if (!parsed.active) continue
+        return { mayChange: parsed.mayChange, mustNotChange: parsed.mustNotChange }
       }
       return undefined
     },
@@ -119,24 +145,95 @@ export interface Config {
 const DEFAULT_PAGE_BUDGET: PageBudgetConfig = { perInvocation: 15, perSession: 90 }
 
 /**
- * Cordis plugin entry: registers the three chapter-write guards plus the
- * read_pdf page budgets on the monotonic guard seam. All decisions come from
- * the pure kernel (decisions.ts); this file only adapts the seam.
+ * Inert-mount rejection (P2 spec item 3): a guard whose config enables
+ * nothing — or whose workspace lacks the sources the guards consult — is a
+ * profile-boot FAILURE with a typed GuardConfigError, never a quiet no-op
+ * mount. Exported so tests and `awt verify` (session 2) can run the exact
+ * boot check without mounting.
+ */
+export function validateConfig(config?: Config): { projectRoot: string; budget: PageBudgetConfig } {
+  const budget: PageBudgetConfig = { ...DEFAULT_PAGE_BUDGET, ...config?.pageBudget }
+  for (const [key, value] of [['perInvocation', budget.perInvocation], ['perSession', budget.perSession]] as const) {
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new GuardConfigError('PAGE_BUDGET_INERT', `pageBudget.${key} must be a positive safe integer, got ${String(value)}`)
+    }
+  }
+  if (budget.perSession < budget.perInvocation) {
+    throw new GuardConfigError(
+      'PAGE_BUDGET_INERT',
+      `pageBudget.perSession (${budget.perSession}) is below perInvocation (${budget.perInvocation}); no invocation could ever fill the session budget`
+    )
+  }
+  const projectRoot = resolve(config?.projectRoot ?? process.cwd())
+  const notesRoot = join(projectRoot, 'literature', 'reading_notes')
+  if (!existsSync(notesRoot) || !statSync(notesRoot).isDirectory()) {
+    throw new GuardConfigError(
+      'NOTES_ROOT_MISSING',
+      `notes root ${notesRoot} is not a directory; the notes-before-chapters guard would deny every cited write against an empty index. Create literature/reading_notes/ (awt init scaffolds it) or fix projectRoot`
+    )
+  }
+  const contractsRoot = join(projectRoot, 'contracts')
+  if (!existsSync(contractsRoot) || !statSync(contractsRoot).isDirectory()) {
+    throw new GuardConfigError(
+      'CONTRACTS_SOURCE_UNRESOLVABLE',
+      `contracts source ${contractsRoot} is not a directory; the contract-scope guard could never observe an active contract. Create contracts/ (awt init scaffolds it) or fix projectRoot`
+    )
+  }
+  return { projectRoot, budget }
+}
+
+/**
+ * Cordis plugin entry: validates the mount (throws typed GuardConfigError
+ * before any listener registers), registers the three P2 session-log
+ * projections on `ctx.sessionProjections`, and installs the chapter-write +
+ * page-budget guards on the monotonic guard seam. All decisions come from
+ * the pure kernel (decisions.ts); all counters come from the log folds
+ * (projections.ts); this file only adapts the seams.
  */
 export function apply(ctx: GuardHostContext, config?: Config): void {
-  const repo = fsRepoView(config?.projectRoot ?? process.cwd())
-  const budget: PageBudgetConfig = { ...DEFAULT_PAGE_BUDGET, ...config?.pageBudget }
-  let pages: PageBudgetState = { pagesRead: 0 }
+  const { projectRoot, budget } = validateConfig(config)
+  const repo = fsRepoView(projectRoot)
+
+  // P2: the page-budget counter (and its siblings) are session-log folds,
+  // not plugin state. Registration prefers the dependency gate so load order
+  // against dsh-base's session-projection row cannot race.
+  const revisionAttemptsProjection = createRevisionAttemptsProjection(projectRoot)
+  const integrationStatusProjection = createIntegrationStatusProjection(projectRoot)
+  let registry: ProjectionRegistryLike | undefined
+  const attach = (host: GuardHostContext): void => {
+    if (host.sessionProjections === undefined) return
+    registry = host.sessionProjections
+    registry.register(pageBudgetProjection)
+    registry.register(revisionAttemptsProjection)
+    registry.register(integrationStatusProjection)
+  }
+  if (typeof ctx.inject === 'function') ctx.inject(['sessionProjections'], attach)
+  else attach(ctx)
+
+  // Registry-less fallback ONLY (minimal hosts without dsh-base): a plugin-
+  // local, per-process counter — the P1 shape, kept so a degraded assembly
+  // still fails closed rather than not counting at all. Never consulted when
+  // the projection snapshot is available.
+  let fallbackPages: PageBudgetState = { pagesRead: 0 }
+  const pagesReadFor = (execution: GuardedExecution): number => {
+    const session = execution.agent?.session
+    if (registry !== undefined && session !== undefined) {
+      const value = registry.snapshot(session).values[PAGE_BUDGET_KEY]
+      if (typeof value === 'object' && value !== null && typeof (value as PageBudgetValue).pagesRead === 'number') {
+        return (value as PageBudgetValue).pagesRead
+      }
+    }
+    return fallbackPages.pagesRead
+  }
+
   ctx.tools.guard((execution) => {
     const call: ToolCall = { tool: execution.name, args: callArgs(execution) }
-    const denial = decide(call, repo) ?? decidePdfRead(call, pages, budget)
-    return denial ? `${denial.code}: ${denial.message}` : undefined
+    const denial =
+      decide(call, repo) ?? decidePdfRead(call, { pagesRead: pagesReadFor(execution) }, budget)
+    return denial ? denialReason(denial.code, denial.message) : undefined
   })
-  // Fold only completed reads into the session counter; a denied or failed
-  // call must not consume budget. P2 replaces this plugin state with a
-  // session-log fold.
   ctx.on?.('tools/result', (execution, result) => {
     if (result.isError) return
-    pages = foldPdfRead(pages, { tool: execution.name, args: callArgs(execution) })
+    fallbackPages = foldPdfRead(fallbackPages, { tool: execution.name, args: callArgs(execution) })
   })
 }

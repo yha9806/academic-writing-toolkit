@@ -1,6 +1,6 @@
 # P2 — Projections, Approvals, Scaffold
 
-- **Status:** Approved to start (author: "开工 P2" after ecosystem report); session 1 pending
+- **Status:** Session 1 complete (items 1, 3, 5 landed; 65/65 guard tests, e2e smoke green, independently re-verified). Session 2 pending: awt init/verify, ask-seam approvals, structured-fact writer.
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §8, §14
 - **Inputs:** P1 close-out discoveries; `docs/research/2026-08-16-ecosystem-practices.md`
   adoptions #1-#4, #6, #7 (this spec instantiates them; #5/#8 land in P3).
@@ -53,3 +53,19 @@
 
 No web UI (v0.2), no npm publication claims, no legacy deletion (P3), no
 multi-user. Budget: two working sessions; §12 standing rule applies.
+
+## Session-1 close-out discoveries (rc.6, file evidence in guards/src/vocabulary.ts)
+
+1. `ctx.sessionProjections.register()` is externally usable on rc.6 — the
+   three AWT folds register on the REAL registry; the page budget now reads a
+   per-SESSION snapshot (P1's plugin counter was silently per-process — a
+   discriminating two-session test now locks this in).
+2. **Missing upstream seam**: rc.6 `Session.append` cannot stamp
+   `ignorable: true`, and the persistence read path rejects unknown
+   non-ignorable event types — switching on the structured-fact WRITER on
+   rc.6 would poison session resume. The folds already consume the fact
+   channel, so session 2 only needs a harness pin at or beyond upstream's
+   ignorable-append commit (8c690c7) — or the model-visible user-message
+   notice channel — before enabling the writer. No fold changes required.
+3. `ESCALATION_REQUIRED` is deliberately absent from the vocabulary until the
+   ask-seam ships — no denial code exists before its enforcement does.
