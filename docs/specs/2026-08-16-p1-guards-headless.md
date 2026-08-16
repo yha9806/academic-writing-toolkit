@@ -1,6 +1,6 @@
 # P1 — Guards and Headless Profile
 
-- **Status:** Session 2 complete; ONE gate remains open (live dsh e2e) and the 2-session budget is consumed — see Closing status
+- **Status:** CLOSED 2026-08-16 — all gates green, including the live dsh e2e (author-granted closing session)
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §7, §14
 - **Approved constraints:** pure-TypeScript guards; headless-first.
 
@@ -25,7 +25,7 @@
 | --- | --- | --- |
 | Decision kernel (`guards/src/decisions.ts`): pure, dependency-injected, unit-tested red-first | 1 | this change |
 | dsh plugin adapter (`guards/src/dsh-plugin.ts`) wiring the kernel into `ctx.tools.guard` | 1 | this change (structural types; not yet mounted) |
-| `awt-headless` profile package + live e2e (deny observed against a real dsh run with a scripted provider) | 2 | **open** — not attempted; budget consumed |
+| `awt-headless` profile package + live e2e (deny observed against a real dsh run with a scripted provider) | 3 | **done** — e2e/ runs the published `@deepseek-ai/dsh@0.1.0-rc.6` launcher with an e2e profile mounting `guards/dist/dsh-plugin.js`; all four required scenarios plus the PAGE_RANGE_EXCEEDED stretch produced their typed outcome in the persisted session store, independently re-run (`node e2e/run-e2e.mjs`, exit 0). User-facing profile naming/packaging ships with P2 `awt init` |
 | PDF ingestion decision + page-budget guard | 2 | done — decision: profile bundles a pdftotext-backed `read_pdf` tool (`file_path`, `first_page`, `last_page`); kernel `decidePdfRead`/`foldPdfRead` enforce 15/90 with red-first tests |
 | `verify-refs` parser swap to `bibtexparser` | 2 | done — **amended**: replaced by a stdlib balanced-brace parser instead. Rationale: `bibtexparser` failed to build in the pinned environment; a dependency the gate cannot install would make the gate non-deterministic, and the two measured defects (unbraced numeric fields reported missing; nested-brace truncation) are fixed directly with regression tests T125/T126. The amendment keeps the self-contained-tools principle the toolchain already enforces |
 
@@ -80,3 +80,34 @@ every surface must keep describing these rules as not yet enforced in any
 shipped runtime. Author decision required: (a) grant P1 one closing session
 for profile packaging + live e2e, or (b) proceed to P2 and fold the e2e into
 P2's self-approval-attack gate.
+
+## P1 close-out (closing session, 2026-08-16)
+
+Live-gate evidence: `e2e/run-e2e.mjs` boots the real published launcher per
+scenario; a scripted LLM adapter drives the full loop (assistant tool call →
+`tools/pre-execute` → monotonic guards → durable `tool/result`). All five
+scenarios green including the negative control (conforming citation written,
+zero denials, file on disk). Re-run independently after the build agent's
+report — the gate is reproducible, not narrated.
+
+Discoveries that justify the live gate's existence:
+
+1. **The session-1 adapter was a silent no-op against rc.6**: `ToolExecution`
+   carries parsed arguments as `arguments`, not the structurally assumed
+   `args`; every guard read `{}` and allowed everything. Unit tests could not
+   catch this — only the live seam could. This is the drift class the gate
+   exists for, caught on its first run.
+2. rc.6 loads profile-local plugins from relative path names in
+   `cordis.patch.yml` insert rows; bare names resolve via the profile
+   node_modules farm. Recorded in `e2e/README.md`.
+3. Guard denials materialize as durable `tool/result` `Error: <reason>` with
+   `isError: true` — typed codes are greppable verbatim in the session store.
+4. The default session store is multi-frame zstd; the e2e profile pins
+   `compression: none` for assertability.
+5. Auxiliary LLM traffic (session titling) hits the default route; scripted
+   adapters must answer non-agent purposes or the run hangs.
+
+Remaining honesty boundary, unchanged until P2: the enforcement exists in the
+e2e profile, not yet in a user-installable `awt-headless` profile; skills and
+README keep the "not yet enforced in a shipped runtime" wording until `awt
+init` ships one.

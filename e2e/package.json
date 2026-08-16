@@ -1,0 +1,13 @@
+{
+  "name": "@awt/e2e-dsh-guards",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "P1 closing gate: live end-to-end proof that the AWT guard plugin denies forbidden tool calls inside a real DeepSeek Harness (dsh) headless run.",
+  "scripts": {
+    "e2e": "node run-e2e.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.6"
+  }
+}
