@@ -1,6 +1,6 @@
 # Prepare A Release-Governance Packet
 
-Use [`/release-governance`](../skills/13-release-governance.md) when preparing release, rebuttal, artifact, or camera-ready materials that need explicit evidence-state control.
+Use [`/release-governance`](../../archive/docs/skills/13-release-governance.md) when preparing release, rebuttal, artifact, or camera-ready materials that need explicit evidence-state control.
 
 ## Workflow
 

@@ -34,6 +34,7 @@ This is the data contract shared across all skills (`/read`, `/note`, `/integrat
 **Source**: {single-line citation in the project's declared style — see `literature/reading_notes/_template_NOTES.md` for per-style examples; the active style is `Citation style:` in `CLAUDE.md`}
 **Date read**: {YYYY-MM-DD}
 **Status**: reading
+**Evidence status**: {full_text | abstract_only | metadata_only}
 **Relevance**: {which chapter/section this maps to}
 
 ---
@@ -80,6 +81,23 @@ When appending to an existing file:
 
 If the section does not exist in the file (e.g., an older file missing `## Thesis Connections`), create it.
 
+## Evidence Status Field
+
+The firewall against citing sources known only from titles or abstracts:
+
+- `full_text` — the source was actually read (via `/read` or equivalent).
+- `abstract_only` — only the abstract was read. Its claims may motivate, not prove.
+- `metadata_only` — known from title/metadata only. Never cite as support.
+
+Set `abstract_only`/`metadata_only` honestly; upgrade only after real reading.
+
+## Verified Annotations
+
+When a fact in the notes is later checked (dates, names, quoted figures),
+annotate inline — `{claim} (verified {YYYY-MM-DD})` or
+`(corrected: {new value}, {YYYY-MM-DD})` — only after the user confirms the
+correction. Do not silently rewrite the original note text.
+
 ## Status Field
 
 - Starts as `reading` when the file is first created.
@@ -94,3 +112,4 @@ If the section does not exist in the file (e.g., an older file missing `## Thesi
 4. **Status transitions** are explicit: only change status when the user requests it or after `/integrate` completes.
 5. **No hardcoded paths.** Use the project's `literature/reading_notes/` directory relative to the project root.
 6. **One file per text.** Each book, article, or paper gets exactly one notes file.
+7. **Lint conformance.** The deterministic contract check is `npm --prefix guards run lint:notes -- {file}` (when `guards/` is present). A file that fails the lint is invisible to `/integrate` and `/map` — fix it rather than working around it.

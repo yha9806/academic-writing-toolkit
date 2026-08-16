@@ -309,8 +309,8 @@ except ImportError:
 
 plugin_root = Path(sys.argv[1])
 skill_paths = sorted((plugin_root / "skills").glob("*/SKILL.md"))
-if len(skill_paths) != 20:
-    raise SystemExit(f"expected 20 plugin skills, observed {len(skill_paths)}")
+if len(skill_paths) != 9:
+    raise SystemExit(f"expected 9 plugin skills, observed {len(skill_paths)}")
 
 for path in skill_paths:
     text = path.read_text(encoding="utf-8")
@@ -365,21 +365,11 @@ if grep -R "\[TODO\]\|TODO:" "$PLUGIN_ROOT" "$MARKETPLACE_JSON" >/dev/null; then
     die "plugin package contains TODO placeholders"
 fi
 
-for skill in argument-governance audit evidence-review export human-eval-handoff-repair integrate logic-review manuscript-reframe map note peer-review progress read release-governance revision-escalation self-review style thesis-control verify verify-refs; do
+for skill in audit edit-contract export integrate map note read review verify-refs; do
     [[ -f "$PLUGIN_ROOT/skills/$skill/SKILL.md" ]] || die "missing plugin skill: $skill"
 done
 
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/argument-governance/scripts/check_argument_governance.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/audit/scripts/audit-citations.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/style/scripts/audit-british-english.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/logic-review/scripts/audit-logic.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/verify-refs/scripts/verify-refs.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/export/scripts/convert_to_docx.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/evidence-review/scripts/check_review_package.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/release-governance/scripts/check_release_packet.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/check_thesis_control.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/scaffold_thesis_control.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py" --help >/dev/null
-"$PYTHON_BIN" "$PLUGIN_ROOT/skills/self-review/scripts/check_self_review_packet.py" --help >/dev/null
 
 ok "plugin package validates"

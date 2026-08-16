@@ -188,30 +188,33 @@ The demo uses fictional public-safe sources. It exercises the same validators us
 python3 scripts/verify-refs.py \
   --bib examples/demo-project/references.bib --json
 
-python3 .claude/skills/evidence-review/scripts/check_review_package.py \
-  examples/demo-project --strict
-
-python3 .claude/skills/release-governance/scripts/check_release_packet.py \
-  examples/demo-project --json
-
-python3 .claude/skills/thesis-control/scripts/check_thesis_control.py \
-  examples/thesis-control-revision-escalation/approved --strict --json
+npm --prefix guards install
+npm --prefix guards run lint:notes -- examples/demo-project/literature/reading_notes/smith2024_NOTES.md
 ```
 
-A valid run reports no blocking issues. Then compare the matched blocked and approved packets in [`examples/thesis-control-revision-escalation/`](examples/thesis-control-revision-escalation/) to see how an author-approved escalation releases a fourth revision.
+A valid run reports no blocking issues. The earlier governance-packet demos
+and the lost-in-conversation comparison fixture were retired with their
+skills; they remain inspectable under [`archive/skills/`](archive/skills/)
+and [`examples/`](examples/) but are no longer presented as evaluations.
 
-For multi-turn drift evaluation, [`examples/lost-in-conversation-bench/`](examples/lost-in-conversation-bench/) compares normal editing, consolidated prompting, and `/thesis-control` artifacts across multiple public-safe cases.
+## 9 composable skills
 
-For project-level thesis drift, [`examples/project-intent-drift-gate/`](examples/project-intent-drift-gate/) shows strict validation blocking a domain survey after its primary domain becomes a secondary stress test, then passing the restored manuscript contract.
-
-## 20 composable skills
+The catalogue was triaged from 20 skills to 9 plus 3 reference documents on
+2026-08-16 after an adversarial efficacy review (every skill had to beat the
+unaided frontier model to stay). See
+[`docs/specs/2026-08-16-awt-dsh-app-v0.1-design.md`](docs/specs/2026-08-16-awt-dsh-app-v0.1-design.md)
+for the per-skill verdicts; retired skills live under [`archive/skills/`](archive/skills/).
 
 | Lane | Skills | What the lane produces |
 |---|---|---|
-| **Read and ground** | `/read`, `/note`, `/verify`, `/map`, `/evidence-review` | source notes, status labels, gap maps, claim registers, citation-role plans |
-| **Design and review the argument** | `/argument-governance`, `/peer-review`, `/self-review` | contribution chains, claim hierarchies, reviewer attack maps, clean-room findings |
-| **Write without losing control** | `/integrate`, `/thesis-control`, `/revision-escalation`, `/manuscript-reframe` | approved integrations, edit contracts, drift audits, escalation gates, reframe plans |
-| **Audit, package, and release** | `/audit`, `/release-governance`, `/style`, `/logic-review`, `/verify-refs`, `/human-eval-handoff-repair`, `/progress`, `/export` | consistency findings, release packets, reference checks, progress views, Word/ZIP exports |
+| **Read and ground** | `/read`, `/note`, `/map` | page-anchored notes with an evidence-status firewall, coverage matrix, progress dashboard |
+| **Write without losing control** | `/integrate`, `/edit-contract` | approved integration plans, spine cards, bounded edit scopes, 3-strike escalation |
+| **Review and ship** | `/review`, `/audit`, `/verify-refs`, `/export` | anchored review findings, consistency reports, BibTeX checks, Word/ZIP exports |
+
+Reference documents (loaded on demand, no standing prompt cost):
+[`references/argument-checklist.md`](references/argument-checklist.md),
+[`references/evidence-vocabulary.md`](references/evidence-vocabulary.md),
+[`references/reframe-method.md`](references/reframe-method.md).
 
 Detailed, goal-oriented documentation lives in:
 
@@ -230,7 +233,6 @@ AWT's deterministic helpers verify structural facts that software can check reli
 - source-note citation shape and in-text citation consistency
 - malformed or duplicate BibTeX records
 - claim/evidence and clean-room packet structure
-- project-intent lineage, manuscript/global-audit links, revision-attempt ordering, drift-audit state, and human-gate completeness
 - plugin sync, public-content boundaries, local-path leakage, and packaging integrity
 
 They do **not** prove that a scientific claim is true, that evidence is sufficient for a venue, that a paper will be accepted, or that an AI-generated revision expresses the author's intent. Those remain human scholarly judgments.
@@ -247,9 +249,7 @@ make mvp-install-check  # exact wheel allowlist + fresh-install HTTP smoke
 make plugin-check       # plugin metadata, skill sync, bundled helpers
 make chatgpt-app-check  # ChatGPT App server tests
 
-python3 scripts/audit-citations.py --base-dir . --style harvard --json
-python3 scripts/audit-british-english.py --base-dir . --json
-python3 scripts/audit-logic.py --base-dir . --json
+npm --prefix guards test  # notes-contract lint + catalogue truth tests
 python3 scripts/audit-public-content.py --base-dir .
 ```
 
@@ -270,6 +270,9 @@ my-writing-project/
 ├── .claude/skills/          canonical local skill sources
 ├── .agents/skills/          shared discovery links for compatible agents
 ├── .cursor/rules/           Cursor baseline rules
+├── guards/                  TypeScript notes lint + catalogue truth tests
+├── references/              on-demand reference documents
+├── archive/skills/          retired skills (deleted in P3)
 ├── apps/                    bounded ChatGPT App MCP server
 ├── chapters/                manuscript chapters
 ├── literature/

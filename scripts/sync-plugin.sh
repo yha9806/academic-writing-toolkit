@@ -60,9 +60,6 @@ generate_skills() {
     cp -R "$SOURCE_SKILLS/." "$dest/"
     remove_python_caches "$dest"
 
-    copy_helper "$REPO_ROOT/scripts/audit-citations.py" "$dest/audit/scripts/audit-citations.py"
-    copy_helper "$REPO_ROOT/scripts/audit-british-english.py" "$dest/style/scripts/audit-british-english.py"
-    copy_helper "$REPO_ROOT/scripts/audit-logic.py" "$dest/logic-review/scripts/audit-logic.py"
     copy_helper "$REPO_ROOT/scripts/verify-refs.py" "$dest/verify-refs/scripts/verify-refs.py"
 
     "$PYTHON_BIN" - "$dest" <<'PY'
@@ -79,35 +76,6 @@ def replace(relative_path: str, old: str, new: str) -> None:
     with path.open("w", encoding="utf-8", newline="\n") as fh:
         fh.write(text.replace(old, new))
 
-replace(
-    "audit/SKILL.md",
-    "   Run `python3 scripts/audit-citations.py --base-dir . --style $(grep -oP '(?<=Citation style: )\\S+' CLAUDE.md) --json` and parse the JSON output. The script implements four tiers:",
-    "   Resolve the bundled helper at `scripts/audit-citations.py` relative to this `SKILL.md`, then run it from the project root:\n\n"
-    "   `python3 {skill_dir}/scripts/audit-citations.py --base-dir . --style $(grep -oP '(?<=Citation style: )\\S+' CLAUDE.md) --json`\n\n"
-    "   Parse the JSON output. The script implements four tiers:",
-)
-replace(
-    "audit/SKILL.md",
-    "   See `docs/skills/06-audit.md` and `python3 scripts/audit-citations.py --help` for the public citation-audit interface and supported styles.",
-    "   Use `python3 {skill_dir}/scripts/audit-citations.py --help` for the public citation-audit interface and supported styles.",
-)
-replace(
-    "style/SKILL.md",
-    "1. Run:\n   `python3 scripts/audit-british-english.py --base-dir . --json`",
-    "1. Resolve the bundled helper at `scripts/audit-british-english.py` relative to this `SKILL.md`, then run it from the project root:\n"
-    "   `python3 {skill_dir}/scripts/audit-british-english.py --base-dir . --json`",
-)
-replace(
-    "style/SKILL.md",
-    "   `python3 scripts/audit-british-english.py --base-dir . --fix`",
-    "   `python3 {skill_dir}/scripts/audit-british-english.py --base-dir . --fix`",
-)
-replace(
-    "logic-review/SKILL.md",
-    "1. Run:\n   `python3 scripts/audit-logic.py --base-dir . --json`",
-    "1. Resolve the bundled helper at `scripts/audit-logic.py` relative to this `SKILL.md`, then run it from the project root:\n"
-    "   `python3 {skill_dir}/scripts/audit-logic.py --base-dir . --json`",
-)
 replace(
     "verify-refs/SKILL.md",
     "2. Run:\n   `python3 scripts/verify-refs.py --bib {path} --json`",

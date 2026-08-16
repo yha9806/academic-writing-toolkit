@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Use when checking a thesis draft before submission for inconsistent numbers, terminology, cross-references, or citation problems.
+description: Check thesis chapters for consistency before submission — contradictory numbers, terminology drift, and broken cross-references.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
@@ -34,25 +34,16 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    - References to tables and figures must match actual table/figure numbers.
    - Forward references ("Chapter 6 will show...") must be fulfilled.
 
-   **D. Citation consistency**
+   **D. Citation checks — disabled in this release (disclosed gap)**
 
-   Resolve the bundled helper at `scripts/audit-citations.py` relative to this `SKILL.md`, then run it from the project root:
-
-   `python3 {skill_dir}/scripts/audit-citations.py --base-dir . --style $(grep -oP '(?<=Citation style: )\S+' CLAUDE.md) --json`
-
-   Parse the JSON output. The script implements four tiers:
-
-   - **Tier 0** — Source-line lint over `literature/reading_notes/*_NOTES.md`. Flags missing or malformed `**Source**:` lines. Severity `medium` (`notes-source-missing`) or `medium` (`notes-source-malformed`).
-   - **Tier 1** — Pairing. Every in-text citation must match a `**Source**:` entry; every Source must be cited at least once. Three modes:
-     - Author-Year (Harvard, APA, Chicago Author-Date, GB/T 7714-2015): pair on `(lastname, year)`. Phantom and unused → severity `high`.
-     - Author-Page (MLA): pair on `lastname` only.
-     - Numeric (IEEE, Vancouver): pair on count balance + integer-gap detection.
-   - **Tier 2** — Style mode detection across all in-text citations. Flags outliers when the manuscript drifts (e.g. mixed `(Smith 2024)` and `(Smith, 2024)`). Severity `medium`.
-   - **Tier 3** — Per-style format validation against the declared `Citation style:` in `CLAUDE.md`. Flags wrong-comma, et al. threshold violations, wrong multi-author connector. Severity `low`.
-
-   The script's exit code is `0` (no issues), `1` (issues at any tier), or `2` (invalid arguments). Add the script's issues to the `Issues` table below as new rows; severity vocabulary maps directly (`critical | high | medium | low | info`).
-
-   Use `python3 {skill_dir}/scripts/audit-citations.py --help` for the public citation-audit interface and supported styles.
+   The deterministic citation tiers previously run here are disabled: measured
+   against realistic thesis text they produced false high-severity "phantom
+   citation" findings on ordinary parentheticals, missed multi-word
+   institutional authors, and flagged the comma form that Cite Them Right
+   Harvard mandates. Until the checker meets a measured, disclosed
+   false-positive rate, do not run it and do not present citation
+   consistency as audited. Reference integrity is still covered by
+   `/verify-refs` (BibTeX records) and by the notes-file contract lint.
 
 3. **Output the audit report** using the format below.
 

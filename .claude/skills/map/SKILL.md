@@ -1,7 +1,7 @@
 ---
 name: map
-description: Show or update the mapping between literature and thesis chapters — which sources support which arguments. Use for tracking coverage.
-allowed-tools: Read, Glob, Grep, Edit, Write
+description: Show literature-to-chapter coverage and the writing progress dashboard — which sources support which chapters, and word counts against targets.
+allowed-tools: Read, Glob, Grep, Edit, Write, Bash(wc *), Bash(npm --prefix guards *)
 ---
 
 # /map — Literature-Thesis Mapping Skill
@@ -30,7 +30,12 @@ This skill activates on: `map`, `show mapping`, `coverage`, `which sources`, `/m
 
 4. **Identify coverage gaps.** Flag any chapter that has fewer than 3 mapped sources as "under-covered".
 
-5. **Output the mapping.**
+5. **Add the progress dashboard.** Count chapter words deterministically with
+   `wc -w chapters/*.md` (never estimate word counts by reading), compare
+   against the per-chapter targets in `CLAUDE.md`, and count notes files by
+   `Status` value (reading / completed / integrated).
+
+6. **Output the mapping and dashboard.**
 
 ## Output Format
 
@@ -72,4 +77,5 @@ If the user says "save" or "export mapping", write the matrix to `literature/map
 2. **No emoji** in output.
 3. **No hardcoded chapter count.** Detect chapters dynamically from the `chapters/` directory.
 4. **Source names** use the format `{Author} ({Year})` for readability.
-5. **Connection types** are derived from the `Connection Type` column in notes files. If that column is missing, infer from the `Relevance` field.
+5. **Connection types** are derived from the `Connection Type` column in notes files. If a notes file lacks the table or fails the contract lint (`npm --prefix guards run lint:notes -- {file}` when `guards/` is present), list it under "Unparseable notes files" instead of inferring cells — a broken file must surface as an error, never as a guessed mapping.
+6. **Word counts** come from `wc -w`, never from model estimation.
