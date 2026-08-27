@@ -1,6 +1,19 @@
 # AWT dsh App v0.1 Design
 
-- **Status:** Draft for author review; implementation has not started and must not start before explicit author approval
+- **Status:** IMPLEMENTED (2026-08-16), not yet E2-verified. Author-approved
+  and built through P0–P3 on branch `claude/project-evaluation-review-2ily1b`
+  (PR #32): catalogue triage, guards with typed denials, session-log
+  projections, harness-event approvals, `awt init`/`verify`/`install-profile`,
+  the `awt-headless` and `awt-web` profiles, the E1 instrument, and the §13
+  decommission. Per-phase truth lives in each phase spec's own Status header;
+  those headers, not this one, are the working state source.
+  **Evidence class reached: E0 only** (deterministic gates green in CI —
+  guards 84/84, regression 120/120, live headless denial table, credential
+  probe, pack-and-install smoke). E1 has a working instrument but no real-lane
+  results; E2 (the author's chapter cycle) has not been run; E3 does not
+  exist. Two open deviations are recorded in the phase specs: the
+  structured-fact writer waits on a published ignorable-append harness
+  (tripwire armed), and `archive/skills/` is retained.
 - **Date:** 2026-08-16
 - **Project:** `academic-writing-toolkit` (AWT)
 - **Positioning:** 70% enforcement kernel and evidence, 30% skill-catalogue triage; 0% new writing advice
