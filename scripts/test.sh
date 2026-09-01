@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (121 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (123 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 prose fingerprint) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3128,6 +3128,66 @@ run_test "T108 scaffold validates the complete candidate packet before mutation"
 run_test "T109 scaffold and migration reject internal symlink paths" test_T109
 run_test "T110 batch rollback and invalid UTF-8 fail cleanly" test_T110
 run_test "T111 empty and invalid audit outcomes return located issues" test_T111
+test_T125() {
+    # The point of the fingerprint audit is dispersion, not frequency. Two
+    # documents use the same construction at the same rate; one spreads it
+    # evenly, the other clusters it. The audit must separate them.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+filler = ("The encoder ranks each candidate image against the query text and "
+          "records the position of the correct one for every technique in turn. ")
+marked = "The score reflects the source of the page rather than its content. "
+# same count (12) and same length; spread evenly vs gathered into two
+# clusters separated by a drought. A single run of consecutive occurrences
+# is NOT bursty -- its internal gaps are as regular as an even spread.
+even = "".join(filler * 6 + marked for _ in range(12))
+bursty = (filler * 24 + (marked + filler) * 6
+          + filler * 24 + (marked + filler) * 6 + filler * 24)
+(d / "even.txt").write_text(even, encoding="utf-8")
+(d / "bursty.txt").write_text(bursty, encoding="utf-8")
+PYEOF
+    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/even.txt" --json 2>&1) || true
+    local even_cv
+    even_cv=$(echo "$out" | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['contrast_gap_cv']['value'])")
+    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/bursty.txt" --json 2>&1) || true
+    local bursty_cv
+    bursty_cv=$(echo "$out" | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['contrast_gap_cv']['value'])")
+    rm -rf "$tmp"
+    python3 - "$even_cv" "$bursty_cv" <<'PYEOF'
+import sys
+even, bursty = float(sys.argv[1]), float(sys.argv[2])
+# even use is near-regular; bunched use is far from it
+assert even < 0.35, "even text should have low gap CV, got %r" % even
+assert bursty > even * 2, "bunched text should have higher gap CV (%r vs %r)" % (bursty, even)
+PYEOF
+}
+
+test_T126() {
+    # Percentiles are withheld when the baseline is too small to support them,
+    # and a missing target is a usage error rather than an empty report.
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+body = ("The retrieval pool holds one relevant image for every query. "
+        "Each candidate is scored and ranked by cosine similarity. ") * 60
+(d / "target.txt").write_text(body, encoding="utf-8")
+(d / "base" / "one.txt").write_text(body, encoding="utf-8")
+PYEOF
+    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
+            --baseline "$tmp/base" --json 2>&1) || true
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['baseline_sufficient'] is False; assert 'percentile' not in d['metrics']['semicolon_per_1k']" || { rm -rf "$tmp"; return 1; }
+    python3 scripts/audit-prose-fingerprint.py --target "$tmp/nope.txt" >/dev/null 2>&1
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 2 ]]
+}
+
 run_test "T112 argument governance validator accepts a clean packet" test_T112
 run_test "T113 argument governance validator flags weak main support" test_T113
 run_test "T114 self-review packet validator accepts clean-room manifest" test_T114
@@ -3141,6 +3201,8 @@ run_test "T121 scaffold populates header-only project-intent files" test_T121
 run_test "T122 project-intent migration creates a blocked draft atomically" test_T122
 run_test "T123 project-intent migration rejects partial schema without mutation" test_T123
 run_test "T124 project-intent migration normalises direct-call roots" test_T124
+run_test "T125 prose fingerprint separates even from bunched use" test_T125
+run_test "T126 prose fingerprint withholds percentiles on a thin baseline" test_T126
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

@@ -250,6 +250,7 @@ make chatgpt-app-check  # ChatGPT App server tests
 python3 scripts/audit-citations.py --base-dir . --style harvard --json
 python3 scripts/audit-british-english.py --base-dir . --json
 python3 scripts/audit-logic.py --base-dir . --json
+python3 scripts/audit-prose-fingerprint.py --target chapters --baseline literature
 python3 scripts/audit-public-content.py --base-dir .
 ```
 
