@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (125 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 prose fingerprint + T127-T128 claim positioning) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (129 automated tests, labelled T2-T132: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 prose fingerprint + T127-T128 claim positioning + T129-T132 estimator alignment) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3270,10 +3270,125 @@ run_test "T121 scaffold populates header-only project-intent files" test_T121
 run_test "T122 project-intent migration creates a blocked draft atomically" test_T122
 run_test "T123 project-intent migration rejects partial schema without mutation" test_T123
 run_test "T124 project-intent migration normalises direct-call roots" test_T124
+test_T129() {
+    # lag-1 must not join the spans on either side of a dropped one.
+    # Both documents have the SAME length series -- three long, three short --
+    # so a naive filter-then-correlate returns exactly the same value for each.
+    # The spliced one puts an over-length span between two long sentences,
+    # which destroys twenty genuine long-long adjacencies; honouring the gaps
+    # therefore has to report a lower value than the unspliced document.
+    local tmp a b
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+long_s = ("The encoder ranks every candidate image against the query text and "
+          "records the position of the correct plate for each of the eighteen "
+          "techniques in turn under this pool. ")
+short_s = "The null is one in ninety. "
+splice = "Filler " * 150 + ". "
+# three long then three short: four same-class adjacencies against two
+# crossings per period, so the series clusters and lag-1 is clearly positive
+plain = (long_s * 3 + short_s * 3) * 20
+spliced = (long_s + splice + long_s * 2 + short_s * 3) * 20
+(d / "plain.txt").write_text(plain, encoding="utf-8")
+(d / "spliced.txt").write_text(spliced, encoding="utf-8")
+PYEOF
+    a=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/plain.txt" --json 2>&1 \
+        | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['sentence_length_lag1']['value'])")
+    b=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/spliced.txt" --json 2>&1 \
+        | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['sentence_length_lag1']['value'])")
+    rm -rf "$tmp"
+    python3 - "$a" "$b" <<'PYEOF'
+import sys
+a, b = float(sys.argv[1]), float(sys.argv[2])
+assert a > 0.2, "long-long short-short should cluster, got %r" % a
+assert b < a - 0.1, "the dropped spans were joined to their neighbours (%r vs %r)" % (b, a)
+PYEOF
+}
+
+test_T130() {
+    # A baseline that contains the authors' own work is partly the thing being
+    # measured, and it is often their paper that sets the extreme. --exclude
+    # must remove it from the corpus and say so.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+# the baseline loop wants at least 1500 words per document
+calm = "The pool holds one relevant image for every query in this evaluation. " * 150
+loud = "The pool holds one image; the query is text; the model is frozen. " * 150
+(d / "target.txt").write_text(calm, encoding="utf-8")
+for i in range(6):
+    (d / "base" / ("paper%d.txt" % i)).write_text(calm, encoding="utf-8")
+(d / "base" / "ours2025.txt").write_text(loud, encoding="utf-8")
+PYEOF
+    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
+            --baseline "$tmp/base" --json 2>&1) || true
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['baseline_documents']==7, d['baseline_documents']; assert d['metrics']['semicolon_per_1k']['baseline_max'] > 5" || { rm -rf "$tmp"; return 1; }
+    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
+            --baseline "$tmp/base" --exclude 'ours*' --json 2>&1) || true
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['baseline_documents']==6, d['baseline_documents']; assert d['baseline_excluded']==['ours2025.txt'], d['baseline_excluded']; assert d['metrics']['semicolon_per_1k']['baseline_max'] < 1"
+}
+
+test_T131() {
+    # An inline author-year citation after a full stop is not a sentence.
+    # Allowing "(" to open one fragments a PDF-derived baseline in proportion
+    # to its citation style, which is not a property of its prose.
+    local tmp cv
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+body = ("The encoder scores each candidate image against the query text and "
+        "records where the correct plate lands in the ranking for this pool. ")
+frag = "(2019); Smith et al. "
+(d / "cited.txt").write_text((body + frag) * 40, encoding="utf-8")
+PYEOF
+    cv=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/cited.txt" --json 2>&1 \
+         | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['sentence_length_cv']['value'])")
+    rm -rf "$tmp"
+    python3 - "$cv" <<'PYEOF'
+import sys
+cv = float(sys.argv[1])
+assert cv < 0.2, "citation fragments were counted as sentences (CV %r)" % cv
+PYEOF
+}
+
+test_T132() {
+    # Package loading and macro definitions are not prose. Counting them
+    # inflates the word total that every per-1k rate is divided by.
+    local tmp plain pre
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+body = "The pool holds one relevant image for every query in this evaluation. " * 40
+(d / "plain.tex").write_text("\\begin{document}\n" + body + "\n\\end{document}\n",
+                             encoding="utf-8")
+(d / "pre.tex").write_text(
+    "\\documentclass{acmart}\n" + "\\usepackage{amsmath} % maths support here\n" * 200
+    + "\\begin{document}\n" + body + "\n\\end{document}\n", encoding="utf-8")
+PYEOF
+    plain=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/plain.tex" --json 2>&1 \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['target_words'])")
+    pre=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/pre.tex" --json 2>&1 \
+          | python3 -c "import json,sys; print(json.load(sys.stdin)['target_words'])")
+    rm -rf "$tmp"
+    [[ "$plain" -eq "$pre" ]]
+}
+
 run_test "T125 prose fingerprint separates even from bunched use" test_T125
 run_test "T126 prose fingerprint withholds percentiles on a thin baseline" test_T126
 run_test "T127 claim positioning flags advertised terms with no source" test_T127
 run_test "T128 set notation is not a citation, and one source suffices" test_T128
+run_test "T129 lag-1 does not join sentences across a dropped span" test_T129
+run_test "T130 --exclude removes a document from the baseline corpus" test_T130
+run_test "T131 an inline citation fragment is not a sentence" test_T131
+run_test "T132 a LaTeX preamble is not prose" test_T132
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

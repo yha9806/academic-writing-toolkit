@@ -22,6 +22,7 @@ PDFs are skipped and named in the report.
 """
 
 import argparse
+import fnmatch
 import json
 import math
 import re
@@ -32,7 +33,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # --- constructions -----------------------------------------------------------
 # Each is a family of surface forms, not a single string. The corrective
@@ -75,12 +76,22 @@ def read_pdf(path: Path) -> Optional[str]:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return out.stdout or None
+    if not out.stdout:
+        return None
+    # pdftotext preserves the printed line breaks, so a word hyphenated across
+    # a line arrives as two tokens and inflates the sentence it sits in.
+    return re.sub(r"-\n", "", out.stdout)
 
 
 def strip_markup(text: str, suffix: str) -> str:
     """Remove markup that is not prose the reader sees."""
     if suffix == ".tex":
+        # Everything before \begin{document} is package loading and macro
+        # definitions. It is not prose, and counting it inflates the word
+        # total that every per-1k rate is divided by.
+        body = re.split(r"\\begin\{document\}", text, maxsplit=1)
+        if len(body) == 2:
+            text = body[1]
         text = re.sub(r"(?m)^\s*%.*$", "", text)
         # Alt text and comments are not read aloud in the flow of the argument,
         # but they do drift, so they are measured separately by --include-alt.
@@ -149,26 +160,50 @@ def cv(values: Sequence[float]) -> Optional[float]:
     return statistics.pstdev(values) / mean if mean else None
 
 
-def sentences(text: str) -> List[int]:
-    out = []
+def sentence_lengths(text: str) -> List[Optional[int]]:
+    """Word counts in reading order, with None where a span is not a sentence.
+
+    The positions matter, not just the values: lag-1 must not treat two spans
+    as adjacent when something was dropped between them, so the gaps are kept.
+
+    A sentence may not begin with "(" here. It is tempting to allow it, because
+    a LaTeX source really does open sentences with a numbered label, but in a
+    PDF-derived baseline the same rule splits every inline author-year citation,
+    so a fragment such as "(2019); Smith et al." is counted as a sentence. It
+    does that in proportion to how much author-year citation each paper happens
+    to use -- several percent for some, nothing at all for numerically cited
+    ones -- which corrupts the baseline unevenly, while costing a clean source
+    well under one percent of its sentences.
+
+    The 120-word ceiling exists for PDF extraction runs, not for prose. Raising
+    it from 90 matters: at 90 this metric flips sign depending on whether the
+    gaps above are honoured, and at 120 it does not."""
+    out: List[Optional[int]] = []
     for s in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text):
         n = len(s.split())
-        if 4 <= n <= 90:
-            out.append(n)
+        out.append(n if 4 <= n <= 120 else None)
     return out
 
 
-def lag1(values: Sequence[int]) -> Optional[float]:
+def lag1(values: Sequence[Optional[int]]) -> Optional[float]:
     """Positive: long sentences cluster with long ones, as in human drafts.
     Near zero: each length drawn independently.
-    Negative: systematic long-short alternation, a manufactured rhythm."""
-    if len(values) < 30:
+    Negative: systematic long-short alternation, a manufactured rhythm.
+
+    Only pairs that were genuinely adjacent contribute. Filtering first and
+    correlating afterwards silently joins the sentences on either side of a
+    dropped span, which is how the same manuscript reads inside the published
+    range under one implementation and outside it under another."""
+    kept = [v for v in values if v is not None]
+    if len(kept) < 30:
         return None
-    mean = statistics.mean(values)
-    den = sum((v - mean) ** 2 for v in values)
+    mean = statistics.mean(kept)
+    den = sum((v - mean) ** 2 for v in kept)
     if not den:
         return None
-    num = sum((values[i] - mean) * (values[i + 1] - mean) for i in range(len(values) - 1))
+    num = sum((values[i] - mean) * (values[i + 1] - mean)
+              for i in range(len(values) - 1)
+              if values[i] is not None and values[i + 1] is not None)
     return num / den
 
 
@@ -194,8 +229,8 @@ def measure(text: str) -> Dict[str, Optional[float]]:
             gaps = [b - a for a, b in zip(pos, pos[1:]) if b > a]
             out[name + "_gap_cv"] = cv(gaps)
             out[name + "_longest_dry_fraction"] = (max(gaps) / total) if gaps else None
-    lengths = sentences(text)
-    out["sentence_length_cv"] = cv(lengths)
+    lengths = sentence_lengths(text)
+    out["sentence_length_cv"] = cv([n for n in lengths if n is not None])
     out["sentence_length_lag1"] = lag1(lengths)
     out["repeat_4gram_per_1k"] = repeat_ngram_rate(text)
     verbs = re.findall(r"\b[Ww]e ([a-z]+)\b", text)
@@ -254,6 +289,11 @@ def main() -> int:
     ap.add_argument("--baseline",
                     help="directory of published papers to compare against "
                          "(a project's own literature/ is the intended corpus)")
+    ap.add_argument("--exclude", action="append", default=[], metavar="GLOB",
+                    help="skip baseline files whose name matches (repeatable). "
+                         "Use it for the authors' own papers: a baseline that "
+                         "contains them is partly the thing being measured, and "
+                         "it is usually they who set the extreme")
     ap.add_argument("--min-baseline", type=int, default=5,
                     help="refuse to report percentiles below this many baseline documents")
     ap.add_argument("--json", action="store_true", dest="emit_json")
@@ -272,6 +312,7 @@ def main() -> int:
 
     base_rows: List[Dict[str, Optional[float]]] = []
     skipped: List[str] = []
+    excluded: List[str] = []
     if args.baseline:
         bdir = Path(args.baseline)
         if not bdir.is_dir():
@@ -279,6 +320,9 @@ def main() -> int:
             return 2
         for p in sorted(bdir.rglob("*")):
             if not p.is_file() or p.suffix.lower() not in TEXT_SUFFIXES | {".pdf"}:
+                continue
+            if any(fnmatch.fnmatch(p.name, g) for g in args.exclude):
+                excluded.append(p.name)
                 continue
             t = load(p)
             if t is None:
@@ -289,7 +333,8 @@ def main() -> int:
     enough = len(base_rows) >= args.min_baseline
     report = {"schema_version": SCHEMA_VERSION, "target": str(target),
               "target_words": mine["words"], "baseline_documents": len(base_rows),
-              "baseline_sufficient": enough, "baseline_skipped": skipped, "metrics": {}}
+              "baseline_sufficient": enough, "baseline_skipped": skipped,
+              "baseline_excluded": excluded, "metrics": {}}
 
     outliers = []
     for key, _ in KEY_ORDER:
