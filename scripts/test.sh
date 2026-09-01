@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (123 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 prose fingerprint) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (125 automated tests, labelled T2-T124: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 prose fingerprint + T127-T128 claim positioning) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3188,6 +3188,75 @@ PYEOF
     [[ "$rc" -eq 2 ]]
 }
 
+test_T127() {
+    # A manuscript that advertises a concept in its keywords while citing no
+    # source for it anywhere is using a field's vocabulary without its
+    # literature. That is the finding this audit exists for.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    cat > "$tmp/refs.bib" <<'EOF'
+@article{smith2020thing, title={A Thing}, author={Smith, Jane}, year={2020}, journal={J. Things}}
+EOF
+    cat > "$tmp/main.tex" <<'EOF'
+\keywords{Shortcut Learning, Construct Validity}
+\begin{document}
+We evaluate retrieval over a pool where $K \in \{1,5,10\}$ and report a shortcut
+that carries the score. Construct validity is what is at stake here.
+
+The pool holds many images and the queries are short. The pool holds many images
+and the queries are short. The pool holds many images and the queries are short.
+The pool holds many images and the queries are short. The pool holds many images
+and the queries are short. The pool holds many images and the queries are short.
+The pool holds many images and the queries are short. The pool holds many images
+and the queries are short. The pool holds many images and the queries are short.
+
+Prior work on unrelated things is relevant here~\cite{smith2020thing}.
+\end{document}
+EOF
+    out=$(python3 scripts/audit-claim-positioning.py --base-dir "$tmp" --json 2>&1)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[i['kind'] for i in d['issues']]
+details=' '.join(i['detail'] for i in d['issues'])
+assert kinds.count('unsourced-keyword')>=2, kinds
+assert 'Shortcut Learning' in details and 'Construct Validity' in details, details
+"
+}
+
+test_T128() {
+    # Two ways the audit could lie. Set notation must not read as a numeric
+    # citation -- it did, and a manuscript full of \$K \in \{1,5,10\}\$ looked
+    # fully cited while citing nothing. And one source for a named procedure is
+    # enough; flagging every later mention buries the finding.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    cat > "$tmp/refs.bib" <<'EOF'
+@article{bh1995, title={Controlling the FDR}, author={Benjamini, Y.}, year={1995}, journal={JRSSB}}
+EOF
+    cat > "$tmp/main.tex" <<'EOF'
+\keywords{Retrieval}
+\begin{document}
+We correct with the Benjamini--Hochberg procedure~\cite{bh1995} over $K \in \{1,5,10\}$.
+
+Retrieval is measured at each $K \in \{1,5,10\}$ and the Benjamini correction
+applies throughout.
+
+We also run a permutation test at $K \in \{1,5,10\}$.
+\end{document}
+EOF
+    out=$(python3 scripts/audit-claim-positioning.py --base-dir "$tmp" --json 2>&1)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+m=[i['detail'] for i in d['issues'] if i['kind']=='uncited-method']
+assert not any('Benjamini' in x for x in m), 'cited once is enough: %r' % m
+assert any('permutation' in x for x in m), 'uncited method missed: %r' % m
+"
+}
+
 run_test "T112 argument governance validator accepts a clean packet" test_T112
 run_test "T113 argument governance validator flags weak main support" test_T113
 run_test "T114 self-review packet validator accepts clean-room manifest" test_T114
@@ -3203,6 +3272,8 @@ run_test "T123 project-intent migration rejects partial schema without mutation"
 run_test "T124 project-intent migration normalises direct-call roots" test_T124
 run_test "T125 prose fingerprint separates even from bunched use" test_T125
 run_test "T126 prose fingerprint withholds percentiles on a thin baseline" test_T126
+run_test "T127 claim positioning flags advertised terms with no source" test_T127
+run_test "T128 set notation is not a citation, and one source suffices" test_T128
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
