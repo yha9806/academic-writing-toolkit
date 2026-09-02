@@ -79,3 +79,17 @@ The report must keep findings separated:
 ```
 
 Supported findings require source anchors. Missing support must be marked as a gap rather than filled from memory.
+
+## Unfamiliar-Reader Gate
+
+For an important version or submission-readiness claim, `/self-review` can
+prepare a restricted packet containing only the title, abstract, Figure 1, and
+main Results summary table. An unfamiliar human reader answers five questions:
+the concrete problem, intended user, what the authors did, the main result, and
+what remains unvalidated.
+
+Only an eligible human response can produce `passed`. A model simulation or a
+response from someone with prior project knowledge is `advisory_only`; absent
+human evidence is `not_run`. Numerical, citation, reference, and PDF checks do
+not substitute for this comprehension gate. See
+`.claude/skills/self-review/references/reader_comprehension_gate.md`.

@@ -378,6 +378,8 @@ done
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/evidence-review/scripts/check_review_package.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/release-governance/scripts/check_release_packet.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/check_thesis_control.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/check_author_control.py" --help >/dev/null
+"$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/scaffold_author_control.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/scaffold_thesis_control.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py" --help >/dev/null
 "$PYTHON_BIN" "$PLUGIN_ROOT/skills/self-review/scripts/check_self_review_packet.py" --help >/dev/null

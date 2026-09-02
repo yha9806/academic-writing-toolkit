@@ -1,6 +1,6 @@
 ---
 name: release-governance
-description: Use when preparing, auditing, releasing, or rebuttal-hardening academic manuscripts, datasets, artifacts, reviewer packets, or claim registers involving multiple refs, local assets, human labels, or agent-assisted drafts.
+description: Use when preparing, auditing, releasing, PDF-hardening, or rebuttal-hardening academic manuscripts, datasets, artifacts, reviewer packets, or claim registers involving multiple refs, local assets, human labels, agent-assisted drafts, wide tables, figure provenance, submission PDFs, or evidence-boundary checks.
 allowed-tools: Read, Glob, Grep, Bash, Edit, Write
 ---
 
@@ -29,6 +29,7 @@ This skill activates on: `release governance`, `release evidence`, `camera-ready
 5. Do not treat a repository check as venue, submission-system, or scientific compliance.
 6. If two refs diverge, name both and scope which one is canonical for each artifact.
 7. If a worktree is dirty, list the dirty paths and mark the packet as draft until changes are committed or explicitly scoped.
+8. Freeze evidence and argument separately. An evidence ref or result snapshot does not authorise an unapproved narrative, and an approved manuscript spine does not validate changed numbers.
 
 ## Evidence States
 
@@ -44,7 +45,11 @@ Use `references/evidence_state_schema.md` for the shared states:
 
 ### 1. Declare Scope
 
-Create `release/release_scope.md` with scope date, artifact name, intended use, included refs, excluded refs, and the highest-risk open question.
+Create `release/release_scope.md` with scope date, artifact name, intended use,
+included refs, excluded refs, the evidence baseline, the argument baseline, and
+the highest-risk open question. For a manuscript, the evidence baseline names
+the frozen results, data/configuration, and artifact refs; the argument baseline
+names the author-approved intent and manuscript version.
 
 ### 2. Map Repository Truth
 
@@ -77,6 +82,11 @@ Every paper-facing number, qualitative conclusion, table value, figure, dataset 
 
 Gemini or another agent may review the scope, packet, or diff, but its result is advisory. Record advisory review in the verification report without changing any evidence state to `human_final`.
 
+
+### 5.5 Reframe And PDF-Harden Manuscripts
+
+When a manuscript draft reads like a module inventory, project report, internal validation packet, or artifact dump, use `references/manuscript_reframing_patterns.md` before final release checks. Apply it to separate the scientific gap, contribution chain, results narrative, main-text table design, figure roles, PDF/render checks, generative-component positioning, and submission-readiness blockers.
+
 ### 6. Verify Packet
 
 Use `references/release_workflow_templates.md` for columns and report structure. If Python is available, run:
@@ -95,5 +105,6 @@ Stop and report a blocker if:
 - a human-label claim lacks a human confirmation gate
 - a release artifact exists only as an ignored, untracked, cache, or local-only file
 - a count comes from a pointer, stub, generated preview, or non-canonical ref
+- a manuscript release cannot identify both its evidence baseline and its author-approved argument baseline
 - a draft pull request, closed-unmerged pull request, or advisory review is being treated as final release state
 - the packet validator reports issues that affect release-facing claims

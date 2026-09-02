@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (129 automated tests, labelled T2-T132: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 prose fingerprint + T127-T128 claim positioning + T129-T132 estimator alignment) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (132 automated tests, labelled T2-T135: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 prose fingerprint + T127-T128 claim positioning + T129-T132 estimator alignment + T133-T135 lightweight author control) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3010,6 +3010,80 @@ test_T59() {
     grep -q "pasted-text" "$REPO_ROOT/README.md" || return 1
 }
 
+test_T133() {
+    local tmp before after second control_file
+    tmp=$(mktemp -d) || return 1
+    python3 .claude/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" --json >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    for control_file in 00_AUTHOR_INTENT.md 01_EVIDENCE_AND_CLAIMS.md 02_REVISION_LOG.md; do
+        [[ -f "$tmp/$control_file" ]] || {
+            rm -rf "$tmp"
+            return 1
+        }
+    done
+    python3 .claude/skills/thesis-control/scripts/check_author_control.py "$tmp" --json >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    before=$(sha256sum "$tmp"/*.md | sort)
+    second=$(python3 .claude/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" --json 2>&1)
+    [[ $? -eq 1 ]] || {
+        rm -rf "$tmp"
+        return 1
+    }
+    after=$(sha256sum "$tmp"/*.md | sort)
+    rm -rf "$tmp"
+    [[ "$before" == "$after" ]] && echo "$second" | grep -q "refusing to overwrite"
+}
+
+test_T134() {
+    local tmp out rc file
+    tmp=$(mktemp -d) || return 1
+    python3 .claude/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    for file in "$tmp"/*.md; do
+        sed -i.bak 's/AUTHOR_REVIEW_REQUIRED/author-approved-value/g' "$file"
+        rm -f "$file.bak"
+    done
+    for file in "$tmp/00_AUTHOR_INTENT.md" "$tmp/01_EVIDENCE_AND_CLAIMS.md"; do
+        sed -i.bak 's/Status: draft/Status: active/; s/Human approved: false/Human approved: true/' "$file"
+        rm -f "$file.bak"
+    done
+    sed -i.bak \
+        -e 's#Scope: local_patch / section_restructure / full_reframe#Scope: local_patch#' \
+        -e 's/Author pre-edit decision: pending/Author pre-edit decision: approved/' \
+        -e 's/Research spine changed: author-approved-value/Research spine changed: no/' \
+        -e 's#Reader-comprehension gate: not_required / not_run / passed / failed#Reader-comprehension gate: not_run#' \
+        -e 's#Argument-function audit: not_required / not_run / passed / failed#Argument-function audit: not_run#' \
+        -e 's#Author post-edit decision: pending / accept / partial_accept / revise / rollback#Author post-edit decision: pending#' \
+        "$tmp/02_REVISION_LOG.md"
+    rm -f "$tmp/02_REVISION_LOG.md.bak"
+    python3 .claude/skills/thesis-control/scripts/check_author_control.py "$tmp" --strict --json >/dev/null || {
+        rm -rf "$tmp"
+        return 1
+    }
+    sed -i.bak 's/Author pre-edit decision: approved/Author pre-edit decision: pending/' "$tmp/02_REVISION_LOG.md"
+    rm -f "$tmp/02_REVISION_LOG.md.bak"
+    out=$(python3 .claude/skills/thesis-control/scripts/check_author_control.py "$tmp" --strict --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 1 ]] || return 1
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'invalid-revision-value' for i in d['issues'])"
+}
+
+test_T135() {
+    grep -q "old-versus-proposed" .claude/skills/thesis-control/SKILL.md || return 1
+    grep -q "old-versus-proposed" .claude/skills/manuscript-reframe/SKILL.md || return 1
+    grep -q "intended use" .claude/skills/argument-governance/SKILL.md || return 1
+    grep -q "unfamiliar human" .claude/skills/self-review/SKILL.md || return 1
+    grep -q "evidence -> disclaimer" .claude/skills/logic-review/SKILL.md || return 1
+    grep -q "Evidence baseline" .claude/skills/release-governance/references/release_workflow_templates.md
+}
+
 # ----------------------------------------------------------------------------
 header "Running spec §6 acceptance tests..."
 header ""
@@ -3389,6 +3463,9 @@ run_test "T129 lag-1 does not join sentences across a dropped span" test_T129
 run_test "T130 --exclude removes a document from the baseline corpus" test_T130
 run_test "T131 an inline citation fragment is not a sentence" test_T131
 run_test "T132 a LaTeX preamble is not prose" test_T132
+run_test "T133 author-control scaffold is conservative and repeat-safe" test_T133
+run_test "T134 author-control strict checker enforces approval state" test_T134
+run_test "T135 cross-skill author-control gates remain present" test_T135
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

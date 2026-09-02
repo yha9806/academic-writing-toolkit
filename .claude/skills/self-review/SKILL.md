@@ -1,6 +1,6 @@
 ---
 name: self-review
-description: Review the user's own manuscript, paper, thesis chapter, rebuttal, or release packet with clean-room anti-contamination controls. Use when asked for self-review, internal review, pre-submission review, readiness check, reviewer simulation on own work, or claim-evidence self-audit where prior chat memory, unstated assumptions, model background knowledge, or unlisted local notes must not be treated as evidence.
+description: Review the user's own manuscript, paper, thesis chapter, rebuttal, or release packet with clean-room anti-contamination controls and, when needed, an unfamiliar-reader comprehension gate. Use for internal review, readiness checks, reviewer simulation, or claim-evidence self-audit where prior chat memory and unstated context must not become evidence.
 allowed-tools: Read, Glob, Grep, Bash, Edit, Write
 ---
 
@@ -107,6 +107,21 @@ Check:
 - reviewer attacks with weak defenses
 - internal consistency and submission blockers
 
+### 4.5 Run The Unfamiliar-Reader Gate When Required
+
+For an important version, submission-readiness claim, or revision contract that
+requires a comprehension check, read
+`references/reader_comprehension_gate.md`. Prepare a packet containing only the
+title, abstract, Figure 1, and main Results summary table, all of which must be
+manifest-listed. Record the unfamiliar human reader's answers to the five
+questions and compare them with the author-approved intent and argument
+baseline.
+
+Only an actual unfamiliar human response can produce `passed`. A model
+simulation, author explanation, or response from a collaborator with prior
+project knowledge remains `advisory_only`. If no eligible response exists,
+record `not_run`; do not claim that the human gate passed.
+
 ### 5. Write A Clean-Room Report
 
 The report must separate:
@@ -136,6 +151,13 @@ Do not merge these categories.
 ### Reviewer-Risk Inference
 | Risk | Basis in packet | Why it matters | Action |
 
+### Unfamiliar-Reader Gate
+- Packet:
+- Reader independence:
+- Decision: passed / failed / not_run / advisory_only
+- Misunderstood or missing functions:
+- Required next action:
+
 ### Revision Actions
 | Priority | Action | Requires new evidence? |
 ```
@@ -149,3 +171,4 @@ Stop and report a blocker if:
 - a central claim needs a source not listed in the manifest
 - the packet validator reports missing allowed files
 - the user asks to mark unsupported claims as supported
+- a required unfamiliar-reader gate lacks an eligible human response but the manuscript is being described as having passed it

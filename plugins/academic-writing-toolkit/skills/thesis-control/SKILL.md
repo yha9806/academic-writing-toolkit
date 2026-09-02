@@ -1,6 +1,6 @@
 ---
 name: thesis-control
-description: Use when AI-assisted thesis edits risk claim drift, scope creep, loss of author control, or repeated revisions that fail to converge; provides spine cards, edit contracts, drift audits, revision escalation, and human gates.
+description: Use when AI-assisted thesis or manuscript edits risk claim drift, scope creep, loss of intended use, experiment-role promotion, or repeated revisions that fail to converge; provides author-intent control, lightweight or strict contracts, drift audits, revision escalation, and human gates.
 allowed-tools: Read, Glob, Grep, Edit, Write, Bash
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: Read, Glob, Grep, Edit, Write, Bash
 
 ## Purpose
 
-Prevent AI-assisted writing from becoming fluent but distorted. Use this before and after substantive thesis edits when the risk is not spelling or style, but loss of author control: project-level reframing, a primary domain becoming a secondary example, a changed research object or question, widened claims, blurred section purpose, missing caveats, unsynchronised adjacent paragraphs, or local edits that weaken the chapter spine.
+Prevent AI-assisted writing from becoming fluent but distorted. Use this before and after substantive thesis or manuscript edits when the risk is not spelling or style, but loss of author control: project-level reframing, deletion of the real-world task or intended use, a primary domain becoming a secondary example, a changed research object or question, auxiliary analyses becoming primary, widened claims, blurred section purpose, missing caveats, unsynchronised adjacent paragraphs, or local edits that weaken the paper spine.
 
 ## Trigger Words
 
@@ -46,6 +46,26 @@ manuscript, or create a new explicitly approved intent version that preserves
 the earlier row as history.
 
 ## Control Files
+
+Choose one control profile and name it as canonical.
+
+For a lightweight single-manuscript workflow, read
+`references/author_control_lightweight.md` and use:
+
+- `00_AUTHOR_INTENT.md`
+- `01_EVIDENCE_AND_CLAIMS.md`
+- `02_REVISION_LOG.md`
+
+Create and check the bundled templates with:
+
+```bash
+python {skill_dir}/scripts/scaffold_author_control.py <project_root>
+python {skill_dir}/scripts/check_author_control.py <project_root> --strict
+```
+
+The lightweight checker validates structure, approval state, and unresolved
+placeholders. It does not infer semantic alignment. Do not use the lightweight
+profile to bypass a gate that already requires the durable packet.
 
 Use a `thesis_control/` directory when the project needs durable tracking:
 
@@ -129,9 +149,15 @@ stops without mutation.
 
 Before section-level planning, record:
 
+- the real-world problem and intended user or beneficiary
+- the intended application and the present method or software task
 - the primary scholarly domain
 - the research object
 - the core research question
+- the primary experiment that directly answers that question
+- supporting, robustness, exploratory, failed-development, and out-of-scope analyses
+- the strongest evidence-licensed headline claim
+- the current validation and evidence boundaries
 - the target venue or audience
 - concepts that must remain visible in the title or abstract
 - reframes that require fresh author approval
@@ -153,6 +179,19 @@ If any dimension is `drifted`, set `human_review_required=true` and use
 `needs_review` or `failed`. The author must choose to revise the manuscript,
 roll back, or approve a versioned intent amendment. Merely accepting the audit
 cannot authorise the reframe.
+
+Keep intended use and current validation separate. Narrow evidence may narrow
+the empirical or headline claim, but it must not silently delete a legitimate
+application problem or recast the evidence boundary as the paper's research
+object. Record future application as intended use and untested hardware,
+clinical, causal, deployment, or transfer outcomes as unvalidated boundaries.
+
+Before admitting a completed analysis into the paper, record whether it
+directly answers the core question, whether the main conclusion survives its
+removal, its one-sentence argumentative function, its role, destination, and
+author decision. Completion alone does not make an analysis a main
+contribution. Use the role and placement defaults in
+`references/author_control_lightweight.md`.
 
 ### 1. Establish Or Read The Spine Card
 
@@ -180,9 +219,11 @@ If the current text does not support a clear spine sentence, produce a diagnosis
 For every substantive edit, state:
 
 - target unit and file range
-- change scope
+- change scope: `local_patch`, `section_restructure`, or `full_reframe`
 - allowed changes
 - forbidden changes
+- evidence baseline: the ref, artifact, data, configuration, table, or frozen numbers inherited
+- argument baseline: the author-approved intent and manuscript version inherited
 - adjacent context that must be checked
 - acceptance checks
 - whether human approval is required before editing
@@ -201,6 +242,13 @@ Always require human approval for:
 - rewriting more than one paragraph
 - merging or splitting sections
 - changing the title, abstract, primary domain, research object, research question, contribution scope, or manuscript structure
+- changing the real-world problem, intended use, primary experiment, analysis prominence, headline claim, or evidence boundary
+
+Treat any change to the title, abstract thesis, research object, core question,
+primary experiment, contribution order, evidence chain, application purpose,
+or paper-wide structure as a `full_reframe`, even when the request calls it
+polishing. Before editing, show an old-versus-proposed spine comparison and
+obtain explicit author approval.
 
 ### 3. Apply Only Approved Changes
 
@@ -220,6 +268,12 @@ After editing, compare the new prose against the contract and report:
 - deleted evidence anchors
 - missed adjacent updates
 - section-spine change
+- research-object or core-question change
+- deleted, generalised, or demoted real-world task or intended use
+- promoted auxiliary analysis
+- evidence boundary rewritten as the paper topic
+- loss of application meaning caused by over-cautious wording
+- title, abstract, Introduction, Results, and Conclusion alignment
 - decision: accept, partial accept, revise, or rollback
 
 If any claim, boundary, or caveat changed, the result needs human review even if the prose is smoother.
@@ -233,6 +287,15 @@ completed unsuccessful attempt.
 ### 5. Record Human Gate Outcome
 
 The author decides whether to accept, partially accept, revise, or rollback. Do not mark a high-risk edit as accepted without explicit human approval.
+
+### 6. Run Post-Spine Readability Gates When Relevant
+
+Only after the research spine is stable, use `/logic-review` to audit repeated
+argument functions and `/self-review` to prepare the unfamiliar-reader packet.
+Do not solve repetitive AI prose by generating synonyms. Remove duplicated
+problem, gap, evidence, interpretation, or boundary functions while preserving
+essential local qualifiers. A model simulation cannot pass a human unfamiliar-
+reader gate; record it as advisory or `not_run` until an actual reader responds.
 
 ## Revision Escalation Rule
 
@@ -291,7 +354,12 @@ Use these default actions:
 - For an evidence gap, narrow, qualify, or remove the unsupported claim unless the author supplies more evidence.
 - For version contamination, restore or copy the latest author-approved version, then apply a consolidated contract. Create a separate branch or manuscript version only when the approved scope requires structural work.
 
-For full reframing, hand off a brief that states the target venue, research question, gap, core claim, available evidence, claims that must not be made, and proposed new structure. Do not rewrite the manuscript until the author approves that brief.
+For full reframing, hand off a brief that states the target venue, old and
+proposed real-world problem, intended use, research object, research question,
+primary experiment, contribution order, headline claim, evidence boundary,
+evidence baseline, argument baseline, available evidence, claims that must not
+be made, and proposed new structure. Do not rewrite the manuscript until the
+author approves that brief.
 
 Return the escalation check in this form:
 
@@ -333,6 +401,9 @@ Return:
 
 Unit:
 Spine sentence:
+Scope: local_patch / section_restructure / full_reframe
+Evidence baseline:
+Argument baseline:
 Allowed changes:
 Forbidden changes:
 Adjacent context to check:
@@ -353,6 +424,10 @@ Changed claims:
 Changed boundaries:
 New unsupported claims:
 Missed adjacent updates:
+Research object or question changed:
+Intended use deleted or demoted:
+Auxiliary analysis promoted:
+Cross-section paper identity aligned:
 Decision:
 Human review required:
 Recommended next action:
@@ -369,5 +444,7 @@ Stop and ask for author direction if:
 - previous AI edits cannot be distinguished from author-approved text
 - the edit would remove caveats, limitations, or uncertainty language without explicit approval
 - the active project intent or manuscript contract cannot be identified
+- the real-world task, intended use, primary experiment, evidence baseline, or argument baseline cannot be identified
 - a global thesis audit is missing, unresolved, stale, or records project-level drift
 - a proposed local contract would preserve a section spine that conflicts with the author-approved project intent
+- a full reframe lacks an approved old-versus-proposed spine comparison

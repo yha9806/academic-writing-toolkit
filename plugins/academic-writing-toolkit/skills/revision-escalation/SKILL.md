@@ -20,6 +20,12 @@ If the same issue remains unresolved after 3 revision attempts, treat it as a sp
 
 Do not make a fourth patch immediately.
 
+Repeated feedback that the manuscript is becoming more abstract, no longer
+states who it helps, or contains individually correct sentences without a
+recognisable paper spine is a structural signal even when fewer than three
+formal edit contracts have failed. Pause and compare the current draft with
+the author-intent and argument baselines.
+
 ## Revision Escalation Check
 
 Before editing again, classify the problem:
@@ -29,7 +35,7 @@ Before editing again, classify the problem:
 | Underspecified request | Target, constraint, audience, venue, or expected output is missing. | Ask for a concrete target before editing. |
 | Ambiguous feedback | Feedback is evaluative but not operational: "weird", "weak", "unclear", "not good enough". | Ask what should change. |
 | Local execution problem | The goal is clear, but the previous patch implemented it incorrectly. | Make one small targeted patch. |
-| Structural mismatch | The issue affects the research question, gap, contribution, evidence chain, section structure, module boundary, or venue framing. | Propose a restructure plan before editing. |
+| Structural mismatch | The issue affects the real-world problem, intended use, research object, research question, primary experiment, gap, contribution, evidence chain, section structure, module boundary, or venue framing. | Propose a restructure plan before editing. |
 | Evidence gap | The desired claim is unsupported by available data, experiments, citations, or files. | Downgrade the claim or request evidence. |
 | Version contamination | Repeated patches have mixed old assumptions with new requirements, causing inconsistency, duplication, or bloat. | Recommend a new version, branch, or consolidated brief. |
 
@@ -64,7 +70,13 @@ Classify manuscript work before editing:
 - Section-level restructure: one section changes, but the research question, contribution, and evidence chain stay stable.
 - Full reframing: title, abstract, introduction, research question, gap, contribution, methods-results alignment, discussion, or venue framing changes.
 
-For full reframing, do not directly rewrite the manuscript. First produce a reframing brief with target venue, research question, gap, core claim, available evidence, claims that must not be made, and proposed new structure.
+For full reframing, do not directly rewrite the manuscript. First produce an
+old-versus-proposed reframing brief with target venue, real-world problem,
+intended use, research object, research question, primary experiment,
+supporting analyses, gap, contribution order, headline claim, evidence
+boundary, evidence baseline, argument baseline, available evidence, claims
+that must not be made, and proposed new structure. The author must approve the
+new spine before editing resumes.
 
 ## Red Flags
 
