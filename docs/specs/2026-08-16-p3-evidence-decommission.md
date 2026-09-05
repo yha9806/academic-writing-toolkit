@@ -1,5 +1,11 @@
 # P3 — Evidence, Distribution Hardening, Decommission
 
+**2026-09-05 amendment:** the user-requested
+[long-document integration](2026-09-05-long-document-integration.md) adds an
+optional `workbench/` development package. The decommission record below
+describes the original P3 work; the packaged Codex plugin and ChatGPT App
+remain retired. The dsh guards and evidence classes are unchanged.
+
 - **Status:** Session 1 COMPLETE (items 1–3 landed and locally verified:
   credential probe green; bundle contract + pack smoke green; E1 offline
   lane discriminates on all four metrics — 84/84 guards, make test 123/123,

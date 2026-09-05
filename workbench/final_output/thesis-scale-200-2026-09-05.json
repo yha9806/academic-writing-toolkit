@@ -1,0 +1,68 @@
+{
+  "at": "2026-09-05T15:22:40.978076+00:00",
+  "scope": "Synthetic single-column PDF, 42 lines/page; no hosted model calls",
+  "pages": 200,
+  "file_bytes": 173359,
+  "characters": 742046,
+  "unmerged_regions": 8600,
+  "merged_regions": 1000,
+  "extraction_seconds": 0.602,
+  "unmerged": {
+    "legacy": {
+      "text_batches": 435,
+      "text_reservation_estimate": 1373776,
+      "planning_seconds": 1.046
+    },
+    "economy": {
+      "text_batches": 207,
+      "text_reservation_estimate": 1066188,
+      "planning_seconds": 1.123
+    },
+    "balanced": {
+      "text_batches": 92,
+      "text_reservation_estimate": 915244,
+      "planning_seconds": 1.324
+    }
+  },
+  "merged": {
+    "legacy": {
+      "text_batches": 226,
+      "text_reservation_estimate": 684514,
+      "planning_seconds": 0.165
+    },
+    "economy": {
+      "text_batches": 100,
+      "text_reservation_estimate": 508748,
+      "planning_seconds": 0.175
+    },
+    "balanced": {
+      "text_batches": 44,
+      "text_reservation_estimate": 434441,
+      "planning_seconds": 0.184
+    }
+  },
+  "import_and_plan_seconds": 0.902,
+  "compact_status_bytes": 2081,
+  "first_review": {
+    "mock_calls": 151,
+    "local_seconds": 3.595
+  },
+  "incremental_review": {
+    "at": "2026-09-05T15:22:50.260608+00:00",
+    "unchanged_blocks": 996,
+    "reused_blocks": 991,
+    "reused_batches": 99,
+    "pending_blocks": 9,
+    "note": "仅复用相同要求、配置和整批文字下的结果；受影响章节及关联检查重新规划。修改文件的图像需在新任务中重新选择。",
+    "additional_mock_calls": 21,
+    "local_seconds": 3.254
+  },
+  "actual_layout": {
+    "rendered_page_pairs": 200,
+    "changed_pages": [
+      199
+    ],
+    "local_seconds": 18.334,
+    "model_calls": 0
+  }
+}

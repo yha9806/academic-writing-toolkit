@@ -1,0 +1,18 @@
+{
+  "packageVersion": "0.5.1.dev0",
+  "module": "F:\\coproject\\AWT\\.worktrees\\_long-document-base-venv-20260905\\Lib\\site-packages\\awt\\__init__.py",
+  "wheelSha256": "43eae49a1e71f95e999f6ac86fed91b1e1a84e395831644490654419271a90e8",
+  "runtimeFiles": 17,
+  "preflight": "passed-generation-free",
+  "httpProbe": "passed",
+  "tested": [
+    "home/project assets",
+    "submission JS",
+    "document import",
+    "local submission report/export",
+    "rule changes invalidate reports",
+    "Host/Origin 403"
+  ],
+  "modelCalls": 0,
+  "serverStopped": true
+}

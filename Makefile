@@ -2,7 +2,7 @@
 # Run `make` (or `make help`) to see available targets.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup init sync doctor repair test
+.PHONY: help setup init sync doctor repair test workbench-test workbench-install-check
 
 EDITOR ?= vi
 
@@ -37,3 +37,9 @@ repair:  ## Apply idempotent fixes for issues doctor flags
 
 test:  ## Run the existing public regression suite
 	@bash scripts/test.sh
+
+workbench-test:  ## Run the optional long-document runtime checks
+	@cd workbench && python3 -B -m unittest discover -s tests/runtime -p 'test_*.py'
+
+workbench-install-check:  ## Build and check the optional Workbench wheel (POSIX)
+	@bash workbench/scripts/check-mvp-install.sh

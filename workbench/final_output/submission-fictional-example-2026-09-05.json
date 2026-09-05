@@ -1,0 +1,400 @@
+{
+  "schema_version": 1,
+  "checker_version": 1,
+  "profile": {
+    "target": "Fictional thesis submission — revised rules",
+    "kind": "thesis",
+    "requirements_source": "本地虚构验收规则 · 2026-09-05",
+    "requirements_confirmed": true,
+    "files": {
+      "cover-letter.md": "attachment",
+      "paper.md": "manuscript",
+      "refs.bib": "references"
+    },
+    "count_unit": "words",
+    "max_words": 1,
+    "max_abstract_words": null,
+    "max_pages": null,
+    "max_figures": null,
+    "max_tables": null,
+    "page_width_mm": null,
+    "page_height_mm": null,
+    "min_image_dpi": null,
+    "embedded_fonts": false,
+    "anonymous": true,
+    "anonymous_terms": [
+      "Professor Identity"
+    ],
+    "citation_mode": "auto",
+    "outline": [
+      {
+        "heading": "Methods",
+        "task": "说明样本、比较方式及失败案例",
+        "keywords": [
+          "failed cases"
+        ]
+      },
+      {
+        "heading": "Results",
+        "task": "报告与大纲一致的结果",
+        "keywords": []
+      },
+      {
+        "heading": "Conclusion",
+        "task": "",
+        "keywords": []
+      }
+    ],
+    "declarations": [
+      "Data availability"
+    ],
+    "required_files": [
+      "cover-letter.md",
+      "checklist.pdf"
+    ],
+    "require_model_review": true,
+    "require_layout": true
+  },
+  "profile_sha256": "6f5057074dec34ffa820a55e09834741a6d8537a277c8c0f68669f74d0fc76ef",
+  "source_manifest": [
+    {
+      "filename": "paper.md",
+      "sha256": "bc44fd3d887acb76b4a77bc325d4f2513a1f560239df32d9674d4f3a2cdb37fd",
+      "size_bytes": 353,
+      "role": "manuscript"
+    },
+    {
+      "filename": "refs.bib",
+      "sha256": "ca47d01126a0659c832e4db18304e237828e1cffd01516565f078999b14f1ccf",
+      "size_bytes": 128,
+      "role": "references"
+    },
+    {
+      "filename": "cover-letter.md",
+      "sha256": "ead316ca34a671038de07e8ad0f63cf9c58e2f78d08dfa7084468206fb853ed5",
+      "size_bytes": 49,
+      "role": "attachment"
+    }
+  ],
+  "metrics": {
+    "text_count": 53,
+    "abstract_count": 5,
+    "count_unit": "words",
+    "pdf_pages": 0,
+    "figure": 2,
+    "table": 1,
+    "unreviewed_blocks": 12
+  },
+  "items": [
+    {
+      "id": "fa39a87cb66fd471897eeb3f",
+      "code": "venue_rules",
+      "status": "pass",
+      "title": "已记录本轮要求配置",
+      "detail": "按填写的规则进行检查；没有联网验证来源。",
+      "anchors": [],
+      "group": "rules"
+    },
+    {
+      "id": "4b7a3040c9d0a5e984581c2a",
+      "code": "required_file",
+      "status": "pass",
+      "title": "必需材料：cover-letter.md",
+      "detail": "已纳入并绑定文件哈希。",
+      "anchors": [],
+      "group": "materials"
+    },
+    {
+      "id": "ff12ecbb22ddc29922e817fa",
+      "code": "required_file",
+      "status": "block",
+      "title": "必需材料：checklist.pdf",
+      "detail": "当前检查范围没有这份文件。",
+      "anchors": [],
+      "group": "materials"
+    },
+    {
+      "id": "0ea32c776fad26b780297388",
+      "code": "placeholder",
+      "status": "warning",
+      "title": "存在工作标记或未解决内容",
+      "detail": "TODO",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 10 行",
+          "locator": "d1ec0db47943f945c56b4:b10",
+          "quote": "TODO explain the failed cases."
+        }
+      ],
+      "group": "materials"
+    },
+    {
+      "id": "3a406a015c60772d26dc5e0d",
+      "code": "anonymous_manual",
+      "status": "recorded",
+      "title": "确认匿名范围与隐藏身份信息",
+      "detail": "检查标题页、致谢、自引措辞、文件名、图像、补充材料及隐藏属性；自动扫描只覆盖选为正文的文件。",
+      "anchors": [],
+      "group": "anonymity",
+      "confirmation": {
+        "reviewer": "Fixture reviewer",
+        "note": "虚构软件验收材料，本项已人工检查。此记录不代表真实作者批准。",
+        "decision": "checked",
+        "at": "2026-09-05T17:13:04.623718+00:00",
+        "binding": "7cd83e31701eded7bc4503cd53ff5282194dc2e7718d0f6c2015d5e536242fcb",
+        "report_sha256": "6ca68ce29098a81ce122aa4ea850f86a0ff2c976c18cabdb084d6130cc08458c"
+      }
+    },
+    {
+      "id": "71558a6b7727d42c39360ad1",
+      "code": "max_words",
+      "status": "block",
+      "title": "正文长度与上限对照",
+      "detail": "提取统计 53，上限 1；单位为英文词及逐个汉字。正文包含标题、图注和表格，排除识别到的参考文献；最终口径须与指南一致。",
+      "anchors": [],
+      "group": "limits"
+    },
+    {
+      "id": "3c29f9948bf389973e8068cb",
+      "code": "outline_present",
+      "status": "pass",
+      "title": "大纲章节：Methods",
+      "detail": "已找到实际标题；标题存在不证明章节任务已完成。",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 3 行",
+          "locator": "d1ec0db47943f945c56b4:b3",
+          "quote": "# Methods"
+        }
+      ],
+      "group": "outline"
+    },
+    {
+      "id": "f31f958f34863d3c84254b26",
+      "code": "outline_keyword",
+      "status": "warning",
+      "title": "Methods：关键词 failed cases",
+      "detail": "本章及已识别子节没有匹配文本；请检查遗漏、别名或任务偏离。",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 3 行",
+          "locator": "d1ec0db47943f945c56b4:b3",
+          "quote": "# Methods"
+        }
+      ],
+      "group": "outline"
+    },
+    {
+      "id": "4e6235ae4dc0e2c66ef691d1",
+      "code": "outline_task",
+      "status": "manual",
+      "title": "确认章节任务落实：Methods",
+      "detail": "说明样本、比较方式及失败案例",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 3 行",
+          "locator": "d1ec0db47943f945c56b4:b3",
+          "quote": "# Methods"
+        }
+      ],
+      "group": "outline"
+    },
+    {
+      "id": "14d4577f24ef3ef1c18eabbd",
+      "code": "outline_present",
+      "status": "pass",
+      "title": "大纲章节：Results",
+      "detail": "已找到实际标题；标题存在不证明章节任务已完成。",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 6 行",
+          "locator": "d1ec0db47943f945c56b4:b6",
+          "quote": "# Results"
+        }
+      ],
+      "group": "outline"
+    },
+    {
+      "id": "50e8c4e5cccfdab8ce56e4eb",
+      "code": "outline_task",
+      "status": "manual",
+      "title": "确认章节任务落实：Results",
+      "detail": "报告与大纲一致的结果",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 6 行",
+          "locator": "d1ec0db47943f945c56b4:b6",
+          "quote": "# Results"
+        }
+      ],
+      "group": "outline"
+    },
+    {
+      "id": "b403fff4bf7f2aa49c6a80d8",
+      "code": "outline_missing",
+      "status": "block",
+      "title": "未找到大纲章节：Conclusion",
+      "detail": "按归一化标题匹配；可能需要更正标题识别或填写实际标题。",
+      "anchors": [],
+      "group": "outline"
+    },
+    {
+      "id": "8811103fdf30982626fc859d",
+      "code": "declaration",
+      "status": "block",
+      "title": "必需声明：Data availability",
+      "detail": "选定正文中没有找到该声明标识。",
+      "anchors": [],
+      "group": "declarations"
+    },
+    {
+      "id": "56faee376455bf52e2456df0",
+      "code": "figure_orphan",
+      "status": "warning",
+      "title": "图 2 未找到正文引用",
+      "detail": "按可识别的图号匹配；范围引用、宏和图注识别误差需人工核对。",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 8 行",
+          "locator": "d1ec0db47943f945c56b4:b8",
+          "quote": "Figure 2. An unreferenced analysis."
+        }
+      ],
+      "group": "figures"
+    },
+    {
+      "id": "7342a71d1b4996db6e933f96",
+      "code": "figure_missing",
+      "status": "warning",
+      "title": "图 9 未找到对应图注",
+      "detail": "请核对编号、补充材料或提取遗漏；发现文字引用不等于找到图像。",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 5 行",
+          "locator": "d1ec0db47943f945c56b4:b5",
+          "quote": "See Figure 1(a), Figure 9 and Table 1."
+        }
+      ],
+      "group": "figures"
+    },
+    {
+      "id": "2406bb12b1f56605a1bc606c",
+      "code": "figure_semantics",
+      "status": "manual",
+      "title": "核对图组内容与最终图像质量",
+      "detail": "核对多图之间的指标、单位、样本、图例、子图、正文结论和可读性；编号配对不验证图像内容。",
+      "anchors": [],
+      "group": "figures"
+    },
+    {
+      "id": "bdcf63bd514162aadb26d57f",
+      "code": "bib_structure",
+      "status": "pass",
+      "title": "BibTeX 离线结构检查通过",
+      "detail": "解析 1 条；未核实文献真实性、撤稿状态或在线元数据。",
+      "anchors": [],
+      "group": "references"
+    },
+    {
+      "id": "d38b6a32106a7a79a826d316",
+      "code": "citation_missing",
+      "status": "block",
+      "title": "引用未找到条目：missing",
+      "detail": "只在纳入的参考文献中查找；请补充对应 .bib 或核对键名。",
+      "anchors": [
+        {
+          "filename": "paper.md",
+          "location": "第 4 行",
+          "locator": "d1ec0db47943f945c56b4:b4",
+          "quote": "ups were assessed. The protocol follows \\cite{known,missing}."
+        }
+      ],
+      "group": "references"
+    },
+    {
+      "id": "384af6bd56256e91edf1c47f",
+      "code": "citation_scan",
+      "status": "pass",
+      "title": "已完成所选引用模式扫描",
+      "detail": "识别 2 个引用项；配对问题见单独记录，未支持的样式仍需核对。",
+      "anchors": [],
+      "group": "references"
+    },
+    {
+      "id": "a9b121b7108018778f1f0733",
+      "code": "reference_truth",
+      "status": "manual",
+      "title": "核对来源真实性与引用用途",
+      "detail": "离线检查不验证 DOI 可达性、题名作者一致性、撤稿状态及原文是否支持对应主张。可使用原有 verify-refs --online 工具辅助核验。",
+      "anchors": [],
+      "group": "references"
+    },
+    {
+      "id": "3010ca78421d21ceacd53fa9",
+      "code": "review_coverage",
+      "status": "unchecked",
+      "title": "已有审阅覆盖",
+      "detail": "正文 12 处未完成文字批次；任务共 6 个已规划批次未完成，跨章节规划尚未完成。全部计划内批次完成仍不能证明发现全部问题。",
+      "anchors": [],
+      "group": "review"
+    },
+    {
+      "id": "75eee5807971c38103a84d6c",
+      "code": "layout_missing",
+      "status": "unchecked",
+      "title": "部分正文没有可绑定的最终排版文件",
+      "detail": "请导入最终 PDF 或 DOCX 后核对排版；文本和源代码不能代替最终版面。",
+      "anchors": [],
+      "group": "layout"
+    },
+    {
+      "id": "2944bbc2086ccd7ead4fdb56",
+      "code": "author_final",
+      "status": "manual",
+      "title": "作者确认内容与提交材料",
+      "detail": "核对作者名单与顺序、声明、数据和图像使用权限，以及主张的证据边界；按实际适用要求记录决定。此工具不执行投稿。",
+      "anchors": [],
+      "group": "author"
+    }
+  ],
+  "counts": {
+    "block": 5,
+    "warning": 4,
+    "manual": 5,
+    "unchecked": 2,
+    "pass": 6,
+    "recorded": 1
+  },
+  "item_count": 23,
+  "omitted_items": 0,
+  "model_calls": 0,
+  "scope": "本地规则检查及显式人工记录；按所选文件和规则快照评估。没有联网验证期刊要求、来源真实性或科学有效性，不代表投稿系统验收。",
+  "id": "5e06d8c23b7ef211ad7be490a51cd140",
+  "job_id": "19d2338662f6df51d9b83f75dfde4aa9",
+  "created_at": "2026-09-05T17:12:12.688037+00:00",
+  "binding": "7cd83e31701eded7bc4503cd53ff5282194dc2e7718d0f6c2015d5e536242fcb",
+  "manuscript_revision": 1,
+  "report_sha256": "6ca68ce29098a81ce122aa4ea850f86a0ff2c976c18cabdb084d6130cc08458c",
+  "stale": false,
+  "confirmations": {
+    "3a406a015c60772d26dc5e0d": {
+      "reviewer": "Fixture reviewer",
+      "note": "虚构软件验收材料，本项已人工检查。此记录不代表真实作者批准。",
+      "decision": "checked",
+      "at": "2026-09-05T17:13:04.623718+00:00",
+      "binding": "7cd83e31701eded7bc4503cd53ff5282194dc2e7718d0f6c2015d5e536242fcb",
+      "report_sha256": "6ca68ce29098a81ce122aa4ea850f86a0ff2c976c18cabdb084d6130cc08458c"
+    }
+  },
+  "state": "blocked",
+  "exported_at": "2026-09-05T17:14:11.471615+00:00",
+  "export_sha256": "42c38bab511041f6728967167093c2ff3ff9c2236b94b2d33bff4d86209dafb3"
+}

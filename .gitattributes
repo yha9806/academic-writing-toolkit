@@ -12,4 +12,8 @@ Makefile text eol=lf
 
 # Frozen experiment packets carry byte-level hashes. Preserve producer bytes
 # across platforms rather than applying the repository's text conversion.
-e1/published/** -text -eol
+e1/published/** -text -eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Preserve imported long-document measurements and source provenance.
+workbench/final_output/** -text -eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+workbench/INTEGRATION.json -text -eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

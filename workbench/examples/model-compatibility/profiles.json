@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {"name": "claude-fable-5-1", "provider": "anthropic", "model": "claude-fable-5-1"},
+    {"name": "deepseek-v4-flash", "provider": "deepseek", "model": "deepseek-v4-flash"},
+    {"name": "glm-5-2", "provider": "glm", "model": "glm-5.2"},
+    {"name": "gemini-3-5-flash", "provider": "gemini", "model": "gemini-3.5-flash"},
+    {"name": "gpt-6-astra", "provider": "openai", "model": "gpt-6-astra"}
+  ]
+}

@@ -1,5 +1,10 @@
 # AWT dsh App v0.1 Design
 
+**2026-09-05 amendment:** the user-requested
+[long-document integration](2026-09-05-long-document-integration.md)
+introduces an optional Workbench development component alongside this dsh
+design. Its advisory reviews do not inherit dsh guards or E2 acceptance.
+
 - **Status:** IMPLEMENTED (2026-08-16), not yet E2-verified. Author-approved
   and built through P0–P3 on branch `claude/project-evaluation-review-2ily1b`
   (PR #32): catalogue triage, guards with typed denials, session-log
