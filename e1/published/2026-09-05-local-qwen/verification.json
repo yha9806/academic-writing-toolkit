@@ -1,0 +1,20 @@
+{
+  "runDirectory": "F:\\coproject\\AWT\\.worktrees\\issue-followup-20260905\\e1\\results\\e1-real-2026-09-05T16-56-59-473Z",
+  "producerCommit": "a197d8738a154789f75836d96964e42e35bb4bb2",
+  "implementationHashesVerified": 11,
+  "sourceHashesVerified": 3,
+  "uniqueObservedSessions": 12,
+  "priorRunsVerified": [
+    "F:\\coproject\\AWT\\.worktrees\\issue-followup-20260905\\e1\\results\\e1-real-2026-09-05T16-42-34-640Z",
+    "F:\\coproject\\AWT\\.worktrees\\issue-followup-20260905\\e1\\results\\e1-real-2026-09-05T16-32-57-798Z",
+    "F:\\coproject\\AWT\\.worktrees\\issue-followup-20260905\\e1\\results\\e1-real-2026-09-05T16-19-37-906Z"
+  ],
+  "publishedFilesSha256": {
+    "metrics.json": "d9e2806d96127fba16293717170d98451c9a10d67b1f11ef5cd807830665b46f",
+    "results.md": "cb8a5c5c52dfee1776684d8579f460cce190d4eeb2607f72371b834279ffda17",
+    "analysis.json": "c042b805809432378d89dc65cdcb4b5a9bc1ae70602b620c2facb2f3361fd678",
+    "analysis.md": "555b044bae92ffab60aa56e41d4d48d0d5981da101f721b560f323f6dbbc4c51",
+    "Modelfile": "8db9a0fa19b38d850f2a0eca7f2b2db7d892224321423b6b03482e4ef2c62d94",
+    "pdfs.json": "8dd73992d19ca1375feedef84e2deb801c95a13a36972d527538b5465b9d784f"
+  }
+}

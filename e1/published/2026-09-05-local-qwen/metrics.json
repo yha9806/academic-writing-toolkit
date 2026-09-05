@@ -1,0 +1,520 @@
+{
+  "lane": "real",
+  "status": "completed",
+  "evidenceClass": "E1",
+  "failure": null,
+  "generatedAt": "2026-09-05T17:00:06.058Z",
+  "harness": "@deepseek-ai/dsh@0.1.0-rc.6",
+  "producer": "e1/run-e1.mjs",
+  "producerSha256": "740669c36166cd319846ad66c000414d1e79d49fd5abf2d576d032c5cdd3b4ba",
+  "implementationSha256": {
+    "e1/run-e1.mjs": "740669c36166cd319846ad66c000414d1e79d49fd5abf2d576d032c5cdd3b4ba",
+    "e1/inputs.mjs": "cea1169212ec6ba2d2272bb26ff2c7fa0146b64d35e4995076499a4da4f3867a",
+    "e1/evidence.mjs": "26e3562095f5594f9e98cf3c6dcd50caadbe7d3dd592a0b19923f8b70feb2c23",
+    "e1/local-provider.mjs": "6fe714ff40c8d4a12839e5364082618085d38501717c937547d277db33808f00",
+    "e1/resume.mjs": "65a5c13b579a1e2e0a3ce753031d94200434aca69779098b97f9fbf172403812",
+    "e1/graders.mjs": "7211ee93cace62d14699f6f792ce781af2ec0bab9bbc697d51ff7ddadf6b0070",
+    "profiles/awt-headless/cordis.patch.yml": "74c97f8ae7e70bed96c46bd9fe9d80b8a25ff9edd0f1ba5c25b8c98775b0b4eb",
+    "profiles/awt-headless/awt-read-pdf.plugin.mjs": "803c7307d1a6464ceb168c5ab53af51640668439648e8db5779d1da7e9c81389",
+    "profiles/awt-headless/pdf-pages.mjs": "6f8eff6fddc3de3b878a5c9783c71d3286d401ed802fc7dc0e4242d134042ca5",
+    "guards/dist/notes-lint.js": "21951a68543a7f51129e450239fc9a24700557fa77eee77e5950567fc6ee13fc",
+    "guards/dist/decisions.js": "09734bd9544f16eb52801177e6b392eaa75ea40735238f5dd364bb8c2d1bc336"
+  },
+  "inputs": [
+    {
+      "id": "gao2023-alce",
+      "sha256": "ae9868f07f0f7ffaae5346778f79b7827d9ec6b13b1e6aae4dff6b2ffc37a2e1",
+      "firstPage": 1,
+      "lastPage": 5,
+      "source": {
+        "surname": "gao",
+        "year": "2023"
+      }
+    },
+    {
+      "id": "min2023-factscore",
+      "sha256": "8486fe22a15aaf3fe2e1d7043d169000600205dde9c601c9fd31c0dd6f7380e9",
+      "firstPage": 1,
+      "lastPage": 5,
+      "source": {
+        "surname": "min",
+        "year": "2023"
+      }
+    },
+    {
+      "id": "liu2023-verifiability",
+      "sha256": "2ca08791359f27082d6210b4dec0ed84fe8c7ad6dc70fa57030f1d0066a28c87",
+      "firstPage": 1,
+      "lastPage": 5,
+      "source": {
+        "surname": "liu",
+        "year": "2023"
+      }
+    }
+  ],
+  "model": {
+    "provider": "ollama",
+    "id": "awt-e1-qwen3vl4b-32k:20260905",
+    "local": {
+      "server": "Ollama",
+      "serverVersion": "0.33.2",
+      "modelDigest": "690ec27bb8e35303029f8bfa1f6f55816f7a63499caf3062d64b671fee001dcd",
+      "contextWindow": 32768,
+      "maxTokens": 4096,
+      "parameters": "num_ctx                        32768\nnum_predict                    4096\nseed                           2.0260905e+07\ntemperature                    0.2\ntop_k                          20\ntop_p                          0.95",
+      "details": {
+        "parent_model": "qwen3-vl:4b-instruct",
+        "format": "gguf",
+        "family": "qwen3vl",
+        "families": [
+          "qwen3vl"
+        ],
+        "parameter_size": "4.4B",
+        "quantization_level": "Q4_K_M"
+      },
+      "baseURL": "http://127.0.0.1:11434/v1"
+    }
+  },
+  "continuation": {
+    "run": "F:\\coproject\\AWT\\.worktrees\\issue-followup-20260905\\e1\\results\\e1-real-2026-09-05T16-42-34-640Z",
+    "metricsSha256": "59516de2238f44426804ae197ead91319cc125d0e0e9c46a074501bb0200b7ef",
+    "producerSha256": "6fa1b4256715c302c89cc242f317381135f6cacea9434edd93dc11ff4112821d",
+    "reusedTasks": [
+      "gao2023-alce/skills/notes",
+      "gao2023-alce/skills/draft",
+      "gao2023-alce/plain/notes",
+      "gao2023-alce/plain/draft"
+    ],
+    "reusedLogSha256": "922af7c04552eb917c89ebda8fb2638921921a7e9806b0c5985447a12f11c8bb",
+    "reusedLogs": [
+      {
+        "task": "gao2023-alce/skills/notes",
+        "sha256": "922af7c04552eb917c89ebda8fb2638921921a7e9806b0c5985447a12f11c8bb"
+      },
+      {
+        "task": "gao2023-alce/skills/draft",
+        "sha256": "ae2e89a4c6754c4d586672b5581282fa0af7b974bceedcd6151f62db2d9751f1"
+      },
+      {
+        "task": "gao2023-alce/plain/notes",
+        "sha256": "57d644574b83878dece27db907ed029beba0f45f1bab8ace1143f5551f49fae2"
+      },
+      {
+        "task": "gao2023-alce/plain/draft",
+        "sha256": "1b6c115d58c169cea4b5cb7247644b7b7c3902119155f4fdf6997f45d5ad4f35"
+      }
+    ],
+    "retriedTransportTasks": [
+      {
+        "task": "min2023-factscore/skills/notes",
+        "failedLogSha256": "61ff9f6f02a545a13fa1c9af3146bf6ba8d2e28cd85024a03528e8b112099918",
+        "reason": "explicit local transport retry after health check; no prior tool write"
+      }
+    ],
+    "earlierContinuation": {
+      "run": "F:\\coproject\\AWT\\.worktrees\\issue-followup-20260905\\e1\\results\\e1-real-2026-09-05T16-32-57-798Z",
+      "metricsSha256": "e463a2c3ae9dc2876abacb0c623983e53644626287aec294cbcc513a0058ee30",
+      "producerSha256": "03fbc16c43a0beab5d278bb48e416a6eed3716e1a7330f234a998d98df1c101e",
+      "reusedTasks": [
+        "gao2023-alce/skills/notes",
+        "gao2023-alce/skills/draft"
+      ],
+      "reusedLogSha256": "922af7c04552eb917c89ebda8fb2638921921a7e9806b0c5985447a12f11c8bb",
+      "reusedLogs": [
+        {
+          "sha256": "922af7c04552eb917c89ebda8fb2638921921a7e9806b0c5985447a12f11c8bb",
+          "outcome": "max-tokens",
+          "endedAt": 1788625239231
+        },
+        {
+          "sha256": "ae2e89a4c6754c4d586672b5581282fa0af7b974bceedcd6151f62db2d9751f1",
+          "outcome": "empty-response",
+          "endedAt": 1788626198834
+        }
+      ],
+      "earlierContinuation": {
+        "run": "F:\\coproject\\AWT\\.worktrees\\issue-followup-20260905\\e1\\results\\e1-real-2026-09-05T16-19-37-906Z",
+        "metricsSha256": "35c87b1109a98523aaee31dcdd0bcd021f23e676c76c9661aa01e9db67269e00",
+        "producerSha256": "37a9b7d53b9fc395f7acc693d22919b2e57f8ecfd1320cf10806f29bb9f015cd",
+        "reusedTask": "gao2023-alce/skills/notes",
+        "reusedLogSha256": "922af7c04552eb917c89ebda8fb2638921921a7e9806b0c5985447a12f11c8bb"
+      }
+    }
+  },
+  "note": "Real lane: paired sessions over the manifest PDFs. E1 evidence per §11.",
+  "results": [
+    {
+      "id": "gao2023-alce",
+      "arm": "skills",
+      "status": "completed",
+      "taskOutcomes": [
+        "max-tokens",
+        "empty-response"
+      ],
+      "sourceOpened": true,
+      "evidenceClass": "E1",
+      "efficacyEligible": true,
+      "artifacts": "gao2023-alce/skills",
+      "quoteFidelity": {
+        "quotes": 0,
+        "matched": 0,
+        "misses": []
+      },
+      "pageAccuracy": {
+        "cited": 0,
+        "correct": 0,
+        "uncited": 0,
+        "wrong": []
+      },
+      "notes": {
+        "present": false,
+        "parseable": false,
+        "errors": [
+          "notes file absent"
+        ]
+      },
+      "unopenedCitations": {
+        "citations": 0,
+        "unopened": [],
+        "draftPresent": false
+      },
+      "runExitCodes": [
+        1,
+        1
+      ],
+      "processes": [
+        {
+          "status": 1,
+          "signal": null,
+          "outcome": "max-tokens",
+          "error": null
+        },
+        {
+          "status": 1,
+          "signal": null,
+          "outcome": "empty-response",
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "gao2023-alce",
+      "arm": "plain",
+      "status": "completed",
+      "taskOutcomes": [
+        "completed",
+        "completed"
+      ],
+      "sourceOpened": true,
+      "evidenceClass": "E1",
+      "efficacyEligible": true,
+      "artifacts": "gao2023-alce/plain",
+      "quoteFidelity": {
+        "quotes": 3,
+        "matched": 0,
+        "misses": [
+          "Education is not designed for the purpose of training the mind to perform tasks ",
+          "The most important thing in education is that the pupils think for themselves",
+          "The teacher is not a source of information but a guide who helps the student dis"
+        ]
+      },
+      "pageAccuracy": {
+        "cited": 0,
+        "correct": 0,
+        "uncited": 3,
+        "wrong": []
+      },
+      "notes": {
+        "present": true,
+        "parseable": false,
+        "errors": [
+          "title-missing: first line must be \"# Reading Notes: {Author} -- {Title} ({Year})\"",
+          "source-missing: missing or empty \"**Source**:\" line",
+          "status-missing: missing \"**Status**:\" line",
+          "date-missing: missing \"**Date read**:\" line",
+          "relevance-missing: missing \"**Relevance**:\" line",
+          "section-missing: missing required section \"## Key Arguments\"",
+          "section-missing: missing required section \"## Detailed Notes\"",
+          "section-missing: missing required section \"## Thesis Connections\"",
+          "last-updated-missing: missing \"*Last updated: {YYYY-MM-DD}*\" footer"
+        ]
+      },
+      "unopenedCitations": {
+        "draftPresent": true,
+        "citations": 0,
+        "unopened": []
+      },
+      "runExitCodes": [
+        0,
+        0
+      ],
+      "processes": [
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        },
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "min2023-factscore",
+      "arm": "skills",
+      "status": "completed",
+      "taskOutcomes": [
+        "completed",
+        "completed"
+      ],
+      "sourceOpened": true,
+      "evidenceClass": "E1",
+      "efficacyEligible": true,
+      "artifacts": "min2023-factscore/skills",
+      "quoteFidelity": {
+        "quotes": 2,
+        "matched": 0,
+        "misses": [
+          "Long-form text generated by large language models (LMs) has widely been used (Br",
+          "Long-form text generated by large language models (LMs) has widely been used (Br"
+        ]
+      },
+      "pageAccuracy": {
+        "cited": 0,
+        "correct": 0,
+        "uncited": 2,
+        "wrong": []
+      },
+      "notes": {
+        "present": true,
+        "parseable": false,
+        "errors": [
+          "title-missing: first line must be \"# Reading Notes: {Author} -- {Title} ({Year})\"",
+          "source-missing: missing or empty \"**Source**:\" line",
+          "status-missing: missing \"**Status**:\" line",
+          "date-missing: missing \"**Date read**:\" line",
+          "relevance-missing: missing \"**Relevance**:\" line",
+          "section-missing: missing required section \"## Key Arguments\"",
+          "section-missing: missing required section \"## Detailed Notes\"",
+          "section-missing: missing required section \"## Thesis Connections\"",
+          "last-updated-missing: missing \"*Last updated: {YYYY-MM-DD}*\" footer"
+        ]
+      },
+      "unopenedCitations": {
+        "draftPresent": true,
+        "citations": 0,
+        "unopened": []
+      },
+      "runExitCodes": [
+        0,
+        0
+      ],
+      "processes": [
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        },
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "min2023-factscore",
+      "arm": "plain",
+      "status": "completed",
+      "taskOutcomes": [
+        "completed",
+        "completed"
+      ],
+      "sourceOpened": true,
+      "evidenceClass": "E1",
+      "efficacyEligible": true,
+      "artifacts": "min2023-factscore/plain",
+      "quoteFidelity": {
+        "quotes": 7,
+        "matched": 0,
+        "misses": [
+          "Long-form text generated by large language models (LMs) has widely been used (Br",
+          "Since human evaluation is costly, we next introduce an automatic evaluation of F",
+          "the digital revolution has enabled small enterprises to access global markets pr",
+          "digital platforms have dramatically lowered barriers to entry for small business",
+          "the digital economy has created a new paradigm where small businesses can thrive",
+          "while digital tools offer unprecedented opportunities, they also create signific",
+          "the future belongs to those who can leverage digital tools effectively,"
+        ]
+      },
+      "pageAccuracy": {
+        "cited": 0,
+        "correct": 0,
+        "uncited": 7,
+        "wrong": []
+      },
+      "notes": {
+        "present": true,
+        "parseable": false,
+        "errors": [
+          "title-missing: first line must be \"# Reading Notes: {Author} -- {Title} ({Year})\"",
+          "source-missing: missing or empty \"**Source**:\" line",
+          "status-missing: missing \"**Status**:\" line",
+          "date-missing: missing \"**Date read**:\" line",
+          "relevance-missing: missing \"**Relevance**:\" line",
+          "section-missing: missing required section \"## Key Arguments\"",
+          "section-missing: missing required section \"## Detailed Notes\"",
+          "section-missing: missing required section \"## Thesis Connections\"",
+          "last-updated-missing: missing \"*Last updated: {YYYY-MM-DD}*\" footer"
+        ]
+      },
+      "unopenedCitations": {
+        "draftPresent": true,
+        "citations": 0,
+        "unopened": []
+      },
+      "runExitCodes": [
+        0,
+        0
+      ],
+      "processes": [
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        },
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "liu2023-verifiability",
+      "arm": "skills",
+      "status": "completed",
+      "taskOutcomes": [
+        "max-tokens",
+        "completed"
+      ],
+      "sourceOpened": true,
+      "evidenceClass": "E1",
+      "efficacyEligible": true,
+      "artifacts": "liu2023-verifiability/skills",
+      "quoteFidelity": {
+        "quotes": 0,
+        "matched": 0,
+        "misses": []
+      },
+      "pageAccuracy": {
+        "cited": 0,
+        "correct": 0,
+        "uncited": 0,
+        "wrong": []
+      },
+      "notes": {
+        "present": false,
+        "parseable": false,
+        "errors": [
+          "notes file absent"
+        ]
+      },
+      "unopenedCitations": {
+        "citations": 0,
+        "unopened": [],
+        "draftPresent": false
+      },
+      "runExitCodes": [
+        1,
+        0
+      ],
+      "processes": [
+        {
+          "status": 1,
+          "signal": null,
+          "outcome": "max-tokens",
+          "error": null
+        },
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "liu2023-verifiability",
+      "arm": "plain",
+      "status": "completed",
+      "taskOutcomes": [
+        "completed",
+        "completed"
+      ],
+      "sourceOpened": true,
+      "evidenceClass": "E1",
+      "efficacyEligible": true,
+      "artifacts": "liu2023-verifiability/plain",
+      "quoteFidelity": {
+        "quotes": 2,
+        "matched": 0,
+        "misses": [
+          "A prerequisite trait of a trustworthy generative search engine is verifiability,",
+          "We find that responses from existing generative search engines are fluent and ap"
+        ]
+      },
+      "pageAccuracy": {
+        "cited": 0,
+        "correct": 0,
+        "uncited": 2,
+        "wrong": []
+      },
+      "notes": {
+        "present": true,
+        "parseable": false,
+        "errors": [
+          "source-missing: missing or empty \"**Source**:\" line",
+          "status-missing: missing \"**Status**:\" line",
+          "date-missing: missing \"**Date read**:\" line",
+          "relevance-missing: missing \"**Relevance**:\" line",
+          "section-missing: missing required section \"## Key Arguments\"",
+          "section-missing: missing required section \"## Detailed Notes\"",
+          "section-missing: missing required section \"## Thesis Connections\"",
+          "last-updated-missing: missing \"*Last updated: {YYYY-MM-DD}*\" footer"
+        ]
+      },
+      "unopenedCitations": {
+        "citations": 0,
+        "unopened": [],
+        "draftPresent": false
+      },
+      "runExitCodes": [
+        0,
+        0
+      ],
+      "processes": [
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        },
+        {
+          "status": 0,
+          "signal": null,
+          "outcome": "completed",
+          "error": null
+        }
+      ]
+    }
+  ]
+}

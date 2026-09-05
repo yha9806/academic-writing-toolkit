@@ -14,8 +14,12 @@
   exercised by ~60 suite tests (thesis-control, evidence-review,
   release-governance against temp fixtures) and §13 never named it; the 11
   bundles are out of the catalogue, which is the property that matters. The
-  E2 runbook is `docs/e2-dogfood-runbook.md`. Remaining, author-executed:
-  E2 chapter cycle; E1 real lane (three PDFs + key). One P3-scope item from
+  E2 runbook is `docs/e2-dogfood-runbook.md`. On 2026-09-05 the
+  [three-source local E1 pilot](../../e1/published/2026-09-05-local-qwen/README.md)
+  collected twelve task observations with a real local model. Neither arm
+  produced conforming notes; no writing-efficacy improvement is claimed.
+  The author-executed E2 chapter cycle and any cloud-model comparison remain
+  unexecuted. One P3-scope item from
   the parent's non-goals (a one-shot thesis-control CSV import script) is
   NOT built — flagged, not silently dropped.
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §11 (evidence

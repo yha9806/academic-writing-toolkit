@@ -21,8 +21,10 @@ The core promise is simple: **agents may help operate the workflow; the author k
 > typed denials, session-log-derived governance, and harness-event approvals.
 > Evidence status is stated per §11 of the
 > [v0.1 design](docs/specs/2026-08-16-awt-dsh-app-v0.1-design.md): every
-> enforcement claim is CI-proven (E0); author-dogfood and external evidence
-> are pending and never implied.
+> enforcement claim is CI-proven (E0). A [three-source local E1 pilot](e1/published/2026-09-05-local-qwen/README.md)
+> is now recorded; neither arm produced lint-conforming notes, so it does
+> not demonstrate improved writing efficacy. Author-dogfood and external
+> evidence remain pending.
 
 AWT is not a hosted writing service and does not operate a manuscript-storage
 backend. Its deterministic tools stay local. Provider routes are configured by
