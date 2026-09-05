@@ -348,14 +348,14 @@ async function runArm(entry, arm, runDir) {
     for (const tree of ['chapters', 'contracts']) cpSync(join(resume.artifactDir, tree), join(ws, tree), { recursive: true })
     cpSync(join(resume.artifactDir, 'reading_notes'), join(ws, 'literature', 'reading_notes'), { recursive: true })
     cpSync(join(resume.artifactDir, 'sessions'), join(home, 'sessions'), { recursive: true })
-    runs.push(resume.process)
-    console.log(`  reusing recorded ${entry.id}/skills notes outcome; no model retry`)
+    runs.push(...resume.processes)
+    console.log(`  reusing ${resume.processes.length} recorded ${entry.id}/skills task outcome(s); no model retry`)
   } else {
     runs.push(runHeadless(home, ws, NOTES_TASK(entry), scriptEnv(scripts?.notes)))
   }
   // A recorded model-budget exhaustion remains in the sample. Only an
   // unobserved or infrastructure failure stops subsequent tasks.
-  if (measuredRun(runs[0])) runs.push(runHeadless(home, ws, DRAFT_TASK(entry), scriptEnv(scripts?.draft)))
+  if (runs.length === 1 && measuredRun(runs[0])) runs.push(runHeadless(home, ws, DRAFT_TASK(entry), scriptEnv(scripts?.draft)))
   for (const [i, res] of runs.entries()) {
     if (res.status !== 0) {
       const tail = `${res.stderr ?? ''}`.trim().split('\n').slice(-4).join(' | ')

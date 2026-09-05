@@ -4,7 +4,7 @@ The offline lane checks the instrument with scripted synthetic arms (E0).
 Real model sessions over three chosen PDFs produce E1 results. Neither is
 the author's E2 chapter cycle. Model quality is reported as observed; a
 transport or process failure is an incomplete run, not a favourable model
-result. A durable `max-tokens` or guard `blocked` terminal outcome is a
+result. A durable `max-tokens`, `EMPTY_RESPONSE` or guard `blocked` terminal outcome is a
 measured model failure and remains in the sample, with its task outcome
 displayed beside the four metrics.
 
@@ -63,10 +63,10 @@ not a currency or token cap. An infrastructure failure stops subsequent sessions
 there is no automatic paid retry.
 
 `--resume <saved-run-directory>` supports one narrow continuation: a run
-that stopped after its first skills notes task with a durable `max-tokens`
-outcome. It verifies identical inputs, model settings and grader/reader
+that stopped during its first skills arm with durable model-failure
+outcomes. It verifies identical inputs, model settings and grader/reader
 hashes, reuses the original log and file state, and runs only the remaining
-tasks. It never re-generates that failed observation. Both result directories
+tasks. It never re-generates those failed observations. Both result directories
 are retained and the continuation records the original evidence hashes.
 
 ## Inspect and share results

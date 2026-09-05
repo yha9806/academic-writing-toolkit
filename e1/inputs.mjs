@@ -89,7 +89,7 @@ export function readManifest(manifestPath) {
 // its output budget. A durable, recognised terminal outcome distinguishes them.
 export function measuredRun(run) {
   return !run.error && !run.signal && (run.status === 0 ||
-    (run.status === 1 && ['max-tokens', 'blocked'].includes(run.outcome)))
+    (run.status === 1 && ['max-tokens', 'blocked', 'empty-response'].includes(run.outcome)))
 }
 
 export function classifyRun(lane, runs, sourceOpened, logsPresent = true) {

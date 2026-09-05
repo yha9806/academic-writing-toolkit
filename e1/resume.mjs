@@ -7,8 +7,8 @@ import { sessionFiles, terminalOutcome } from './evidence.mjs'
 const fail = (message) => { throw new E1InputError('E1_RESUME_INVALID', message) }
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
-// Deliberately narrow: preserve the first notes task that the old producer
-// stopped after a recorded output-budget exhaustion. Never retry that sample.
+// Deliberately narrow: preserve the first skills task/arm that the old
+// producer stopped after recorded model failures. Never retry those samples.
 export function readResume(directory, entries, route, harness, implementationRoot) {
   const root = resolve(directory), bytes = readFileSync(join(root, 'metrics.json'))
   const prior = JSON.parse(bytes.toString('utf8'))
@@ -19,15 +19,27 @@ export function readResume(directory, entries, route, harness, implementationRoo
     if (prior.implementationSha256?.[file] !== digest(readFileSync(join(implementationRoot, file)))) fail(`the saved grader or source reader differs: ${file}`)
   }
   const prefix = prior.results?.[0]
-  if (prior.results?.length !== 1 || prefix.id !== entries[0].id || prefix.arm !== 'skills' || prefix.artifacts !== `${entries[0].id}/skills` || prefix.processes?.length !== 1) fail('only the interrupted first skills notes task can be continued')
-  const process = prefix.processes[0]
-  if (process.status !== 1 || process.signal || process.error) fail('the prefix is not a cleanly terminated headless task')
+  if (prior.results?.length !== 1 || prefix.id !== entries[0].id || prefix.arm !== 'skills' || prefix.artifacts !== `${entries[0].id}/skills` || ![1, 2].includes(prefix.processes?.length)) fail('only the interrupted first skills task/arm can be continued')
   const artifactDir = join(root, prefix.artifacts)
   const files = sessionFiles(artifactDir)
-  const outcome = terminalOutcome(files.map((file) => readFileSync(file, 'utf8')))
-  if (outcome !== 'max-tokens') fail('the durable prefix log must record max-tokens, not an infrastructure failure')
-  return { artifactDir, id: prefix.id, process: { ...process, outcome }, provenance: {
+  const logs = files.map((file) => {
+    const bytes = readFileSync(file), text = bytes.toString('utf8')
+    const events = text.split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line))
+    return { sha256: digest(bytes), outcome: terminalOutcome([text]), endedAt: events.find((event) => event.type === 'turn/end')?.time ?? 0 }
+  }).sort((a, b) => a.endedAt - b.endedAt)
+  if (logs.length !== prefix.processes.length) fail('each prefix task needs one durable session log')
+  const processes = prefix.processes.map((process, index) => {
+    const outcome = logs[index].outcome
+    if (process.signal || process.error || !([0, 1].includes(process.status)) ||
+        (process.status === 0 ? outcome !== 'completed' : !['max-tokens', 'blocked', 'empty-response'].includes(outcome))) {
+      fail('the durable prefix log must record a measured terminal outcome, not an infrastructure failure')
+    }
+    return { ...process, outcome }
+  })
+  return { artifactDir, id: prefix.id, processes, process: processes[0], provenance: {
     run: root, metricsSha256: digest(bytes), producerSha256: prior.producerSha256,
-    reusedTask: `${prefix.id}/skills/notes`, reusedLogSha256: digest(readFileSync(files[0])),
+    reusedTasks: ['notes', 'draft'].slice(0, processes.length).map((task) => `${prefix.id}/skills/${task}`),
+    reusedLogSha256: logs[0].sha256, reusedLogs: logs,
+    ...(prior.continuation ? { earlierContinuation: prior.continuation } : {}),
   } }
 }

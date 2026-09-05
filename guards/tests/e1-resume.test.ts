@@ -17,6 +17,11 @@ test('a logged model budget exhaustion stays in the measured sample; crashes and
   assert.equal(classifyRun('real', [{ status: 1, outcome }, { status: 0, outcome: 'completed' }], true).evidenceClass, 'E1')
   assert.equal(classifyRun('real', [{ status: 1 }, { status: 0 }], true).evidenceClass, null)
   assert.equal(classifyRun('real', [{ status: 1, outcome, error: { code: 'ETIMEDOUT' } }, { status: 0 }], true).evidenceClass, null)
+  const empty = terminalOutcome([JSON.stringify({ type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'EMPTY_RESPONSE' } } } })])
+  assert.equal(empty, 'empty-response')
+  assert.equal(classifyRun('real', [{ status: 1, outcome: empty }, { status: 0 }], true).evidenceClass, 'E1')
+  const unavailable = terminalOutcome([JSON.stringify({ type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'MISSING_CREDENTIAL' } } } })])
+  assert.equal(classifyRun('real', [{ status: 1, outcome: unavailable }, { status: 0 }], true).evidenceClass, null)
 })
 
 test('continuation binds the original observation to identical sources, graders, model settings and log bytes', () => {

@@ -55,6 +55,8 @@ export function terminalOutcome(logs) {
     const events = logs[0].split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line))
     const ends = events.filter((event) => event.type === 'turn/end')
     if (ends.length !== 1) return undefined
-    return ends[0].data?.reason?.kind
+    const reason = ends[0].data?.reason
+    if (reason?.kind === 'error' && reason.error?.code === 'EMPTY_RESPONSE') return 'empty-response'
+    return reason?.kind
   } catch { return undefined }
 }

@@ -91,3 +91,11 @@ No failed observation is retried or discarded. The completed comparison
 will show terminal task outcomes alongside metric counts; budget exhaustion
 does not become a successful notes result. Unobserved failures, crashes and
 transport errors still stop execution with no E1 classification.
+
+The subsequent Gao skills draft task ended with `EMPTY_RESPONSE`: the
+backend returned a completed response with no usable content. The harness
+reports that model-output failure through its error envelope. The collector
+now distinguishes this specific outcome from credentials, transport and
+other errors. The original two task observations in
+`e1-real-2026-09-05T16-32-57-798Z` are reused byte-for-byte, leaving ten new
+tasks. No model setting or grader changed, and neither observation is retried.
