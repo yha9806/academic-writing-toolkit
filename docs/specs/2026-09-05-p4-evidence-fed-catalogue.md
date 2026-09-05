@@ -1,8 +1,11 @@
 # P4 — Evidence-Fed Catalogue
 
-- **Status:** DRAFT — awaiting author approval. Nothing here is implemented.
-  Two author decisions are marked ⚑; implementation must not start before
-  they are taken and this header says `author_approved`.
+- **Status:** author_approved (2026-09-05). Both ⚑ decisions taken by the
+  author: item 1 → **A** (promote the lightweight author-control profile as
+  Advisory assets; approval field is display, never authority); item 3 →
+  **(a)+(b)** (the export gate checks notes coverage AND `.bib` parity).
+  Implementation may begin; per-item truth lives in this header's
+  successors (`implemented` → `verified`), never in prose.
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §6 (catalogue),
   §7 (enforcement), §11 (evidence classes), §12 (kill/reframe gates)
 - **Inputs:** two real manuscripts finished between 2026-07 and 2026-09-01
@@ -57,7 +60,7 @@ disposition must be explicit.
 
 ## Scope, in order
 
-1. ⚑ **Author-control disposition.** Recommendation **A**: promote the
+1. **Author-control disposition — decided: A.** promote the
    lightweight profile as *Advisory assets* — templates to
    `references/author-control/`, the checker to
    `scripts/check-author-control.py` (stdlib), and one paragraph in
@@ -78,7 +81,7 @@ disposition must be explicit.
      recognition for Markdown (the same two forms the guards' extractor
      accepts), red-first tested, so category E is meaningful on a thesis
      workspace and not only on a LaTeX paper.
-3. ⚑ **Enforced pre-export gate (app surface).** Export becomes a profile
+3. **Enforced pre-export gate (app surface) — decided: (a)+(b).** Export becomes a profile
    tool (`export_docx`, wrapping the existing `convert_to_docx.py`) so a
    guard can gate it deterministically — shell-command inspection is not a
    seam. Denial `EXPORT_SOURCES_UNRESOLVED` fires when (a) any author-year
@@ -86,7 +89,6 @@ disposition must be explicit.
    (whole-corpus notes-before-chapters), or (b) a `.bib` exists and has
    dangling or uncited entries. On the skills surface the `export` skill
    runs the same check first and says plainly that there it is Advisory.
-   Author decision: ship (a) alone, or (a)+(b).
 4. **Sentence-level citation fidelity audit** —
    `scripts/audit-citation-fidelity.mjs`, reusing `e1/graders.mjs` so the
    audit and the instrument measure the same thing and cannot drift. Per
