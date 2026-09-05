@@ -9,7 +9,7 @@
 
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import {
@@ -104,6 +104,40 @@ test('QUOTE_SPAN_MODIFIED: an edit altering text inside a quotation span is deni
 
   assertOnlyDenial(agent.session.events, 'QUOTE_SPAN_MODIFIED')
   assert.match(readFileSync(join(ws, 'chapters', 'ch1.md'), 'utf8'), /not a neutral container/)
+  await ctx.fiber.dispose()
+})
+
+test('EXPORT_SOURCES_UNRESOLVED: an export is denied while a chapter cites a source with no notes', async () => {
+  const { ctx, ws } = await mountHarness(
+    [
+      toolCallResponse('e1', 'export_docx', { scope: 'chapters', lang_filter: 'all' }),
+      textResponse('done'),
+    ],
+  )
+  // A second chapter, written outside dsh, cites a source that has no notes file.
+  writeFileSync(join(ws, 'chapters', 'ch2.md'), 'Jones (2021) argues that memory is contested terrain.')
+  const agent = startTurn(ctx)
+  prompt(agent, 'export the chapters')
+  await agent.whenIdle()
+
+  assertOnlyDenial(agent.session.events, 'EXPORT_SOURCES_UNRESOLVED')
+  assert.ok(!existsSync(join(ws, 'final_output', 'EXPORTED.txt')), 'denied export must not run the tool body')
+  await ctx.fiber.dispose()
+})
+
+test('export negative control: every chapter citation has conforming notes — the export runs', async () => {
+  const { ctx, ws } = await mountHarness(
+    [
+      toolCallResponse('e1', 'export_docx', { scope: 'chapters', lang_filter: 'all' }),
+      textResponse('done'),
+    ],
+  )
+  const agent = startTurn(ctx)
+  prompt(agent, 'export the chapters')
+  await agent.whenIdle()
+
+  assertOnlyDenial(agent.session.events, undefined)
+  assert.ok(existsSync(join(ws, 'final_output', 'EXPORTED.txt')), 'allowed export must reach the tool body')
   await ctx.fiber.dispose()
 })
 

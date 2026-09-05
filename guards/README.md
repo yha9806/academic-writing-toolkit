@@ -19,6 +19,7 @@ pinned harness by the testkit tier and the live e2e.
 | ≤ 15 pages per `read_pdf` invocation | `ctx.tools.guard` | `first_page`..`last_page` of the requested call | deny `PAGE_RANGE_EXCEEDED` |
 | ≤ 90 pages per session | `ctx.tools.guard` | successful `read_pdf` results folded from the append-only session log (page-budget projection) | deny `PAGE_BUDGET_EXCEEDED` |
 | After 3 typed-denial attempts under a contract, further in-scope chapter writes need the author | `tools/pre-execute` waterfall | per-contract typed-denial attempts folded from the session log (revision-attempts projection) | `ask` with reason `ESCALATION_REQUIRED`, resolved by dsh-user-approval (`allowed-once` / `rejected` / fail-closed `unavailable`) |
+| An export runs only when every cited source resolves | `ctx.tools.guard` on `export_docx` | every author-year citation under `chapters/**` against lint-conforming notes files; when a `.bib` exists, entries ↔ citations by first-author surname + year, both directions | deny `EXPORT_SOURCES_UNRESOLVED` |
 | A guard that would enforce nothing must not mount | plugin `apply()` (profile boot) | config limits, notes root, contracts source | throw `GuardConfigError` (`PAGE_BUDGET_INERT`, `NOTES_ROOT_MISSING`, `CONTRACTS_SOURCE_UNRESOLVABLE`) |
 
 Denial reasons are content-free: operation, rule, observed value, limit, and
@@ -51,6 +52,11 @@ events. No agent-writable file is ever an authority.
   carry the tool name and reason, never call arguments; grants are
   `allowed-once` — nothing persists past the one asked call. A blocked ask
   folds as a `failed` attempt, never as a fourth strike.
+- **Export gate**: gates the registered `export_docx` tool only — a manual
+  pandoc run is outside dsh and outside every guard. Bibliography matching is
+  first-author surname + year (the notes convention): it cannot tell whether
+  an entry is the *right* source, and a citation naming only a second author
+  will read as unresolved. Presence, never correctness.
 - **Projections**: fold this plugin's vocabulary and harness-known events;
   facts from foreign producers are counted as `unrecognizedFacts`, never
   silently folded.

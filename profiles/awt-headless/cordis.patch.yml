@@ -61,5 +61,8 @@
     - id: awt-read-pdf
       name: './awt-read-pdf.plugin.mjs'
 
+    - id: awt-export
+      name: './awt-export.plugin.mjs'
+
     - id: awt-brand
       name: './awt-brand.plugin.mjs'

@@ -28,6 +28,7 @@ import { join, relative, resolve, isAbsolute } from 'node:path'
 import { lintNotes, hasErrors } from './notes-lint.ts'
 import {
   decide,
+  decideExport,
   decidePdfRead,
   foldPdfRead,
   shouldAskEscalation,
@@ -146,6 +147,26 @@ export function fsRepoView(projectRoot: string): RepoView {
       }
       return undefined
     },
+    chapterFiles() {
+      const out: string[] = []
+      const walk = (rel: string) => {
+        const dir = join(root, rel)
+        if (!existsSync(dir) || !statSync(dir).isDirectory()) return
+        for (const name of readdirSync(dir).sort()) {
+          const childRel = `${rel}/${name}`
+          if (statSync(join(root, childRel)).isDirectory()) walk(childRel)
+          else if (name.endsWith('.md')) out.push(childRel)
+        }
+      }
+      walk('chapters')
+      return out
+    },
+    bibText() {
+      const preferred = join(root, 'references.bib')
+      if (existsSync(preferred)) return readFileSync(preferred, 'utf8')
+      const first = readdirSync(root).filter((n) => n.endsWith('.bib')).sort()[0]
+      return first === undefined ? undefined : readFileSync(join(root, first), 'utf8')
+    },
   }
 }
 
@@ -247,7 +268,9 @@ export function apply(ctx: GuardHostContext, config?: Config): void {
   ctx.tools.guard((execution) => {
     const call: ToolCall = { tool: execution.name, args: callArgs(execution) }
     const denial =
-      decide(call, repo) ?? decidePdfRead(call, { pagesRead: pagesReadFor(execution) }, budget)
+      decide(call, repo) ??
+      decidePdfRead(call, { pagesRead: pagesReadFor(execution) }, budget) ??
+      decideExport(call, repo)
     return denial ? denialReason(denial.code, denial.message) : undefined
   })
 

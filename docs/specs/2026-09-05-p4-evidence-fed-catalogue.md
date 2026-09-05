@@ -1,6 +1,14 @@
 # P4 — Evidence-Fed Catalogue
 
-- **Status:** author_approved (2026-09-05). Both ⚑ decisions taken by the
+- **Status:** session 1 IMPLEMENTED (2026-09-05) — items 1–3 landed and gated
+  locally: author-control promoted as Advisory assets (`a02a795`); claim
+  positioning recognises Harvard/Markdown and joins the audit skill with
+  prose measurement, positioning first (`55ebb63`); the pre-export gate
+  `EXPORT_SOURCES_UNRESOLVED` guards a registered `export_docx` profile tool,
+  red-first in the pure kernel, the testkit tier (denied and allowed), and
+  the live e2e (six scenarios green); credential probe green; make test
+  132/132; public-content audit clean. Session 2 (item 4, the sentence-level
+  fidelity audit, and docs) is next. Originally author_approved (2026-09-05). Both ⚑ decisions taken by the
   author: item 1 → **A** (promote the lightweight author-control profile as
   Advisory assets; approval field is display, never authority); item 3 →
   **(a)+(b)** (the export gate checks notes coverage AND `.bib` parity).

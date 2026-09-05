@@ -42,6 +42,7 @@ const DENIAL_CODES = [
   'QUOTE_SPAN_MODIFIED',
   'PAGE_RANGE_EXCEEDED',
   'PAGE_BUDGET_EXCEEDED',
+  'EXPORT_SOURCES_UNRESOLVED',
 ]
 
 // --- scenarios ---------------------------------------------------------------
@@ -128,6 +129,17 @@ const SCENARIOS = [
       },
     }),
   },
+  {
+    key: 'export-unresolved',
+    label: 'export_docx while chapters/ch2.md cites Jones (2021) with no notes file',
+    expect: 'EXPORT_SOURCES_UNRESOLVED',
+    mayChange: 'chapters/ch3.md',
+    // Written outside dsh: the export gate is corpus-wide, so an un-noted
+    // citation anywhere under chapters/ must block the export.
+    prepare: (ws) => writeFileSync(join(ws, 'chapters', 'ch2.md'), 'Jones (2021) argues that memory is contested terrain.\n'),
+    call: () => ({ tool: 'export_docx', args: { scope: 'chapters', lang_filter: 'all' } }),
+    mustNotExist: (ws) => join(ws, 'final_output', 'EXPORTED.txt'),
+  },
 ]
 
 // --- fixture -------------------------------------------------------------------
@@ -212,6 +224,7 @@ function buildHome() {
   cpSync(join(E2E_DIR, 'profile', 'cordis.patch.yml'), join(profile, 'cordis.patch.yml'))
   cpSync(join(E2E_DIR, 'plugins', 'awt-scripted-llm.plugin.mjs'), join(profile, 'awt-scripted-llm.plugin.mjs'))
   cpSync(join(E2E_DIR, 'plugins', 'awt-read-pdf-stub.plugin.mjs'), join(profile, 'awt-read-pdf-stub.plugin.mjs'))
+  cpSync(join(E2E_DIR, 'plugins', 'awt-export-stub.plugin.mjs'), join(profile, 'awt-export-stub.plugin.mjs'))
   cpSync(GUARDS_DIST, join(profile, 'awt-guards'), { recursive: true })
   return home
 }
@@ -248,6 +261,7 @@ function grepSessions(home, needle) {
 
 function runScenario(scenario) {
   const ws = buildWorkspace(scenario.mayChange)
+  scenario.prepare?.(ws)
   const home = buildHome()
   const call = scenario.call(ws)
   const failures = []

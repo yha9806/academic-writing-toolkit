@@ -19,10 +19,10 @@ import {
   revisionAttemptsSchema,
 } from '../src/vocabulary.ts'
 
-test('the denial-code catalogue is exactly the five P1 codes', () => {
+test('the denial-code catalogue is exactly the six codes — five from P1 plus the P4 export gate', () => {
   assert.deepEqual([...CHAPTER_DENIAL_CODES], ['NOTES_MISSING', 'QUOTE_SPAN_MODIFIED', 'CONTRACT_SCOPE'])
-  assert.deepEqual([...PAGE_DENIAL_CODES], ['PAGE_RANGE_EXCEEDED', 'PAGE_BUDGET_EXCEEDED'])
-  assert.equal(ALL_DENIAL_CODES.length, 5)
+  assert.deepEqual([...PAGE_DENIAL_CODES], ['PAGE_RANGE_EXCEEDED', 'PAGE_BUDGET_EXCEEDED', 'EXPORT_SOURCES_UNRESOLVED'])
+  assert.equal(ALL_DENIAL_CODES.length, 6)
   // ESCALATION_REQUIRED must NOT be claimed until the session-2 ask seam ships.
   assert.ok(!(ALL_DENIAL_CODES as readonly string[]).includes('ESCALATION_REQUIRED'))
 })

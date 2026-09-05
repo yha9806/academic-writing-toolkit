@@ -7,6 +7,8 @@ import {
   decideContractScope,
   extractCitations,
   type RepoView,
+  decideExport,
+  parseBibEntries,
 } from '../src/decisions.ts'
 
 function repo(overrides: Partial<RepoView> = {}): RepoView {
@@ -15,6 +17,8 @@ function repo(overrides: Partial<RepoView> = {}): RepoView {
     readFile: () => undefined,
     conformingSources: () => [{ surname: 'smith', year: '2024' }],
     activeContract: () => undefined,
+    chapterFiles: () => [],
+    bibText: () => undefined,
     ...overrides,
   }
 }
@@ -149,4 +153,55 @@ test('in-budget reads pass and fold accumulates exactly', () => {
 test('non-read_pdf tools and malformed ranges are ignored by the budget', () => {
   assert.equal(decidePdfRead({ tool: 'read', args: { file_path: 'a.md' } }, { pagesRead: 89 }, BUDGET), undefined)
   assert.equal(decidePdfRead(pdf(9, 3), { pagesRead: 0 }, BUDGET), undefined)
+})
+
+// --- EXPORT_SOURCES_UNRESOLVED (P4 item 3): red first ---------------------------
+
+const exportCall = { tool: 'export_docx', args: { scope: 'chapters', lang_filter: 'all' } }
+const BIB = `@article{smith2024archive, title={The Archive}, author={Smith, Jane and Doe, John}, year={2024}}
+@book{jones2021memory, title={Contested Memory}, author={Alex Jones}, year={2021}}`
+
+test('export: every chapter citation has notes and no bibliography exists — allowed', () => {
+  const r = repo({ chapterFiles: () => ['chapters/ch1.md'], readFile: () => 'Smith (2024) argues at length.' })
+  assert.equal(decideExport(exportCall, r), undefined)
+})
+
+test('export: a chapter citation without conforming notes is denied, naming the source', () => {
+  const r = repo({ chapterFiles: () => ['chapters/ch1.md', 'chapters/ch2.md'], readFile: (rel) => (rel === 'chapters/ch2.md' ? 'Jones (2021) disagrees.' : 'Smith (2024) argues.') })
+  const d = decideExport(exportCall, r)
+  assert.equal(d?.code, 'EXPORT_SOURCES_UNRESOLVED')
+  assert.match(d?.message ?? '', /1 chapter citation\(s\) without conforming notes \(jones 2021\)/)
+})
+
+test('export: a bibliography entry nothing cites is denied by key', () => {
+  const r = repo({ chapterFiles: () => ['chapters/ch1.md'], readFile: () => 'Smith (2024) argues.', bibText: () => BIB })
+  const d = decideExport(exportCall, r)
+  assert.equal(d?.code, 'EXPORT_SOURCES_UNRESOLVED')
+  assert.match(d?.message ?? '', /never cited \(jones2021memory\)/)
+  assert.doesNotMatch(d?.message ?? '', /without conforming notes/)
+})
+
+test('export: a citation with notes but no bibliography entry is denied', () => {
+  const r = repo({
+    chapterFiles: () => ['chapters/ch1.md'],
+    readFile: () => 'Smith (2024) and Lee (2019) agree.',
+    conformingSources: () => [{ surname: 'smith', year: '2024' }, { surname: 'lee', year: '2019' }],
+    bibText: () => '@article{smith2024archive, author={Smith, Jane}, year={2024}}',
+  })
+  const d = decideExport(exportCall, r)
+  assert.equal(d?.code, 'EXPORT_SOURCES_UNRESOLVED')
+  assert.match(d?.message ?? '', /no bibliography entry \(lee 2019\)/)
+})
+
+test('export: notes and bibliography both resolve — allowed; other tools ignored', () => {
+  const r = repo({ chapterFiles: () => ['chapters/ch1.md'], readFile: () => 'Smith (2024) argues.', bibText: () => '@article{smith2024archive, author={Smith, Jane}, year={2024}}' })
+  assert.equal(decideExport(exportCall, r), undefined)
+  assert.equal(decideExport({ tool: 'write', args: { file_path: 'chapters/ch9.md', content: 'Nobody (1999)' } }, r), undefined)
+})
+
+test('parseBibEntries takes the first author by surname in either name order', () => {
+  assert.deepEqual(parseBibEntries(BIB).map((e) => [e.key, e.surname, e.year]), [
+    ['smith2024archive', 'smith', '2024'],
+    ['jones2021memory', 'jones', '2021'],
+  ])
 })

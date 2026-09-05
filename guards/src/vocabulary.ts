@@ -30,6 +30,15 @@ export const PAGE_DENIAL_CODES = ['PAGE_RANGE_EXCEEDED', 'PAGE_BUDGET_EXCEEDED']
 export type PageDenialCode = (typeof PAGE_DENIAL_CODES)[number]
 
 /**
+ * Pre-export gate (P4 item 3, decision (a)+(b)): an export_docx call is
+ * denied while any chapter citation lacks a conforming notes file, or — when
+ * a bibliography exists — while any entry is uncited or any citation has no
+ * entry. Whole-corpus, not one write.
+ */
+export const EXPORT_DENIAL_CODES = ['EXPORT_SOURCES_UNRESOLVED'] as const
+export type ExportDenialCode = (typeof EXPORT_DENIAL_CODES)[number]
+
+/**
  * Every denial code a mounted AWT guard can emit today. ESCALATION_REQUIRED
  * (parent spec §7, 3-strike row) is deliberately NOT here: it is an `ask`
  * reason on the tools/pre-execute waterfall (see ESCALATION_ASK_CODE below),
@@ -37,7 +46,7 @@ export type PageDenialCode = (typeof PAGE_DENIAL_CODES)[number]
  * harness's own tool error, and the revision fold counts it as 'failed',
  * never as a strike.
  */
-export const ALL_DENIAL_CODES = [...CHAPTER_DENIAL_CODES, ...PAGE_DENIAL_CODES] as const
+export const ALL_DENIAL_CODES = [...CHAPTER_DENIAL_CODES, ...PAGE_DENIAL_CODES, ...EXPORT_DENIAL_CODES] as const
 export type AnyDenialCode = (typeof ALL_DENIAL_CODES)[number]
 
 // --- escalation ask (P2 session 2) --------------------------------------------

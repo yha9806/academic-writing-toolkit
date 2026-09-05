@@ -200,6 +200,19 @@ export function registerWorkspaceTools(ctx: Context, ws: string): void {
     },
   }))
   ctx.tools.register(defineContentToolFixture({
+    name: 'export_docx',
+    description: 'export probe (P4): leaves a marker so an ALLOWED export is provable',
+    parameters: {
+      scope: { type: 'string', required: true },
+      lang_filter: { type: 'string', required: true },
+    },
+    async execute(args) {
+      mkdirSync(join(ws, 'final_output'), { recursive: true })
+      writeFileSync(join(ws, 'final_output', 'EXPORTED.txt'), `${args.scope} ${args.lang_filter}`)
+      return [{ type: 'text', text: 'exported' }]
+    },
+  }))
+  ctx.tools.register(defineContentToolFixture({
     name: 'read_pdf',
     description: 'pdf read probe (no real pdf needed; the guard decides first)',
     parameters: {

@@ -34,3 +34,6 @@
 
     - id: awt-read-pdf-stub
       name: './awt-read-pdf-stub.plugin.mjs'
+
+    - id: awt-export-stub
+      name: './awt-export-stub.plugin.mjs'

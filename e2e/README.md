@@ -39,6 +39,7 @@ The runner:
 | quote-span | `edit chapters/ch1.md` altering text inside the quotation span | `QUOTE_SPAN_MODIFIED` |
 | allowed-write | `write chapters/ch3.md` citing Smith (2024) | ALLOWED — negative control; the file must exist on disk afterwards, tool/result `isError:false`, zero denial codes in the log |
 | page-range (stretch) | `read_pdf` pages 1–16 against a stub `read_pdf` tool | `PAGE_RANGE_EXCEEDED` via kernel `decidePdfRead` |
+| export-unresolved | `export_docx` while `chapters/ch2.md` cites Jones (2021) with no notes | `EXPORT_SOURCES_UNRESOLVED` via kernel `decideExport` (corpus-wide; the stub tool leaves a marker when allowed) |
 
 Fixture note: the guard kernel evaluates `CONTRACT_SCOPE` before
 `QUOTE_SPAN_MODIFIED` (`decide()` order), so the quote-span scenario's

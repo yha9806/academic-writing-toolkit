@@ -27,6 +27,21 @@ Examples:
 
 ## Workflow
 
+0. **Resolve every source first (Advisory here; Enforced in the AWT app).**
+   Before converting, confirm that every author-year citation in `chapters/`
+   has a lint-conforming notes file under `literature/reading_notes/`, and
+   that `references.bib` (when present) neither contains entries nothing
+   cites nor lacks an entry a chapter cites:
+
+   ```
+   python3 scripts/audit-claim-positioning.py --base-dir chapters --bib references.bib --json
+   ```
+
+   Stop and report if anything is unresolved. On this surface nothing blocks
+   you from exporting anyway — say so if you do. In the AWT app the same
+   condition is a typed denial (`EXPORT_SOURCES_UNRESOLVED`) on the
+   `export_docx` tool, and the export does not run.
+
 1. **Check dependencies.** Verify that `pypandoc` is installed AND a working `pandoc` binary is on PATH (the script smoke-probes via `pypandoc.get_pandoc_version()`). If pypandoc/pandoc are unavailable, fall back to `python-docx` + `markdown`. Report which conversion method is being used.
 
    **Run from the project root.**
