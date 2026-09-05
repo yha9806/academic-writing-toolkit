@@ -190,3 +190,362 @@ strong
 ```
 
 High-severity attacks with `none`, `weak`, or `partial` defense should trigger revision before submission-facing use.
+
+## Explicit Research Relation Profile
+
+Use this additive profile when the project must distinguish gaps, claims, data, results, contributions, and innovation evidence. Run the checker with `--strict-relations`. The five base tables above remain unchanged for backward compatibility.
+
+Use stable prefixes:
+
+```text
+GAP-  gap
+CLM-  claim
+DAT-  data
+RES-  result
+CON-  contribution
+NOV-  innovation
+SRC-  source or prior work
+EVD-  other evidence
+ART-  artifact
+ANL-  analysis
+LIM-  limitation
+REL-  typed relation
+```
+
+Do not collapse these distinctions:
+
+- Data are analysis inputs; results are derived outputs.
+- Contributions state what the project delivers; innovations state how a contribution differs from an explicit comparison set.
+- A gap is a scoped and evidenced absence, limitation, or mismatch; it is not merely an interesting topic.
+
+### `gap_register.csv`
+
+```text
+gap_id,intent_id,gap_statement,gap_type,gap_priority,gap_status,scope,search_or_problem_evidence_ids,boundary_language,notes
+```
+
+Allowed `gap_priority`:
+
+```text
+core
+supporting
+exploratory
+out_of_scope
+```
+
+Allowed `gap_status`:
+
+```text
+candidate
+scoped
+evidence_supported
+contested
+partially_closed
+closed
+superseded
+```
+
+Every `core` gap should have scope-matched source or problem evidence and at least one contribution that addresses it. A closed or superseded gap must not silently remain the basis of a current primary contribution.
+
+### `evidence_objects.csv`
+
+```text
+object_id,object_type,statement_or_description,artifact_or_source,version,scope,method_or_measure,provenance_status,quality_status,uncertainty,status,notes
+```
+
+Allowed `object_type`:
+
+```text
+data
+result
+source
+prior_work
+evidence
+artifact
+analysis
+limitation
+```
+
+Allowed `provenance_status`:
+
+```text
+verified
+traceable
+partial
+unverified
+unavailable
+restricted
+```
+
+Allowed `quality_status`:
+
+```text
+unknown
+raw
+checked
+validated
+frozen
+unstable
+contradicted
+not_applicable
+```
+
+Allowed object `status`:
+
+```text
+planned
+available
+verified
+contested
+deprecated
+superseded
+```
+
+Use `DAT-` IDs for data rows and `RES-` IDs for result rows. A result record must state the analysis, measure, or method that produced it and must link back to data through `argument_relations.csv`.
+
+### `innovation_register.csv`
+
+```text
+innovation_id,contribution_id,innovation_type,innovation_dimension,comparison_set,difference_statement,materiality_statement,novelty_scope,comparison_evidence_ids,comparison_status,boundary_language,notes
+```
+
+Allowed `innovation_type`:
+
+```text
+new_problem
+new_method
+new_evidence
+new_data
+new_evaluation
+new_workflow
+transfer
+integration
+```
+
+Allowed `comparison_status`:
+
+```text
+unverified
+pending
+partial
+supported
+contradicted
+```
+
+Innovation is relational. `comparison_set` must name the baselines, prior work, practices, or assumptions against which the difference is claimed. Absence from a local search is not sufficient novelty evidence.
+
+### `argument_relations.csv`
+
+```text
+relation_id,source_type,source_id,relation_type,target_type,target_id,evidence_ids,directness,scope_match,status,rationale,notes
+```
+
+Allowed entity types:
+
+```text
+intent
+gap
+contribution
+claim
+data
+result
+innovation
+source
+prior_work
+evidence
+artifact
+analysis
+limitation
+```
+
+Allowed `relation_type`:
+
+```text
+supports
+contradicts
+limits
+addresses
+produces
+bounds
+substantiates
+characterises
+differentiates
+compares_with
+qualifies
+refutes
+depends_on
+duplicates
+supersedes
+```
+
+Allowed `directness`:
+
+```text
+direct
+partial
+indirect
+conflicting
+unverified
+absent
+```
+
+Allowed `scope_match`:
+
+```text
+exact
+partial
+mismatch
+unknown
+```
+
+Allowed relation `status`:
+
+```text
+candidate
+verified
+contested
+rejected
+superseded
+```
+
+For chain completeness and focus review, a reliable relation must have:
+
+```text
+status = verified
+directness = direct | partial
+scope_match = exact | partial
+```
+
+Object endpoints must be `available` or `verified`, have `verified` or `traceable` provenance, and have `checked`, `validated`, `frozen`, or `not_applicable` quality. Other valid enum values preserve work-in-progress and counter-evidence state but do not complete a chain.
+
+Use only these typed relation families:
+
+| Source | Relation | Target |
+|---|---|---|
+| `source`, `prior_work`, `evidence` | `supports`, `contradicts`, `limits` | `gap`, `innovation` |
+| `source`, `prior_work`, `evidence` | `supports`, `contradicts`, `limits`, `refutes` | `claim` |
+| `contribution` | `addresses` | `gap` |
+| `data` | `produces`, `bounds` | `result` |
+| `data` | `supports`, `bounds` | `claim` |
+| `data` | `bounds` | `contribution` |
+| `result` | `supports`, `contradicts`, `limits`, `qualifies`, `refutes` | `claim` |
+| `result`, `claim` | `substantiates` | `contribution` |
+| `claim` | `depends_on`, `supersedes` | `claim` |
+| `artifact`, `analysis` | `supports` | `claim` |
+| `innovation` | `characterises` | `contribution` |
+| `innovation` | `compares_with` | `source`, `prior_work` |
+| `limitation` | `bounds` | `claim`, `contribution`, `result` |
+| same-type `gap`, `contribution`, `claim`, `result`, or `innovation` | `supersedes` | same type |
+| `contribution` | `duplicates` | `contribution` |
+
+The core empirical path is:
+
+```text
+data --produces--> result --supports/qualifies--> claim --substantiates--> contribution --addresses--> gap
+```
+
+Innovation uses a separate path:
+
+```text
+source/prior_work/evidence --supports/contradicts/limits--> innovation --characterises--> contribution
+```
+
+Do not force the empirical path on every contribution type:
+
+- `empirical_finding` and `case_study` need a data-result-claim-contribution path.
+- `method_or_tool` and `evaluation_protocol` need tested results or a bounded artifact/analysis-to-claim path.
+- `dataset_or_benchmark` needs traceable data or artifact evidence and quality claims.
+- `conceptual_reframing` and `governance_framework` may use direct source/evidence-to-claim support instead of empirical data.
+
+### `contribution_focus.csv`
+
+```text
+contribution_id,current_role,core_gap_fit,target_reader_fit,narrative_emphasis,author_locked,section_ids,decision_status,notes
+```
+
+Allowed `current_role`:
+
+```text
+primary
+secondary
+enabling
+boundary
+exploratory
+deprioritised
+```
+
+Allowed `core_gap_fit`:
+
+```text
+direct
+partial
+weak
+unknown
+```
+
+Allowed `target_reader_fit`:
+
+```text
+high
+medium
+low
+unknown
+```
+
+Allowed `narrative_emphasis`:
+
+```text
+dominant
+balanced
+light
+absent
+unknown
+```
+
+Allowed `decision_status`:
+
+```text
+current
+under_review
+approved
+superseded
+```
+
+`author_locked` is `true` or `false`. This file records current emphasis; it does not authorise a focus change.
+
+### Conditionally Required `contribution_focus_snapshot.json`
+
+This file is not required when strict checking emits no focus candidate. Once `focus_review_candidates` is non-empty, create and validate it before making a focus decision or any focus-related prose edit:
+
+```text
+schema_version
+intent_ids
+current_primary_ids
+author_approved_manuscript_path
+author_approved_manuscript_sha256
+relation_packet_sha256
+captured_from_files
+status = pending_author_review
+```
+
+`schema_version` must be `1`; the ID and file fields are JSON lists; `status` must be `pending_author_review`; hashes are 64-character SHA-256 hex strings or `unavailable`. `intent_ids` must exactly match the affected candidate intent(s), and `current_primary_ids` must exactly match every current primary contribution in those intents. The author-approved manuscript path must be a non-glob path to an existing file inside the project; when its SHA-256 is supplied, the digest must match that file. Each captured-file entry must be an in-project relative path or glob that matches existing files, and the combined patterns must cover every required argument-packet CSV. If a hash cannot be computed, record `unavailable` and the reason as `hash unavailable: <reason>`; do not silently omit the field. The checker reports a blocking snapshot issue whenever a focus candidate exists without a semantically matching snapshot. This snapshot is the frozen before-state used by `/manuscript-reframe`, `/thesis-control`, and the three-attempt revision gate.
+
+### Optional `contribution_focus_decisions.jsonl`
+
+Append one object only after the author decides:
+
+```text
+decision_id
+before_primary_ids
+after_primary_ids
+trigger_rule_ids
+graph_snapshot_sha256
+affected_claim_ids
+affected_section_ids
+reason
+expected_effect
+user_approved
+created_at
+```
+
+Keep the old contribution ID when only emphasis changes. Create a new contribution and link it with `supersedes` when the contribution's meaning or scope changes.

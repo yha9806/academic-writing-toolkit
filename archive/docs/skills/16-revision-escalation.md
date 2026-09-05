@@ -7,6 +7,7 @@ Use `/revision-escalation` when the same writing, code, rebuttal, or manuscript 
 - Stops the fourth patch after three failed revision attempts.
 - Classifies the failure as underspecified request, ambiguous feedback, local execution problem, structural mismatch, evidence gap, or version contamination.
 - Separates local wording fixes from section restructuring and full reframing.
+- Treats repeated loss of application purpose or paper identity as a structural signal, even before a formal fourth patch.
 - Forces unsupported claims to be downgraded or backed with evidence before revision continues.
 - Recommends a consolidated brief, new version, or branch when repeated patches have polluted the draft.
 
@@ -30,8 +31,13 @@ The rebuttal keeps getting longer but not clearer. Run the 3-strike revision che
 - reason for the diagnosis
 - missing or conflicting information
 - recommended next action
+- old and proposed author-intent spine for any full reframe
+- evidence and argument baselines
 - options for clarifying, consolidating, branching, restructuring, or reframing
 
 ## Key Guardrail
 
 Do not continue accumulating edits on a structurally inconsistent manuscript, rebuttal, or code path. If a claim cannot be supported by the available evidence, downgrade it or request evidence before rewriting.
+Do not resume a full reframe until the author approves the proposed real-world
+problem, intended use, research object, core question, primary experiment,
+contribution order, headline claim, evidence boundary, and structure.

@@ -5,11 +5,14 @@ Use this skill when a draft is technically complete but still reads like an engi
 ## What It Does
 
 - Identifies the scientific gap and manuscript spine.
+- Locks the author-approved intent, evidence baseline, and argument baseline before editing.
+- Shows an old-versus-proposed spine comparison and waits for author approval.
 - Converts module lists into a contribution chain.
 - Rewrites Results around a narrative transition instead of raw metric dumps.
 - Keeps language-model or multimodal generative components in supplementary or future-work roles unless they are the locked primary experiment.
 - Assigns clear argumentative roles to figures and tables.
 - Separates scientific readiness from submission metadata readiness.
+- Prevents missing deployment or outcome evidence from erasing the motivating application.
 
 ## Typical Prompts
 
@@ -39,6 +42,11 @@ For audit-only tasks:
 
 For edit tasks:
 
+First obtain approval for the old-versus-proposed comparison covering the
+real-world problem, intended use, research object, core question, primary
+experiment, analysis roles, headline claim, evidence boundary, contribution
+order, and structure. Then edit:
+
 1. title and abstract thesis
 2. Introduction gap and contribution chain
 3. Methods hierarchy
@@ -49,4 +57,8 @@ For edit tasks:
 
 ## Key Guardrail
 
-Do not call a draft submission-ready while author metadata, ethics/waiver, funding, competing interests, CRediT, data/code availability, references, or figure provenance remain unresolved.
+Do not start a full reframe from the latest AI-edited prose when the latest
+author-approved intent cannot be identified. Do not call a draft
+submission-ready while author metadata, ethics/waiver, funding, competing
+interests, CRediT, data/code availability, references, or figure provenance
+remain unresolved.

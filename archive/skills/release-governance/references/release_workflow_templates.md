@@ -14,6 +14,8 @@ Paper/artifact: Generic review packet
 Deadline/use: collaborator handoff
 Included refs: refs/heads/main at abcdef1234567890
 Excluded refs: none
+Evidence baseline: results/table snapshot or artifact ref at abcdef1234567890
+Argument baseline: author-approved intent and manuscript version
 Open question: whether an optional asset should stay local-only
 ```
 

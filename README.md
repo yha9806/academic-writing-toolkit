@@ -203,6 +203,12 @@ make doctor             # read-only environment and project health
 make test               # regression suite
 
 npm --prefix guards test  # notes-contract lint + catalogue truth tests
+
+python3 scripts/audit-citations.py --base-dir . --style harvard --json
+python3 scripts/audit-british-english.py --base-dir . --json
+python3 scripts/audit-logic.py --base-dir . --json
+python3 scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude 'ourname*'
+python3 scripts/audit-claim-positioning.py --base-dir . --json
 python3 scripts/audit-public-content.py --base-dir .
 ```
 
@@ -213,6 +219,20 @@ python3 scripts/verify-refs.py --bib references.bib --json
 python3 scripts/verify-refs.py --bib references.bib --json --online
 python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
 ```
+
+`--exclude` drops baseline files by glob. Point it at the authors' own
+papers: a baseline that contains them is partly the thing being measured, and
+in practice it is often their own prior work that sets the extreme a target is
+then judged against.
+
+Two definitions in that audit are deliberate and worth knowing before the
+numbers are read. A sentence may not begin with `(`, because in a PDF-derived
+baseline that rule splits every inline author-year citation into a sentence,
+and it does so in proportion to how much author-year citation each paper
+happens to use. And `sentence_length_lag1` only correlates spans that were
+genuinely adjacent: filtering first and correlating afterwards joins the two
+sentences on either side of anything dropped, which is enough to move a
+manuscript from inside the published range to outside it.
 
 The explicit `--online` mode can query Crossref, Semantic Scholar, and arXiv. CI uses local fixtures so the release gate stays deterministic.
 

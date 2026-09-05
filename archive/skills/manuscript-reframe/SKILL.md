@@ -1,6 +1,6 @@
 ---
 name: manuscript-reframe
-description: Reframe academic manuscript drafts that read like engineering reports, module inventories, internal validation packets, or system notes into paper-form scientific arguments with clear gap, contribution chain, results narrative, figure/table roles, AI-assisted component boundaries, and submission-readiness blockers.
+description: Reframe report-like academic drafts into paper-form scientific arguments while preserving or explicitly renegotiating author intent; requires an approved old-versus-proposed spine, evidence and argument baselines, analysis-role control, and post-edit drift review.
 allowed-tools: Read, Glob, Grep, Edit, Write, Bash
 ---
 
@@ -18,6 +18,11 @@ This skill activates on: `manuscript reframe`, `paper form`, `too much like a re
 
 Write around the scientific problem, not the implementation inventory.
 
+Reframing may reorganise the manuscript argument. It may not silently redefine
+the real-world problem, intended use, research object, core question, primary
+experiment, contribution order, headline claim, or evidence boundary. Treat
+changes to any of those items as an author decision, not as polishing.
+
 Before editing, force the draft into one sentence:
 
 ```text
@@ -27,6 +32,33 @@ This paper solves [specific reliability / evidence / workflow gap] between [upst
 If the sentence cannot be written, do not rewrite sections yet. First produce a gap-and-contribution diagnosis.
 
 ## Workflow
+
+### 0. Lock Author Intent And The Reframe Contract
+
+Read the canonical `/thesis-control` intent and manuscript contract. For a
+lightweight project, read `00_AUTHOR_INTENT.md`,
+`01_EVIDENCE_AND_CLAIMS.md`, and `02_REVISION_LOG.md`. Record:
+
+- real-world problem and intended use
+- current method or software task
+- research object and core scientific question
+- primary experiment and supporting analyses
+- headline claim and evidence boundary
+- concepts that must remain visible in the title or abstract
+- evidence baseline and argument baseline
+
+Then show an old-versus-proposed comparison for every item above, plus the
+title/abstract thesis, contribution order, and proposed structure. Mark each
+row `preserve`, `narrow`, `promote`, `demote`, `remove`, or `change`. Do not
+edit the manuscript until the author explicitly approves the proposed reframe.
+
+If no approved intent exists, stop and establish it through `/thesis-control`.
+Do not infer author intent from whichever AI-edited version happens to be
+latest.
+
+Keep application purpose and evidence conclusion separate. Lack of hardware,
+clinical, causal, deployment, or transfer validation narrows the conclusion;
+it does not by itself make the motivating application irrelevant.
 
 ### 1. Locate The Current Draft And Evidence Anchors
 
@@ -70,6 +102,13 @@ Avoid module lists. Use a small contribution chain:
 5. Bounded output: produce traceable reports or records without unsupported claims.
 
 Every contribution should answer: what gap does this close, and what evidence supports it?
+
+Before changing contribution prominence, apply the analysis-admission record
+from `01_EVIDENCE_AND_CLAIMS.md` or the canonical argument-governance packet.
+Classify each experiment or analysis as `primary`, `explanatory`,
+`robustness`, `development_record`, or `out_of_scope`. A completed or fully
+auditable analysis does not automatically belong in the main text. Record and
+obtain author approval for every promotion or demotion.
 
 ### 4. Rewrite Results As A Narrative Transition
 
@@ -182,7 +221,8 @@ For an audit-only task, produce:
 - submission blockers
 - recommended edit plan
 
-For an edit task, apply local edits in this order:
+For an edit task, proceed only after the reframe comparison and edit contract
+are author-approved. Apply edits in this order:
 
 1. title and abstract thesis
 2. Introduction gap and contribution chain
@@ -192,6 +232,9 @@ For an edit task, apply local edits in this order:
 6. figure captions and table placement
 7. submission metadata notes
 
+After editing, return to `/thesis-control` for the post-edit drift audit. Do not
+mark the reframe accepted merely because the revised prose is more fluent.
+
 ## Stop Conditions
 
 Stop and report a blocker if:
@@ -200,4 +243,8 @@ Stop and report a blocker if:
 - raw data are unavailable for requested analyses
 - references cannot be verified but are needed for central claims
 - user asks to claim domain, causal, deployment, or outcome validity without direct evidence
+- the latest author-approved intent, evidence baseline, or argument baseline cannot be identified
+- the proposed reframe changes a locked spine item without explicit author approval
+- an evidence boundary is being used to delete or replace the motivating application problem
+- an auxiliary analysis is being promoted without an admission record and author decision
 - author-, ethics-, funding-, or data-availability fields are required for submission but unavailable

@@ -5,7 +5,11 @@ Use `/thesis-control` when AI-assisted editing may make a thesis draft smoother 
 ## What It Does
 
 - Builds spine cards for chapters, sections, or paragraph clusters.
+- Offers a three-file lightweight author-control profile for a single manuscript.
 - Records the author-approved project intent above the manuscript and section layers.
+- Keeps real-world problem, intended use, method task, empirical finding, headline claim, and evidence boundary separate.
+- Admits experiments and analyses by argumentative role rather than by completion.
+- Records evidence and argument baselines separately for every substantive revision.
 - Runs a global thesis audit across title, abstract, primary domain, research object, research question, contribution, and structure.
 - Blocks a locally coherent edit when its manuscript-level framing has drifted from the active project intent.
 - Requires an edit contract before substantive rewriting.
@@ -14,10 +18,31 @@ Use `/thesis-control` when AI-assisted editing may make a thesis draft smoother 
 - Tracks repeated contracts under one revision issue and blocks a fourth applied revision until escalation is author-approved.
 - Separates non-closing early diagnosis from cycle-closing schema-v3 gates.
 - Requires human review for high-risk changes.
+- Treats title, abstract thesis, research object, core question, primary experiment, contribution order, application purpose, and paper-wide structure changes as full reframing.
+- Routes stable manuscripts to argument-function and unfamiliar-reader gates.
 - Blocks strict validation while an applied edit remains `needs_review`.
 - Provides an optional validator for durable `thesis_control/` packets.
 
 ## Control Files
+
+For a lightweight single-manuscript workflow, use:
+
+- `00_AUTHOR_INTENT.md`
+- `01_EVIDENCE_AND_CLAIMS.md`
+- `02_REVISION_LOG.md`
+
+Create and validate the bundled templates with:
+
+```bash
+python3 .claude/skills/thesis-control/scripts/scaffold_author_control.py .
+python3 .claude/skills/thesis-control/scripts/check_author_control.py . --strict
+```
+
+The lightweight profile preserves the same authority hierarchy in a readable
+form. It does not replace the durable packet when machine-checked IDs, multiple
+active contracts, or a formal fourth-edit escalation gate are needed. If both
+profiles exist, declare one canonical; default to the durable packet as the
+executable gate.
 
 Durable projects can keep:
 
@@ -128,3 +153,7 @@ Run a drift audit on the last edit and tell me whether the change should be acce
 Do not let a section spine become the highest authority. Confirm that the
 manuscript still matches the author-approved project intent before accepting
 fluent rewritten prose or checking only local claim drift.
+
+Narrow evidence may narrow the conclusion, but it must not silently delete the
+motivating application. A completed auxiliary analysis must not become a main
+contribution without an explicit role record and author decision.

@@ -8,6 +8,14 @@ The core rule is:
 release truth = ref + artifact + gate
 ```
 
+For manuscript releases, freeze two baselines independently:
+
+- `Evidence baseline`: result, data/configuration, table, and artifact refs.
+- `Argument baseline`: the author-approved intent and manuscript version.
+
+A frozen result snapshot does not authorise an unapproved narrative, and an
+approved narrative does not validate changed numbers.
+
 Use it after `/evidence-review` and `/audit` when the work moves from drafting into release or rebuttal hardening.
 
 ## What It Produces
