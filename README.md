@@ -209,6 +209,7 @@ python3 scripts/audit-british-english.py --base-dir . --json
 python3 scripts/audit-logic.py --base-dir . --json
 python3 scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude 'ourname*'
 python3 scripts/audit-claim-positioning.py --base-dir . --json
+node scripts/audit-citation-fidelity.mjs --base-dir . --json   # needs guards built once
 python3 scripts/audit-public-content.py --base-dir .
 ```
 

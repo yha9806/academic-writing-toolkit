@@ -45,8 +45,8 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    consistency as audited. Reference integrity is still covered by
    `/verify-refs` (BibTeX records) and by the notes-file contract lint.
 
-   **E. Claim positioning (deterministic, runs before F — positioning is
-   not repairable after review; style is)**
+   **E. Claim positioning (deterministic, runs before F and G — positioning
+   is not repairable after review; style is)**
 
    ```
    python3 scripts/audit-claim-positioning.py --base-dir chapters --bib references.bib --json
@@ -60,7 +60,25 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    that it is the right one, and it cannot tell whether a citing sentence
    says what its source says; do not present its silence as either.
 
-   **F. Prose fingerprint (measurement only; skip when no baseline exists)**
+   **F. Citation fidelity — does the citing sentence match its source?**
+
+   ```
+   node scripts/audit-citation-fidelity.mjs --base-dir . --json
+   ```
+
+   (needs the guards built once: `npm --prefix guards install && npm --prefix guards run build`.)
+   Report `quote-not-in-source` and `page-mismatch` as **High** — a quoted
+   span that is not verbatim in the source's notes or PDF, or a page that the
+   source contradicts — and `notes-missing` as **Medium**. `low-overlap` is
+   **experimental**: list it under Measurements as a prompt to re-read, never
+   as an issue; no false-positive rate has been measured for it yet. State
+   the tool's own limit in the report verbatim: it does **not** detect a
+   sentence that inverts its source in the source's own words — the failure
+   that mattered most on a real manuscript — and that still requires
+   reading. Every finding here is a proxy; a finding is a reason to open the
+   source, not a verdict.
+
+   **G. Prose fingerprint (measurement only; skip when no baseline exists)**
 
    Only when the project holds a baseline corpus of its *own* reference
    PDFs (`literature/`, twenty or more, the author's own papers excluded):
@@ -94,7 +112,7 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
 | 1 | Critical | Numerical | Ch3 s3.2, Ch5 s5.4 | Sample size differs | 120 (Ch3) vs 125 (Ch5) | Should be consistent |
 | 2 | High | Cross-ref | Ch4 s4.1 | Ref to "Section 3.7" | Section 3.7 | Section does not exist |
 
-### Measurements (category F, when a baseline exists)
+### Measurements (category G when a baseline exists; category F's experimental low-overlap prompts)
 
 {Per metric: rate, clustering (gap CV), longest gap — with the baseline's
 range and where the manuscript sits. Numbers, not verdicts.}

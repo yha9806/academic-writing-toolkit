@@ -1,6 +1,13 @@
 # P4 — Evidence-Fed Catalogue
 
-- **Status:** session 1 IMPLEMENTED (2026-09-05) — items 1–3 landed and gated
+- **Status:** session 2 IMPLEMENTED (2026-09-05) — item 4 landed:
+  `scripts/audit-citation-fidelity.mjs` reuses the E1 graders and the guards'
+  own citation extractor and notes parser; four findings (quote-not-in-source,
+  page-mismatch, notes-missing, experimental low-overlap) pinned on temp
+  workspaces, plus the honesty test in which a sentence inverting its source
+  in the source's own words is REQUIRED to pass without a finding while the
+  output states that limit. The audit skill runs E (positioning) → F
+  (fidelity) → G (prose measurement). Session 1 IMPLEMENTED — items 1–3 landed and gated
   locally: author-control promoted as Advisory assets (`a02a795`); claim
   positioning recognises Harvard/Markdown and joins the audit skill with
   prose measurement, positioning first (`55ebb63`); the pre-export gate
