@@ -1,15 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
-import { E1InputError } from './inputs.mjs'
+import { E1InputError, measuredRun } from './inputs.mjs'
 import { sessionFiles, terminalOutcome } from './evidence.mjs'
 
 const fail = (message) => { throw new E1InputError('E1_RESUME_INVALID', message) }
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
-// Deliberately narrow: preserve the first skills task/arm that the old
-// producer stopped after recorded model failures. Never retry those samples.
-export function readResume(directory, entries, route, harness, implementationRoot) {
+export function readResume(directory, entries, route, harness, implementationRoot, retryLocalTransport = false) {
   const root = resolve(directory), bytes = readFileSync(join(root, 'metrics.json'))
   const prior = JSON.parse(bytes.toString('utf8'))
   const inputs = entries.map(({ path, ...entry }) => entry)
@@ -18,28 +16,41 @@ export function readResume(directory, entries, route, harness, implementationRoo
   for (const file of ['e1/graders.mjs', 'profiles/awt-headless/awt-read-pdf.plugin.mjs', 'profiles/awt-headless/pdf-pages.mjs', 'guards/dist/notes-lint.js', 'guards/dist/decisions.js']) {
     if (prior.implementationSha256?.[file] !== digest(readFileSync(join(implementationRoot, file)))) fail(`the saved grader or source reader differs: ${file}`)
   }
-  const prefix = prior.results?.[0]
-  if (prior.results?.length !== 1 || prefix.id !== entries[0].id || prefix.arm !== 'skills' || prefix.artifacts !== `${entries[0].id}/skills` || ![1, 2].includes(prefix.processes?.length)) fail('only the interrupted first skills task/arm can be continued')
-  const artifactDir = join(root, prefix.artifacts)
-  const files = sessionFiles(artifactDir)
-  const logs = files.map((file) => {
-    const bytes = readFileSync(file), text = bytes.toString('utf8')
-    const events = text.split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line))
-    return { sha256: digest(bytes), outcome: terminalOutcome([text]), endedAt: events.find((event) => event.type === 'turn/end')?.time ?? 0 }
-  }).sort((a, b) => a.endedAt - b.endedAt)
-  if (logs.length !== prefix.processes.length) fail('each prefix task needs one durable session log')
-  const processes = prefix.processes.map((process, index) => {
-    const outcome = logs[index].outcome
-    if (process.signal || process.error || !([0, 1].includes(process.status)) ||
-        (process.status === 0 ? outcome !== 'completed' : !['max-tokens', 'blocked', 'empty-response'].includes(outcome))) {
-      fail('the durable prefix log must record a measured terminal outcome, not an infrastructure failure')
+  const order = entries.flatMap((entry) => ['skills', 'plain'].map((arm) => `${entry.id}/${arm}`))
+  if (!Array.isArray(prior.results) || !prior.results.length || prior.results.length > order.length) fail('the saved run must be a nonempty ordered prefix')
+  const arms = [], reusedTasks = [], reusedLogs = [], retriedTransportTasks = []
+  for (const [index, prefix] of prior.results.entries()) {
+    const key = `${prefix.id}/${prefix.arm}`
+    if (key !== order[index] || prefix.artifacts !== key || ![1, 2].includes(prefix.processes?.length)) fail('the saved results are not the ordered prefix of this experiment')
+    const artifactDir = join(root, key)
+    const logs = sessionFiles(artifactDir).map((file) => {
+      const bytes = readFileSync(file), text = bytes.toString('utf8')
+      const events = text.split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line))
+      const end = events.find((event) => event.type === 'turn/end')
+      return { file, sha256: digest(bytes), outcome: terminalOutcome([text]), endedAt: end?.time ?? 0,
+        errorCode: end?.data?.reason?.error?.code,
+        readOnly: events.filter((event) => event.type === 'tool/call').every((event) => ['read_pdf', 'read', 'glob', 'grep', 'skill'].includes(event.data?.name)) }
+    }).sort((a, b) => a.endedAt - b.endedAt)
+    if (logs.length !== prefix.processes.length) fail('each prefix task needs one durable session log')
+    const processes = [], savedLogs = []
+    for (const [taskIndex, process] of prefix.processes.entries()) {
+      const log = logs[taskIndex], observed = { ...process, outcome: log.outcome }
+      const task = `${key}/${['notes', 'draft'][taskIndex]}`
+      if (measuredRun(observed) && (process.status !== 0 || log.outcome === 'completed')) {
+        processes.push(observed); savedLogs.push(log)
+        reusedTasks.push(task); reusedLogs.push({ task, sha256: log.sha256 })
+      } else if (retryLocalTransport && route.provider === 'ollama' && index === prior.results.length - 1 && taskIndex === prefix.processes.length - 1 && process.status === 1 && !process.signal && !process.error && log.errorCode === 'TRANSPORT' && log.readOnly) {
+        retriedTransportTasks.push({ task, failedLogSha256: log.sha256, reason: 'explicit local transport retry after health check; no prior tool write' })
+      } else {
+        fail('the durable prefix log must record a measured terminal outcome; an explicit local transport retry also requires a read-only failed task')
+      }
     }
-    return { ...process, outcome }
-  })
-  return { artifactDir, id: prefix.id, processes, process: processes[0], provenance: {
+    if (index < prior.results.length - 1 && processes.length !== 2) fail('only the last arm may be partial')
+    arms.push({ id: prefix.id, arm: prefix.arm, artifactDir, result: prefix, processes, savedLogs })
+  }
+  return { arms, process: arms[0].processes[0], provenance: {
     run: root, metricsSha256: digest(bytes), producerSha256: prior.producerSha256,
-    reusedTasks: ['notes', 'draft'].slice(0, processes.length).map((task) => `${prefix.id}/skills/${task}`),
-    reusedLogSha256: logs[0].sha256, reusedLogs: logs,
+    reusedTasks, reusedLogSha256: reusedLogs[0]?.sha256, reusedLogs, retriedTransportTasks,
     ...(prior.continuation ? { earlierContinuation: prior.continuation } : {}),
   } }
 }

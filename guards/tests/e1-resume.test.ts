@@ -51,5 +51,12 @@ test('continuation binds the original observation to identical sources, graders,
     assert.throws(() => readResume(run, entries, { ...route, model: 'different' }, 'pinned', root), /model/)
     writeFileSync(logFile, JSON.stringify({ type: 'turn/end', data: { reason: { kind: 'error' } } }))
     assert.throws(() => readResume(run, entries, route, 'pinned', root), /durable prefix log/)
+    writeFileSync(logFile, JSON.stringify({ type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'TRANSPORT' } } } }))
+    assert.throws(() => readResume(run, entries, route, 'pinned', root), /durable prefix log/)
+    const retry = readResume(run, entries, route, 'pinned', root, true)
+    assert.equal(retry.arms[0].processes.length, 0)
+    assert.equal(retry.provenance.retriedTransportTasks.length, 1)
+    writeFileSync(logFile, JSON.stringify({ type: 'tool/call', data: { name: 'write' } }) + '\n' + readFileSync(logFile, 'utf8'))
+    assert.throws(() => readResume(run, entries, route, 'pinned', root, true), /read-only/)
   } finally { rmSync(root, { recursive: true, force: true }) }
 })

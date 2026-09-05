@@ -332,6 +332,12 @@ const DRAFT_TASK = () => REAL
   : 'E1 offline draft task'
 
 async function runArm(entry, arm, runDir) {
+  const saved = resume?.arms.find((item) => item.id === entry.id && item.arm === arm)
+  if (saved?.processes.length === 2) {
+    cpSync(saved.artifactDir, join(runDir, entry.id, arm), { recursive: true })
+    console.log(`  reusing both recorded ${entry.id}/${arm} outcomes; no model retry`)
+    return { ...saved.result, ...classifyRun('real', saved.processes, saved.result.sourceOpened, true), processes: saved.processes }
+  }
   const ws = buildWorkspace(arm)
   const home = buildHome(arm)
   if (REAL) cpSync(entry.path, join(ws, 'literature', 'source.pdf'))
@@ -344,12 +350,13 @@ async function runArm(entry, arm, runDir) {
   }
 
   const runs = []
-  if (resume && entry.id === resume.id && arm === 'skills') {
-    for (const tree of ['chapters', 'contracts']) cpSync(join(resume.artifactDir, tree), join(ws, tree), { recursive: true })
-    cpSync(join(resume.artifactDir, 'reading_notes'), join(ws, 'literature', 'reading_notes'), { recursive: true })
-    cpSync(join(resume.artifactDir, 'sessions'), join(home, 'sessions'), { recursive: true })
-    runs.push(...resume.processes)
-    console.log(`  reusing ${resume.processes.length} recorded ${entry.id}/skills task outcome(s); no model retry`)
+  if (saved?.processes.length === 1) {
+    for (const tree of ['chapters', 'contracts']) cpSync(join(saved.artifactDir, tree), join(ws, tree), { recursive: true })
+    cpSync(join(saved.artifactDir, 'reading_notes'), join(ws, 'literature', 'reading_notes'), { recursive: true })
+    mkdirSync(join(home, 'sessions', 'preserved-prefix'), { recursive: true })
+    for (const [index, log] of saved.savedLogs.entries()) cpSync(log.file, join(home, 'sessions', 'preserved-prefix', `${index}.jsonl`))
+    runs.push(...saved.processes)
+    console.log(`  reusing recorded ${entry.id}/${arm} notes outcome; no model retry`)
   } else {
     runs.push(runHeadless(home, ws, NOTES_TASK(entry), scriptEnv(scripts?.notes)))
   }
@@ -405,7 +412,7 @@ if (REAL && route.provider === 'ollama') {
 }
 let resume
 if (options.resume) {
-  try { resume = readResume(options.resume, entries, route, `@deepseek-ai/dsh@${PINNED_DSH}`, PRODUCT_ROOT) }
+  try { resume = readResume(options.resume, entries, route, `@deepseek-ai/dsh@${PINNED_DSH}`, PRODUCT_ROOT, options.retryLocalTransport) }
   catch (error) { die(error.code ?? 'E1_RESUME_INVALID', error.message) }
 }
 if (REAL && options.check) {

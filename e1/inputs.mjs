@@ -9,7 +9,7 @@ const refuse = (code, message) => { throw new E1InputError(code, message) }
 
 export function parseOptions(args) {
   const options = { real: false, check: false, help: false, provider: 'deepseek', timeoutMs: 600_000 }
-  const flags = { '--real': 'real', '--check': 'check', '--help': 'help' }
+  const flags = { '--real': 'real', '--check': 'check', '--help': 'help', '--retry-local-transport': 'retryLocalTransport' }
   const values = { '--manifest': 'manifest', '--out': 'out', '--provider': 'provider', '--model': 'model', '--base-url': 'baseURL', '--resume': 'resume', '--timeout-ms': 'timeoutMs' }
   const seen = new Set()
   for (let index = 0; index < args.length; index++) {
@@ -28,6 +28,7 @@ export function parseOptions(args) {
   }
   if (options.check && !options.real) refuse('E1_USAGE', '--check requires --real')
   if (options.resume && (!options.real || options.check)) refuse('E1_USAGE', '--resume requires a real execution, not a preflight')
+  if (options.retryLocalTransport && (!options.resume || options.provider !== 'ollama')) refuse('E1_USAGE', '--retry-local-transport requires --resume and the local Ollama route')
   return options
 }
 

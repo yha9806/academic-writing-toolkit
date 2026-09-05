@@ -62,12 +62,18 @@ sessions in total. Each session can make multiple provider requests;
 not a currency or token cap. An infrastructure failure stops subsequent sessions;
 there is no automatic paid retry.
 
-`--resume <saved-run-directory>` supports one narrow continuation: a run
-that stopped during its first skills arm with durable model-failure
-outcomes. It verifies identical inputs, model settings and grader/reader
+`--resume <saved-run-directory>` continues an ordered prefix with durable
+measured outcomes. It verifies identical inputs, model settings and grader/reader
 hashes, reuses the original log and file state, and runs only the remaining
 tasks. It never re-generates those failed observations. Both result directories
 are retained and the continuation records the original evidence hashes.
+
+After inspecting a local transport failure and checking backend health,
+`--retry-local-transport` may explicitly retry only the last failed task,
+and only if its durable log reports `TRANSPORT` with no tool writes. This
+option is refused for cloud providers; it is never enabled automatically.
+Completed and poor model outcomes are reused. The failed attempt remains
+in the prior result directory and its log hash is recorded in the continuation.
 
 ## Inspect and share results
 

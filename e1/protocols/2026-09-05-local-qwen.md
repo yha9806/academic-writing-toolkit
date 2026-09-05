@@ -99,3 +99,12 @@ now distinguishes this specific outcome from credentials, transport and
 other errors. The original two task observations in
 `e1-real-2026-09-05T16-32-57-798Z` are reused byte-for-byte, leaving ten new
 tasks. No model setting or grader changed, and neither observation is retried.
+
+The Gao plain arm subsequently completed both tasks. The Min skills notes
+task then encountered `TRANSPORT: Stream ended without finish_reason`
+after a successful PDF read and before any file write. A separate local
+health probe returned `READY` with a normal stop reason. The next explicit
+continuation preserves all four completed Gao observations and retries only
+the read-only Min transport failure. That failed attempt remains in
+`e1-real-2026-09-05T16-42-34-640Z` and is hash-linked from the continuation.
+This is a disclosed infrastructure retry, not re-generation of a poor score.
