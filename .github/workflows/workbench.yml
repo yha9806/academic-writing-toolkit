@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   runtime:
     timeout-minutes: 15
@@ -51,8 +55,9 @@ jobs:
         run: python -m pip install -e ".[documents]" reportlab
       - if: matrix.tokenizer
         run: python -m pip install tiktoken
-      - name: Record optional dependency paths
-        run: python -c "import sys, importlib.util; print(sys.version); print({name: bool(importlib.util.find_spec(name)) for name in ('tiktoken', 'pypdf', 'pypdfium2', 'PIL')})"
+      - name: Record optional dependency availability
+        run: |
+          python -c "import sys, importlib.util; print(sys.version); print({name: bool(importlib.util.find_spec(name)) for name in ('tiktoken', 'pypdf', 'pypdfium2', 'PIL')})"
       - run: python -B -m unittest discover -s tests/runtime -p 'test_*.py'
       - run: node --check awt/review_project.js
       - run: node --check awt/submission.js
