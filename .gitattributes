@@ -9,3 +9,7 @@
 *.py   text eol=lf
 *.md   text eol=lf
 Makefile text eol=lf
+
+# Frozen experiment packets carry byte-level hashes. Preserve producer bytes
+# across platforms rather than applying the repository's text conversion.
+e1/published/** -text -eol
