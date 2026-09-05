@@ -23,17 +23,22 @@ node scaffold/awt.mjs install-profile
 Verify the composition without booting or credentials:
 
 ```bash
-DSH_HOME=~/.dsh npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless --dump-config | grep awt-guards
+node ~/.dsh/profiles/node_modules/@deepseek-ai/dsh/lib/bin.js \\
+  --profile awt-headless --dump-config | grep awt-guards
 ```
 
 Run inside a thesis workspace created by `awt init` (profile boot is a
 truth test — the guards refuse to mount against a non-workspace directory):
 
 ```bash
-cd <your-thesis-workspace>
 export DEEPSEEK_API_KEY=...   # or ANTHROPIC_API_KEY for the anthropic route
-npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless "task"
+node scaffold/awt.mjs run <your-thesis-workspace> "task"
 ```
+
+`awt run` resolves the pinned launcher from `$DSH_HOME/profiles/node_modules`
+— the dependency tree `install-profile` already wrote — so no package is
+resolved at launch time and an off-pin harness is a typed refusal
+(`AWT_LAUNCH_HARNESS_UNPINNED`).
 
 Remove by deleting `$DSH_HOME/profiles/awt-headless`; upgrade by
 re-running `install-profile` after removing (never merges in place).
@@ -47,9 +52,8 @@ bundle name, which is the point: the product is the composition, not the
 shell. `awt install-profile` installs both profiles together.
 
 ```bash
-cd <your-thesis-workspace-or-anywhere>
 export DEEPSEEK_API_KEY=...
-npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180
+node scaffold/awt.mjs web <your-thesis-workspace> [port]
 ```
 
 Then open http://127.0.0.1:3180, add your workspace via the native folder
