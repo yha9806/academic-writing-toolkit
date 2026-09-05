@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (131 automated tests, labelled T2-T137: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (132 automated tests, labelled T2-T138: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -2921,6 +2921,46 @@ test_T50() {
     done
 }
 
+test_T138() {
+    # A Markdown thesis chapter cites in Harvard author-year form and never
+    # names a bib key. Before this test the audit saw no citation at all
+    # there: every advertised term was "unsourced" and every bib entry
+    # "dangling". Now Harvard forms count for proximity, bib entries match by
+    # first-author surname + year, and a "Keywords:" line advertises terms.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/references.bib" <<'EOF'
+@article{smith2024archive, title={The Archive}, author={Smith, Jane and Doe, John}, year={2024}, journal={J. Mem.}}
+@book{jones2021memory, title={Contested Memory}, author={Alex Jones}, year={2021}, publisher={Press}}
+EOF
+    cat > "$tmp/chapters/ch1.md" <<'EOF'
+# Chapter 1
+
+Keywords: Shortcut Learning, Construct Validity
+
+The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short.
+
+Construct validity is invoked throughout, yet this paragraph names no source for it at all,
+which is exactly the finding the audit exists to surface in a thesis workspace.
+
+The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short.
+
+Shortcut learning is the central worry of this chapter, as Smith (2024) argues at length
+and as later work confirms (Smith and Doe, 2024, p. 12).
+EOF
+    out=$(python3 scripts/audit-claim-positioning.py --base-dir "$tmp/chapters" --bib "$tmp/references.bib" --json 2>&1)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+unsourced=[i['detail'] for i in d['issues'] if i['kind']=='unsourced-keyword']
+dangling=[i['detail'] for i in d['issues'] if i['kind']=='dangling-entry']
+assert unsourced==['Construct Validity'], unsourced   # Shortcut Learning is sourced by Harvard cites
+assert dangling==['jones2021memory'], dangling           # smith2024 is cited by surname+year, never by key
+"
+}
+
 _make_valid_release_packet() {
     local tmp="$1"
     mkdir -p "$tmp/release"
@@ -3501,6 +3541,7 @@ run_test "T134 a LaTeX preamble is not prose" test_T134
 run_test "T135 author-control scaffold is conservative and repeat-safe" test_T135
 run_test "T136 author-control strict checker enforces approval state" test_T136
 run_test "T137 cross-skill author-control gates remain present" test_T137
+run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

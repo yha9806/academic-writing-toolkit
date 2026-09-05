@@ -45,6 +45,35 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    consistency as audited. Reference integrity is still covered by
    `/verify-refs` (BibTeX records) and by the notes-file contract lint.
 
+   **E. Claim positioning (deterministic, runs before F — positioning is
+   not repairable after review; style is)**
+
+   ```
+   python3 scripts/audit-claim-positioning.py --base-dir chapters --bib references.bib --json
+   ```
+
+   (omit `--bib` when the project has no bibliography file). Report every
+   issue it returns: `unsourced-keyword` and `bare-novelty` as **High** — a
+   field's vocabulary in use without its literature, or a novelty claim in a
+   paragraph that shows no search — `uncited-method` and `dangling-entry` as
+   **Medium**. The tool checks that a source is *present* near a claim, never
+   that it is the right one, and it cannot tell whether a citing sentence
+   says what its source says; do not present its silence as either.
+
+   **F. Prose fingerprint (measurement only; skip when no baseline exists)**
+
+   Only when the project holds a baseline corpus of its *own* reference
+   PDFs (`literature/`, twenty or more, the author's own papers excluded):
+
+   ```
+   python3 scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude '<author-surname>*'
+   ```
+
+   Report the distributions under **Measurements**, never as issues: this is
+   Advisory by nature. Out-of-range is the hard signal, a percentile is a
+   soft one, and clustering matters more than count. Method and stop rules:
+   `references/prose-polish-method.md`.
+
 3. **Output the audit report** using the format below.
 
 ## Output Format
@@ -64,6 +93,11 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
 |---|----------|----------|----------|-------|---------|----------|
 | 1 | Critical | Numerical | Ch3 s3.2, Ch5 s5.4 | Sample size differs | 120 (Ch3) vs 125 (Ch5) | Should be consistent |
 | 2 | High | Cross-ref | Ch4 s4.1 | Ref to "Section 3.7" | Section 3.7 | Section does not exist |
+
+### Measurements (category F, when a baseline exists)
+
+{Per metric: rate, clustering (gap CV), longest gap — with the baseline's
+range and where the manuscript sits. Numbers, not verdicts.}
 
 ### Recommendations
 
