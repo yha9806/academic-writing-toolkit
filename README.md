@@ -83,13 +83,17 @@ provider key at run time.
 ```bash
 node scaffold/awt.mjs init ~/thesis          # clean workspace + skill links
 node scaffold/awt.mjs install-profile        # awt-headless + awt-web into ~/.dsh
-cd ~/thesis
 export DEEPSEEK_API_KEY=...                  # or ANTHROPIC_API_KEY
-npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless "task"
+node scaffold/awt.mjs run ~/thesis "task"    # one headless task
 
-# or the same enforcement behind dsh's web UI:
-npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180
+# or the same enforcement behind dsh's web UI, then open the printed URL:
+node scaffold/awt.mjs web ~/thesis           # 127.0.0.1:3180 by default
 ```
+
+`run` and `web` launch the pinned harness that `install-profile` placed in
+`$DSH_HOME`, refuse a target that is not a workspace, and refuse a launcher
+whose version is not the one `COMPAT.json` attests. Your provider key stays
+in your environment; no AWT command reads or stores one.
 
 `node scaffold/awt.mjs verify ~/thesis` runs the five-stage verification
 ladder (build, notes-lint smoke, composition proof, scripted-denial evidence

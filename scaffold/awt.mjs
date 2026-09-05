@@ -36,6 +36,7 @@ const GUARDS_DIR = join(PRODUCT_ROOT, 'guards')
 const E2E_DIR = join(PRODUCT_ROOT, 'e2e')
 const PROFILE_SRC = join(PRODUCT_ROOT, 'profiles', 'awt-headless')
 const DSH_BIN = join(E2E_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+const COMPAT = join(PRODUCT_ROOT, 'COMPAT.json')
 const RUN_TIMEOUT_MS = 300_000
 
 // --- typed failure -----------------------------------------------------------------
@@ -180,6 +181,73 @@ function installProfile(targetHome) {
   console.log(`web UI: run from your workspace — DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180`)
 }
 
+// --- launch ------------------------------------------------------------------------
+
+/** The one pin, read from COMPAT.json so a launcher and a claim cannot drift. */
+function pinnedHarnessVersion() {
+  return JSON.parse(readFileSync(COMPAT, 'utf8')).harness.split('@').pop()
+}
+
+/** The markers `init` creates; the same truth test `verify` applies. */
+function assertWorkspace(ws, code) {
+  for (const marker of ['chapters', join('literature', 'reading_notes'), join('.agents', 'skills')]) {
+    if (!existsSync(join(ws, marker))) {
+      throw new AwtError(code, `${ws} is not an AWT workspace (missing ${marker})`, 'run `awt init <dir>` first')
+    }
+  }
+}
+
+/**
+ * Run a profile against a workspace using the launcher `install-profile`
+ * already placed in $DSH_HOME — not a `npx` resolution and not a checkout's
+ * dev dependencies. Every refusal here happens before anything boots, so
+ * none of them needs a credential. The provider key stays in the caller's
+ * environment; this command never reads, stores or forwards one.
+ */
+function launch(profile, ws, extra) {
+  const home = resolve(process.env.DSH_HOME ?? join(process.env.HOME ?? '', '.dsh'))
+  if (!existsSync(join(home, 'profiles', profile))) {
+    throw new AwtError(
+      'AWT_LAUNCH_PROFILE_MISSING',
+      `${profile} is not installed in ${home}`,
+      `node ${relativeToCwd(join(PRODUCT_ROOT, 'scaffold', 'awt.mjs'))} install-profile`,
+    )
+  }
+  const pkgRoot = join(home, 'profiles', 'node_modules', '@deepseek-ai', 'dsh')
+  const bin = join(pkgRoot, 'lib', 'bin.js')
+  if (!existsSync(bin)) {
+    throw new AwtError(
+      'AWT_LAUNCH_HARNESS_MISSING',
+      `no dsh launcher under ${pkgRoot}`,
+      `reinstall the profiles so their dependency tree is present`,
+    )
+  }
+  // A different harness would void every gate COMPAT.json attests, so an
+  // unpinned launcher is a refusal, never a warning.
+  const want = pinnedHarnessVersion()
+  const got = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).version
+  if (got !== want) {
+    throw new AwtError(
+      'AWT_LAUNCH_HARNESS_UNPINNED',
+      `${pkgRoot} is @deepseek-ai/dsh@${got}; COMPAT.json attests ${want}`,
+      `reinstall the pinned harness, or re-attest COMPAT.json against ${got} first`,
+    )
+  }
+  assertWorkspace(ws, 'AWT_LAUNCH_NOT_WORKSPACE')
+  const res = spawnSync(process.execPath, [bin, '--profile', profile, ...extra], { cwd: ws, stdio: 'inherit' })
+  process.exit(res.status ?? 1)
+}
+
+function web(target, port) {
+  if (target === undefined) throw new AwtError('AWT_LAUNCH_USAGE', 'usage: awt web <workspace> [port]')
+  launch('awt-web', resolve(target), ['--host', '127.0.0.1', '--port', port ?? '3180'])
+}
+
+function runTask(target, task) {
+  if (target === undefined || task === undefined) throw new AwtError('AWT_LAUNCH_USAGE', 'usage: awt run <workspace> "<task>"')
+  launch('awt-headless', resolve(target), [task])
+}
+
 // --- verify ------------------------------------------------------------------------
 
 /** Run one ladder stage; on child failure raise typed with the output tail. */
@@ -288,12 +356,14 @@ async function verify(target) {
 
 // --- entry -------------------------------------------------------------------------
 
-const [command, target] = process.argv.slice(2)
+const [command, target, third] = process.argv.slice(2)
 try {
   if (command === 'init') init(target)
   else if (command === 'verify') await verify(target)
   else if (command === 'install-profile') installProfile(target)
-  else fail(new AwtError('AWT_USAGE', 'usage: awt <init|verify> <dir> | awt install-profile [dsh-home]'))
+  else if (command === 'web') web(target, third)
+  else if (command === 'run') runTask(target, third)
+  else fail(new AwtError('AWT_USAGE', 'usage: awt <init|verify> <dir> | awt install-profile [dsh-home] | awt web <dir> [port] | awt run <dir> "<task>"'))
 } catch (error) {
   fail(error instanceof AwtError ? error : new AwtError('AWT_UNEXPECTED', error?.stack ?? String(error)))
 }

@@ -164,3 +164,64 @@ test('init links exactly the real skills of a clean catalogue', () => {
   assert.equal(res.status, 0, res.stderr)
   assert.deepEqual(readdirSync(join(ws, '.agents', 'skills')).sort(), ['note', 'read'])
 })
+
+// --- awt web / awt run: the supported launch path ----------------------------------
+// `install-profile` already places the pinned launcher inside
+// $DSH_HOME/profiles/node_modules. These gates pin the refusals that run
+// BEFORE anything boots, so they need neither a harness nor a credential.
+
+/** A $DSH_HOME with an installed profile and a launcher of the given version. */
+function dshHome(opts: { profile?: string; harnessVersion?: string | null }): string {
+  const home = scratch()
+  if (opts.profile) mkdirSync(join(home, 'profiles', opts.profile), { recursive: true })
+  if (opts.harnessVersion !== null) {
+    const pkg = join(home, 'profiles', 'node_modules', '@deepseek-ai', 'dsh')
+    mkdirSync(join(pkg, 'lib'), { recursive: true })
+    writeFileSync(join(pkg, 'lib', 'bin.js'), '')
+    writeFileSync(join(pkg, 'package.json'), JSON.stringify({ version: opts.harnessVersion }))
+  }
+  return home
+}
+
+function awtIn(home: string, ...args: string[]) {
+  return spawnSync(process.execPath, [AWT, ...args], {
+    encoding: 'utf8', timeout: 60_000, env: { ...process.env, DSH_HOME: home },
+  })
+}
+
+test('web refuses when the profile was never installed into DSH_HOME', () => {
+  const ws = join(scratch(), 'ws')
+  awt('init', ws)
+  const res = awtIn(dshHome({ harnessVersion: '0.1.0-rc.6' }), 'web', ws)
+  assert.notEqual(res.status, 0)
+  assert.match(res.stderr, /AWT_LAUNCH_PROFILE_MISSING/)
+  assert.match(res.stderr, /install-profile/)
+})
+
+test('web refuses a directory that is not an AWT workspace', () => {
+  const home = dshHome({ profile: 'awt-web', harnessVersion: '0.1.0-rc.6' })
+  const res = awtIn(home, 'web', scratch())
+  assert.notEqual(res.status, 0)
+  assert.match(res.stderr, /AWT_LAUNCH_NOT_WORKSPACE/)
+})
+
+test('launch refuses a harness that is not the COMPAT-pinned version', () => {
+  // Silently launching a different harness would void every attested gate.
+  const home = dshHome({ profile: 'awt-headless', harnessVersion: '0.1.2-rc.1' })
+  const ws = join(scratch(), 'ws')
+  awt('init', ws)
+  const res = awtIn(home, 'run', ws, 'anything')
+  assert.notEqual(res.status, 0)
+  assert.match(res.stderr, /AWT_LAUNCH_HARNESS_UNPINNED/)
+  assert.match(res.stderr, /0\.1\.2-rc\.1/)
+  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness
+  assert.match(res.stderr, new RegExp(pinned.split('@').pop().replace(/\./g, '\\.')))
+})
+
+test('run refuses without a task, and web without a workspace', () => {
+  const home = dshHome({ profile: 'awt-headless', harnessVersion: '0.1.0-rc.6' })
+  const ws = join(scratch(), 'ws')
+  awt('init', ws)
+  assert.match(awtIn(home, 'run', ws).stderr, /AWT_LAUNCH_USAGE/)
+  assert.match(awtIn(home, 'web').stderr, /AWT_LAUNCH_USAGE/)
+})
