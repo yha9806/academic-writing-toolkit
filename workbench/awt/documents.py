@@ -64,10 +64,24 @@ def heading_level(text: str):
         return len(markdown[1])
     if re.match(r"^(?:chapter\s+\w+\b|第[零一二三四五六七八九十百\d]+章)", value, re.I):
         return 1
-    numbered = re.match(r"^(\d+(?:\.\d+){0,4})[.\s、]\s*\S", value)
-    if numbered and len(value) < 100 and not re.search(r"[。!?！？]", value):
-        return numbered[1].count(".") + 1
-    return 1 if len(value) < 85 and section_role(value) != "other" and not re.search(r"[。.?!]", value) else None
+    if "\n" in value or "\r" in value or len(value) >= 100:
+        return None
+    numbered = re.fullmatch(r"(\d{1,3}(?:\.\d{1,3}){0,4})(?:[.、]\s*|\s+)(.+)", value)
+    if numbered:
+        title = numbered[2].strip()
+        # A table row or decimal/model identifier is not a section title.
+        # Require a textual title, not merely another non-space character.
+        if (re.match(r"[A-Z\u3400-\u9fff]", title) and len(title.split()) <= 14
+                and not re.search(r"[。.?!！？]", title)):
+            return numbered[1].count(".") + 1
+        return None
+    # Match whole unnumbered titles. Words such as "results", "methods" and
+    # "references" occur frequently inside ordinary prose and PDF font runs.
+    titles = "|".join(ROLES.values()) + (
+        r"|related work|background|limitations|acknowledg(?:e)?ments|"
+        r"ethical considerations|结语|致谢|局限性"
+    )
+    return 1 if re.fullmatch(r"(?:" + titles + r")", value, re.I) else None
 
 
 def _pdf_groups(fragments):

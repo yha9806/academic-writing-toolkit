@@ -83,24 +83,31 @@ def input_estimate(blocks, goal, phase):
 
 
 def text_steps(documents: list[dict], budget: dict, goal: str, revision: int) -> list[dict]:
-    groups = defaultdict(list)
-    for document in documents:
-        for block in document["blocks"]:
-            groups[(document["id"], block["section"])].append(block)
+    """Pack consecutive source blocks; a section boundary does not spend a call.
+
+    Each material keeps its own section and locator in the model request.
+    Never combine files or regroup repeated section names out of source order.
+    """
     steps = []
-    for (_, section), blocks in groups.items():
+
+    def append(batch):
+        first, last = batch[0]["section"], batch[-1]["section"]
+        label = first if first == last else first + " → " + last
+        steps.append({"phase": "text", "label": label, "block_ids": [item["id"] for item in batch]})
+
+    for document in documents:
         batch = []
-        for block in blocks:
+        for block in document["blocks"]:
             if input_estimate(batch + [block], goal, "text") > budget["input_tokens"]:
                 if not batch:
                     raise DocumentError("单个文字区域与要求超过当前输入预算；请缩短补充要求或增加每次输入预算")
-                steps.append({"phase": "text", "label": section, "block_ids": [item["id"] for item in batch]})
+                append(batch)
                 batch = []
                 if input_estimate([block], goal, "text") > budget["input_tokens"]:
                     raise DocumentError("单个文字区域与要求超过当前输入预算")
             batch.append(block)
         if batch:
-            steps.append({"phase": "text", "label": section, "block_ids": [item["id"] for item in batch]})
+            append(batch)
     for index, step in enumerate(steps):
         step.update(id=f"r{revision}-text-{index + 1}", revision=revision, status="pending", image_ids=[], attempts=[])
     return steps

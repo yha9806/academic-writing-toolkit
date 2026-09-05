@@ -50,6 +50,10 @@ model API. Provider checks are generation-free unless `--live` is supplied.
   test counts and timings are not results of this integration.
 - [Product proposal](../docs/specs/2026-09-05-workbench-proposal.md)
   describes intended users, candidate documents and the acceptance gate.
+- [Real-PDF planning optimisation](final_output/alce-planning-optimisation-2026-09-05.md)
+  reduces the same ALCE text plan from 486 to 44 requests at the same per-call
+  budget, retaining every original region. The live attempt stopped on an
+  invalid model quote; a complete real-author cycle remains pending.
 
 The configured PDF ceiling is 1,000 pages; the completed scale experiment
 uses 200 synthetic pages. Batching and file completion do not prove review

@@ -15,8 +15,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from awt.cross_review import budget_settings, text_steps
-from awt.documents import DocumentError, import_document
+from awt.cross_review import budget_settings, input_estimate, source_payload, text_steps
+from awt.documents import DocumentError, heading_level, import_document
 from awt.review_jobs import JobManager, read_json
 from test_project_review import fixture_call, upload, PNG
 
@@ -215,9 +215,102 @@ class ThesisJobsTests(unittest.TestCase):
         self.assertTrue(plan)
         self.assertEqual(budget_settings({"max_calls":1000, "total_tokens":4000000})["max_calls"], 1000)
 
+    def test_version_two_checkpoint_resumes_without_replanning_completed_work(self):
+        job = self.create()
+        first_id = job["steps"][0]["id"]
+        first = self.manager._load(job["id"])
+        first["planning_version"] = 2
+        first["budget"]["max_calls"] = 1
+        self.manager._save(first)
+        self.manager.start({"job_id":job["id"]})
+        self.manager.workers[job["id"]].join(10)
+        paused = self.manager._load(job["id"])
+        plan = [s["block_ids"] for s in paused["steps"]]
+        self.assertEqual(paused["state"], "budget_paused")
+        self.manager.close()
+        self.manager = JobManager(Path(self.directory.name), call=self.manager.call)
+        self.addCleanup(self.manager.close)
+        restored = self.manager._load(job["id"])
+        self.assertEqual(restored["planning_version"], 2)
+        self.assertEqual([s["block_ids"] for s in restored["steps"]], plan)
+        self.manager.start({"job_id":job["id"], "max_calls":500})
+        self.manager.workers[job["id"]].join(30)
+        final = self.manager._load(job["id"])
+        self.assertEqual(final["state"], "completed", final["error"])
+        self.assertEqual(len(next(s for s in final["steps"] if s["id"] == first_id)["attempts"]), 1)
+
+
+class DocumentPlanningTests(unittest.TestCase):
+    def test_prose_table_rows_and_years_are_not_section_titles(self):
+        for text in ("user questions in natural language with references",
+                     "We design automatic evaluation methods in three",
+                     "closed-source models, making their results difficult",
+                     "77.0 40.2", "56.8% percent of the answers in ASQA.",
+                     "3.5-turbo-16k-0613", "3.2", "5 correct answers.",
+                     "2020 Conference on Empirical Methods in Natural",
+                     "These are methods\nfor finding results"):
+            with self.subTest(text=text):
+                self.assertIsNone(heading_level(text))
+        for text, level in (("Abstract", 1), ("References", 1), ("Limitations", 1),
+                            ("3 Automatic Evaluation", 1), ("3.3 Citation Quality", 2),
+                            ("3.4 ALCE is Robust to Shortcut Cases", 2),
+                            ("第六章 讨论", 1), ("2.1 研究方法", 2), ("## Custom title", 2)):
+            with self.subTest(text=text):
+                self.assertEqual(heading_level(text), level)
+
+    def test_small_sections_share_a_request_with_source_order_and_locators_intact(self):
+        # Repeated titles must stay in their original positions, not be grouped
+        # with an earlier occurrence of the same title.
+        source = "\n".join(f"## {'Results' if i % 2 else 'Methods'}\nRecord {i}: ten participants." for i in range(12))
+        documents = [import_document(name, source.encode()) for name in ("one.md", "two.md")]
+        budget = budget_settings({"input_tokens":8000})
+        steps = text_steps(documents, budget, "Check", 1)
+        self.assertEqual(len(steps), 2)
+        for document, step in zip(documents, steps):
+            self.assertEqual(step["block_ids"], [b["id"] for b in document["blocks"]])
+            sent = json.loads(source_payload(document["blocks"], "Check", "text"))["materials"]
+            self.assertEqual([(b["locator"], b["section"], b["text"]) for b in sent],
+                             [(b["id"], b["section"], b["text"]) for b in document["blocks"]])
+
+    def test_packing_covers_every_block_once_and_respects_the_actual_input_estimator(self):
+        source = "\n".join(f"## Section {i}\n" + ("Independent evidence remains traceable. " * 8) for i in range(100))
+        document = import_document("sections.md", source.encode())
+        budget = budget_settings({"input_tokens":2400})
+        for divisor in (3, 5):
+            with self.subTest(divisor=divisor), patch("awt.cross_review.estimate_tokens", side_effect=lambda text:
+                    {"tokens":math.ceil(len(text.encode("utf-8")) / divisor)}):
+                steps = text_steps([document], budget, "Check", 1)
+                lookup = {b["id"]:b for b in document["blocks"]}
+                self.assertEqual([i for s in steps for i in s["block_ids"]], list(lookup))
+                self.assertGreater(len(steps), 1)
+                for index, step in enumerate(steps):
+                    blocks = [lookup[i] for i in step["block_ids"]]
+                    self.assertLessEqual(input_estimate(blocks, "Check", "text"), budget["input_tokens"])
+                    if index + 1 < len(steps):
+                        following = lookup[steps[index + 1]["block_ids"][0]]
+                        self.assertGreater(input_estimate(blocks + [following], "Check", "text"), budget["input_tokens"])
+
 
 @unittest.skipUnless(importlib.util.find_spec("reportlab") and importlib.util.find_spec("pypdfium2"), "Optional PDF dependencies unavailable")
 class ThesisPdfTests(unittest.TestCase):
+    def test_pdf_numeric_rows_and_font_fragments_do_not_create_small_sections(self):
+        from reportlab.pdfgen import canvas
+        output = io.BytesIO()
+        pdf = canvas.Canvas(output, pagesize=(595, 842))
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(48, 790, "5 Experiments")
+        for row in range(30):
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(48, 770 - row * 20, "We report results with citations")
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(320, 770 - row * 20, "77.0 40.2 56.8")
+        pdf.save()
+        doc = import_document("font-runs.pdf", output.getvalue())
+        self.assertEqual([b["text"] for b in doc["blocks"] if b["kind"] == "heading"], ["5 Experiments"])
+        self.assertEqual(sum(b["text"].count("77.0 40.2 56.8") for b in doc["blocks"]), 30)
+        self.assertEqual(sum(len(b["source_spans"]) for b in doc["blocks"]), 61)
+        self.assertEqual(len(text_steps([doc], budget_settings({"input_tokens":16000}), "Check", 1)), 1)
+
     def test_200_page_pdf_coalesces_lines_without_losing_page_locators(self):
         doc = import_document("thesis.pdf", pdf_fixture())
         self.assertEqual(len(doc["pages"]), 200)

@@ -400,7 +400,7 @@ class JobManager:
                 if value:
                     asset["blob"] = digest(asset["id"].encode()) + ".image"
                     (directory / asset["blob"]).write_bytes(base64.b64decode(value))
-        job = {"schema_version": 2, "planning_version": 2, "id": identifier, "created_at": now(), "updated_at": now(), "state": "draft", "revision": 1,
+        job = {"schema_version": 2, "planning_version": 3, "id": identifier, "created_at": now(), "updated_at": now(), "state": "draft", "revision": 1,
             "goal": goal.strip(), "budget": budget, "config": asdict(config), "documents": documents, "steps": steps, "history": [],
             "cross_built": False, "chapter_built": False, "cross_coverage": [], "selected_image_ids": [], "events": [], "layouts": [],
             "calls_reserved": 0, "tokens_reserved": 0, "error": None, "source_unchanged": True}
@@ -599,7 +599,7 @@ class JobManager:
             retained_assets = {a["id"] for d in new_documents for a in d["assets"]}
             job["selected_image_ids"] = [i for i in job["selected_image_ids"] if i in retained_assets]
             job["steps"].extend(self._vision_steps(job))
-            job.update(state="paused", chapter_built=False, cross_built=False, cross_coverage=[], error=None, planning_version=2)
+            job.update(state="paused", chapter_built=False, cross_built=False, cross_coverage=[], error=None, planning_version=3)
             job["revision_change"] = {"at": now(), "unchanged_blocks": len(mapping), "reused_blocks": len(covered),
                 "reused_batches": len(reused), "pending_blocks": len(available) - len(covered),
                 "note": "仅复用相同要求、配置和整批文字下的结果；受影响章节及关联检查重新规划。修改文件的图像需在新任务中重新选择。"}
@@ -693,7 +693,7 @@ class JobManager:
         job["revision"] += 1
         job["steps"] = text_steps(job["documents"], job["budget"], job["goal"], job["revision"])
         job["steps"].extend(self._vision_steps(job))
-        job.update(chapter_built=False, cross_built=False, cross_coverage=[], state="paused")
+        job.update(chapter_built=False, cross_built=False, cross_coverage=[], state="paused", planning_version=3)
         self._plan(job)
 
     def _reuse(self, job, step):

@@ -1,0 +1,390 @@
+{
+  "schema_version": 1,
+  "kind": "real_pdf_planning_optimisation",
+  "planning_version": 3,
+  "source": {
+    "filename": "gao2023-alce.pdf",
+    "sha256": "ae9868f07f0f7ffaae5346778f79b7827d9ec6b13b1e6aae4dff6b2ffc37a2e1",
+    "pages": 24,
+    "source_unchanged_after_run": true
+  },
+  "python": "3.12.14",
+  "pdfium": "5.13.0",
+  "estimator": {
+    "estimator": "utf8_bytes_div_3_ceiling",
+    "encoding": null,
+    "version": 1,
+    "is_billing_value": false
+  },
+  "current": {
+    "blocks": 5787,
+    "original_regions": 6670,
+    "sections": 24,
+    "chapters": 13,
+    "extracted_chars": 96033,
+    "region_text_chars": 95150,
+    "region_text_and_geometry_sha256": "b45b252f803ee30b5220ab705840e1baddba736ef4ec91214d5a55e1976fd7da"
+  },
+  "publicSanitisation": {
+    "local_paths_included": false,
+    "raw_checkpoints_published": false,
+    "source_text_or_model_responses_published": false
+  },
+  "runtime_sha256": {
+    "documents.py": "bed38846b3b71b8f2b154726e8e894035a4a45503cc14a820b3699a12e224d4f",
+    "cross_review.py": "30114160f1a48a33f44d1bbbe1d2759bdc65ba499409a935f8bef4f7c3aabde8",
+    "review_jobs.py": "1a3c24887eee4f704517b6556d2a8fb73f48e72d3dc15103de8b16cfe2317a00",
+    "review_index.py": "188d67ed6a1027904f998e66bf98daadfd95ca77e08cd85fe6147a2f06934e7f",
+    "providers.py": "d7f410a3b333d152b16cfe20f45a8038314cfe168e9f49e21e8f3dc09cf49d9e",
+    "context_pack.py": "4c80b1ce3c22e446e7fffc79b0982e26661870ed3ec1c88b6b2c67b3651f2cc8"
+  },
+  "script_sha256": "bebf183b965c18adce7dc16e8ca49c7dff9e2bada1067f296904ff5c47ab830b",
+  "baseline": {
+    "blocks": 5822,
+    "original_regions": 6670,
+    "sections": 482,
+    "chapters": 441,
+    "extracted_chars": 95998,
+    "region_text_chars": 95150,
+    "region_text_and_geometry_sha256": "b45b252f803ee30b5220ab705840e1baddba736ef4ec91214d5a55e1976fd7da",
+    "planning_version": 2,
+    "text_calls": 486,
+    "budget": {
+      "profile": "economy",
+      "input_tokens": 8000,
+      "output_tokens": 1600,
+      "max_calls": 24,
+      "total_tokens": 250000,
+      "input_price_per_million": null,
+      "output_price_per_million": null
+    },
+    "state": "budget_paused",
+    "calls_reserved": 24,
+    "all_original_region_text_and_geometry_identical": true
+  },
+  "goal": "Check whether the main numerical claims and conclusions are consistent across the abstract, experiments, results, limitations and appendices. Report only issues supported by exact source quotes; do not rewrite the paper.",
+  "plans": [
+    {
+      "input_tokens": 2400,
+      "text_calls": 216,
+      "input_tokens_estimated": 511750,
+      "max_input_tokens_estimated": 2400,
+      "each_block_once_in_source_order": true,
+      "future_chapter_and_cross_calls_included": false
+    },
+    {
+      "input_tokens": 4000,
+      "text_calls": 101,
+      "input_tokens_estimated": 399698,
+      "max_input_tokens_estimated": 3999,
+      "each_block_once_in_source_order": true,
+      "future_chapter_and_cross_calls_included": false
+    },
+    {
+      "input_tokens": 8000,
+      "text_calls": 44,
+      "input_tokens_estimated": 344161,
+      "max_input_tokens_estimated": 8000,
+      "each_block_once_in_source_order": true,
+      "future_chapter_and_cross_calls_included": false
+    },
+    {
+      "input_tokens": 16000,
+      "text_calls": 21,
+      "input_tokens_estimated": 321752,
+      "max_input_tokens_estimated": 15998,
+      "each_block_once_in_source_order": true,
+      "future_chapter_and_cross_calls_included": false
+    }
+  ],
+  "live": {
+    "state": "failed",
+    "error": "模型引用了未发送的定位或无法逐字匹配的引文；该批次没有计为已检查",
+    "provider": {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false
+    },
+    "budget": {
+      "profile": "economy",
+      "input_tokens": 8000,
+      "output_tokens": 1600,
+      "max_calls": 80,
+      "total_tokens": 800000,
+      "input_price_per_million": null,
+      "output_price_per_million": null
+    },
+    "initial_plan": {
+      "pending_calls": 44,
+      "pending_token_reservation": 414561,
+      "reused_batches": 0,
+      "future_stages_pending": true,
+      "note": "此处为已规划批次估算；章节汇总和跨章节检索在前序结果保存后规划，仍受同一总预算约束。"
+    },
+    "elapsed_seconds": 49.672,
+    "calls_reserved": 12,
+    "tokens_reserved_estimate": 114772,
+    "observed_provider_usage": [
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 10.609,
+        "usage": {
+          "prompt_tokens": 8111,
+          "completion_tokens": 24,
+          "total_tokens": 8135
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.156,
+        "usage": {
+          "prompt_tokens": 8218,
+          "completion_tokens": 24,
+          "total_tokens": 8242
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.094,
+        "usage": {
+          "prompt_tokens": 8181,
+          "completion_tokens": 24,
+          "total_tokens": 8205
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.141,
+        "usage": {
+          "prompt_tokens": 8361,
+          "completion_tokens": 24,
+          "total_tokens": 8385
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.687,
+        "usage": {
+          "prompt_tokens": 8653,
+          "completion_tokens": 24,
+          "total_tokens": 8677
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.454,
+        "usage": {
+          "prompt_tokens": 8588,
+          "completion_tokens": 24,
+          "total_tokens": 8612
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.484,
+        "usage": {
+          "prompt_tokens": 8426,
+          "completion_tokens": 24,
+          "total_tokens": 8450
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.375,
+        "usage": {
+          "prompt_tokens": 8765,
+          "completion_tokens": 24,
+          "total_tokens": 8789
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.407,
+        "usage": {
+          "prompt_tokens": 8796,
+          "completion_tokens": 24,
+          "total_tokens": 8820
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.812,
+        "usage": {
+          "prompt_tokens": 8984,
+          "completion_tokens": 50,
+          "total_tokens": 9034
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 2.469,
+        "usage": {
+          "prompt_tokens": 8964,
+          "completion_tokens": 24,
+          "total_tokens": 8988
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      },
+      {
+        "provider": "ollama",
+        "protocol": "chat-completions",
+        "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "response_format": "prompt",
+        "max_output_tokens": 1600,
+        "supports_images": false,
+        "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+        "elapsed_seconds": 13.125,
+        "usage": {
+          "prompt_tokens": 8779,
+          "completion_tokens": 1173,
+          "total_tokens": 9952
+        },
+        "normalizations": [],
+        "live_response_received": true,
+        "images_sent": 0,
+        "wire_schema_constraints_validated_locally": false
+      }
+    ],
+    "completed_by_phase": {
+      "text": 11
+    },
+    "checked_blocks": 1401,
+    "total_blocks": 5787,
+    "all_text_sent": false,
+    "chapter_stage_reached": false,
+    "cross_stage_reached": false,
+    "cross_pair_statuses": {},
+    "empty_reports": 10,
+    "claims": 0,
+    "findings": 0,
+    "automatic_retries": 0,
+    "human_review_completed": false,
+    "real_author_cycle_complete": false,
+    "review_quality_established": false
+  }
+}

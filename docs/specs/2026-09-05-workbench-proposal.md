@@ -1,6 +1,7 @@
 # Workbench evaluation proposal — 2026-09-05
 
-Status: proposed; product acceptance pending in [#39](https://github.com/yha9806/academic-writing-toolkit/issues/39).
+Status: proposal retained; product surface remains retired under the maintainer's
+decision in [#39](https://github.com/yha9806/academic-writing-toolkit/issues/39).
 This branch is independent of the E1/Windows/reference follow-up in
 [PR #40](https://github.com/yha9806/academic-writing-toolkit/pull/40).
 It does not change the supported-surface table in the root README or
@@ -42,6 +43,15 @@ cross-section stages were not reached. This exposes a practical
 fragmentation/budget problem on a real PDF despite the synthetic benchmark.
 It is an incomplete attempt, with no retries, no human quality ratings and
 no product-acceptance claim. A complete real-user cycle is still required.
+
+A subsequent [planning optimisation](../../workbench/final_output/alce-planning-optimisation-2026-09-05.md)
+fixes false headings and packs consecutive sections within the existing input
+budget. On the identical source it reduces the 8,000-input-token text plan
+from 486 to 44 requests, with all 6,670 original PDF region texts and coordinates
+preserved. A new 12-call live attempt stopped on an invalid model quote after
+11 completed text batches; ten completed responses were empty. Chapter and
+cross-section stages were not reached. This is evidence of a planning
+improvement, not a completed useful review or a reason to restore the surface.
 
 ## Decision gate
 
