@@ -61,3 +61,15 @@ produce a fourth patch under the old contract.
 3. In P0 this discipline is advisory prose; the P1 guard enforces Scope and
    the attempt count from the session log. Do not describe it as enforced.
 4. No emoji. British English.
+
+## Project-level intent card (optional, Advisory)
+
+Per-edit spine cards sit under a project-level intent. If the project keeps
+one, it is `00_AUTHOR_INTENT.md` from the lightweight author-control profile
+in `references/author-control/` (scaffold with
+`python3 scripts/scaffold-author-control.py <project_root>`, check structure
+with `python3 scripts/check-author-control.py <project_root> --strict`). A
+contract's core claim must not broaden beyond that card. The card's approval
+field is a record the author keeps, not an enforcement: nothing on this
+surface gates on it, and in the AWT app approvals exist only as harness
+events.

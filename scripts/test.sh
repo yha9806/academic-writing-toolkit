@@ -3049,7 +3049,7 @@ test_T59() {
 test_T135() {
     local tmp before after second control_file
     tmp=$(mktemp -d) || return 1
-    python3 archive/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" --json >/dev/null || {
+    python3 scripts/scaffold-author-control.py "$tmp" --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
@@ -3059,12 +3059,12 @@ test_T135() {
             return 1
         }
     done
-    python3 archive/skills/thesis-control/scripts/check_author_control.py "$tmp" --json >/dev/null || {
+    python3 scripts/check-author-control.py "$tmp" --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
     before=$(sha256sum "$tmp"/*.md | sort)
-    second=$(python3 archive/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" --json 2>&1)
+    second=$(python3 scripts/scaffold-author-control.py "$tmp" --json 2>&1)
     [[ $? -eq 1 ]] || {
         rm -rf "$tmp"
         return 1
@@ -3077,7 +3077,7 @@ test_T135() {
 test_T136() {
     local tmp out rc file
     tmp=$(mktemp -d) || return 1
-    python3 archive/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" >/dev/null || {
+    python3 scripts/scaffold-author-control.py "$tmp" >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
@@ -3098,13 +3098,13 @@ test_T136() {
         -e 's#Author post-edit decision: pending / accept / partial_accept / revise / rollback#Author post-edit decision: pending#' \
         "$tmp/02_REVISION_LOG.md"
     rm -f "$tmp/02_REVISION_LOG.md.bak"
-    python3 archive/skills/thesis-control/scripts/check_author_control.py "$tmp" --strict --json >/dev/null || {
+    python3 scripts/check-author-control.py "$tmp" --strict --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
     sed -i.bak 's/Author pre-edit decision: approved/Author pre-edit decision: pending/' "$tmp/02_REVISION_LOG.md"
     rm -f "$tmp/02_REVISION_LOG.md.bak"
-    out=$(python3 archive/skills/thesis-control/scripts/check_author_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 scripts/check-author-control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1

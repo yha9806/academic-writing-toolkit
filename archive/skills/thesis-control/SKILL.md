@@ -59,8 +59,8 @@ For a lightweight single-manuscript workflow, read
 Create and check the bundled templates with:
 
 ```bash
-python {skill_dir}/scripts/scaffold_author_control.py <project_root>
-python {skill_dir}/scripts/check_author_control.py <project_root> --strict
+python scripts/scaffold-author-control.py <project_root>
+python scripts/check-author-control.py <project_root> --strict
 ```
 
 The lightweight checker validates structure, approval state, and unresolved

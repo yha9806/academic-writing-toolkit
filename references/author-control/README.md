@@ -1,5 +1,13 @@
 # Lightweight Author-Control Profile
 
+> **Status (P4, 2026-09-05): Advisory assets.** These three files record the
+> author's intent, evidence, and revision decisions in human-readable form.
+> Their approval fields are *display* — a record the author keeps — never an
+> enforcement authority: an agent can edit a Markdown file, so a Markdown
+> file cannot be a gate (v0.1 design §1.3). In the AWT app the only approval
+> authority is the harness's approval events; on the skills surface nothing
+> here is enforced, and the checker below validates structure only.
+
 Use this profile when one manuscript needs durable author control but the
 seven-table `thesis_control/` packet would add more administration than the
 revision risk warrants. It preserves the same authority hierarchy in three
@@ -11,11 +19,11 @@ human-readable Markdown files:
 02_REVISION_LOG.md
 ```
 
-Copy the bundled files from `assets/`, or run:
+Copy the three templates from `references/author-control/`, or run:
 
 ```bash
-python {skill_dir}/scripts/scaffold_author_control.py <project_root>
-python {skill_dir}/scripts/check_author_control.py <project_root> --strict
+python3 scripts/scaffold-author-control.py <project_root>
+python3 scripts/check-author-control.py <project_root> --strict
 ```
 
 The scaffold never overwrites an existing control file. Structural validation

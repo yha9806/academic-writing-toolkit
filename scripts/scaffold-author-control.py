@@ -20,8 +20,8 @@ FILENAMES = (
 
 
 def scaffold(root: Path) -> List[Path]:
-    skill_dir = Path(__file__).resolve().parents[1]
-    assets_dir = skill_dir / "assets"
+    repo_root = Path(__file__).resolve().parents[1]
+    assets_dir = repo_root / "references" / "author-control"
     destinations = [root / name for name in FILENAMES]
     collisions = [path for path in destinations if path.exists() or path.is_symlink()]
     if collisions:
