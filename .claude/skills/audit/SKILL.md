@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Use when checking a thesis draft before submission for inconsistent numbers, terminology, cross-references, or citation problems.
+description: Check thesis chapters for consistency before submission — contradictory numbers, terminology drift, and broken cross-references.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
@@ -34,21 +34,63 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    - References to tables and figures must match actual table/figure numbers.
    - Forward references ("Chapter 6 will show...") must be fulfilled.
 
-   **D. Citation consistency**
+   **D. Citation checks — disabled in this release (disclosed gap)**
 
-   Run `python3 scripts/audit-citations.py --base-dir . --style $(grep -oP '(?<=Citation style: )\S+' CLAUDE.md) --json` and parse the JSON output. The script implements four tiers:
+   The deterministic citation tiers previously run here are disabled: measured
+   against realistic thesis text they produced false high-severity "phantom
+   citation" findings on ordinary parentheticals, missed multi-word
+   institutional authors, and flagged the comma form that Cite Them Right
+   Harvard mandates. Until the checker meets a measured, disclosed
+   false-positive rate, do not run it and do not present citation
+   consistency as audited. Reference integrity is still covered by
+   `/verify-refs` (BibTeX records) and by the notes-file contract lint.
 
-   - **Tier 0** — Source-line lint over `literature/reading_notes/*_NOTES.md`. Flags missing or malformed `**Source**:` lines. Severity `medium` (`notes-source-missing`) or `medium` (`notes-source-malformed`).
-   - **Tier 1** — Pairing. Every in-text citation must match a `**Source**:` entry; every Source must be cited at least once. Three modes:
-     - Author-Year (Harvard, APA, Chicago Author-Date, GB/T 7714-2015): pair on `(lastname, year)`. Phantom and unused → severity `high`.
-     - Author-Page (MLA): pair on `lastname` only.
-     - Numeric (IEEE, Vancouver): pair on count balance + integer-gap detection.
-   - **Tier 2** — Style mode detection across all in-text citations. Flags outliers when the manuscript drifts (e.g. mixed `(Smith 2024)` and `(Smith, 2024)`). Severity `medium`.
-   - **Tier 3** — Per-style format validation against the declared `Citation style:` in `CLAUDE.md`. Flags wrong-comma, et al. threshold violations, wrong multi-author connector. Severity `low`.
+   **E. Claim positioning (deterministic, runs before F and G — positioning
+   is not repairable after review; style is)**
 
-   The script's exit code is `0` (no issues), `1` (issues at any tier), or `2` (invalid arguments). Add the script's issues to the `Issues` table below as new rows; severity vocabulary maps directly (`critical | high | medium | low | info`).
+   ```
+   python3 scripts/audit-claim-positioning.py --base-dir chapters --bib references.bib --json
+   ```
 
-   See `docs/skills/06-audit.md` and `python3 scripts/audit-citations.py --help` for the public citation-audit interface and supported styles.
+   (omit `--bib` when the project has no bibliography file). Report every
+   issue it returns: `unsourced-keyword` and `bare-novelty` as **High** — a
+   field's vocabulary in use without its literature, or a novelty claim in a
+   paragraph that shows no search — `uncited-method` and `dangling-entry` as
+   **Medium**. The tool checks that a source is *present* near a claim, never
+   that it is the right one, and it cannot tell whether a citing sentence
+   says what its source says; do not present its silence as either.
+
+   **F. Citation fidelity — does the citing sentence match its source?**
+
+   ```
+   node scripts/audit-citation-fidelity.mjs --base-dir . --json
+   ```
+
+   (needs the guards built once: `npm --prefix guards install && npm --prefix guards run build`.)
+   Report `quote-not-in-source` and `page-mismatch` as **High** — a quoted
+   span that is not verbatim in the source's notes or PDF, or a page that the
+   source contradicts — and `notes-missing` as **Medium**. `low-overlap` is
+   **experimental**: list it under Measurements as a prompt to re-read, never
+   as an issue; no false-positive rate has been measured for it yet. State
+   the tool's own limit in the report verbatim: it does **not** detect a
+   sentence that inverts its source in the source's own words — the failure
+   that mattered most on a real manuscript — and that still requires
+   reading. Every finding here is a proxy; a finding is a reason to open the
+   source, not a verdict.
+
+   **G. Prose fingerprint (measurement only; skip when no baseline exists)**
+
+   Only when the project holds a baseline corpus of its *own* reference
+   PDFs (`literature/`, twenty or more, the author's own papers excluded):
+
+   ```
+   python3 scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude '<author-surname>*'
+   ```
+
+   Report the distributions under **Measurements**, never as issues: this is
+   Advisory by nature. Out-of-range is the hard signal, a percentile is a
+   soft one, and clustering matters more than count. Method and stop rules:
+   `references/prose-polish-method.md`.
 
 3. **Output the audit report** using the format below.
 
@@ -69,6 +111,11 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
 |---|----------|----------|----------|-------|---------|----------|
 | 1 | Critical | Numerical | Ch3 s3.2, Ch5 s5.4 | Sample size differs | 120 (Ch3) vs 125 (Ch5) | Should be consistent |
 | 2 | High | Cross-ref | Ch4 s4.1 | Ref to "Section 3.7" | Section 3.7 | Section does not exist |
+
+### Measurements (category G when a baseline exists; category F's experimental low-overlap prompts)
+
+{Per metric: rate, clustering (gap CV), longest gap — with the baseline's
+range and where the manuscript sits. Numbers, not verdicts.}
 
 ### Recommendations
 

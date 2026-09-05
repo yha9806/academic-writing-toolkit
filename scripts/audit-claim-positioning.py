@@ -24,7 +24,10 @@ any knowledge of the field:
                       of such a claim is the strength of the search behind it,
                       and an unsourced paragraph shows no search.
 
-Python 3.8 stdlib only. Reads LaTeX or Markdown.
+Python 3.8 stdlib only. Reads LaTeX or Markdown. Citations are recognised as
+LaTeX \\cite{...}, pandoc [@key], and Harvard author-year in prose — "Smith
+(2024)", "(Smith and Doe, 2024, p. 12)" — the two forms the AWT guards accept;
+Markdown advertises terms with a "Keywords:" line.
 """
 
 import argparse
@@ -32,7 +35,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Set
+from typing import Dict, Iterable, List, Set, Tuple
 
 SCHEMA_VERSION = 1
 
@@ -56,7 +59,14 @@ NOVELTY = re.compile(
 # manuscript full of such notation looked fully cited when it cited nothing.
 CITE_TEX = re.compile(r"\\cite\w*\{[^}]*\}")
 CITE_MD = re.compile(r"\[@[^\]]+\]|\[\d+(?:,\s*\d+)*\]")
-CITE = CITE_TEX
+# Harvard author-year, the two shapes the AWT guards' extractor accepts (plus
+# an optional "et al."): parenthetical "(Smith, 2024, p. 12)" / "(Smith and
+# Doe, 2024)" and narrative "Smith (2024)". Set notation cannot match: both
+# need a capitalised surname beside a four-digit year.
+_SURNAME = r"[A-Z][A-Za-z'’-]+(?:\s+(?:and|&)\s+[A-Z][A-Za-z'’-]+)?(?:\s+et al\.?)?"
+HARVARD_PAREN = re.compile(r"\((" + _SURNAME + r"),?\s+(\d{4})[a-z]?(?:,\s*pp?\.?\s*[\d,\s–-]+)?\)")
+HARVARD_NARR = re.compile(r"\b(" + _SURNAME + r")\s+\((\d{4})[a-z]?\)")
+CITE = re.compile("|".join([CITE_TEX.pattern, r"\[@[^\]]+\]", HARVARD_PAREN.pattern, HARVARD_NARR.pattern]))
 
 
 def strip_comments(text: str, suffix: str) -> str:
@@ -80,9 +90,37 @@ def paragraphs(text: str) -> List[Dict]:
 
 
 def bib_keys(path: Path) -> Set[str]:
+    return {e["key"] for e in bib_entries(path)}
+
+
+def bib_entries(path: Path) -> List[Dict]:
+    """Each entry's key plus its first author's surname and year, for
+    matching Harvard citations that never name a key."""
     if not path.exists():
-        return set()
-    return set(re.findall(r"@\w+\s*\{\s*([^,\s]+)\s*,", path.read_text(encoding="utf-8", errors="replace")))
+        return []
+    text = path.read_text(encoding="utf-8", errors="replace")
+    starts = [m for m in re.finditer(r"@\w+\s*\{\s*([^,\s]+)\s*,", text)]
+    out: List[Dict] = []
+    for i, m in enumerate(starts):
+        body = text[m.end(): starts[i + 1].start() if i + 1 < len(starts) else len(text)]
+        author = re.search(r"author\s*=\s*[{\"](.*?)[}\"]\s*,?\s*\n?", body, re.S | re.I)
+        year = re.search(r"year\s*=\s*[{\"]?\s*(\d{4})", body, re.I)
+        surname = ""
+        if author:
+            first = re.split(r"\s+and\s+", author.group(1).strip(), maxsplit=1)[0].strip()
+            surname = first.split(",")[0].strip() if "," in first else first.split()[-1]
+            surname = surname.strip("{} ")
+        out.append({"key": m.group(1), "surname": surname.lower(), "year": year.group(1) if year else ""})
+    return out
+
+
+def cited_harvard(text: str) -> Set[Tuple[str, str]]:
+    pairs: Set[Tuple[str, str]] = set()
+    for rx in (HARVARD_PAREN, HARVARD_NARR):
+        for m in rx.finditer(text):
+            first = re.split(r"\s+(?:and|&)\s+|\s+et al", m.group(1))[0]
+            pairs.add((first.strip().lower(), m.group(2)))
+    return pairs
 
 
 def cited_keys(text: str) -> Set[str]:
@@ -96,6 +134,11 @@ def declared_terms(text: str) -> List[str]:
     """Terms the manuscript advertises: keywords, title, and contribution lines."""
     terms: List[str] = []
     for m in re.finditer(r"\\keywords\{([^}]*)\}", text):
+        terms += [t.strip() for t in re.split(r"[,;]", m.group(1)) if t.strip()]
+    # Markdown advertises terms with a "Keywords:" line (a thesis chapter has
+    # no \keywords). Titles are not mined from Markdown headings: "Chapter 1"
+    # is not a technical phrase.
+    for m in re.finditer(r"(?im)^\**keywords\**\s*[:：]\s*(.+?)\s*$", text):
         terms += [t.strip() for t in re.split(r"[,;]", m.group(1)) if t.strip()]
     for m in re.finditer(r"\\title\{([^}]*)\}", text):
         # only multi-word technical phrases from the title, not every word
@@ -122,9 +165,11 @@ def audit(base: Path, tex_files: List[Path], bib: Path) -> List[dict]:
                 sourced_methods.add(meth)
     first_use: Dict[str, str] = {}
 
-    keys, cited = bib_keys(bib), cited_keys(whole)
-    for k in sorted(keys - cited):
-        issues.append({"kind": "dangling-entry", "location": str(bib.name), "detail": k})
+    cited, harvard = cited_keys(whole), cited_harvard(whole)
+    for e in bib_entries(bib):
+        if e["key"] in cited or (e["surname"] and (e["surname"], e["year"]) in harvard):
+            continue
+        issues.append({"kind": "dangling-entry", "location": str(bib.name), "detail": e["key"]})
 
     terms = declared_terms(whole)
     body_low = whole.lower()

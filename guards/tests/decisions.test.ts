@@ -1,0 +1,207 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  decide,
+  decideNotesBeforeChapters,
+  decideQuoteIntegrity,
+  decideContractScope,
+  extractCitations,
+  type RepoView,
+  decideExport,
+  parseBibEntries,
+} from '../src/decisions.ts'
+
+function repo(overrides: Partial<RepoView> = {}): RepoView {
+  return {
+    relative: (p) => (p.startsWith('/') ? undefined : p),
+    readFile: () => undefined,
+    conformingSources: () => [{ surname: 'smith', year: '2024' }],
+    activeContract: () => undefined,
+    chapterFiles: () => [],
+    bibText: () => undefined,
+    ...overrides,
+  }
+}
+
+// --- NOTES_MISSING: red first ------------------------------------------------
+
+test('chapter write citing a source without conforming notes is denied', () => {
+  const d = decideNotesBeforeChapters(
+    { tool: 'write', args: { file_path: 'chapters/ch3.md', content: 'As Jones (2021) argues, X holds.' } },
+    repo()
+  )
+  assert.equal(d?.code, 'NOTES_MISSING')
+  assert.match(d!.message, /jones 2021/)
+})
+
+test('chapter write citing a source WITH conforming notes passes', () => {
+  const d = decideNotesBeforeChapters(
+    { tool: 'write', args: { file_path: 'chapters/ch3.md', content: 'Smith (2024) shows Y. Also (Smith, 2024, p. 4).' } },
+    repo()
+  )
+  assert.equal(d, undefined)
+})
+
+test('non-chapter writes and citation-free chapter writes pass', () => {
+  const r = repo()
+  assert.equal(decideNotesBeforeChapters({ tool: 'write', args: { file_path: 'notes/x.md', content: 'Jones (2021)' } }, r), undefined)
+  assert.equal(decideNotesBeforeChapters({ tool: 'write', args: { file_path: 'chapters/ch1.md', content: 'No citations here.' } }, r), undefined)
+})
+
+test('citation extractor is conservative: legislation-style parentheticals do not match', () => {
+  // (Act 1998)-style false positives plagued the retired citation auditor;
+  // a blocking guard must not repeat them: lowercase-context matches are out.
+  const found = extractCitations('under the Data Protection Act (1998) and wave 2 (2021) of the study')
+  // "Act (1998)" matches the narrative form (capitalised token) — accepted
+  // trade-off, documented in the P1 spec; "2 (2021)" must NOT match.
+  assert.ok(!found.some((c) => c.surname === '2'))
+})
+
+// --- QUOTE_SPAN_MODIFIED: red first -----------------------------------------
+
+const CHAPTER = 'Intro. As Smith puts it: "the workflow is the argument" (Smith, 2024, p. 4). End.'
+
+test('edit that alters text inside a quotation span is denied', () => {
+  const d = decideQuoteIntegrity(
+    { tool: 'edit', args: { file_path: 'chapters/ch1.md', old_string: 'the workflow is the argument', new_string: 'the workflow is the whole argument' } },
+    repo({ readFile: () => CHAPTER })
+  )
+  assert.equal(d?.code, 'QUOTE_SPAN_MODIFIED')
+})
+
+test('edit outside quotation spans passes; deleting the whole span passes', () => {
+  const view = repo({ readFile: () => CHAPTER })
+  assert.equal(
+    decideQuoteIntegrity({ tool: 'edit', args: { file_path: 'chapters/ch1.md', old_string: 'Intro.', new_string: 'Introduction.' } }, view),
+    undefined
+  )
+  assert.equal(
+    decideQuoteIntegrity(
+      { tool: 'edit', args: { file_path: 'chapters/ch1.md', old_string: 'As Smith puts it: "the workflow is the argument" (Smith, 2024, p. 4). ', new_string: '' } },
+      view
+    ),
+    undefined
+  )
+})
+
+// --- CONTRACT_SCOPE: red first -----------------------------------------------
+
+const CONTRACT = { mayChange: ['chapters/ch3.md'], mustNotChange: ['chapters/ch4.md'] }
+
+test('write outside the active contract May-change scope is denied', () => {
+  const d = decideContractScope(
+    { tool: 'write', args: { file_path: 'chapters/ch5.md', content: 'x' } },
+    repo({ activeContract: () => CONTRACT })
+  )
+  assert.equal(d?.code, 'CONTRACT_SCOPE')
+})
+
+test('write to a Must-not-change path is denied even if also under May-change', () => {
+  const d = decideContractScope(
+    { tool: 'edit', args: { file_path: 'chapters/ch4.md', old_string: 'a', new_string: 'b' } },
+    repo({ activeContract: () => ({ mayChange: ['chapters/'], mustNotChange: ['chapters/ch4.md'] }) })
+  )
+  assert.equal(d?.code, 'CONTRACT_SCOPE')
+})
+
+test('in-scope write passes; no active contract means no scope restriction', () => {
+  assert.equal(
+    decideContractScope({ tool: 'write', args: { file_path: 'chapters/ch3.md', content: 'x' } }, repo({ activeContract: () => CONTRACT })),
+    undefined
+  )
+  assert.equal(
+    decideContractScope({ tool: 'write', args: { file_path: 'chapters/ch9.md', content: 'x' } }, repo()),
+    undefined
+  )
+})
+
+// --- combined ordering --------------------------------------------------------
+
+test('decide() reports contract scope before quote/notes issues', () => {
+  const d = decide(
+    { tool: 'write', args: { file_path: 'chapters/ch5.md', content: 'Jones (2021)' } },
+    repo({ activeContract: () => CONTRACT })
+  )
+  assert.equal(d?.code, 'CONTRACT_SCOPE')
+})
+
+// --- page budgets: red first ---------------------------------------------------
+
+import { decidePdfRead, foldPdfRead, type PageBudgetState } from '../src/decisions.ts'
+
+const BUDGET = { perInvocation: 15, perSession: 90 }
+const pdf = (first: number, last: number) => ({ tool: 'read_pdf', args: { file_path: 'literature/a.pdf', first_page: first, last_page: last } })
+
+test('a 16-page range is denied PAGE_RANGE_EXCEEDED', () => {
+  assert.equal(decidePdfRead(pdf(1, 16), { pagesRead: 0 }, BUDGET)?.code, 'PAGE_RANGE_EXCEEDED')
+})
+
+test('a read that would cross the 90-page session budget is denied', () => {
+  assert.equal(decidePdfRead(pdf(1, 10), { pagesRead: 85 }, BUDGET)?.code, 'PAGE_BUDGET_EXCEEDED')
+})
+
+test('in-budget reads pass and fold accumulates exactly', () => {
+  let state: PageBudgetState = { pagesRead: 0 }
+  for (let i = 0; i < 6; i++) {
+    assert.equal(decidePdfRead(pdf(1, 15), state, BUDGET), undefined)
+    state = foldPdfRead(state, pdf(1, 15))
+  }
+  assert.equal(state.pagesRead, 90)
+  assert.equal(decidePdfRead(pdf(1, 1), state, BUDGET)?.code, 'PAGE_BUDGET_EXCEEDED')
+})
+
+test('non-read_pdf tools and malformed ranges are ignored by the budget', () => {
+  assert.equal(decidePdfRead({ tool: 'read', args: { file_path: 'a.md' } }, { pagesRead: 89 }, BUDGET), undefined)
+  assert.equal(decidePdfRead(pdf(9, 3), { pagesRead: 0 }, BUDGET), undefined)
+})
+
+// --- EXPORT_SOURCES_UNRESOLVED (P4 item 3): red first ---------------------------
+
+const exportCall = { tool: 'export_docx', args: { scope: 'chapters', lang_filter: 'all' } }
+const BIB = `@article{smith2024archive, title={The Archive}, author={Smith, Jane and Doe, John}, year={2024}}
+@book{jones2021memory, title={Contested Memory}, author={Alex Jones}, year={2021}}`
+
+test('export: every chapter citation has notes and no bibliography exists — allowed', () => {
+  const r = repo({ chapterFiles: () => ['chapters/ch1.md'], readFile: () => 'Smith (2024) argues at length.' })
+  assert.equal(decideExport(exportCall, r), undefined)
+})
+
+test('export: a chapter citation without conforming notes is denied, naming the source', () => {
+  const r = repo({ chapterFiles: () => ['chapters/ch1.md', 'chapters/ch2.md'], readFile: (rel) => (rel === 'chapters/ch2.md' ? 'Jones (2021) disagrees.' : 'Smith (2024) argues.') })
+  const d = decideExport(exportCall, r)
+  assert.equal(d?.code, 'EXPORT_SOURCES_UNRESOLVED')
+  assert.match(d?.message ?? '', /1 chapter citation\(s\) without conforming notes \(jones 2021\)/)
+})
+
+test('export: a bibliography entry nothing cites is denied by key', () => {
+  const r = repo({ chapterFiles: () => ['chapters/ch1.md'], readFile: () => 'Smith (2024) argues.', bibText: () => BIB })
+  const d = decideExport(exportCall, r)
+  assert.equal(d?.code, 'EXPORT_SOURCES_UNRESOLVED')
+  assert.match(d?.message ?? '', /never cited \(jones2021memory\)/)
+  assert.doesNotMatch(d?.message ?? '', /without conforming notes/)
+})
+
+test('export: a citation with notes but no bibliography entry is denied', () => {
+  const r = repo({
+    chapterFiles: () => ['chapters/ch1.md'],
+    readFile: () => 'Smith (2024) and Lee (2019) agree.',
+    conformingSources: () => [{ surname: 'smith', year: '2024' }, { surname: 'lee', year: '2019' }],
+    bibText: () => '@article{smith2024archive, author={Smith, Jane}, year={2024}}',
+  })
+  const d = decideExport(exportCall, r)
+  assert.equal(d?.code, 'EXPORT_SOURCES_UNRESOLVED')
+  assert.match(d?.message ?? '', /no bibliography entry \(lee 2019\)/)
+})
+
+test('export: notes and bibliography both resolve — allowed; other tools ignored', () => {
+  const r = repo({ chapterFiles: () => ['chapters/ch1.md'], readFile: () => 'Smith (2024) argues.', bibText: () => '@article{smith2024archive, author={Smith, Jane}, year={2024}}' })
+  assert.equal(decideExport(exportCall, r), undefined)
+  assert.equal(decideExport({ tool: 'write', args: { file_path: 'chapters/ch9.md', content: 'Nobody (1999)' } }, r), undefined)
+})
+
+test('parseBibEntries takes the first author by surname in either name order', () => {
+  assert.deepEqual(parseBibEntries(BIB).map((e) => [e.key, e.surname, e.year]), [
+    ['smith2024archive', 'smith', '2024'],
+    ['jones2021memory', 'jones', '2021'],
+  ])
+})

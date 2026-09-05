@@ -16,7 +16,7 @@ This skill activates on: `integrate`, `weave in`, `add to thesis`, `/integrate`.
 
 ## Workflow
 
-1. **Scan the specified notes file(s)** for the `## Thesis Connections` table and `## Key Arguments` section. If the user does not specify which notes file, ask. If the user says "all pending", scan all notes files with `Status: completed` (not yet `integrated`).
+1. **Scan the specified notes file(s)** for the `## Thesis Connections` table and `## Key Arguments` section. If the user does not specify which notes file, ask. If the user says "all pending", scan all notes files with `Status: completed` (not yet `integrated`). When `guards/` is present, first run `npm --prefix guards run lint:notes -- {files}`: report any file that fails the contract lint and exclude it from the plan explicitly — never silently skip a non-conforming file. A source whose notes carry `Evidence status: abstract_only` or `metadata_only` must not be woven in as supporting evidence; flag it instead.
 
 2. **Read target chapter files** in `chapters/` to identify insertion points. Use Grep to find relevant sections, existing citations of the same author, and thematic paragraphs where the new material fits.
 

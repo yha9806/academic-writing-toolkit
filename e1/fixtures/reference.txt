@@ -1,0 +1,10 @@
+--- page 12 ---
+The central claim of this chapter is that the archive is not a neutral
+container of the past, but an instrument of curation whose selections
+constitute a form of authorship. Institutions that keep records decide,
+implicitly or explicitly, what will count as memory.
+
+--- page 13 ---
+Digital archives accelerate this authorship: selection happens at scale,
+executed by ranking functions and retention policies rather than by
+archivists alone. The scale does not remove judgement; it relocates it.

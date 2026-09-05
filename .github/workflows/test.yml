@@ -31,38 +31,6 @@ jobs:
         run: git config core.fileMode false
       - run: make doctor
       - run: make test
+      - name: Guards package tests (notes lint + catalogue truth tests)
+        run: npm --prefix guards ci && npm --prefix guards test
 
-  mvp-runtime:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.9', '3.11']
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-      - run: make mvp-test
-      - run: make mvp-install-check
-
-  plugin-app:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: apps/chatgpt-academic-writing-toolkit/package-lock.json
-      - name: Install plugin helper dependencies
-        run: pip install python-docx markdown
-      - name: Install ChatGPT App dependencies
-        run: npm ci --prefix apps/chatgpt-academic-writing-toolkit
-      - run: make plugin-check
-      - run: make chatgpt-app-check
-      - name: Audit production dependencies
-        run: npm audit --prefix apps/chatgpt-academic-writing-toolkit --omit=dev --audit-level=high

@@ -1,6 +1,0 @@
-claim_id,claim_text,artifact_ids,evidence_state,denominator,scope_boundary,human_gate_required,status
-c1,The v0.3.1 candidate has ChatGPT App and Codex plugin package metadata aligned at version 0.3.1,codex-plugin;chatgpt-app,verified_artifact,two package manifests,repository package metadata only,false,supported
-c2,The Codex plugin package includes the manuscript-reframe skill,manuscript-reframe;codex-plugin,verified_artifact,one new skill across canonical and plugin surfaces,local plugin package only,false,supported
-c3,The Agent skill entry for manuscript-reframe is a symlink to the canonical Claude skill,manuscript-reframe,verified_artifact,one symlink checked by T42,repository skill discovery only,false,supported
-c4,The ChatGPT App remains a narrower pasted-text MCP server and not the full local project workflow,chatgpt-app;publishing-docs,verified_artifact,five app tools,repository app surface only,false,supported
-c5,OpenAI dashboard publication still requires maintainer-controlled business verification and manual Submit for Review,publishing-docs,draft_advisory,external dashboard action,repository cannot prove external publication,true,needs human gate

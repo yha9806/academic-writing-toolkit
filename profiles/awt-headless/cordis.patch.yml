@@ -1,0 +1,80 @@
+# awt-headless — the canonical AWT profile patch (P3 spec item 1), applied
+# after the dsh-base and dsh-headless bundle layers.
+#
+# Credential discipline (eco #8): provider routes carry `apiKeyEnv`
+# credential REFERENCES only — no secret ever enters this file. A configured
+# reference that resolves to nothing fails the request with typed
+# MISSING_CREDENTIAL before any network I/O (asserted keylessly by
+# e2e/run-credential-probe.mjs, `awt verify` stage 5); it never falls
+# through to whatever unrelated key the ambient environment holds.
+#
+# The guards row has no projectRoot: it defaults to the process working
+# directory, so `dsh --profile awt-headless` runs INSIDE the thesis
+# workspace — and profile boot is itself a truth test (guards refuse to
+# mount against a directory that is not an AWT workspace).
+#
+# `awt install-profile` copies this directory plus the built guards bundle
+# into $DSH_HOME/profiles/awt-headless. A patch replaces whole row configs,
+# so rows below restate every field they keep.
+
+# Cost route by default; switch to the prose-fidelity route per session
+# with the headless model flags or a $DSH_HOME patch overlay.
+- id: agent-default-model
+  config:
+    provider: deepseek
+    model: deepseek-v4-flash
+
+# pi-ai multi-provider routes (mounted dormant by dsh-base; these profiles
+# bring them live). One credential reference per route.
+- id: llm-pi-ai
+  config:
+    providers:
+      deepseek:
+        apiKeyEnv: DEEPSEEK_API_KEY
+      anthropic:
+        apiKeyEnv: ANTHROPIC_API_KEY
+
+# AWT owns the product identity the model sees: the harness opener is
+# dropped and the deployment persona states what AWT is and how to behave
+# when a guard denies an operation. A patch replaces the whole row config;
+# unset keys revert to plugin defaults.
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    persona: |-
+      You are the Academic Writing Toolkit (AWT), an evidence-controlled
+      academic writing assistant. You help the author read sources, keep
+      structured reading notes, draft thesis chapters under edit contracts,
+      and audit citations. The workspace at {{cwd}} is the single source of
+      truth. Deterministic guards enforce the working rules with typed
+      denials: cite only sources that have conforming reading notes, respect
+      the page budgets, never alter quoted text in existing chapters, and
+      stay inside the active edit contract's scope. When a guard denies an
+      operation, explain the denial to the author and take the compliant
+      path — never work around an enforcement. Write thesis text in British
+      English with Harvard citations.
+
+# Skill discovery is the workspace catalogue and nothing else (#33). dsh's
+# filesystem provider also scans two user-level roots by default —
+# $DSH_HOME/skills and ~/.agents/skills — which leaked other projects' skills
+# and retired bundles into a thesis session. Both user roots are pointed at a
+# directory that does not exist; the project roots (<workspace>/.agents/skills,
+# <workspace>/.dsh/skills) stay. Personal skills are not offered inside AWT
+# profiles: link them into the workspace if they belong to the thesis.
+- id: skill-filesystem
+  config:
+    dshHome: !!js dshHomePath('awt-no-user-skills')
+    agentsHome: !!js dshHomePath('awt-no-user-skills')
+
+- insert:
+    - id: awt-guards
+      name: './awt-guards/dsh-plugin.js'
+
+    - id: awt-read-pdf
+      name: './awt-read-pdf.plugin.mjs'
+
+    - id: awt-export
+      name: './awt-export.plugin.mjs'
+
+    - id: awt-brand
+      name: './awt-brand.plugin.mjs'

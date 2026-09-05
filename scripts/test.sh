@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (132 automated tests, labelled T2-T135: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50-T53 plugin packaging + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 prose fingerprint + T127-T128 claim positioning + T129-T132 estimator alignment + T133-T135 lightweight author control) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (132 automated tests, labelled T2-T138: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -257,7 +257,7 @@ test_T18() {
     # /map needs Write (line 62 says "use Write if creating new")
     grep -qE '^allowed-tools:.*\bWrite\b' "$REPO_ROOT/.claude/skills/map/SKILL.md" || return 1
     # /verify needs Read (Edit requires prior Read per harness contract)
-    grep -qE '^allowed-tools:.*\bRead\b' "$REPO_ROOT/.claude/skills/verify/SKILL.md" || return 1
+    grep -qE '^allowed-tools:.*\bRead\b' "$REPO_ROOT/archive/skills/verify/SKILL.md" || return 1
     return 0
 }
 
@@ -484,16 +484,16 @@ test_T42() {
 
 test_T43() {
     grep -q "/verify-refs" "$REPO_ROOT/README.md" || return 1
-    grep -q "/human-eval-handoff-repair" "$REPO_ROOT/README.md" || return 1
-    grep -q "/argument-governance" "$REPO_ROOT/README.md" || return 1
-    grep -q "/peer-review" "$REPO_ROOT/README.md" || return 1
-    grep -q "/self-review" "$REPO_ROOT/README.md" || return 1
-    grep -q "/style" "$REPO_ROOT/README.md" || return 1
-    grep -q "/logic-review" "$REPO_ROOT/README.md" || return 1
+    grep -q "/read" "$REPO_ROOT/README.md" || return 1
+    grep -q "/note" "$REPO_ROOT/README.md" || return 1
+    grep -q "/map" "$REPO_ROOT/README.md" || return 1
+    grep -q "/integrate" "$REPO_ROOT/README.md" || return 1
+    grep -q "/edit-contract" "$REPO_ROOT/README.md" || return 1
+    grep -q "/review" "$REPO_ROOT/README.md" || return 1
+    grep -q "/audit" "$REPO_ROOT/README.md" || return 1
+    grep -q "/export" "$REPO_ROOT/README.md" || return 1
     grep -q "local agent skill" "$REPO_ROOT/README.md" || return 1
-    grep -q "scripts/audit-citations.py --base-dir" "$REPO_ROOT/README.md" || return 1
-    grep -q "scripts/audit-british-english.py --base-dir" "$REPO_ROOT/README.md" || return 1
-    grep -q "scripts/audit-logic.py --base-dir" "$REPO_ROOT/README.md" || return 1
+    grep -q "guards test" "$REPO_ROOT/README.md" || return 1
     grep -q "scripts/verify-refs.py --bib" "$REPO_ROOT/README.md" || return 1
     grep -q -- "--metadata-dir" "$REPO_ROOT/README.md" || return 1
     ! grep -q "room for explicit online checks" "$REPO_ROOT/README.md" || return 1
@@ -617,6 +617,46 @@ EOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(v['source']=='arxiv' for v in d['verified'])"
 }
 
+
+test_T125() {
+    # red-first: unbraced numeric fields must parse (regex parser regression)
+    local tmp; tmp="$(mktemp -d)"
+    cat > "$tmp/refs.bib" <<'BIB'
+@article{plain2024,
+  title = {Plain Year Entry},
+  author = {Smith, Jane},
+  year = 2024,
+  journal = {Journal of Tools}
+}
+BIB
+    out="$(python3 "$REPO_ROOT/scripts/verify-refs.py" --bib "$tmp/refs.bib" --json)" || { rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+    ! echo "$out" | grep -q "missing-required-field" || return 1
+}
+
+test_T126() {
+    # red-first: brace-protected values must not truncate at inner braces
+    local tmp; tmp="$(mktemp -d)"
+    cat > "$tmp/refs.bib" <<'BIB'
+@article{nested2024,
+  title = {The {AWT} Story: Nested {Braces} Survive},
+  author = {Smith, Jane},
+  year = {2024},
+  journal = {Journal of Tools}
+}
+BIB
+    out="$(python3 - "$tmp/refs.bib" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("vr", "scripts/verify-refs.py")
+vr = importlib.util.module_from_spec(spec); spec.loader.exec_module(vr)
+entries = vr.parse_bibtex(open(sys.argv[1]).read())
+print(entries[0]["fields"]["title"])
+PY
+)" || { rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+    [[ "$out" == "The {AWT} Story: Nested {Braces} Survive" ]] || return 1
+}
+
 test_T49() {
     python3 scripts/verify-refs.py --help | grep -q -- "--online" || return 1
     python3 scripts/verify-refs.py --help | grep -q -- "--metadata-dir"
@@ -679,8 +719,8 @@ test_T62() {
     local out
 
     python3 scripts/verify-refs.py --bib "$demo/references.bib" --json >/dev/null || return 1
-    python3 .claude/skills/evidence-review/scripts/check_review_package.py "$demo" --strict >/dev/null || return 1
-    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$demo" --json) || return 1
+    python3 archive/skills/evidence-review/scripts/check_review_package.py "$demo" --strict >/dev/null || return 1
+    out=$(python3 archive/skills/release-governance/scripts/check_release_packet.py "$demo" --json) || return 1
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0"
 }
 
@@ -804,7 +844,7 @@ test_T64() {
     local tmp out
     tmp=$(mktemp -d) || return 1
     _make_valid_thesis_control_packet "$tmp"
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -820,7 +860,7 @@ test_T65() {
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
 da-001,ec-001,The edit now claims the workflow improves final thesis quality,The boundary moved from one project to all thesis writing,workflow improves final thesis quality,related caution paragraph still says quality is not proven,accept,false,passed
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -838,7 +878,7 @@ This section argues that author control requires visible edit boundaries before 
 The claim is local to this project and does not assert that every thesis workflow needs the same structure.
 EOF
 
-    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    out=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --start-line 3 \
         --end-line 4 \
@@ -848,7 +888,7 @@ EOF
         rm -rf "$tmp"
         return 1
     }
-    python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json > "$tmp/check.json" || {
+    python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json > "$tmp/check.json" || {
         rm -rf "$tmp"
         return 1
     }
@@ -883,7 +923,7 @@ test_T67() {
 
 This section argues that applied thesis edits require drift audits before acceptance.
 EOF
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --unit-id ch01-applied \
         --copy-source \
@@ -905,7 +945,7 @@ with path.open("w", encoding="utf-8", newline="") as handle:
     writer.writeheader()
     writer.writerows(rows)
 PY
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -923,7 +963,7 @@ This section argues that scaffolded control packets must refer to real prose.
 EOF
     : > "$tmp/chapters/empty.md"
 
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --start-line 99 \
         --end-line 99 \
@@ -934,7 +974,7 @@ EOF
         return 1
     }
 
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --start-line 1 \
         --end-line 99 \
@@ -945,7 +985,7 @@ EOF
         return 1
     }
 
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/empty.md \
         --unit-id empty-source >/dev/null 2>&1
     rc=$?
@@ -963,7 +1003,7 @@ test_T69() {
 This section argues that control-packet identifiers must be safe stable ids.
 EOF
 
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --unit-id ../escape \
         --copy-source >/dev/null 2>&1
@@ -973,7 +1013,7 @@ EOF
         return 1
     }
 
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --unit-id safe-unit \
         --contract-id 'bad/id' >/dev/null 2>&1
@@ -999,7 +1039,7 @@ EOF
     cat > "$tmp/manual/thesis_control/revision_escalations.csv" <<'EOF'
 escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1017,7 +1057,7 @@ This section argues that source paths in control packets must be inspectable.
 EOF
     abs_source="$tmp/project/chapters/ch01.md"
 
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp/project" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp/project" \
         --source "$abs_source" \
         --output-dir "$tmp/outside" \
         --unit-id outside-source >/dev/null 2>&1
@@ -1045,7 +1085,7 @@ EOF
     cat > "$tmp/manual/thesis_control/revision_escalations.csv" <<'EOF'
 escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp/manual" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1064,13 +1104,13 @@ This section argues that relative output directories should produce valid packet
 EOF
     (
         cd "$tmp" || exit 1
-        python3 "$repo_root/.claude/skills/thesis-control/scripts/scaffold_thesis_control.py" project \
+        python3 "$repo_root/archive/skills/thesis-control/scripts/scaffold_thesis_control.py" project \
             --source chapters/ch01.md \
             --output-dir out \
             --unit-id relative-out \
             --copy-source \
             --json >/dev/null &&
-        python3 "$repo_root/.claude/skills/thesis-control/scripts/check_thesis_control.py" out --strict --json > check.json
+        python3 "$repo_root/archive/skills/thesis-control/scripts/check_thesis_control.py" out --strict --json > check.json
     ) || {
         rm -rf "$tmp"
         return 1
@@ -1110,7 +1150,7 @@ EOF
     cat > "$tmp/thesis_control/revision_escalations.csv" <<'EOF'
 escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1141,12 +1181,12 @@ test_T73() {
         "$bench/cases/method-limitation-boundary" \
         "$bench/cases/evidence-boundary-literature"
     do
-        python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$case/treatment" --strict >/dev/null || return 1
+        python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$case/treatment" --strict >/dev/null || return 1
     done
 }
 
 test_T74() {
-    python3 - "$REPO_ROOT/.claude/skills/thesis-control/SKILL.md" <<'PY'
+    python3 - "$REPO_ROOT/archive/skills/thesis-control/SKILL.md" <<'PY'
 import sys
 from pathlib import Path
 
@@ -1233,7 +1273,7 @@ test_T75() {
     local tmp out rc
     tmp=$(mktemp -d) || return 1
     _make_revision_escalation_packet "$tmp"
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1244,7 +1284,7 @@ test_T76() {
     local tmp out
     tmp=$(mktemp -d) || return 1
     _make_revision_escalation_packet "$tmp" approved
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -1267,7 +1307,7 @@ EOF
 escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-unknown,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1283,7 +1323,7 @@ test_T78() {
 
 This section argues that scaffolded attempts need stable revision identities.
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    out=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --unit-id ch01-control \
         --revision-issue-id ri-ch01-clarity \
@@ -1333,11 +1373,11 @@ EOF
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
 da-legacy-001,ec-legacy-001,none,none,none,none,accept,false,passed
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+    out=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
-    second=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+    second=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -1364,12 +1404,12 @@ PY
 test_T80() {
     local fixture blocked approved rc
     fixture="$REPO_ROOT/examples/thesis-control-revision-escalation"
-    blocked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$fixture/blocked" --strict --json 2>&1)
+    blocked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$fixture/blocked" --strict --json 2>&1)
     rc=$?
     [[ "$rc" -eq 1 ]] || return 1
     echo "$blocked" | python3 -c "import json,sys; d=json.load(sys.stdin); kinds={i['kind'] for i in d['issues']}; assert {'missing-revision-escalation','revision-escalation-required'} <= kinds" || return 1
 
-    approved=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$fixture/approved" --strict --json) || return 1
+    approved=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$fixture/approved" --strict --json) || return 1
     echo "$approved" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0 and d['summary']['revision_escalations'] == 1"
 }
 
@@ -1397,7 +1437,7 @@ da-005,ec-005,none,none,none,none,rollback,true,failed
 da-006,ec-006,none,none,none,none,revise,true,failed
 da-007,ec-007,none,none,none,none,accept,false,passed
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1426,7 +1466,7 @@ audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,mi
 da-legacy,ec-legacy,none,none,none,none,accept,false,passed
 EOF
 
-    legacy=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --json) || {
+    legacy=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -1435,7 +1475,7 @@ EOF
         return 1
     }
 
-    strict=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    strict=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1451,7 +1491,7 @@ audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,mi
 da-001,ec-001,none,none,none,none,accept,false,needs_review
 EOF
 
-    pending=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    pending=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     [[ "$rc" -eq 1 ]] || {
         rm -rf "$tmp"
@@ -1463,7 +1503,7 @@ EOF
     }
 
     sed -i.bak 's/,needs_review$/,passed/' "$tmp/thesis_control/drift_audits.csv"
-    resolved=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    resolved=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -1477,7 +1517,7 @@ test_T84() {
     _make_revision_escalation_packet "$tmp"
     sed -i.bak '/^da-003,/ s/,failed$/,needs_review/' "$tmp/thesis_control/drift_audits.csv"
 
-    pending=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    pending=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     [[ "$rc" -eq 1 ]] || {
         rm -rf "$tmp"
@@ -1489,7 +1529,7 @@ test_T84() {
     }
 
     sed -i.bak '/^da-003,/ s/,needs_review$/,failed/' "$tmp/thesis_control/drift_audits.csv"
-    failed=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    failed=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1505,7 +1545,7 @@ test_T85() {
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
 da-001,ec-001,none,none,none,none,revise,false,passed
 EOF
-    mismatch=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    mismatch=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     [[ "$rc" -eq 1 ]] || {
         rm -rf "$tmp"
@@ -1520,7 +1560,7 @@ EOF
 audit_id,contract_id,changed_claims,changed_boundaries,new_unsupported_claims,missed_adjacent_updates,drift_decision,human_review_required,status
 da-001,ec-001,none,none,none,none,accept,false,failed
 EOF
-    mismatch=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    mismatch=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1556,7 +1596,7 @@ escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after
 re-all-six,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003;ec-004;ec-005;ec-006,6,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
 
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1582,7 +1622,7 @@ da-003,ec-003,none,none,none,none,revise,false,failed
 da-004,ec-004,none,none,none,none,accept,false,passed
 EOF
 
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1) || {
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1) || {
         rm -rf "$tmp"
         return 1
     }
@@ -1600,7 +1640,7 @@ test_T88() {
 This section argues that scaffolded revision attempts must remain sequential.
 EOF
 
-    invalid=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    invalid=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --unit-id ch01-control \
         --contract-id ec-ch01-002 \
@@ -1618,7 +1658,7 @@ EOF
         return 1
     }
 
-    first=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    first=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --unit-id ch01-control \
         --contract-id ec-ch01-001 \
@@ -1629,7 +1669,7 @@ EOF
         rm -rf "$tmp"
         return 1
     }
-    second=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    second=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --unit-id ch01-control \
         --contract-id ec-ch01-002 \
@@ -1642,7 +1682,7 @@ EOF
         return 1
     }
 
-    duplicate=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    duplicate=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch01.md \
         --unit-id ch01-control \
         --contract-id ec-ch01-003 \
@@ -1657,7 +1697,7 @@ EOF
         return 1
     }
 
-    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    checked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -1691,7 +1731,7 @@ escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after
 re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003;ec-003,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
 
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1706,7 +1746,7 @@ test_T90() {
 re-002,ri-ch03-clarity,cycle_gate,ec-003;ec-001;ec-002,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
 
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1745,7 +1785,7 @@ for filename, duplicate, first_value, second_value in cases:
         csv.writer(handle).writerows(rows)
 PY
 
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1757,7 +1797,7 @@ test_T92() {
     tmp=$(mktemp -d) || return 1
     _make_valid_thesis_control_packet "$tmp/base"
 
-    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts/check_thesis_control.py" <<'PY'
+    python3 - "$tmp" "$REPO_ROOT/archive/skills/thesis-control/scripts/check_thesis_control.py" <<'PY'
 import csv
 import json
 import shutil
@@ -1830,7 +1870,7 @@ escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope
 re-001,ri-ch03-clarity,ec-001;ec-002;ec-003,local_execution_failure,local_patch,preserve the section spine and improve clarity,previous edits did not meet the clarity acceptance check,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
 
-    legacy=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --json) || {
+    legacy=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -1839,7 +1879,7 @@ EOF
         return 1
     }
 
-    strict=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    strict=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1857,7 +1897,7 @@ escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after
 re-001,ri-ch03-clarity,cycle_gate,ec-001;ec-002;ec-003,3,local_execution_failure,local_patch,preserve the section spine and improve clarity,third attempt has not failed,chapters/ch03.md before ec-001,apply one consolidated contract,true,approved
 EOF
 
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1873,7 +1913,7 @@ escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after
 re-early,ri-ch03-clarity,early_diagnostic,ec-001;ec-002;ec-003,,local_execution_failure,local_patch,preserve the section spine and improve clarity,diagnosis began before the completed group,chapters/ch03.md before ec-001,inspect the issue before another edit,true,approved
 EOF
 
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -1885,7 +1925,7 @@ test_T96() {
     tmp=$(mktemp -d) || return 1
     _make_revision_escalation_packet "$tmp/base"
 
-    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts/check_thesis_control.py" <<'PY'
+    python3 - "$tmp" "$REPO_ROOT/archive/skills/thesis-control/scripts/check_thesis_control.py" <<'PY'
 import json
 import shutil
 import subprocess
@@ -1969,7 +2009,7 @@ EOF
         rm -rf "$tmp"
         return 1
     }
-    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    out=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch.md \
         --unit-id ch \
         --revision-issue-id ri-ch \
@@ -1993,7 +2033,7 @@ test_T98() {
     printf '# Chapter\n\nsource\n' > "$case_dir/chapters/ch.md"
     printf 'KEEP PACKET\n' > "$case_dir/thesis_control/ch_review_packet.md"
     before=$(_tree_digest "$case_dir") || return 1
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$case_dir" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$case_dir" \
         --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --copy-source --json >/dev/null 2>&1
     rc=$?
     after=$(_tree_digest "$case_dir")
@@ -2010,7 +2050,7 @@ unit_id,path,section_title,spine_sentence,scope_boundary,core_claims,do_not_chan
 ch,chapters/ch.md,Chapter,existing spine,one unit,claim,boundary
 EOF
     before=$(_tree_digest "$case_dir") || return 1
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$case_dir" \
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$case_dir" \
         --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --copy-source --json >/dev/null 2>&1
     rc=$?
     after=$(_tree_digest "$case_dir")
@@ -2024,17 +2064,17 @@ test_T99() {
     mkdir -p "$tmp/chapters"
     printf '# Chapter\n\nsource\n' > "$tmp/chapters/ch.md"
 
-    first=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    first=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --attempt-no 1 --copy-source --json) || {
         rm -rf "$tmp"
         return 1
     }
-    second=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    second=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --attempt-no 2 --copy-source --force --json) || {
         rm -rf "$tmp"
         return 1
     }
-    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    checked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -2077,7 +2117,7 @@ ec-a-001,a,ga-project-001,ri-a,1,scope,allowed,forbidden,adjacent,checks,false,d
 ec-b-001,b,ga-project-001,ri-b,1,scope,allowed,forbidden,adjacent,checks,false,draft,keep-b
 EOF
     before=$(_tree_digest "$tmp") || return 1
-    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    out=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --attempt-no 1 --copy-source --json 2>&1)
     rc=$?
     after=$(_tree_digest "$tmp")
@@ -2140,7 +2180,7 @@ re-bad,ri-legacy,ec-legacy,false,true,draft
 EOF
 
     before=$(_tree_digest "$tmp") || return 1
-    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json 2>&1)
     rc=$?
     after=$(_tree_digest "$tmp")
     rm -rf "$tmp"
@@ -2160,7 +2200,7 @@ contract_id,unit_id,revision_issue_id,change_scope,allowed_changes,forbidden_cha
 ec-001,ch,ri-ch,clarify,improve wording,do not broaden,check neighbours,spine preserved,false,draft
 EOF
     before=$(_tree_digest "$case_dir") || return 1
-    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
     rc=$?
     after=$(_tree_digest "$case_dir")
     [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"author decision"* ]] || {
@@ -2173,7 +2213,7 @@ EOF
     sed -i.bak '/^ec-002,/ s/,2,/, ,/' "$case_dir/thesis_control/edit_contracts.csv"
     rm -f "$case_dir/thesis_control/edit_contracts.csv.bak"
     before=$(_tree_digest "$case_dir") || return 1
-    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
     rc=$?
     after=$(_tree_digest "$case_dir")
     rm -rf "$tmp"
@@ -2190,11 +2230,11 @@ re-early,ri-ch-clarity,ec-001;ec-002,local_execution_failure,local_patch,preserv
 re-cycle,ri-ch-clarity,ec-001;ec-002;ec-003,local_execution_failure,local_patch,preserve the spine,three attempts did not converge,chapters/ch.md before ec-001,apply one bounded contract,true,approved,keep-cycle
 EOF
 
-    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+    out=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
-    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    checked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -2253,7 +2293,7 @@ escalation_id,revision_issue_id,trigger_contracts,primary_category,writing_scope
 re-bad,ri-ch-clarity,$triggers,local_execution_failure,local_patch,preserve the spine,revisions did not converge,chapters/ch.md before ec-001,diagnose before retry,true,approved
 EOF
         before=$(_tree_digest "$case_dir") || return 1
-        out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
+        out=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$case_dir" --json 2>&1)
         rc=$?
         after=$(_tree_digest "$case_dir")
         [[ "$rc" -eq 1 && "$before" == "$after" && "$out" == *"ambiguous"* ]] || {
@@ -2292,17 +2332,17 @@ with contract_path.open("w", newline="", encoding="utf-8") as handle:
 )
 PY
     before=$(_tree_digest "$tmp") || return 1
-    first=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+    first=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
     after_first=$(_tree_digest "$tmp")
-    second=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
+    second=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
     after_second=$(_tree_digest "$tmp")
-    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    checked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -2340,7 +2380,7 @@ test_T106() {
     _make_migration_v2_packet "$conflict"
     _write_valid_cycle_gate "$conflict"
     printf 'da-004,ec-001,none,none,none,none,accept,false,passed\n' >> "$conflict/thesis_control/drift_audits.csv"
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$conflict" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$conflict" --strict --json 2>&1)
     rc=$?
     [[ "$rc" -eq 1 ]] || {
         rm -rf "$tmp"
@@ -2355,7 +2395,7 @@ test_T106() {
     _make_migration_v2_packet "$duplicate"
     _write_valid_cycle_gate "$duplicate"
     printf 'da-004,ec-001,none,none,none,none,rollback,true,failed\n' >> "$duplicate/thesis_control/drift_audits.csv"
-    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$duplicate" --strict --json) || {
+    checked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$duplicate" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -2373,7 +2413,7 @@ test_T107() {
 escalation_id,revision_issue_id,escalation_kind,trigger_contracts,approved_after_attempt,primary_category,writing_scope,valid_requirements,missing_or_conflicting_information,latest_author_approved_version,recommended_next_action,human_approved,status
 re-cycle,ri-ch-clarity,cycle_gate,ec-003;ec-001;ec-002,3,local_execution_failure,local_patch,preserve the spine,three attempts did not converge,chapters/ch.md before ec-001,apply one bounded contract,true,approved
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2388,7 +2428,7 @@ test_T108() {
     printf 'da-001,ec-002,none,none,none,none,rollback,true,failed\n' >> "$tmp/thesis_control/drift_audits.csv"
     printf '# New unit\n\nNew bounded source.\n' > "$tmp/chapters/new.md"
     before=$(_tree_digest "$tmp") || return 1
-    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
+    out=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" \
         --source chapters/new.md --unit-id new --revision-issue-id ri-new \
         --copy-source --json 2>&1)
     rc=$?
@@ -2408,7 +2448,7 @@ test_T109() {
     printf '# Chapter\n\nSource.\n' > "$project/chapters/ch.md"
     ln -s "$outside" "$project/thesis_control"
     before=$(_tree_digest "$tmp") || return 1
-    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$project" \
+    out=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$project" \
         --source chapters/ch.md --unit-id ch --revision-issue-id ri-ch --copy-source --json 2>&1)
     rc=$?
     after=$(_tree_digest "$tmp")
@@ -2423,7 +2463,7 @@ test_T109() {
     mv "$project/thesis_control" "$outside"
     ln -s "$outside" "$project/thesis_control"
     before=$(_tree_digest "$tmp") || return 1
-    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$project" --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_revision_tracking.py "$project" --json 2>&1)
     rc=$?
     after=$(_tree_digest "$tmp")
     rm -rf "$tmp"
@@ -2433,7 +2473,7 @@ test_T109() {
 test_T110() {
     local tmp out rc
     tmp=$(mktemp -d) || return 1
-    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts" <<'PY'
+    python3 - "$tmp" "$REPO_ROOT/archive/skills/thesis-control/scripts" <<'PY'
 import json
 import os
 import subprocess
@@ -2533,7 +2573,7 @@ da-empty-decision,ec-001,none,none,none,none,,true,failed
 da-empty-status,ec-002,none,none,none,none,revise,true,
 da-invalid-both,ec-003,none,none,none,none,maybe,true,done
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 && "$out" != *"Traceback"* ]] || return 1
@@ -2543,12 +2583,12 @@ EOF
 test_T116() {
     local fixture blocked aligned rc
     fixture="$REPO_ROOT/examples/project-intent-drift-gate"
-    blocked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$fixture/blocked" --strict --json 2>&1)
+    blocked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$fixture/blocked" --strict --json 2>&1)
     rc=$?
     [[ "$rc" -eq 1 ]] || return 1
     echo "$blocked" | python3 -c "import json,sys; d=json.load(sys.stdin); assert {i['kind'] for i in d['issues']} == {'global-thesis-gate-required'}" || return 1
 
-    aligned=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$fixture/aligned" --strict --json) || return 1
+    aligned=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$fixture/aligned" --strict --json) || return 1
     echo "$aligned" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0 and d['summary']['project_intent_tracking'] is True"
 }
 
@@ -2560,7 +2600,7 @@ test_T117() {
 global_audit_id,intent_id,manuscript_id,manuscript_version,title_alignment,abstract_alignment,primary_domain_alignment,research_object_alignment,research_question_alignment,contribution_alignment,structure_alignment,detected_reframe,reframe_summary,human_review_required,human_decision,status
 ga-heritage-001,pi-heritage-001,mc-heritage-001,1,drifted,drifted,drifted,drifted,drifted,drifted,drifted,true,visual heritage moved from the primary research domain to a stress-test example,false,accept,passed
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2575,7 +2615,7 @@ test_T118() {
         "$tmp/thesis_control/project_intent.csv" \
         "$tmp/thesis_control/manuscript_contracts.csv" \
         "$tmp/thesis_control/global_thesis_audits.csv"
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2589,7 +2629,7 @@ test_T119() {
     cat >> "$tmp/thesis_control/project_intent.csv" <<'EOF'
 pi-project-002,2,,general AI tooling,tool adoption across disciplines,How are general AI tools adopted?,general technology readers,tool adoption,do not retain the original research object,unrecorded reframe,author approval claimed,true,active
 EOF
-    out=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2601,11 +2641,11 @@ test_T120() {
     tmp=$(mktemp -d) || return 1
     mkdir -p "$tmp/chapters"
     printf '# Chapter\n\nBounded source.\n' > "$tmp/chapters/ch.md"
-    out=$(python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/ch.md --copy-source --json) || {
+    out=$(python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/ch.md --copy-source --json) || {
         rm -rf "$tmp"
         return 1
     }
-    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    checked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -2638,7 +2678,7 @@ test_T121() {
     mkdir -p "$tmp/chapters"
     printf '# First\n\nFirst bounded source.\n' > "$tmp/chapters/first.md"
     printf '# Second\n\nSecond bounded source.\n' > "$tmp/chapters/second.md"
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/first.md --copy-source --json >/dev/null || {
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/first.md --copy-source --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
@@ -2652,11 +2692,11 @@ for name in ("project_intent.csv", "manuscript_contracts.csv", "global_thesis_au
     header = path.read_text(encoding="utf-8").splitlines()[0]
     path.write_text(header + "\n", encoding="utf-8")
 PY
-    python3 .claude/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/second.md --copy-source --json >/dev/null || {
+    python3 archive/skills/thesis-control/scripts/scaffold_thesis_control.py "$tmp" --source chapters/second.md --copy-source --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
-    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
+    checked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -2702,17 +2742,17 @@ test_T122() {
         rm -rf "$tmp"
         return 1
     }
-    first=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json) || {
+    first=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
     before=$(_tree_digest "$tmp") || return 1
-    second=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json) || {
+    second=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json) || {
         rm -rf "$tmp"
         return 1
     }
     after=$(_tree_digest "$tmp")
-    checked=$(python3 .claude/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
+    checked=$(python3 archive/skills/thesis-control/scripts/check_thesis_control.py "$tmp" --strict --json 2>&1)
     rc=$?
     python3 - "$tmp" "$first" "$second" "$checked" "$before" "$after" "$rc" <<'PY'
 import csv
@@ -2750,7 +2790,7 @@ test_T123() {
     }
     printf 'intent_id\n' > "$tmp/thesis_control/project_intent.csv"
     before=$(_tree_digest "$tmp") || return 1
-    out=$(python3 .claude/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json 2>&1)
+    out=$(python3 archive/skills/thesis-control/scripts/upgrade_thesis_control_project_intent.py "$tmp" --json 2>&1)
     rc=$?
     after=$(_tree_digest "$tmp")
     rm -rf "$tmp"
@@ -2764,7 +2804,7 @@ test_T124() {
         rm -rf "$tmp"
         return 1
     }
-    python3 - "$tmp" "$REPO_ROOT/.claude/skills/thesis-control/scripts" <<'PY'
+    python3 - "$tmp" "$REPO_ROOT/archive/skills/thesis-control/scripts" <<'PY'
 import sys
 from pathlib import Path
 
@@ -2791,7 +2831,7 @@ test_T112() {
     local tmp rc
     tmp=$(mktemp -d) || return 1
     _make_valid_argument_packet "$tmp"
-    python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --json >/dev/null
+    python3 archive/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --json >/dev/null
     rc=$?
     rm -rf "$tmp"
     return "$rc"
@@ -2803,7 +2843,7 @@ test_T113() {
     _make_valid_argument_packet "$tmp"
     sed 's/adequately_supported/unsupported/' "$tmp/evidence/claim_hierarchy.csv" > "$tmp/evidence/claim_hierarchy.tmp"
     mv "$tmp/evidence/claim_hierarchy.tmp" "$tmp/evidence/claim_hierarchy.csv"
-    out=$(python3 .claude/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --json 2>&1)
+    out=$(python3 archive/skills/argument-governance/scripts/check_argument_governance.py "$tmp" --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2838,7 +2878,7 @@ forbidden_sources:
   - model_background_knowledge_as_evidence
   - unpublished_notes_not_listed_in_manifest
 EOF
-    python3 .claude/skills/self-review/scripts/check_self_review_packet.py "$tmp/review_packet" --json >/dev/null
+    python3 archive/skills/self-review/scripts/check_self_review_packet.py "$tmp/review_packet" --json >/dev/null
     rc=$?
     rm -rf "$tmp"
     return "$rc"
@@ -2859,7 +2899,7 @@ allowed_sources:
 forbidden_sources:
   - prior_chat_memory
 EOF
-    out=$(python3 .claude/skills/self-review/scripts/check_self_review_packet.py "$tmp/review_packet" --json 2>&1)
+    out=$(python3 archive/skills/self-review/scripts/check_self_review_packet.py "$tmp/review_packet" --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2867,26 +2907,58 @@ EOF
 }
 
 test_T50() {
-    bash scripts/sync-plugin.sh --check >/dev/null
+    # Single canonical skills tree (v0.1 design §13): every .claude/skills
+    # entry is exposed 1:1 through the repo-root .agents/skills links (dsh,
+    # Codex, and Claude Code all read the same files), every link resolves
+    # to a real SKILL.md, and no stray link points anywhere else.
+    local canonical linked name
+    canonical=$(ls "$REPO_ROOT/.claude/skills" | sort)
+    linked=$(ls "$REPO_ROOT/.agents/skills" | sort)
+    [[ "$canonical" == "$linked" ]] || return 1
+    for name in $linked; do
+        [[ -L "$REPO_ROOT/.agents/skills/$name" ]] || return 1
+        [[ -f "$REPO_ROOT/.agents/skills/$name/SKILL.md" ]] || return 1
+    done
 }
 
-test_T51() {
-    bash scripts/check-plugin.sh >/dev/null
-}
+test_T138() {
+    # A Markdown thesis chapter cites in Harvard author-year form and never
+    # names a bib key. Before this test the audit saw no citation at all
+    # there: every advertised term was "unsourced" and every bib entry
+    # "dangling". Now Harvard forms count for proximity, bib entries match by
+    # first-author surname + year, and a "Keywords:" line advertises terms.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/chapters"
+    cat > "$tmp/references.bib" <<'EOF'
+@article{smith2024archive, title={The Archive}, author={Smith, Jane and Doe, John}, year={2024}, journal={J. Mem.}}
+@book{jones2021memory, title={Contested Memory}, author={Alex Jones}, year={2021}, publisher={Press}}
+EOF
+    cat > "$tmp/chapters/ch1.md" <<'EOF'
+# Chapter 1
 
-test_T52() {
-    local cache rc
-    cache="$REPO_ROOT/.claude/skills/export/scripts/__pycache__"
-    mkdir -p "$cache"
-    printf 'bytecode cache fixture\n' > "$cache/convert_to_docx.cpython-38.pyc"
-    bash scripts/sync-plugin.sh --check >/dev/null 2>&1
-    rc=$?
-    rm -rf "$cache"
-    return "$rc"
-}
+Keywords: Shortcut Learning, Construct Validity
 
-test_T53() {
-    ! grep -Rq 'removeprefix' "$REPO_ROOT/scripts/check-plugin.sh" "$REPO_ROOT/scripts/sync-plugin.sh"
+The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short.
+
+Construct validity is invoked throughout, yet this paragraph names no source for it at all,
+which is exactly the finding the audit exists to surface in a thesis workspace.
+
+The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short. The pool holds many images and the queries are short.
+
+Shortcut learning is the central worry of this chapter, as Smith (2024) argues at length
+and as later work confirms (Smith and Doe, 2024, p. 12).
+EOF
+    out=$(python3 scripts/audit-claim-positioning.py --base-dir "$tmp/chapters" --bib "$tmp/references.bib" --json 2>&1)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+unsourced=[i['detail'] for i in d['issues'] if i['kind']=='unsourced-keyword']
+dangling=[i['detail'] for i in d['issues'] if i['kind']=='dangling-entry']
+assert unsourced==['Construct Validity'], unsourced   # Shortcut Learning is sourced by Harvard cites
+assert dangling==['jones2021memory'], dangling           # smith2024 is cited by surname+year, never by key
+"
 }
 
 _make_valid_release_packet() {
@@ -2937,7 +3009,7 @@ test_T54() {
     local tmp
     tmp=$(mktemp -d) || return 1
     _make_valid_release_packet "$tmp"
-    python3 .claude/skills/release-governance/scripts/check_release_packet.py "$tmp" >/dev/null
+    python3 archive/skills/release-governance/scripts/check_release_packet.py "$tmp" >/dev/null
     local rc=$?
     rm -rf "$tmp"
     return "$rc"
@@ -2949,7 +3021,7 @@ test_T55() {
     _make_valid_release_packet "$tmp"
     sed 's/verified_artifact/agent_final/' "$tmp/release/artifact_anchors.csv" > "$tmp/release/artifact_anchors.tmp"
     mv "$tmp/release/artifact_anchors.tmp" "$tmp/release/artifact_anchors.csv"
-    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
+    out=$(python3 archive/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2964,7 +3036,7 @@ test_T56() {
 claim_id,claim_text,artifact_ids,evidence_state,denominator,status
 c1,The figure is anchored to a tracked source artifact,fig1,verified_artifact,one figure,supported
 EOF
-    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
+    out=$(python3 archive/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2977,7 +3049,7 @@ test_T57() {
     _make_valid_release_packet "$tmp"
     printf '\nLocal cache: /tmp/private-release-cache\n' >> "$tmp/release/verification_report.md"
     printf '\nFollow-up: todo before sharing\n' >> "$tmp/release/release_scope.md"
-    out=$(python3 .claude/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
+    out=$(python3 archive/skills/release-governance/scripts/check_release_packet.py "$tmp" --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -2985,7 +3057,7 @@ test_T57() {
 }
 
 test_T58() {
-    ! grep -Eq '\b(subprocess|socket|requests|urllib|http\.client|ftplib)\b' .claude/skills/release-governance/scripts/check_release_packet.py
+    ! grep -Eq '\b(subprocess|socket|requests|urllib|http\.client|ftplib)\b' archive/skills/release-governance/scripts/check_release_packet.py
 }
 
 test_T59() {
@@ -3005,15 +3077,19 @@ test_T59() {
         grep -q "release-governance" "$doc" || return 1
     done
 
-    grep -q "Local agent skills" "$REPO_ROOT/README.md" || return 1
-    grep -q "ChatGPT App MCP server" "$REPO_ROOT/README.md" || return 1
-    grep -q "pasted-text" "$REPO_ROOT/README.md" || return 1
+    # The README pins the v0.1 surface truth: the two-mode vocabulary,
+    # the dsh app as the enforced surface, and the pointer to the last
+    # release that carried the retired surfaces.
+    grep -q "AWT dsh app" "$REPO_ROOT/README.md" || return 1
+    grep -q "Advisory" "$REPO_ROOT/README.md" || return 1
+    grep -q "Enforced" "$REPO_ROOT/README.md" || return 1
+    grep -q "v0.5.0" "$REPO_ROOT/README.md" || return 1
 }
 
-test_T133() {
+test_T135() {
     local tmp before after second control_file
     tmp=$(mktemp -d) || return 1
-    python3 .claude/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" --json >/dev/null || {
+    python3 scripts/scaffold-author-control.py "$tmp" --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
@@ -3023,12 +3099,12 @@ test_T133() {
             return 1
         }
     done
-    python3 .claude/skills/thesis-control/scripts/check_author_control.py "$tmp" --json >/dev/null || {
+    python3 scripts/check-author-control.py "$tmp" --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
     before=$(sha256sum "$tmp"/*.md | sort)
-    second=$(python3 .claude/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" --json 2>&1)
+    second=$(python3 scripts/scaffold-author-control.py "$tmp" --json 2>&1)
     [[ $? -eq 1 ]] || {
         rm -rf "$tmp"
         return 1
@@ -3038,10 +3114,10 @@ test_T133() {
     [[ "$before" == "$after" ]] && echo "$second" | grep -q "refusing to overwrite"
 }
 
-test_T134() {
+test_T136() {
     local tmp out rc file
     tmp=$(mktemp -d) || return 1
-    python3 .claude/skills/thesis-control/scripts/scaffold_author_control.py "$tmp" >/dev/null || {
+    python3 scripts/scaffold-author-control.py "$tmp" >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
@@ -3062,26 +3138,26 @@ test_T134() {
         -e 's#Author post-edit decision: pending / accept / partial_accept / revise / rollback#Author post-edit decision: pending#' \
         "$tmp/02_REVISION_LOG.md"
     rm -f "$tmp/02_REVISION_LOG.md.bak"
-    python3 .claude/skills/thesis-control/scripts/check_author_control.py "$tmp" --strict --json >/dev/null || {
+    python3 scripts/check-author-control.py "$tmp" --strict --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
     sed -i.bak 's/Author pre-edit decision: approved/Author pre-edit decision: pending/' "$tmp/02_REVISION_LOG.md"
     rm -f "$tmp/02_REVISION_LOG.md.bak"
-    out=$(python3 .claude/skills/thesis-control/scripts/check_author_control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 scripts/check-author-control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'invalid-revision-value' for i in d['issues'])"
 }
 
-test_T135() {
-    grep -q "old-versus-proposed" .claude/skills/thesis-control/SKILL.md || return 1
-    grep -q "old-versus-proposed" .claude/skills/manuscript-reframe/SKILL.md || return 1
-    grep -q "intended use" .claude/skills/argument-governance/SKILL.md || return 1
-    grep -q "unfamiliar human" .claude/skills/self-review/SKILL.md || return 1
-    grep -q "evidence -> disclaimer" .claude/skills/logic-review/SKILL.md || return 1
-    grep -q "Evidence baseline" .claude/skills/release-governance/references/release_workflow_templates.md
+test_T137() {
+    grep -q "old-versus-proposed" archive/skills/thesis-control/SKILL.md || return 1
+    grep -q "old-versus-proposed" archive/skills/manuscript-reframe/SKILL.md || return 1
+    grep -q "intended use" archive/skills/argument-governance/SKILL.md || return 1
+    grep -q "unfamiliar human" archive/skills/self-review/SKILL.md || return 1
+    grep -q "evidence -> disclaimer" archive/skills/logic-review/SKILL.md || return 1
+    grep -q "Evidence baseline" archive/skills/release-governance/references/release_workflow_templates.md
 }
 
 # ----------------------------------------------------------------------------
@@ -3140,10 +3216,9 @@ run_test "T46 verify-refs flags Crossref title mismatch" test_T46
 run_test "T47 verify-refs flags Crossref year mismatch" test_T47
 run_test "T48 verify-refs arXiv fixture verifies metadata" test_T48
 run_test "T49 verify-refs documents online flags" test_T49
-run_test "T50 plugin skills are synced" test_T50
-run_test "T51 plugin package validates" test_T51
-run_test "T52 plugin sync ignores bytecode caches" test_T52
-run_test "T53 plugin checks are Python 3.8 compatible" test_T53
+run_test "T125 verify-refs parses unbraced numeric fields" test_T125
+run_test "T126 verify-refs preserves nested-brace values" test_T126
+run_test "T50 canonical skills tree is exposed 1:1 via .agents/skills" test_T50
 run_test "T54 release packet validator accepts a clean packet" test_T54
 run_test "T55 release packet validator rejects invalid evidence state" test_T55
 run_test "T56 release packet validator rejects missing columns" test_T56
@@ -3202,7 +3277,7 @@ run_test "T108 scaffold validates the complete candidate packet before mutation"
 run_test "T109 scaffold and migration reject internal symlink paths" test_T109
 run_test "T110 batch rollback and invalid UTF-8 fail cleanly" test_T110
 run_test "T111 empty and invalid audit outcomes return located issues" test_T111
-test_T125() {
+test_T127() {
     # The point of the fingerprint audit is dispersion, not frequency. Two
     # documents use the same construction at the same rate; one spreads it
     # evenly, the other clusters it. The audit must separate them.
@@ -3239,7 +3314,7 @@ assert bursty > even * 2, "bunched text should have higher gap CV (%r vs %r)" % 
 PYEOF
 }
 
-test_T126() {
+test_T128() {
     # Percentiles are withheld when the baseline is too small to support them,
     # and a missing target is a usage error rather than an empty report.
     local tmp out rc
@@ -3262,7 +3337,7 @@ PYEOF
     [[ "$rc" -eq 2 ]]
 }
 
-test_T127() {
+test_T129() {
     # A manuscript that advertises a concept in its keywords while citing no
     # source for it anywhere is using a field's vocabulary without its
     # literature. That is the finding this audit exists for.
@@ -3299,7 +3374,7 @@ assert 'Shortcut Learning' in details and 'Construct Validity' in details, detai
 "
 }
 
-test_T128() {
+test_T130() {
     # Two ways the audit could lie. Set notation must not read as a numeric
     # citation -- it did, and a manuscript full of \$K \in \{1,5,10\}\$ looked
     # fully cited while citing nothing. And one source for a named procedure is
@@ -3344,7 +3419,7 @@ run_test "T121 scaffold populates header-only project-intent files" test_T121
 run_test "T122 project-intent migration creates a blocked draft atomically" test_T122
 run_test "T123 project-intent migration rejects partial schema without mutation" test_T123
 run_test "T124 project-intent migration normalises direct-call roots" test_T124
-test_T129() {
+test_T131() {
     # lag-1 must not join the spans on either side of a dropped one.
     # Both documents have the SAME length series -- three long, three short --
     # so a naive filter-then-correlate returns exactly the same value for each.
@@ -3381,7 +3456,7 @@ assert b < a - 0.1, "the dropped spans were joined to their neighbours (%r vs %r
 PYEOF
 }
 
-test_T130() {
+test_T132() {
     # A baseline that contains the authors' own work is partly the thing being
     # measured, and it is often their paper that sets the extreme. --exclude
     # must remove it from the corpus and say so.
@@ -3408,7 +3483,7 @@ PYEOF
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['baseline_documents']==6, d['baseline_documents']; assert d['baseline_excluded']==['ours2025.txt'], d['baseline_excluded']; assert d['metrics']['semicolon_per_1k']['baseline_max'] < 1"
 }
 
-test_T131() {
+test_T133() {
     # An inline author-year citation after a full stop is not a sentence.
     # Allowing "(" to open one fragments a PDF-derived baseline in proportion
     # to its citation style, which is not a property of its prose.
@@ -3432,7 +3507,7 @@ assert cv < 0.2, "citation fragments were counted as sentences (CV %r)" % cv
 PYEOF
 }
 
-test_T132() {
+test_T134() {
     # Package loading and macro definitions are not prose. Counting them
     # inflates the word total that every per-1k rate is divided by.
     local tmp plain pre
@@ -3455,17 +3530,18 @@ PYEOF
     [[ "$plain" -eq "$pre" ]]
 }
 
-run_test "T125 prose fingerprint separates even from bunched use" test_T125
-run_test "T126 prose fingerprint withholds percentiles on a thin baseline" test_T126
-run_test "T127 claim positioning flags advertised terms with no source" test_T127
-run_test "T128 set notation is not a citation, and one source suffices" test_T128
-run_test "T129 lag-1 does not join sentences across a dropped span" test_T129
-run_test "T130 --exclude removes a document from the baseline corpus" test_T130
-run_test "T131 an inline citation fragment is not a sentence" test_T131
-run_test "T132 a LaTeX preamble is not prose" test_T132
-run_test "T133 author-control scaffold is conservative and repeat-safe" test_T133
-run_test "T134 author-control strict checker enforces approval state" test_T134
-run_test "T135 cross-skill author-control gates remain present" test_T135
+run_test "T127 prose fingerprint separates even from bunched use" test_T127
+run_test "T128 prose fingerprint withholds percentiles on a thin baseline" test_T128
+run_test "T129 claim positioning flags advertised terms with no source" test_T129
+run_test "T130 set notation is not a citation, and one source suffices" test_T130
+run_test "T131 lag-1 does not join sentences across a dropped span" test_T131
+run_test "T132 --exclude removes a document from the baseline corpus" test_T132
+run_test "T133 an inline citation fragment is not a sentence" test_T133
+run_test "T134 a LaTeX preamble is not prose" test_T134
+run_test "T135 author-control scaffold is conservative and repeat-safe" test_T135
+run_test "T136 author-control strict checker enforces approval state" test_T136
+run_test "T137 cross-skill author-control gates remain present" test_T137
+run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

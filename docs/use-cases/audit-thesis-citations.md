@@ -6,8 +6,8 @@ Use citation auditing before major drafts, supervisor review, submission, or rel
 
 1. Confirm the citation style in `CLAUDE.md`.
 2. Use [`/audit`](../skills/06-audit.md) for citation pairing, style-format checks, terminology, numbers, and cross-references.
-3. Use [`/style`](../skills/09-style.md) when British English consistency matters.
-4. Use [`/logic-review`](../skills/10-logic-review.md) to inspect paragraph flow and repeated transitions.
+3. Use [`/style`](../../archive/docs/skills/09-style.md) when British English consistency matters.
+4. Use [`/logic-review`](../../archive/docs/skills/10-logic-review.md) to inspect paragraph flow and repeated transitions.
 
 ## Validate
 

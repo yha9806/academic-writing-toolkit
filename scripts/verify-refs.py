@@ -40,15 +40,64 @@ def extract_bibtex(text: str) -> str:
     return "\n\n".join(blocks) if blocks else text
 
 
+def _balanced_group(text: str, open_index: int) -> Tuple[Optional[str], int]:
+    """Return the content of the brace group starting at open_index ('{') and
+    the index just past its closing brace, honouring nested braces."""
+    depth = 0
+    for i in range(open_index, len(text)):
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_index + 1 : i], i + 1
+    return None, open_index
+
+
+_FIELD_NAME = re.compile(r"(?P<name>[A-Za-z_][A-Za-z0-9_-]*)\s*=\s*")
+
+
 def parse_bibtex(text: str) -> List[dict]:
+    """Deterministic BibTeX reader: balanced-brace entry and value scanning.
+
+    Replaces the earlier lazy-regex parser, which truncated brace-protected
+    values at the first inner '}' and reported unbraced numeric fields
+    (e.g. `year = 2024`) as missing. Inner braces are preserved verbatim;
+    downstream text comparison normalises them away.
+    """
     entries: List[dict] = []
-    for m in re.finditer(r"@(?P<type>\w+)\s*\{\s*(?P<key>[^,]+),(?P<body>.*?)\n\}", text, flags=re.DOTALL):
+    for m in re.finditer(r"@(?P<type>\w+)\s*\{", text):
+        entry_type = m.group("type").lower()
+        if entry_type in ("comment", "preamble", "string"):
+            continue
+        body, _end = _balanced_group(text, m.end() - 1)
+        if body is None or "," not in body:
+            continue
+        key, rest = body.split(",", 1)
         fields: Dict[str, str] = {}
-        body = m.group("body")
-        for fm in re.finditer(r"(?P<name>[A-Za-z_]+)\s*=\s*[\{\"](?P<value>.*?)[\}\"]\s*,?", body, flags=re.DOTALL):
-            value = " ".join(fm.group("value").split())
-            fields[fm.group("name").lower()] = value
-        entries.append({"type": m.group("type").lower(), "key": m.group("key").strip(), "fields": fields})
+        i = 0
+        while True:
+            fm = _FIELD_NAME.search(rest, i)
+            if not fm:
+                break
+            name = fm.group("name").lower()
+            j = fm.end()
+            if j < len(rest) and rest[j] == "{":
+                value, i = _balanced_group(rest, j)
+                if value is None:
+                    break
+            elif j < len(rest) and rest[j] == '"':
+                closing = rest.find('"', j + 1)
+                if closing == -1:
+                    break
+                value, i = rest[j + 1 : closing], closing + 1
+            else:
+                bare = re.match(r"[^,\n]*", rest[j:])
+                value = bare.group(0).strip() if bare else ""
+                i = j + (bare.end() if bare else 0)
+            fields[name] = " ".join(value.split())
+        entries.append({"type": entry_type, "key": key.strip(), "fields": fields})
     return entries
 
 

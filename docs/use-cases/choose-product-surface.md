@@ -1,31 +1,40 @@
 # Choose The Right Product Surface
 
-Academic Writing Toolkit has four public surfaces.
+Academic Writing Toolkit has two public surfaces since the v0.1 rebuild.
+The vocabulary is deliberate: a constraint is either **Enforced** (a guard
+actively blocks the operation and CI proves the denial) or **Advisory**
+(instruction text the model may follow imperfectly). There is no third
+state.
 
-## Local Agent Skills
+## AWT dsh App (Enforced)
 
-Use this for the full workflow. The agent can read and write your local project files: chapters, notes, evidence registers, release packets, and exports.
+Use this for the full thesis workflow with enforcement. `awt init` creates
+the workspace, `awt install-profile` installs the `awt-headless` profile,
+and every daily-loop constraint — notes-before-chapters, quote integrity,
+page budgets, edit-contract scope, 3-strike escalation — is a typed guard
+denial or an explicit author approval recorded as immutable harness events.
+Profile boot itself refuses a directory that is not an AWT workspace.
 
-Start here when you use Claude Code, Codex, Gemini CLI, Cursor, or another compatible local agent host.
+Start here for real thesis work. See the README quickstart and
+`guards/README.md` for exact enforcement semantics, including what each
+guard deliberately does not do.
 
-## Codex Plugin
+## Agent Skills (Advisory)
 
-Use this when you want the same local skills packaged as an installable Codex plugin. The plugin is a distribution wrapper, not a different workflow.
-
-## Local Review Workbench
-
-Use this for one author-controlled review from explicitly selected UTF-8 source
-and evidence files to issue-level decisions and an optional new modified copy.
-It stores recoverable sessions on the local machine, sends selected content to
-the user's configured Codex provider, and never overwrites the source.
-
-## ChatGPT App MCP Server
-
-Use this for pasted-text checks and reading-note template generation. The ChatGPT App surface processes temporary text inputs only. It does not read or write your local thesis project and does not run the full local workflow.
+Use this when you want the same 9-skill catalogue inside Claude Code,
+Codex, Gemini CLI, or any Agent-Skills-compatible host, without the
+enforcement layer. The skills are the identical files (`.claude/skills/`,
+linked at `.agents/skills/`); the constraints they describe are advisory
+because no guard is mounted.
 
 ## Quick Rule
 
-If the task needs the full project workflow, use local agent skills or the
-Codex plugin. If the author needs one bounded review and apply-copy flow, use
-the local review workbench. If the task only needs pasted text, the ChatGPT App
-surface can be enough.
+If a constraint being violated should stop the operation, use the dsh app.
+If you only want the workflow guidance, the skills alone are enough — and
+nothing in them pretends to be enforcement.
+
+## Retired surfaces
+
+The Workbench wheel, packaged Codex plugin, and ChatGPT App were
+decommissioned with the v0.1 rebuild; the last release carrying them is
+[v0.5.0](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.5.0).

@@ -14,13 +14,15 @@ allowed-tools: Read, Glob, Grep
 
 This skill activates on: `read`, `next page`, `continue`, `skip to p.N`, `read p.N`, `/read`.
 
-## PDF Limits
+## PDF Limits (advisory in this release)
 
 - **Maximum 15 pages per invocation.**
-- **Maximum 90 pages per conversation.**
-- Track cumulative pages read in the conversation. When the count reaches 75, display:
-  `[Limit reminder: {N}/90 pages read this conversation. 15 remaining.]`
-- If a request would exceed the limit, warn the user and suggest starting a new conversation.
+- **Maximum 90 pages per conversation** — a context-health budget. This is
+  currently an advisory rule the model follows imperfectly, not an enforced
+  counter; do not present it as tracked. (The dsh guard that enforces both
+  budgets deterministically ships in P1 of the dsh app.)
+- When a request clearly approaches the budget, say so and suggest starting a
+  new conversation.
 
 ## Workflow
 
@@ -70,6 +72,14 @@ For each page read, produce the following:
 ---
 Next page? Take notes? Expand a connection?
 ```
+
+## Ceremony Control
+
+Emit the `### Key Terms` table only when the page introduces genuinely new
+terms, and `### Connections` only when there is a real thesis link or open
+question — skip empty sections rather than filling them for form's sake. For
+a page range, one Key Terms table and one Connections block for the range is
+usually right.
 
 ## Handling Multiple Pages
 

@@ -1,0 +1,39 @@
+# awt-headless profile patch (P1 live e2e): applied after the dsh-base and
+# dsh-headless bundle layers.
+#
+# - Routes the headless runner's default model to the scripted adapter, so
+#   the run needs no provider credentials and emits a deterministic tool call.
+# - Mounts the AWT guard plugin (the SHIPPED guards/dist build, copied next to
+#   this file) on the monotonic ctx.tools.guard seam.
+# - Mounts the e2e-only scripted LLM adapter and the read_pdf stub tool.
+#
+# Relative plugin names resolve against this profile directory (the loader's
+# config baseUrl); bare names resolve through $DSH_HOME/profiles/node_modules.
+
+- id: agent-default-model
+  config:
+    provider: scripted
+    model: scripted-1
+
+# Plaintext session store so the e2e can grep the persisted log for the
+# typed denial (the default is multi-frame zstd). A patch replaces the whole
+# row config, so the bundle's `root` is restated.
+- id: session-persistence-jsonl
+  config:
+    root: !!js dshHomePath('sessions')
+    compression: none
+
+- insert:
+    - id: awt-scripted-llm
+      name: './awt-scripted-llm.plugin.mjs'
+
+    - id: awt-guards
+      name: './awt-guards/dsh-plugin.js'
+      config:
+        projectRoot: !!js process.env.AWT_E2E_WORKSPACE
+
+    - id: awt-read-pdf-stub
+      name: './awt-read-pdf-stub.plugin.mjs'
+
+    - id: awt-export-stub
+      name: './awt-export-stub.plugin.mjs'
