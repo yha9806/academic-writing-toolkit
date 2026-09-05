@@ -33,5 +33,9 @@ jobs:
         run: |
           cd e2e
           node run-credential-probe.mjs
+      - name: Skill-scope probe (workspace catalogue only, keyless)
+        run: |
+          cd e2e
+          node run-skill-scope-probe.mjs
       - name: Pack-and-install smoke
         run: node guards/scripts/pack-smoke.mjs

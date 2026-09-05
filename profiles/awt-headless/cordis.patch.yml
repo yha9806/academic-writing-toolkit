@@ -54,6 +54,18 @@
       path — never work around an enforcement. Write thesis text in British
       English with Harvard citations.
 
+# Skill discovery is the workspace catalogue and nothing else (#33). dsh's
+# filesystem provider also scans two user-level roots by default —
+# $DSH_HOME/skills and ~/.agents/skills — which leaked other projects' skills
+# and retired bundles into a thesis session. Both user roots are pointed at a
+# directory that does not exist; the project roots (<workspace>/.agents/skills,
+# <workspace>/.dsh/skills) stay. Personal skills are not offered inside AWT
+# profiles: link them into the workspace if they belong to the thesis.
+- id: skill-filesystem
+  config:
+    dshHome: !!js dshHomePath('awt-no-user-skills')
+    agentsHome: !!js dshHomePath('awt-no-user-skills')
+
 - insert:
     - id: awt-guards
       name: './awt-guards/dsh-plugin.js'

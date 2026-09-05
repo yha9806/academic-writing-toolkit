@@ -58,5 +58,11 @@ instances on the stock 3080. Composition verified live 2026-08-16: the web
 session injects the workspace contract (AGENTS.md/CLAUDE.md) and the
 skill catalog, and requests reach the configured provider route.
 
+Skill discovery inside these profiles is the **workspace catalogue only**:
+the provider's two user-level roots (`$DSH_HOME/skills`, `~/.agents/skills`)
+are pointed at a directory that does not exist, so nothing outside the
+workspace's `.agents/skills` is offered. `e2e/run-skill-scope-probe.mjs`
+plants decoys in both roots and asserts they stay invisible.
+
 Validated baseline: `@deepseek-ai/dsh@0.1.0-rc.6` — see `COMPAT.json` at
 the repo root for the dated, machine-readable claim.
