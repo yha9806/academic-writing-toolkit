@@ -117,6 +117,18 @@ function init(target) {
     .map((entry) => entry.name)
     .sort()
   if (skills.length === 0) throw new AwtError('AWT_INIT_SKILLS_MISSING', `no skills found under ${SKILLS_SRC}`)
+  // A skill is a directory with a SKILL.md. A retired skill whose sources are
+  // gone but whose __pycache__ survives leaves a directory that `git status`
+  // cannot see (the residue is ignored) and readdir can, so it would be linked
+  // as a catalogue entry resolving to nothing.
+  const strays = skills.filter((name) => !existsSync(join(SKILLS_SRC, name, 'SKILL.md')))
+  if (strays.length > 0) {
+    throw new AwtError(
+      'AWT_INIT_NOT_A_SKILL',
+      `${SKILLS_SRC} holds ${strays.length} ${strays.length === 1 ? 'directory' : 'directories'} with no SKILL.md: ${strays.join(', ')}`,
+      `remove ${strays.length === 1 ? 'it' : 'them'} from the toolkit checkout, then re-run init`,
+    )
+  }
   for (const name of skills) {
     symlinkSync(join(SKILLS_SRC, name), join(ws, '.agents', 'skills', name))
   }

@@ -7,11 +7,12 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 const AWT = resolve(import.meta.dirname, '..', '..', 'scaffold', 'awt.mjs')
+const TEMPLATE = resolve(import.meta.dirname, '..', '..', 'literature', 'reading_notes', '_template_NOTES.md')
 
 const dirs: string[] = []
 after(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
@@ -122,4 +123,44 @@ test('install-profile lands both canonical profiles in a DSH_HOME and refuses to
   const again = awt('install-profile', home)
   assert.notEqual(again.status, 0)
   assert.match(again.stderr, /AWT_PROFILE_EXISTS/)
+})
+
+/**
+ * A throwaway product root holding only what `init` reads: the scaffold entry
+ * point, the notes template, and a catalogue built to order. `true` makes a
+ * real skill (a directory with a SKILL.md); `false` makes a bare directory.
+ */
+function productRoot(catalogue: Record<string, boolean>): string {
+  const root = scratch()
+  mkdirSync(join(root, 'scaffold'), { recursive: true })
+  cpSync(AWT, join(root, 'scaffold', 'awt.mjs'))
+  mkdirSync(join(root, 'literature', 'reading_notes'), { recursive: true })
+  cpSync(TEMPLATE, join(root, 'literature', 'reading_notes', '_template_NOTES.md'))
+  for (const [name, isSkill] of Object.entries(catalogue)) {
+    const dir = join(root, '.claude', 'skills', name, 'scripts')
+    mkdirSync(dir, { recursive: true })
+    if (isSkill) writeFileSync(join(root, '.claude', 'skills', name, 'SKILL.md'), `---\nname: ${name}\n---\n`)
+  }
+  return join(root, 'scaffold', 'awt.mjs')
+}
+
+test('init refuses a catalogue directory with no SKILL.md — build residue never becomes an extra skill', () => {
+  // A retired skill whose sources are gone but whose __pycache__ survives is
+  // invisible to `git status` and to every tracked-tree test, but readdir
+  // still sees the directory. Linking it hands the model a catalogue entry
+  // that resolves to nothing.
+  const entry = productRoot({ note: true, read: true, 'retired-skill': false })
+  const ws = join(scratch(), 'ws')
+  const res = spawnSync(process.execPath, [entry, 'init', ws], { encoding: 'utf8', timeout: 60_000 })
+  assert.notEqual(res.status, 0, 'a directory with no SKILL.md must not be linked as a skill')
+  assert.match(res.stderr, /AWT_INIT_NOT_A_SKILL/)
+  assert.match(res.stderr, /retired-skill/)
+})
+
+test('init links exactly the real skills of a clean catalogue', () => {
+  const entry = productRoot({ note: true, read: true })
+  const ws = join(scratch(), 'ws')
+  const res = spawnSync(process.execPath, [entry, 'init', ws], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(res.status, 0, res.stderr)
+  assert.deepEqual(readdirSync(join(ws, '.agents', 'skills')).sort(), ['note', 'read'])
 })
