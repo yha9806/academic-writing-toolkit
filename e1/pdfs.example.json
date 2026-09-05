@@ -1,5 +1,5 @@
 {
-  "_readme": "Copy to e1/pdfs.json (gitignored — PDFs and their locations never enter the repo). Three real sources; sha256 byte-identifies each input so a published result names exactly what it measured. Get a hash with: shasum -a 256 <file>.",
+  "_readme": "Copy to e1/pdfs.json (gitignored). Replace all three examples with distinct real PDFs and actual SHA-256 values. Relative PDF paths resolve beside the manifest. Each inclusive physical-page window must contain 1-15 pages. Preflight: node e1/run-e1.mjs --real --check --manifest e1/pdfs.json. Hash in PowerShell: Get-FileHash -Algorithm SHA256 <file>.",
   "pdfs": [
     {
       "id": "smith2024",
@@ -8,6 +8,22 @@
       "firstPage": 10,
       "lastPage": 20,
       "source": { "surname": "smith", "year": "2024" }
+    },
+    {
+      "id": "jones2023",
+      "path": "../literature/jones2023.pdf",
+      "sha256": "<64-hex sha256 of the second file>",
+      "firstPage": 1,
+      "lastPage": 10,
+      "source": { "surname": "jones", "year": "2023" }
+    },
+    {
+      "id": "lee2022",
+      "path": "../literature/lee2022.pdf",
+      "sha256": "<64-hex sha256 of the third file>",
+      "firstPage": 1,
+      "lastPage": 10,
+      "source": { "surname": "lee", "year": "2022" }
     }
   ]
 }

@@ -14,10 +14,27 @@ permissions:
   contents: read
 
 jobs:
+  windows-runtime:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm ci --prefix guards
+      - run: npm test --prefix guards
+      - run: npm ci --prefix e2e
+      - run: node e2e/run-e2e.mjs
+      - run: node e2e/run-credential-probe.mjs
+      - run: node e2e/run-skill-scope-probe.mjs
+      - run: node e1/run-e1.mjs
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
       - uses: actions/setup-python@v6
         with:
           python-version: '3.8'
@@ -33,4 +50,3 @@ jobs:
       - run: make test
       - name: Guards package tests (notes lint + catalogue truth tests)
         run: npm --prefix guards ci && npm --prefix guards test
-

@@ -37,5 +37,7 @@ jobs:
         run: |
           cd e2e
           node run-skill-scope-probe.mjs
+      - name: E1 offline instrument (synthetic E0 evidence only)
+        run: node e1/run-e1.mjs
       - name: Pack-and-install smoke
         run: node guards/scripts/pack-smoke.mjs

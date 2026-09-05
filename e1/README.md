@@ -1,0 +1,67 @@
+# Paired-source evidence instrument
+
+The offline lane checks the instrument with scripted synthetic arms (E0).
+Real model sessions over three chosen PDFs produce E1 results. Neither is
+the author's E2 chapter cycle. Model quality is reported as observed; a
+failed process is an incomplete run, not a favourable model result.
+
+## Install and run offline
+
+Requires Node 22.12+ or 24+ and the exact dependencies in the lockfiles:
+
+```sh
+npm ci --prefix guards
+npm run build --prefix guards
+npm ci --prefix e2e
+node e1/run-e1.mjs
+```
+
+## Run with real sources
+
+1. Copy `pdfs.example.json` to `pdfs.json` and identify exactly three
+   different PDFs by SHA-256. IDs must be unique, lowercase and path-safe.
+   Paths resolve relative to the manifest file. Select 1–15 physical PDF
+   pages per source, not the page numbers printed inside an article.
+2. Install Poppler's `pdftotext` on PATH. Scans with no extractable text
+   need an author-prepared text/OCR source; the producer does not invent it.
+3. Select a provider and set only its credential locally. DeepSeek uses
+   `DEEPSEEK_API_KEY`; Anthropic uses `ANTHROPIC_API_KEY` and requires an
+   explicit `--model` value. The existing DeepSeek profile default is
+   `deepseek-v4-flash`; `--model` can select another available model.
+4. Run the keyless preflight (it checks whether a key exists but makes no
+   model request), inspect its result, then run the real lane:
+
+```sh
+node e1/run-e1.mjs --real --check --manifest e1/pdfs.json --provider deepseek
+node e1/run-e1.mjs --real --manifest e1/pdfs.json --provider deepseek
+```
+
+For Anthropic, append `--provider anthropic --model <chosen-model>` to
+both commands. No key is read from a project file or requested in chat.
+Both arms use the same chosen model and exclude user-level skills. Each
+source has a notes task and a draft task in each arm: up to 12 headless
+sessions in total. Each session can make multiple provider requests;
+`--timeout-ms` (1000–600000, default 600000 per session) is a time bound,
+not a currency or token cap. A process failure stops subsequent sessions;
+there is no automatic paid retry.
+
+## Inspect and share results
+
+Every run creates a new `results/e1-<lane>-<timestamp>/` directory:
+
+- `metrics.json` and `results.md` are produced by the script.
+- Each source/arm retains its notes, draft, process statuses and plaintext
+  session logs. The source PDF is not copied into the result package.
+- Input hashes, page windows, selected model, pinned harness and
+  implementation-file hashes bind the comparison to what actually ran.
+- Source opening is established from successful `read_pdf` results in the
+  logs. Quotes are checked against the returned text. Merely listing a PDF
+  in the manifest does not count as reading it.
+- An incomplete run exits nonzero and has `evidenceClass: null`. Keep it
+  visible as a diagnostic result; do not mix it into an efficacy table.
+
+The directory is gitignored. Logs and outputs may contain source text and
+local paths: review them before sharing. Publish measured results with the
+exact producer revision and harness version; do not hand-edit metric tables.
+The offline script deliberately writes contrasting fixture outputs. Its
+numbers are not evidence that AWT improves real academic work.

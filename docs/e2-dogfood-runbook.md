@@ -7,6 +7,9 @@ agent-driven "dogfood" would be the exact self-evaluation the evidence
 classes forbid. The empty `chapters/` directory is the falsifier this
 product has to answer.
 
+For E1's separate paired-source experiment, use [the instrument guide](../e1/README.md).
+It is not a substitute for this author-operated cycle.
+
 ## One-time setup (~5 minutes)
 
 ```bash
@@ -23,6 +26,27 @@ Requirements: Node 22+, `pdftotext` (poppler), and one provider key
 exported per session — `DEEPSEEK_API_KEY` (cost route, default model) or
 `ANTHROPIC_API_KEY` (prose route). Keys live in your shell environment
 only; profile files carry `apiKeyEnv` references, never values.
+
+On Windows, `awt init` creates directory junctions for the nine skills and
+on-demand `references/`, and a hard link for `CLAUDE.md`/`AGENTS.md`; it
+does not require Developer Mode. Put a working Poppler `pdftotext.exe`
+directory on PATH in the launching shell. A MiKTeX first-run error is an
+installation problem, not evidence that a source PDF is invalid.
+
+The pinned headless app has no provider/model command-line flags. To use
+Anthropic or another available model on either profile, supply a small
+YAML overlay through the launcher's `--patch` option:
+
+```yaml
+- id: agent-default-model
+  config:
+    provider: anthropic
+    model: <your-explicitly-selected-model>
+```
+
+The overlay contains model identifiers only; the selected provider key
+still comes from its `apiKeyEnv` reference. Keep the default DeepSeek
+route when no model change is intended.
 
 ## The cycle (§11: read → note → integrate → edit-contract → review → audit → export)
 

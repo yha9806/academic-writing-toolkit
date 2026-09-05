@@ -34,6 +34,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { labelPdfPages } from '../profiles/awt-headless/pdf-pages.mjs'
 import { extractQuotedSpans, gradeQuoteFidelity, normalizeForMatch, pagesFromLabeledText } from '../e1/graders.mjs'
 
 const PRODUCT_ROOT = resolve(import.meta.dirname, '..')
@@ -54,9 +56,9 @@ function die(code, message, remedy) {
 if (!existsSync(join(GUARDS_DIST, 'decisions.js'))) {
   die('FIDELITY_GUARDS_UNBUILT', 'guards/dist is missing; this audit reuses the guards\' citation extractor and notes parser', 'npm --prefix guards install && npm --prefix guards run build')
 }
-const { extractCitations } = await import(join(GUARDS_DIST, 'decisions.js'))
-const { parseNotesSource } = await import(join(GUARDS_DIST, 'projections.js'))
-const { lintNotes, hasErrors } = await import(join(GUARDS_DIST, 'notes-lint.js'))
+const { extractCitations } = await import(pathToFileURL(join(GUARDS_DIST, 'decisions.js')).href)
+const { parseNotesSource } = await import(pathToFileURL(join(GUARDS_DIST, 'projections.js')).href)
+const { lintNotes, hasErrors } = await import(pathToFileURL(join(GUARDS_DIST, 'notes-lint.js')).href)
 
 // --- corpus ----------------------------------------------------------------------
 
@@ -105,8 +107,7 @@ function pdfText(root, surname, year) {
   if (!existsSync(path)) return undefined
   const res = spawnSync('pdftotext', ['-layout', path, '-'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   if (res.status !== 0) return undefined
-  const pages = res.stdout.split('\f').filter((p) => p.trim() !== '')
-  return pages.map((p, i) => `--- page ${i + 1} ---\n${p.trimEnd()}`).join('\n\n')
+  return labelPdfPages(res.stdout)
 }
 
 /**

@@ -63,12 +63,16 @@ test('init scaffolds exactly the thesis-workspace manifest — no toolkit-dev fi
     'dir literature/reading_notes',
     'file AGENTS.md',
     'file literature/reading_notes/_template_NOTES.md',
-    'link CLAUDE.md',
+    'link references',
+    process.platform === 'win32' ? 'file CLAUDE.md' : 'link CLAUDE.md',
   ].sort())
 
   // The config link resolves and both names read the same contract.
-  assert.equal(readlinkSync(join(ws, 'CLAUDE.md')), 'AGENTS.md')
+  if (process.platform !== 'win32') assert.equal(readlinkSync(join(ws, 'CLAUDE.md')), 'AGENTS.md')
   assert.match(readFileSync(join(ws, 'CLAUDE.md'), 'utf8'), /Academic Writing Workspace/)
+  writeFileSync(join(ws, 'AGENTS.md'), 'author-updated workspace contract')
+  assert.equal(readFileSync(join(ws, 'CLAUDE.md'), 'utf8'), 'author-updated workspace contract')
+  assert.ok(readFileSync(join(ws, 'references', 'argument-checklist.md'), 'utf8').length > 0)
 
   // Every skill link resolves into the product catalogue at a real SKILL.md.
   for (const name of SKILLS) {

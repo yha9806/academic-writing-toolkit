@@ -35,6 +35,12 @@ export DEEPSEEK_API_KEY=...   # or ANTHROPIC_API_KEY for the anthropic route
 npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless "task"
 ```
 
+Setting an Anthropic key alone does not change the default DeepSeek route.
+Select the model through a launcher `--patch` overlay as shown in the
+[author runbook](../docs/e2-dogfood-runbook.md); the pinned headless app has
+no provider/model CLI flags. The E1 producer has its own explicit
+`--provider`/`--model` options that generate the same route in both arms.
+
 Remove by deleting `$DSH_HOME/profiles/awt-headless`; upgrade by
 re-running `install-profile` after removing (never merges in place).
 
