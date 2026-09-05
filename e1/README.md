@@ -38,6 +38,20 @@ node e1/run-e1.mjs --real --manifest e1/pdfs.json --provider deepseek
 
 For Anthropic, append `--provider anthropic --model <chosen-model>` to
 both commands. No key is read from a project file or requested in chat.
+
+An already installed, tool-capable Ollama model can run the same real lane
+locally. Select it explicitly with `--provider ollama --model <local-tag>`;
+`--base-url` defaults to `http://127.0.0.1:11434/v1` and accepts only loopback
+HTTP endpoints. Preflight checks the server version, installed model digest,
+tool capability and actual `num_ctx`/`num_predict` configuration without a
+generation. Create a dedicated local alias with `num_ctx` at least 16384 and
+an explicit `num_predict` of at least 1024, below the context limit. Merely
+declaring a large client context does not enlarge the server's context.
+The adapter receives a content-free local placeholder credential; no cloud
+key is inherited. Cloud-backed Ollama models are refused. Local model and
+server details are retained in the result; this evidence describes that
+model, not untested cloud routes.
+
 Both arms use the same chosen model and exclude user-level skills. Each
 source has a notes task and a draft task in each arm: up to 12 headless
 sessions in total. Each session can make multiple provider requests;

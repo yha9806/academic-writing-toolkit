@@ -10,7 +10,7 @@ const refuse = (code, message) => { throw new E1InputError(code, message) }
 export function parseOptions(args) {
   const options = { real: false, check: false, help: false, provider: 'deepseek', timeoutMs: 600_000 }
   const flags = { '--real': 'real', '--check': 'check', '--help': 'help' }
-  const values = { '--manifest': 'manifest', '--out': 'out', '--provider': 'provider', '--model': 'model', '--timeout-ms': 'timeoutMs' }
+  const values = { '--manifest': 'manifest', '--out': 'out', '--provider': 'provider', '--model': 'model', '--base-url': 'baseURL', '--timeout-ms': 'timeoutMs' }
   const seen = new Set()
   for (let index = 0; index < args.length; index++) {
     const flag = args[index]
@@ -30,11 +30,21 @@ export function parseOptions(args) {
   return options
 }
 
-export function modelRoute(provider, model, environment) {
-  if (!['deepseek', 'anthropic'].includes(provider)) refuse('E1_PROVIDER_INVALID', 'provider must be deepseek or anthropic')
-  if (provider === 'anthropic' && !model) refuse('E1_MODEL_REQUIRED', 'specify --model explicitly for anthropic; no automatic model upgrade')
+export function modelRoute(provider, model, environment, baseURL) {
+  if (!['deepseek', 'anthropic', 'ollama'].includes(provider)) refuse('E1_PROVIDER_INVALID', 'provider must be deepseek, anthropic or ollama')
+  if (provider !== 'deepseek' && !model) refuse('E1_MODEL_REQUIRED', `specify --model explicitly for ${provider}; no automatic model selection`)
   model ??= 'deepseek-v4-flash'
   if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/.test(model)) refuse('E1_MODEL_INVALID', 'invalid model identifier')
+  if (provider === 'ollama') {
+    let endpoint
+    try { endpoint = new URL(baseURL ?? 'http://127.0.0.1:11434/v1') }
+    catch { refuse('E1_ENDPOINT_INVALID', 'Ollama requires a loopback HTTP /v1 endpoint') }
+    if (endpoint.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !['/v1', '/v1/'].includes(endpoint.pathname)) {
+      refuse('E1_ENDPOINT_INVALID', 'Ollama is restricted to loopback HTTP /v1, without credentials or query parameters')
+    }
+    return { provider, model, baseURL: endpoint.href.replace(/\/$/, ''), keyEnv: 'AWT_E1_LOCAL_KEY', keyPresent: true }
+  }
+  if (baseURL) refuse('E1_ENDPOINT_INVALID', '--base-url is available only for the explicit local Ollama route')
   const keyEnv = provider === 'deepseek' ? 'DEEPSEEK_API_KEY' : 'ANTHROPIC_API_KEY'
   return { provider, model, keyEnv, keyPresent: Boolean(environment[keyEnv]) }
 }

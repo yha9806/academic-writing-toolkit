@@ -32,6 +32,7 @@ import { pathToFileURL } from 'node:url'
 import { parseOptions, modelRoute, readManifest, classifyRun } from './inputs.mjs'
 import { labelPdfPages } from '../profiles/awt-headless/pdf-pages.mjs'
 import { readOpeningEvidence } from './evidence.mjs'
+import { inspectLocalModel, localProviderPatch } from './local-provider.mjs'
 import {
   extractQuotedSpans, gradeNotesParseability, gradePageAccuracy,
   gradeQuoteFidelity, gradeUnopenedCitations, pagesFromLabeledText,
@@ -49,14 +50,14 @@ let options
 try { options = parseOptions(process.argv.slice(2)) }
 catch (error) { die(error.code ?? 'E1_USAGE', error.message) }
 if (options.help) {
-  console.log('Usage: node e1/run-e1.mjs [--real [--check] --manifest FILE --provider deepseek|anthropic --model MODEL] [--out DIR] [--timeout-ms 1000..600000]\nNo flag runs the keyless E0 instrument. --real --check validates all inputs without any model requests. Anthropic requires an explicit model. Relative PDF paths resolve beside the manifest.')
+  console.log('Usage: node e1/run-e1.mjs [--real [--check] --manifest FILE --provider deepseek|anthropic|ollama --model MODEL [--base-url LOOPBACK_URL]] [--out DIR] [--timeout-ms 1000..600000]\nNo flag runs the keyless E0 instrument. --real --check validates all inputs without model generations. Anthropic and Ollama require an explicit model. Relative PDF paths resolve beside the manifest.')
   process.exit(0)
 }
 const REAL = options.real
 const manifestPath = resolve(options.manifest ?? join(E1_DIR, 'pdfs.json'))
 const outDir = resolve(options.out ?? join(E1_DIR, 'results'))
 let route
-try { route = modelRoute(options.provider, options.model, process.env) }
+try { route = modelRoute(options.provider, options.model, process.env, options.baseURL) }
 catch (error) { die(error.code, error.message) }
 
 function die(code, message, remedy) {
@@ -166,6 +167,11 @@ function buildHome(arm) {
     // key must never leave the profile pointed at the default DeepSeek model.
     patch = patch.replace('provider: deepseek', `provider: ${route.provider}`)
       .replace('model: deepseek-v4-flash', `model: ${JSON.stringify(route.model)}`)
+    if (route.provider === 'ollama') {
+      const providerBlock = /- id: llm-pi-ai\r?\n  config:\r?\n    providers:\r?\n(?:[ \t].*(?:\r?\n|$))+/
+      if (!providerBlock.test(patch)) throw new Error('E1 provider profile block is missing')
+      patch = patch.replace(providerBlock, localProviderPatch(route))
+    }
   }
 
   if (!REAL) {
@@ -279,7 +285,7 @@ function runHeadless(home, ws, task, extraEnv) {
         DSH_TELEMETRY_DISABLED: '1',
         ...(REAL
           ? {
-            [route.keyEnv]: process.env[route.keyEnv],
+            [route.keyEnv]: route.provider === 'ollama' ? 'ollama' : process.env[route.keyEnv],
           }
           : {}),
         ...extraEnv,
@@ -322,7 +328,7 @@ const DRAFT_TASK = () => REAL
   ? 'Write chapters/draft_section.md: a ~300-word thesis section arguing from the source you have read, quoting evidence verbatim with page numbers and Harvard citations.'
   : 'E1 offline draft task'
 
-async function runArm(entry, arm) {
+async function runArm(entry, arm, runDir) {
   const ws = buildWorkspace(arm)
   const home = buildHome(arm)
   if (REAL) cpSync(entry.path, join(ws, 'literature', 'source.pdf'))
@@ -381,76 +387,85 @@ const entries = await loadEntries()
 // Check every source before launching any model session. No PDF is sent to
 // a provider during this preflight; pdftotext operates locally.
 for (const entry of entries) referenceFor(entry)
+if (REAL && route.provider === 'ollama') {
+  try { route.localInfo = await inspectLocalModel(route) }
+  catch (error) { die(error.code ?? 'E1_LOCAL_UNAVAILABLE', error.message) }
+}
 if (REAL && options.check) {
-  console.log(JSON.stringify({ status: route.keyPresent ? 'ready' : 'blocked', code: route.keyPresent ? null : 'E1_KEY_MISSING', sources: entries.length, provider: route.provider, model: route.model, keyEnv: route.keyEnv, keyPresent: route.keyPresent, modelRequests: 0 }, null, 2))
-  process.exit(route.keyPresent ? 0 : 1)
+  console.log(JSON.stringify({ status: route.keyPresent ? 'ready' : 'blocked', code: route.keyPresent ? null : 'E1_KEY_MISSING', sources: entries.length, provider: route.provider, model: route.model, keyEnv: route.keyEnv, keyPresent: route.keyPresent, localModel: route.localInfo, modelRequests: 0 }, null, 2))
+  process.exitCode = route.keyPresent ? 0 : 1
+} else {
+  await runExperiment()
 }
-if (REAL && !route.keyPresent) die('E1_KEY_MISSING', `set ${route.keyEnv} locally for the explicitly selected ${route.provider} route`)
-mkdirSync(outDir, { recursive: true })
-const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-const runDir = join(outDir, `e1-${lane}-${stamp}`)
-mkdirSync(runDir)
-const results = []
-let failure
-try {
-  for (const entry of entries) {
-    console.log(`E1 ${lane}: ${entry.id}`)
-    for (const arm of ['skills', 'plain']) {
-      let graded
-      try { graded = await runArm(entry, arm) }
-      catch (error) { failure = { code: error.code ?? 'E1_RUN_FAILED', id: entry.id, arm }; break }
-      results.push({ id: entry.id, ...graded })
-      console.log(`  ${arm}: quotes ${graded.quoteFidelity.matched}/${graded.quoteFidelity.quotes} verbatim, pages ${graded.pageAccuracy.correct}/${graded.pageAccuracy.cited} correct, notes ${graded.notes.parseable ? 'parseable' : 'NOT parseable'}, unopened citations ${graded.unopenedCitations.unopened.length}`)
-      if (graded.status !== 'completed') { failure = { code: 'E1_SESSION_INCOMPLETE', id: entry.id, arm }; break }
+
+async function runExperiment() {
+  if (REAL && !route.keyPresent) die('E1_KEY_MISSING', `set ${route.keyEnv} locally for the explicitly selected ${route.provider} route`)
+  mkdirSync(outDir, { recursive: true })
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const runDir = join(outDir, `e1-${lane}-${stamp}`)
+  mkdirSync(runDir)
+  const results = []
+  let failure
+  try {
+    for (const entry of entries) {
+      console.log(`E1 ${lane}: ${entry.id}`)
+      for (const arm of ['skills', 'plain']) {
+        let graded
+        try { graded = await runArm(entry, arm, runDir) }
+        catch (error) { failure = { code: error.code ?? 'E1_RUN_FAILED', id: entry.id, arm }; break }
+        results.push({ id: entry.id, ...graded })
+        console.log(`  ${arm}: quotes ${graded.quoteFidelity.matched}/${graded.quoteFidelity.quotes} verbatim, pages ${graded.pageAccuracy.correct}/${graded.pageAccuracy.cited} correct, notes ${graded.notes.parseable ? 'parseable' : 'NOT parseable'}, unopened citations ${graded.unopenedCitations.unopened.length}`)
+        if (graded.status !== 'completed') { failure = { code: 'E1_SESSION_INCOMPLETE', id: entry.id, arm }; break }
+      }
+      if (failure) break
     }
-    if (failure) break
+  } finally {
+    for (const dir of scratchRoots.splice(0)) {
+      if (dirname(resolve(dir)) !== resolve(tmpdir()) || !basename(dir).startsWith('awt-e1-')) throw new Error('E1 scratch cleanup target is outside the allocated temporary roots')
+      rmSync(dir, { recursive: true, force: true })
+    }
   }
-} finally {
-  for (const dir of scratchRoots.splice(0)) {
-    if (dirname(resolve(dir)) !== resolve(tmpdir()) || !basename(dir).startsWith('awt-e1-')) throw new Error('E1 scratch cleanup target is outside the allocated temporary roots')
-    rmSync(dir, { recursive: true, force: true })
+
+  const payload = {
+    lane,
+    status: failure ? 'incomplete' : 'completed',
+    evidenceClass: failure ? null : (REAL ? 'E1' : 'E0'),
+    failure: failure ?? null,
+    generatedAt: new Date().toISOString(),
+    harness: `@deepseek-ai/dsh@${PINNED_DSH}`,
+    producer: 'e1/run-e1.mjs',
+    producerSha256: sha256(join(E1_DIR, 'run-e1.mjs')),
+    implementationSha256: Object.fromEntries([
+      'e1/run-e1.mjs', 'e1/inputs.mjs', 'e1/evidence.mjs', 'e1/local-provider.mjs', 'e1/graders.mjs',
+      'profiles/awt-headless/cordis.patch.yml', 'profiles/awt-headless/awt-read-pdf.plugin.mjs',
+      'profiles/awt-headless/pdf-pages.mjs', 'guards/dist/notes-lint.js', 'guards/dist/decisions.js',
+    ].map((path) => [path, sha256(join(PRODUCT_ROOT, path))])),
+    inputs: entries.map(({ path, referenceTextPath, ...entry }) => ({ ...entry, sha256: entry.sha256 ?? sha256(referenceTextPath) })),
+    model: REAL ? { provider: route.provider, id: route.model, ...(route.localInfo ? { local: route.localInfo } : {}) } : { provider: 'scripted', id: 'scripted-1' },
+    note: failure ? 'Incomplete execution: diagnostic results only; no E1 efficacy claim. Inspect retained session logs and process statuses before a deliberate new run.' : lane === 'offline'
+      ? 'Offline lane: scripted synthetic arms. Proves the instrument discriminates (E0 about the instrument); NOT efficacy evidence about the skills.'
+      : 'Real lane: paired sessions over the manifest PDFs. E1 evidence per §11.',
+    results,
   }
-}
+  const jsonPath = join(runDir, 'metrics.json')
+  writeFileSync(jsonPath, JSON.stringify(payload, null, 2))
 
-const payload = {
-  lane,
-  status: failure ? 'incomplete' : 'completed',
-  evidenceClass: failure ? null : (REAL ? 'E1' : 'E0'),
-  failure: failure ?? null,
-  generatedAt: new Date().toISOString(),
-  harness: `@deepseek-ai/dsh@${PINNED_DSH}`,
-  producer: 'e1/run-e1.mjs',
-  producerSha256: sha256(join(E1_DIR, 'run-e1.mjs')),
-  implementationSha256: Object.fromEntries([
-    'e1/run-e1.mjs', 'e1/inputs.mjs', 'e1/evidence.mjs', 'e1/graders.mjs',
-    'profiles/awt-headless/cordis.patch.yml', 'profiles/awt-headless/awt-read-pdf.plugin.mjs',
-    'profiles/awt-headless/pdf-pages.mjs', 'guards/dist/notes-lint.js', 'guards/dist/decisions.js',
-  ].map((path) => [path, sha256(join(PRODUCT_ROOT, path))])),
-  inputs: entries.map(({ path, referenceTextPath, ...entry }) => ({ ...entry, sha256: entry.sha256 ?? sha256(referenceTextPath) })),
-  model: REAL ? { provider: route.provider, id: route.model } : { provider: 'scripted', id: 'scripted-1' },
-  note: failure ? 'Incomplete execution: diagnostic results only; no E1 efficacy claim. Inspect retained session logs and process statuses before a deliberate new run.' : lane === 'offline'
-    ? 'Offline lane: scripted synthetic arms. Proves the instrument discriminates (E0 about the instrument); NOT efficacy evidence about the skills.'
-    : 'Real lane: paired sessions over the manifest PDFs. E1 evidence per §11.',
-  results,
+  const rows = results.map((r) =>
+    `| ${r.id} | ${r.arm} | ${r.quoteFidelity.matched}/${r.quoteFidelity.quotes} | ${r.pageAccuracy.correct}/${r.pageAccuracy.cited} | ${r.notes.parseable ? 'yes' : 'no'} | ${r.unopenedCitations.unopened.length} |`)
+  const table = [
+    `# E1 ${lane} results (${payload.generatedAt})`,
+    '',
+    payload.note,
+    '',
+    '| source | arm | verbatim quotes | correct pages | notes parseable | unopened citations |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ...rows,
+    '',
+    `Producer: \`${payload.producer}\` against \`${payload.harness}\`. Metrics JSON: \`metrics.json\`. Logs and model outputs are retained per source/arm beside it; review before sharing.`,
+  ].join('\n')
+  const mdPath = join(runDir, 'results.md')
+  writeFileSync(mdPath, table)
+  console.log(`\n${table}`)
+  console.log(`\nSaved: ${runDir}`)
+  if (failure) process.exitCode = 1
 }
-const jsonPath = join(runDir, 'metrics.json')
-writeFileSync(jsonPath, JSON.stringify(payload, null, 2))
-
-const rows = results.map((r) =>
-  `| ${r.id} | ${r.arm} | ${r.quoteFidelity.matched}/${r.quoteFidelity.quotes} | ${r.pageAccuracy.correct}/${r.pageAccuracy.cited} | ${r.notes.parseable ? 'yes' : 'no'} | ${r.unopenedCitations.unopened.length} |`)
-const table = [
-  `# E1 ${lane} results (${payload.generatedAt})`,
-  '',
-  payload.note,
-  '',
-  '| source | arm | verbatim quotes | correct pages | notes parseable | unopened citations |',
-  '| --- | --- | --- | --- | --- | --- |',
-  ...rows,
-  '',
-  `Producer: \`${payload.producer}\` against \`${payload.harness}\`. Metrics JSON: \`metrics.json\`. Logs and model outputs are retained per source/arm beside it; review before sharing.`,
-].join('\n')
-const mdPath = join(runDir, 'results.md')
-writeFileSync(mdPath, table)
-console.log(`\n${table}`)
-console.log(`\nSaved: ${runDir}`)
-if (failure) process.exitCode = 1
