@@ -10,6 +10,7 @@ import {
   CHAPTER_DENIAL_CODES,
   GUARD_FACT_EVENT,
   GuardConfigError,
+  EXPORT_DENIAL_CODES,
   PAGE_DENIAL_CODES,
   denialReason,
   integrationStatusSchema,
@@ -21,7 +22,8 @@ import {
 
 test('the denial-code catalogue is exactly the six codes — five from P1 plus the P4 export gate', () => {
   assert.deepEqual([...CHAPTER_DENIAL_CODES], ['NOTES_MISSING', 'QUOTE_SPAN_MODIFIED', 'CONTRACT_SCOPE'])
-  assert.deepEqual([...PAGE_DENIAL_CODES], ['PAGE_RANGE_EXCEEDED', 'PAGE_BUDGET_EXCEEDED', 'EXPORT_SOURCES_UNRESOLVED'])
+  assert.deepEqual([...PAGE_DENIAL_CODES], ['PAGE_RANGE_EXCEEDED', 'PAGE_BUDGET_EXCEEDED'])
+  assert.deepEqual([...EXPORT_DENIAL_CODES], ['EXPORT_SOURCES_UNRESOLVED'])
   assert.equal(ALL_DENIAL_CODES.length, 6)
   // ESCALATION_REQUIRED must NOT be claimed until the session-2 ask seam ships.
   assert.ok(!(ALL_DENIAL_CODES as readonly string[]).includes('ESCALATION_REQUIRED'))
