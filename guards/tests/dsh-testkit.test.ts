@@ -12,7 +12,10 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import {
+  buildWorkspace,
+  buildWorkspace,
   cleanupWorkspaces,
   denials,
   mountHarness,
@@ -138,6 +141,36 @@ test('export negative control: every chapter citation has conforming notes — t
 
   assertOnlyDenial(agent.session.events, undefined)
   assert.ok(existsSync(join(ws, 'final_output', 'EXPORTED.txt')), 'allowed export must reach the tool body')
+  await ctx.fiber.dispose()
+})
+
+test('#34: two sessions on one process are guarded against their OWN workspaces, not the boot root', async () => {
+  // Boot workspace A (contract scopes ch3). Session B lives in workspace B
+  // (contract scopes ch5). The same write to chapters/ch5.md must be denied
+  // for A (CONTRACT_SCOPE) and allowed for B — decided per session cwd.
+  const wsB = buildWorkspace({ mayChange: 'chapters/ch5.md' })
+  const { ctx, ws: wsA, adapter } = await mountHarness([], { workspace: { mayChange: 'chapters/ch3.md' } })
+  const script = (adapter as unknown as { script: unknown[] }).script
+  script.push(
+    toolCallResponse('a1', 'write', { file_path: join(wsA, 'chapters', 'ch5.md'), content: 'Smith (2024) argues at length.' }),
+    textResponse('done'),
+    toolCallResponse('b1', 'write', { file_path: join(wsB, 'chapters', 'ch5.md'), content: 'Smith (2024) argues at length.' }),
+    textResponse('done'),
+  )
+
+  const agentA = startTurn(ctx)
+  prompt(agentA, 'write chapter five in workspace A')
+  await agentA.whenIdle()
+  assertOnlyDenial(agentA.session.events, 'CONTRACT_SCOPE')
+  assert.ok(!existsSync(join(wsA, 'chapters', 'ch5.md')))
+
+  const { agent: agentB } = await (ctx as unknown as {
+    agents: { create(o: unknown): Promise<{ agent: { followup(m: never): void; whenIdle(): Promise<void>; session: { events: readonly { type: string; data: unknown }[] } } }> }
+  }).agents.create({ sessionId: SessionId('awt-testkit-ws-b'), meta: { cwd: wsB }, agentOptions: { provider: 'mock', model: 'mock' } })
+  prompt(agentB, 'write chapter five in workspace B')
+  await agentB.whenIdle()
+  assertOnlyDenial(agentB.session.events, undefined)
+  assert.ok(existsSync(join(wsB, 'chapters', 'ch5.md')), 'the write allowed by workspace B\'s contract must land in B')
   await ctx.fiber.dispose()
 })
 

@@ -52,6 +52,12 @@ events. No agent-writable file is ever an authority.
   carry the tool name and reason, never call arguments; grants are
   `allowed-once` — nothing persists past the one asked call. A blocked ask
   folds as a `failed` attempt, never as a fourth strike.
+- **Workspace binding**: decisions bind to the workspace of the session that
+  made the call (the durable session header's `cwd`), so one web process can
+  serve several workspaces; the boot directory is the fallback and still the
+  boot-time truth test. A session whose `cwd` is not an AWT workspace is
+  evaluated against that directory as it is — no notes there means cited
+  writes are denied — never against another session's workspace.
 - **Export gate**: gates the registered `export_docx` tool only — a manual
   pandoc run is outside dsh and outside every guard. Bibliography matching is
   first-author surname + year (the notes convention): it cannot tell whether

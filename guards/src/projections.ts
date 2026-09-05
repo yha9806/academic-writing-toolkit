@@ -95,6 +95,15 @@ export function relativeToRoot(projectRoot: string, filePath: string): string | 
   if (!absolute) return p.replace(/^\.\//, '')
   if (p === root) return ''
   if (p.startsWith(root + '/')) return p.slice(root.length + 1)
+  // #34: a session may live in a different workspace than the process was
+  // booted in (the web UI picks one per session). Folds only see events, so
+  // an absolute path outside the boot root is relativized by structure —
+  // from the last workspace marker — which is exact for the three trees the
+  // folds read and identical to the root-based result inside the boot root.
+  for (const marker of ['/chapters/', '/contracts/', '/literature/reading_notes/']) {
+    const at = p.lastIndexOf(marker)
+    if (at >= 0) return p.slice(at + 1)
+  }
   return undefined
 }
 

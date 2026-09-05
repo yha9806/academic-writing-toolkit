@@ -52,7 +52,7 @@ export function toolCallResponse(rawCallId: string, name: string, args: object):
 export class ScriptedAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
 
-  constructor(private readonly script: StreamChunk[][]) {
+  constructor(readonly script: StreamChunk[][]) {
     super()
   }
 

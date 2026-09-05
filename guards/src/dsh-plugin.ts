@@ -23,7 +23,7 @@
 // - `tools/result` is an emit event `(execution, result)` observed after the
 //   authoritative outcome; it only drives the fallback counter.
 
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, realpathSync, statSync } from 'node:fs'
 import { join, relative, resolve, isAbsolute } from 'node:path'
 import { lintNotes, hasErrors } from './notes-lint.ts'
 import {
@@ -64,7 +64,7 @@ export interface GuardedExecution {
   /** Legacy structural field name kept for compatibility. */
   args?: unknown
   /** The agent on whose behalf the call runs (rc.6: set by the agent loop). */
-  agent?: { session?: unknown }
+  agent?: { session?: { header?: { cwd?: string } } }
 }
 
 /** Structural slice of rc.6's `ctx.sessionProjections` registry. */
@@ -110,11 +110,35 @@ function callArgs(execution: GuardedExecution): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
 }
 
+/**
+ * Canonical absolute path: realpath of the deepest existing ancestor with the
+ * remainder re-appended. Both the session header's cwd (validated, real) and
+ * the model's tool arguments (often the symlinked spelling, e.g. macOS
+ * /var -> /private/var) must land on one spelling, or `relative()` calls a
+ * file inside the workspace outside it and every path guard silently passes.
+ */
+export function canonicalPath(p: string): string {
+  const abs = resolve(p)
+  let existing = abs
+  const rest: string[] = []
+  while (!existsSync(existing)) {
+    const parent = resolve(existing, '..')
+    if (parent === existing) return abs
+    rest.unshift(existing.slice(parent.length + 1))
+    existing = parent
+  }
+  try {
+    return rest.length === 0 ? realpathSync(existing) : join(realpathSync(existing), ...rest)
+  } catch {
+    return abs
+  }
+}
+
 export function fsRepoView(projectRoot: string): RepoView {
-  const root = resolve(projectRoot)
+  const root = canonicalPath(projectRoot)
   return {
     relative(filePath: string) {
-      const abs = isAbsolute(filePath) ? filePath : join(root, filePath)
+      const abs = isAbsolute(filePath) ? canonicalPath(filePath) : join(root, filePath)
       const rel = relative(root, abs)
       if (rel.startsWith('..')) return undefined
       return rel.split('\\').join('/')
@@ -231,7 +255,26 @@ export function validateConfig(config?: Config): { projectRoot: string; budget: 
  */
 export function apply(ctx: GuardHostContext, config?: Config): void {
   const { projectRoot, budget } = validateConfig(config)
-  const repo = fsRepoView(projectRoot)
+  const bootRepo = fsRepoView(projectRoot)
+
+  // #34: guard decisions bind to the workspace of the SESSION that made the
+  // call — the durable session header's cwd — not to the directory the
+  // process was booted in. The boot root remains the fallback (headless: one
+  // process, one workspace) and the boot-time truth test is unchanged. A
+  // session whose cwd is not an AWT workspace is evaluated against that
+  // directory as it is: no notes there means cited writes are denied.
+  const repos = new Map<string, RepoView>([[canonicalPath(projectRoot), bootRepo]])
+  const repoFor = (execution: GuardedExecution): RepoView => {
+    const cwd = execution.agent?.session?.header?.cwd
+    if (typeof cwd !== 'string' || cwd === '') return bootRepo
+    const key = canonicalPath(cwd)
+    let view = repos.get(key)
+    if (view === undefined) {
+      view = fsRepoView(key)
+      repos.set(key, view)
+    }
+    return view
+  }
 
   // P2: the page-budget counter (and its siblings) are session-log folds,
   // not plugin state. Registration prefers the dependency gate so load order
@@ -267,6 +310,7 @@ export function apply(ctx: GuardHostContext, config?: Config): void {
 
   ctx.tools.guard((execution) => {
     const call: ToolCall = { tool: execution.name, args: callArgs(execution) }
+    const repo = repoFor(execution)
     const denial =
       decide(call, repo) ??
       decidePdfRead(call, { pagesRead: pagesReadFor(execution) }, budget) ??
@@ -295,14 +339,14 @@ export function apply(ctx: GuardHostContext, config?: Config): void {
     // keyed by the on-disk active contract. Over-counts untyped failures as
     // strikes — the conservative, ask-earlier direction — and is never
     // consulted when the projection snapshot is available.
-    const contract = repo.activeContract()
+    const contract = repoFor(execution).activeContract()
     if (contract?.path === undefined) return undefined
     const denied = fallbackDenied.get(contract.path) ?? 0
     return denied >= REVISION_ESCALATION_THRESHOLD ? { contract: contract.path, denied } : undefined
   }
   ctx.on?.('tools/pre-execute', async (execution, next) => {
     const call: ToolCall = { tool: execution.name, args: callArgs(execution) }
-    const escalation = shouldAskEscalation(call, repo, escalationFor(execution))
+    const escalation = shouldAskEscalation(call, repoFor(execution), escalationFor(execution))
     if (escalation !== undefined) {
       return { kind: 'ask', reason: escalationAskReason(escalation.contract, escalation.denied) }
     }
@@ -311,6 +355,7 @@ export function apply(ctx: GuardHostContext, config?: Config): void {
 
   ctx.on?.('tools/result', (execution, result) => {
     const call: ToolCall = { tool: execution.name, args: callArgs(execution) }
+    const repo = repoFor(execution)
     if (result.isError) {
       const rel = typeof call.args.file_path === 'string' ? repo.relative(call.args.file_path) : undefined
       if (rel !== undefined && rel.startsWith('chapters/') && (call.tool === 'write' || call.tool === 'edit')) {

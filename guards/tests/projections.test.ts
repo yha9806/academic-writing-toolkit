@@ -310,3 +310,14 @@ test('parseContractSource and parseNotesSource are the single parse authority', 
   assert.deepEqual(parseNotesSource(NOTES_BODY), { surname: 'smith', year: '2024' })
   assert.equal(parseNotesSource('no source line here'), undefined)
 })
+
+// --- #34: folds relativize other-workspace paths by structure ------------------
+
+test('relativeToRoot: inside the boot root by prefix, outside it by workspace marker, unrelated is undefined', () => {
+  assert.equal(relativeToRoot('/boot/ws', '/boot/ws/chapters/ch1.md'), 'chapters/ch1.md')
+  assert.equal(relativeToRoot('/boot/ws', 'chapters/ch1.md'), 'chapters/ch1.md')
+  assert.equal(relativeToRoot('/boot/ws', '/other/thesis/chapters/ch2.md'), 'chapters/ch2.md')
+  assert.equal(relativeToRoot('/boot/ws', '/other/thesis/contracts/c.md'), 'contracts/c.md')
+  assert.equal(relativeToRoot('/boot/ws', '/other/thesis/literature/reading_notes/x_NOTES.md'), 'literature/reading_notes/x_NOTES.md')
+  assert.equal(relativeToRoot('/boot/ws', '/other/thesis/README.md'), undefined)
+})
