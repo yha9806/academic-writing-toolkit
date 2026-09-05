@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>跨章节审阅 · AWT</title>
+  <style>
+    :root{--ink:#183044;--muted:#566c7d;--blue:#17639e;--navy:#123e67;--line:#c9d7e1;--soft:#f3f7fa;--warn:#895000;--good:#246744}
+    *{box-sizing:border-box}body{margin:0;background:#f7f9fc;color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}main{max-width:1180px;margin:auto;padding:26px 28px 70px}h1,h2,h3{line-height:1.3;color:var(--navy)}h1{font-size:34px;margin:18px 0 10px}h2{font-size:23px}h3{font-size:18px}.muted,small{color:var(--muted)}.bar,.actions,.status-line{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.bar{justify-content:space-between}.bar a,a{color:var(--blue)}.tag{background:#e9f2f9;border-radius:20px;padding:5px 12px;font-size:14px;overflow-wrap:anywhere}.panel{background:white;border:1px solid var(--line);border-radius:15px;padding:24px;margin:22px 0;box-shadow:0 3px 12px #17354b04}.panel h2:first-child{margin-top:0}.grid{display:grid;grid-template-columns:2fr 1fr;gap:22px}.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}.field{display:block;margin:14px 0;font-weight:650}.field input,.field select,.field textarea{display:block;width:100%;margin-top:7px}.field small{display:block;font-weight:400;margin-top:6px}
+    input,select,textarea,button{font:inherit}input[type=file],input[type=number],select,textarea{padding:10px 12px;border:1px solid #8b9eae;border-radius:8px;background:#fff;max-width:100%}textarea{resize:vertical}button{padding:10px 16px;min-height:44px;border:1px solid var(--blue);border-radius:8px;background:var(--blue);color:white;cursor:pointer;font-weight:700}button.secondary{background:#fff;color:var(--blue)}button.danger{background:#fff;color:#93332e;border-color:#c89794}button:disabled{background:#e1e8ed;border-color:#c8d4dc;color:#657887;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #dd9600;outline-offset:3px}details{border-top:1px solid var(--line);margin-top:18px;padding-top:14px}summary{cursor:pointer;font-weight:700}.notice{background:#edf5fc;border-left:4px solid var(--blue);padding:12px 15px;border-radius:0 8px 8px 0}.error{background:#fff0ef;color:#842d29;border-left:4px solid #a33c35;padding:12px 16px}.state{border-radius:6px;background:#e8f1f9;color:var(--blue);padding:5px 10px;font-weight:700}.state.good{background:#eaf5ed;color:var(--good)}.state.warn{background:#fff2d9;color:var(--warn)}progress{display:block;width:100%;height:16px;margin:15px 0;accent-color:var(--blue)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;margin:12px 0;font-size:14px}th{color:var(--muted);font-weight:650;background:var(--soft)}td,th{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}td{overflow-wrap:anywhere}td select{font-size:14px;padding:5px;width:130px}.badge{font-size:13px;border-radius:5px;background:var(--soft);padding:3px 7px;white-space:nowrap}.unchecked{color:var(--warn)}.checked{color:var(--good)}.job-row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}.job-row span{overflow-wrap:anywhere}.issue,.claim{border:1px solid var(--line);border-left:4px solid var(--blue);padding:14px 16px;border-radius:7px;margin:12px 0}.issue.high{border-left-color:#b35437}.quote{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);padding:10px;border-radius:6px}.asset-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.asset{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;gap:9px;flex-wrap:wrap;align-items:center}.asset span{flex:1;min-width:130px}.asset button{font-size:14px;padding:5px 10px;min-height:36px}.pages img{width:100%;height:auto;border:1px solid var(--line);background:white}.pages figure{margin:0}.pages figcaption{font-weight:700;margin-bottom:8px}.empty-page{min-height:220px;background:var(--soft);display:grid;place-items:center}.stat{font-size:14px;color:var(--muted)}dialog{max-width:min(96vw,1000px);max-height:94vh;border:1px solid var(--line);border-radius:12px;padding:20px}dialog::backdrop{background:#142b4377}dialog img{display:block;max-width:100%;max-height:75vh;object-fit:contain;margin-top:12px}.check{display:flex;align-items:flex-start;gap:10px;margin:14px 0}.check input{margin-top:7px}.empty{padding:14px 0;color:var(--muted)}[hidden]{display:none!important}
+    #preview{width:min(94vw,1100px);max-width:1100px;overflow:auto}#preview img{width:100%;height:auto;max-height:none}#close-preview{position:sticky;top:0}#source-dialog{width:min(94vw,900px)}#source-spans{white-space:pre-wrap}#source-text{font:inherit}.actions [data-count]{flex:1;text-align:center}#layout-page{width:110px}
+    #submission-panel input[type=text],#sub-confirm-dialog input[type=text]{padding:10px 12px;border:1px solid #8b9eae;border-radius:8px;max-width:100%}#sub-counts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.sub-count{padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--soft)}.sub-count strong{display:block;font-size:25px;color:var(--navy)}.sub-block{border-left-color:#a33c35}.sub-warning,.sub-manual{border-left-color:#b47a1d}.sub-pass,.sub-recorded{border-left-color:var(--good)}#sub-stale{font-weight:650}#sub-confirm-dialog{width:min(94vw,700px)}#sub-confirm-dialog input,#sub-confirm-dialog textarea{width:100%}
+    @media(max-width:760px){main{padding:18px 14px 40px}h1{font-size:28px}.panel{padding:17px}.grid,.two,.asset-list{grid-template-columns:1fr}td,th{padding:9px 7px}.bar{font-size:14px}.actions button{flex:1}.job-row{align-items:flex-start}table{min-width:620px}}
+  </style>
+</head>
+<body><main>
+  <nav class="bar"><a href="/">← AWT 单文件审阅与修改副本</a><span class="tag" id="model">读取模型配置…</span></nav>
+  <h1>把章节放在一起审阅</h1>
+  <p class="muted">保留原文定位，查看主张与依据，明确哪些内容还没有检查。每个模型批次完成后自动保存。</p>
+  <div id="error" class="error" role="alert" hidden></div>
+  <details id="saved"><summary>继续本机保存的任务</summary><div id="job-list" class="empty">正在读取…</div></details>
+
+  <section class="panel" id="intake">
+    <h2>1. 导入材料，先看检查计划</h2>
+    <div class="grid"><div>
+      <label class="field">章节、论文与图表材料<input id="files" type="file" multiple accept=".pdf,.docx,.txt,.md,.tex,.csv,.json,.bib"><small>一次最多 20 份、每份 80 MB、合计 160 MB。PDF 保留页面定位；DOCX 保留段落与表格定位。</small></label>
+      <label class="field">这次希望检查什么？<textarea id="goal" rows="3">检查摘要、方法、结果、讨论的数字、方向和结论是否一致，并核对正文与图表之间的关系。</textarea></label>
+    </div><div>
+      <label class="field">调用预算<select id="profile"><option value="economy">经济档 · 适合较旧、较小的模型</option><option value="legacy">小上下文档 · 更低的单批预算</option><option value="balanced">均衡档 · 更大的单批上下文</option></select></label>
+      <label class="field">本轮调用次数上限<input id="max-calls" type="number" min="1" max="5000" value="12"></label>
+      <p class="stat" id="profile-note">每批约 4,000 输入 / 1,200 输出 token；图像默认不发送。</p>
+    </div></div>
+    <details><summary>总 token 预算与单价估算</summary><div class="two">
+      <label class="field">总 token 预算（本地估算）<input id="total-tokens" type="number" min="3000" max="20000000" value="65000"></label>
+      <div><label class="field">输入单价 / 百万 token（可留空）<input id="input-price" type="number" min="0" max="10000" step="0.01" placeholder="填写当前模型单价"></label><label class="field">输出单价 / 百万 token（同一货币）<input id="output-price" type="number" min="0" max="10000" step="0.01" placeholder="填写当前模型单价"></label></div>
+    </div><p class="muted">达到预算就暂停。兼容模式不要求模型支持工具调用或原生 JSON Schema。费用以服务商账单为准。</p></details>
+    <div class="actions"><button id="import">导入并查看计划</button><span id="import-status" role="status" class="stat">导入与预览在本地完成，不调用模型。</span></div>
+  </section>
+
+  <section class="panel" id="task" hidden>
+    <div class="bar"><h2>2. 分批检查与进度</h2><span id="state" class="state"></span></div>
+    <p id="task-goal"></p><progress id="progress" max="1" value="0" aria-label="已完成批次"></progress>
+    <div class="status-line"><strong id="progress-text" role="status"></strong><span id="cost" class="stat"></span></div>
+    <p id="task-error" class="unchecked" role="status"></p><p id="plan-summary" class="notice"></p><p id="revision-summary" class="stat"></p>
+    <div class="actions"><button id="start">开始审阅</button><button id="pause" class="secondary">暂停</button><button id="cancel" class="danger">取消任务</button><button id="download" class="secondary">导出检查报告</button><a href="#submission-panel">投稿前校验（本地）</a></div>
+    <p class="stat">开始后仅把本轮选定的材料发给上方模型。暂停或取消会停止后续批次；正在执行的请求结束后保存，仍可能计费。</p>
+    <label id="uncertain-label" class="check" hidden><input type="checkbox" id="retry-uncertain">重试上次结果不明的请求；我了解这些请求可能已经计费。</label>
+    <details><summary>继续前调整总预算</summary><div class="two"><label class="field">调用次数总上限<input id="resume-calls" type="number" min="1" max="5000"></label><label class="field">token 总上限<input id="resume-tokens" type="number" min="3000" max="20000000"></label></div><p class="stat">包含此前已预留的请求，不会重置用量，也不会重新发送已完成批次。</p></details>
+    <details><summary>中途补充或调整要求</summary><label class="field">更新后的完整要求<textarea id="steering" rows="3"></textarea></label><p class="stat">更新后暂停。旧结果保留，并标为不适用于新要求；点击继续后复查，调用预算不重置。</p><button id="steer" class="secondary">保存新要求并暂停</button></details>
+    <details><summary>替换修改文件，只复查受影响部分</summary><label class="field">选择已修改的同名文件<input id="revision-files" type="file" multiple accept=".pdf,.docx,.txt,.md,.tex,.csv,.json,.bib"></label><p class="stat">请先暂停审阅。相同要求、模型和整批原文下的已完成结果可复用；关联检查会重新规划，累计预算保留。原文件副本仍保存在本机。</p><button id="revise" class="secondary">导入修改版本并查看复查计划</button><p id="revision-status" role="status"></p></details>
+    <details id="steps-detail"><summary>批次记录与模型用量</summary><div id="steps"></div><p id="cost-note" class="stat"></p><details id="history-detail"><summary>以前版本的请求记录</summary><div id="history"></div></details></details>
+  </section>
+
+  <section class="panel" id="coverage-panel" hidden>
+    <h2>3. 章节覆盖与未检查内容</h2><p class="muted">文字分批审阅和跨章节对照分别记录。首次运行前可修正自动识别的章节类别。</p>
+    <div id="chapters"></div>
+    <details id="coverage-detail"><summary>章节类别与详细覆盖</summary><div id="coverage"></div></details>
+    <details id="cross-detail"><summary>摘要—方法—结果—讨论的对照范围</summary><div id="cross-coverage"></div></details>
+    <details id="assets-detail"><summary>图像与页面：选择需要额外检查的部分</summary><p id="vision-note" class="stat"></p><div id="assets"></div></details>
+    <details id="materials-detail"><summary>查找原文、定位和未检查内容</summary><div id="documents"></div><p id="source-filter" class="stat"></p><div class="actions"><input id="source-search" type="search" aria-label="搜索原文或页码" placeholder="搜索原文或页码"><button id="search-source" class="secondary">查找</button><button id="clear-source" class="secondary">查看全部原文</button><button id="unchecked-source" class="secondary">只看未检查内容</button></div><div id="blocks"></div></details>
+  </section>
+
+  <section class="panel" id="results" hidden>
+    <h2>4. 主张—证据索引与审阅发现</h2><p class="stat">引文和定位由本地代码逐项匹配。主张关系由模型提出，仍需作者判断；没有配对依据的主张会单独显示。</p>
+    <div id="findings"></div><details id="claims-detail" open><summary>主张—证据索引</summary><div id="claims"></div></details>
+    <details><summary>尚缺的材料与本轮限制</summary><ul id="limitations"></ul></details>
+  </section>
+
+  <section class="panel" id="layout-panel" hidden>
+    <h2>5. 修改后的排版对照</h2><p class="muted">上传已修改副本，与导入时的原文件逐页比较。此步骤在本地渲染，不调用模型。</p>
+    <div class="two"><label class="field">原文件<select id="layout-original"></select></label><label class="field">修改后的 PDF 或 DOCX<input id="layout-revised" type="file" accept=".pdf,.docx"></label></div>
+    <div class="two"><label class="field">起始页<input id="layout-from" type="number" min="1" max="1000" value="1"></label><label class="field">结束页（留空检查到文末）<input id="layout-to" type="number" min="1" max="1000"></label></div>
+    <div class="actions"><button id="compare-layout" class="secondary">渲染并对照</button><span id="layout-status" class="stat" role="status">支持整份长文档逐页保存。DOCX 需要本地 LibreOffice，或先在 Word 中导出 PDF。</span></div>
+    <div id="layout-results" hidden>
+      <label class="field">保存的对照版本<select id="layout-version"></select></label><p id="layout-summary" class="notice"></p>
+      <progress id="layout-progress" aria-label="已渲染页数" max="1" value="0"></progress><div class="actions"><button id="pause-layout" class="secondary">暂停排版核验</button><button id="resume-layout" class="secondary">继续未完成页</button><button id="cancel-layout" class="danger">取消排版核验</button></div>
+      <div class="actions"><label class="field">对照页<input id="layout-page" type="number" min="1" max="1000" value="1"></label><button id="show-layout-page" class="secondary">查看这一页</button><span id="layout-page-status" role="status"></span></div><div id="page-pair" class="two pages"></div>
+      <label class="check"><input id="page-checked" type="checkbox">我已检查本页图表截断、文字重叠、字体和分页。</label>
+      <button id="save-layout-check" class="secondary">保存本页人工检查</button><p class="stat">页面变化和越界提示用于定位；逐页勾选的人工记录绑定这一份修改副本的哈希。</p>
+    </div>
+  </section>
+  <section class="panel" id="submission-panel" hidden>
+    <div class="bar"><h2>6. 投稿前校验</h2><span class="tag">本地规则检查 · 不调用模型</span></div>
+    <p>按目标期刊或学校要求，核对所选稿件、图表引用和材料。报告保留规则与文件版本，明确哪些需要人工处理、哪些尚未检查。</p>
+    <div id="sub-error" class="error" role="alert" hidden></div>
+    <details id="sub-rules" open><summary>本次要求与材料范围</summary>
+      <div class="two"><label class="field">用途<select id="sub-kind"><option value="journal">期刊 / 会议投稿</option><option value="thesis">毕业论文 / 学位送审</option><option value="other">其他交付</option></select></label><label class="field">目标期刊、会议或学校<input id="sub-target" type="text" maxlength="200" placeholder="填写实际目标名称"></label></div>
+      <label class="field">要求来源与版本<input id="sub-requirements-source" type="text" maxlength="1200" placeholder="指南链接、文件名或更新日期；此处不会自动访问链接"></label>
+      <label class="check"><input type="checkbox" id="sub-requirements-confirmed">我已按本次适用要求核对以下规则。</label>
+      <details><summary>选择正文、参考文献与附件</summary><p class="stat">用于计数的正文只选一个实际版本，避免把同一稿件的 PDF 和源文件重复计入。封面或投稿信可选为附件；匿名扫描只检查正文。</p><div class="table-wrap" id="sub-files"></div></details>
+      <details><summary>字数、页数与图表规格</summary><div class="two">
+        <label class="field">文字统计口径<select id="sub-count-unit"><option value="words">英文词 + 逐个汉字</option><option value="characters">非空白字符</option></select></label>
+        <label class="field">正文长度上限<input id="sub-max-words" type="number" min="1" max="12000000" placeholder="未要求可留空"></label>
+        <label class="field">摘要长度上限<input id="sub-max-abstract-words" type="number" min="1" max="12000000" placeholder="与正文使用相同统计口径"></label>
+        <label class="field">正文页数上限<input id="sub-max-pages" type="number" min="1" max="20000" placeholder="以所选最终 PDF 页数为准"></label>
+        <label class="field">图数量上限<input id="sub-max-figures" type="number" min="1" max="10000" placeholder="按可识别独立图号统计"></label>
+        <label class="field">表数量上限<input id="sub-max-tables" type="number" min="1" max="10000" placeholder="按可识别独立表号统计"></label>
+        <label class="field">页面宽度要求（mm）<input id="sub-page-width-mm" type="number" min="1" max="2000" placeholder="例如 210"></label>
+        <label class="field">页面高度要求（mm）<input id="sub-page-height-mm" type="number" min="1" max="2000" placeholder="例如 297"></label>
+        <label class="field">图像最低 DPI 要求<input id="sub-min-image-dpi" type="number" min="1" max="2400" placeholder="由作者按最终版面尺寸核验"></label>
+      </div><label class="check"><input id="sub-embedded-fonts" type="checkbox">要求 PDF 已识别页面字体全部嵌入。</label><p class="stat">提取统计包含标题、图注和表格，排除识别到的参考文献。复杂排版的统计口径和有效图像分辨率仍需人工核对。</p></details>
+      <details><summary>预期大纲、必需声明与材料</summary>
+        <label class="field">大纲：每行一个章节，可补充任务与关键词<textarea id="sub-outline" rows="5" placeholder="方法 | 说明研究对象与比较方法 | 样本；对照&#10;结果 | 回答研究问题并报告失败案例 | 失败案例"></textarea><small>填写“标题 | 本章任务 | 关键词1；关键词2”。可以只填标题。标题和关键词自动匹配；任务是否真正完成单独人工核对。</small></label>
+        <div class="two"><label class="field">必需声明标识：每行一项<textarea id="sub-declarations" rows="4" placeholder="例如：Data availability&#10;按实际指南填写，未要求可留空"></textarea></label><label class="field">必需文件名：每行一项<textarea id="sub-required-files" rows="4" placeholder="例如：cover-letter.docx&#10;须已导入并纳入本次范围"></textarea></label></div>
+      </details>
+      <details><summary>引用方式、匿名与审阅完成要求</summary>
+        <label class="field">文内引用配对方式<select id="sub-citation-mode"><option value="auto">自动识别常见形式</option><option value="tex">LaTeX cite 与 BibTeX 键</option><option value="numbered">数字引用与编号文献表</option><option value="author_year">作者—年份与 BibTeX</option><option value="none">本轮不检查引用配对</option></select></label>
+        <label class="check"><input id="sub-anonymous" type="checkbox">本轮提交的是匿名正文。</label>
+        <label class="field">匿名时需核对的姓名、机构或其他词语：每行一项<textarea id="sub-anonymous-terms" rows="3" placeholder="由作者填写；命中可能来自正常引文，需结合上下文判断"></textarea></label>
+        <label class="check"><input id="sub-require-model-review" type="checkbox">要求当前正文及已规划的章节、跨章节批次完成；未完成时显示未检查。</label>
+        <label class="check"><input id="sub-require-layout" type="checkbox">要求已有覆盖全稿、绑定当前正文哈希的逐页排版人工记录。</label>
+      </details>
+      <div class="actions"><button id="sub-save" class="secondary">保存校验规则</button><button id="sub-reload" class="secondary">重新载入已保存规则</button><span id="sub-dirty" class="stat"></span></div>
+    </details>
+    <div class="actions" style="margin-top:20px"><button id="sub-run">运行投稿前校验</button><button id="sub-cancel" class="secondary" disabled>取消本地校验</button><span id="sub-progress" role="status" class="stat"></span></div>
+    <div id="sub-report" hidden>
+      <label class="field">保存的报告版本<select id="sub-report-version"></select></label>
+      <p id="sub-stale" class="notice" role="status"></p><div id="sub-counts"></div><p id="sub-metrics" class="stat"></p>
+      <div class="actions"><label>显示 <select id="sub-filter" aria-label="筛选校验状态"><option value="all">所有状态</option><option value="block">阻断问题</option><option value="warning">警告</option><option value="manual">需人工核对</option><option value="unchecked">尚未检查</option><option value="pass">规则检查通过</option><option value="recorded">已记录人工核对</option></select></label><button id="sub-json" class="secondary">下载完整报告（JSON）</button><button id="sub-markdown" class="secondary">下载阅读版（Markdown）</button></div>
+      <div id="sub-items"></div><nav class="actions" aria-label="投稿校验分页"><button id="sub-prev" class="secondary">上一页</button><span id="sub-page-count" class="stat"></span><button id="sub-next" class="secondary">下一页</button></nav>
+      <details><summary>本报告绑定的文件</summary><div class="table-wrap" id="sub-manifest"></div><p id="sub-report-hash" class="stat"></p></details>
+    </div>
+  </section>
+  <dialog id="sub-confirm-dialog"><h3 id="sub-confirm-title"></h3><p>记录你对这一项的实际核对结果。记录只适用于本报告绑定的文件与规则。</p><div id="sub-confirm-error" class="error" role="alert" hidden></div><label class="field">核对人<input id="sub-reviewer" type="text" maxlength="100" autocomplete="off"></label><label class="field">处理结果<select id="sub-decision"><option value="checked">已核对并处理</option><option value="not_applicable">本稿不适用</option><option value="reopen">撤回此前记录</option></select></label><label class="field">处理说明或依据<textarea id="sub-note" rows="4" maxlength="2000"></textarea></label><div class="actions"><button id="sub-confirm-save">保存人工记录</button><button id="sub-confirm-close" class="secondary">返回报告</button></div></dialog>
+  <dialog id="preview"><button id="close-preview" class="secondary">关闭预览</button><p id="preview-label"></p><img id="preview-image" alt="所选原文页面或图像"></dialog>
+  <dialog id="source-dialog"><button id="close-source" class="secondary">关闭原文</button><h3 id="source-title"></h3><pre id="source-text" class="quote"></pre><div id="source-spans" class="stat"></div><button id="source-preview" class="secondary" hidden>查看所在 PDF 页面</button></dialog>
+</main><script src="/project.js"></script><script src="/submission.js"></script></body></html>

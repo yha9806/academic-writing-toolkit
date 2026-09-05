@@ -1,0 +1,540 @@
+{
+  "kind": "agent_operated_real_document_technical_attempt",
+  "source": {
+    "title": "Enabling Large Language Models to Generate Text with Citations",
+    "publisher_url": "https://aclanthology.org/2023.emnlp-main.398/",
+    "sha256": "ae9868f07f0f7ffaae5346778f79b7827d9ec6b13b1e6aae4dff6b2ffc37a2e1",
+    "pages": 24,
+    "source_unchanged": true
+  },
+  "provider": {
+    "provider": "ollama",
+    "protocol": "chat-completions",
+    "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "response_format": "prompt",
+    "max_output_tokens": 1600,
+    "supports_images": false
+  },
+  "budget": {
+    "profile": "economy",
+    "input_tokens": 8000,
+    "output_tokens": 1600,
+    "max_calls": 24,
+    "total_tokens": 250000,
+    "input_price_per_million": null,
+    "output_price_per_million": null
+  },
+  "state": "budget_paused",
+  "error": "已达到本轮调用或 token 预算；未检查内容仍保留在覆盖表。可调整总预算后继续。",
+  "elapsed_seconds": 33.313,
+  "calls_reserved": 24,
+  "tokens_reserved_estimate": 121791,
+  "observed_provider_usage": [
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 9.578,
+      "usage": {
+        "prompt_tokens": 1113,
+        "completion_tokens": 24,
+        "total_tokens": 1137
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.406,
+      "usage": {
+        "prompt_tokens": 1768,
+        "completion_tokens": 24,
+        "total_tokens": 1792
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 1.11,
+      "usage": {
+        "prompt_tokens": 5676,
+        "completion_tokens": 24,
+        "total_tokens": 5700
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.609,
+      "usage": {
+        "prompt_tokens": 1250,
+        "completion_tokens": 24,
+        "total_tokens": 1274
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 1.422,
+      "usage": {
+        "prompt_tokens": 7044,
+        "completion_tokens": 24,
+        "total_tokens": 7068
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 1.062,
+      "usage": {
+        "prompt_tokens": 3258,
+        "completion_tokens": 24,
+        "total_tokens": 3282
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.922,
+      "usage": {
+        "prompt_tokens": 3812,
+        "completion_tokens": 24,
+        "total_tokens": 3836
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.719,
+      "usage": {
+        "prompt_tokens": 2124,
+        "completion_tokens": 24,
+        "total_tokens": 2148
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.672,
+      "usage": {
+        "prompt_tokens": 2854,
+        "completion_tokens": 24,
+        "total_tokens": 2878
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.75,
+      "usage": {
+        "prompt_tokens": 3015,
+        "completion_tokens": 24,
+        "total_tokens": 3039
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.578,
+      "usage": {
+        "prompt_tokens": 1449,
+        "completion_tokens": 24,
+        "total_tokens": 1473
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.469,
+      "usage": {
+        "prompt_tokens": 1267,
+        "completion_tokens": 24,
+        "total_tokens": 1291
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 1.36,
+      "usage": {
+        "prompt_tokens": 6686,
+        "completion_tokens": 24,
+        "total_tokens": 6710
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 1.157,
+      "usage": {
+        "prompt_tokens": 4377,
+        "completion_tokens": 24,
+        "total_tokens": 4401
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 1.281,
+      "usage": {
+        "prompt_tokens": 5355,
+        "completion_tokens": 24,
+        "total_tokens": 5379
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.313,
+      "usage": {
+        "prompt_tokens": 9092,
+        "completion_tokens": 24,
+        "total_tokens": 9116
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 1.125,
+      "usage": {
+        "prompt_tokens": 2819,
+        "completion_tokens": 24,
+        "total_tokens": 2843
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.656,
+      "usage": {
+        "prompt_tokens": 2317,
+        "completion_tokens": 24,
+        "total_tokens": 2341
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.453,
+      "usage": {
+        "prompt_tokens": 997,
+        "completion_tokens": 24,
+        "total_tokens": 1021
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.25,
+      "usage": {
+        "prompt_tokens": 711,
+        "completion_tokens": 24,
+        "total_tokens": 735
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.297,
+      "usage": {
+        "prompt_tokens": 1328,
+        "completion_tokens": 24,
+        "total_tokens": 1352
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.609,
+      "usage": {
+        "prompt_tokens": 2678,
+        "completion_tokens": 24,
+        "total_tokens": 2702
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 0.89,
+      "usage": {
+        "prompt_tokens": 3637,
+        "completion_tokens": 24,
+        "total_tokens": 3661
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 1.281,
+      "usage": {
+        "prompt_tokens": 5633,
+        "completion_tokens": 24,
+        "total_tokens": 5657
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false
+    }
+  ],
+  "progress": {
+    "completed": 24,
+    "planned": 486,
+    "cross_pending_planning": true,
+    "active": null
+  },
+  "coverage": {
+    "total_blocks": 5822,
+    "checked_blocks": 1056
+  },
+  "completed_phases": {
+    "text": 24
+  },
+  "failed_steps": [],
+  "finding_count": 0,
+  "retries": 0,
+  "human_review": "not_performed",
+  "product_acceptance": "pending_issue_39",
+  "real_user_cycle_complete": false,
+  "notes": [
+    "An actual locally hosted model was called; there are no mocked results in this record.",
+    "This technical attempt does not establish review quality or satisfy E2.",
+    "Only metadata and counts are published; source PDF, checkpoint and any model output remain in the local run directory.",
+    "No hosted DeepSeek model was called."
+  ]
+}

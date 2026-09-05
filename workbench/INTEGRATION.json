@@ -1,0 +1,374 @@
+{
+  "sourceBaseCommit": "80827f8",
+  "integratedBaseCommit": "8e5f116c3b462f52a7a8b667b869c7d28d2681cb",
+  "snapshotUtc": "20260905T173721Z",
+  "scope": "Long-document Workbench with its provider, revision, layout and submission dependencies; selected source bytes before integration edits.",
+  "files": [
+    {
+      "source": "awt/__init__.py",
+      "destination": "workbench/awt/__init__.py",
+      "bytes": 78,
+      "sha256": "07f35d54193fefc28ea01d4a9e6565d7d85e4fca7b6c9a39cc96da81af266a03"
+    },
+    {
+      "source": "awt/context_pack.py",
+      "destination": "workbench/awt/context_pack.py",
+      "bytes": 40738,
+      "sha256": "4c80b1ce3c22e446e7fffc79b0982e26661870ed3ec1c88b6b2c67b3651f2cc8"
+    },
+    {
+      "source": "awt/cross_review.py",
+      "destination": "workbench/awt/cross_review.py",
+      "bytes": 18227,
+      "sha256": "5fb856b680e5468df0a97f5d8d3442d752274e85d3ff729b9528c58583f252c2"
+    },
+    {
+      "source": "awt/demo-paper.md",
+      "destination": "workbench/awt/demo-paper.md",
+      "bytes": 833,
+      "sha256": "09fdf0eff8393e95aa147a64ed3158cfef117d25e1f6e473fb13d4a211713b1d"
+    },
+    {
+      "source": "awt/documents.py",
+      "destination": "workbench/awt/documents.py",
+      "bytes": 26709,
+      "sha256": "e2c08659154803756e17fc1a81728644f7507dfc3cd8759ea799f3638ab32fcd"
+    },
+    {
+      "source": "awt/layout_jobs.py",
+      "destination": "workbench/awt/layout_jobs.py",
+      "bytes": 11913,
+      "sha256": "41b6a50006b7de4aff6609a1f0a111dce7e8ff2d62af3db1e6c8fe5528b39bbd"
+    },
+    {
+      "source": "awt/mvp.py",
+      "destination": "workbench/awt/mvp.py",
+      "bytes": 104165,
+      "sha256": "0aeae5a5840b921309e262a5461eb14b41d1671340f9688aa5fd409f92d00de8"
+    },
+    {
+      "source": "awt/mvp_index.html",
+      "destination": "workbench/awt/mvp_index.html",
+      "bytes": 33875,
+      "sha256": "c01e3a67635d03ce7146a97cfef7a8cb0c5a99a7452525e44b3c28cc2c34bb77"
+    },
+    {
+      "source": "awt/providers.py",
+      "destination": "workbench/awt/providers.py",
+      "bytes": 20426,
+      "sha256": "d7f410a3b333d152b16cfe20f45a8038314cfe168e9f49e21e8f3dc09cf49d9e"
+    },
+    {
+      "source": "awt/review_index.py",
+      "destination": "workbench/awt/review_index.py",
+      "bytes": 4944,
+      "sha256": "188d67ed6a1027904f998e66bf98daadfd95ca77e08cd85fe6147a2f06934e7f"
+    },
+    {
+      "source": "awt/review_jobs.py",
+      "destination": "workbench/awt/review_jobs.py",
+      "bytes": 52634,
+      "sha256": "387670127fe1665199329a0908a88ab0b209a1b78d54da57402a6819e4a6c134"
+    },
+    {
+      "source": "awt/review_project.html",
+      "destination": "workbench/awt/review_project.html",
+      "bytes": 24204,
+      "sha256": "aca2fd32b030978876a15379b0f50e8ae05751523798bd47c745287dd072eaa1"
+    },
+    {
+      "source": "awt/review_project.js",
+      "destination": "workbench/awt/review_project.js",
+      "bytes": 26066,
+      "sha256": "af9a2a187b1c02018bb3bed887645df499192bce48defb39424afa770abd015b"
+    },
+    {
+      "source": "awt/submission.js",
+      "destination": "workbench/awt/submission.js",
+      "bytes": 11972,
+      "sha256": "bba3af1807030bf3cb1d7148c5b5d7946073851a04693c32ba99abff9ff0a7b1"
+    },
+    {
+      "source": "awt/submission_checks.py",
+      "destination": "workbench/awt/submission_checks.py",
+      "bytes": 39377,
+      "sha256": "c50c78cb4e36dec1d59a88de2d5b37e68f0d9a08a48123fcb5300aa85faae121"
+    },
+    {
+      "source": "awt/submission_jobs.py",
+      "destination": "workbench/awt/submission_jobs.py",
+      "bytes": 14961,
+      "sha256": "f315cba01c22c0850a3cb527668fa71b7706931b1e4c6b8a382abd1d25d8f30f"
+    },
+    {
+      "source": "awt/workflow_io.py",
+      "destination": "workbench/awt/workflow_io.py",
+      "bytes": 7888,
+      "sha256": "26acb7f618924ebf8aeb9765d04a75ac2fa5959ccaa7e8635ad665e2b3fd509c"
+    },
+    {
+      "source": "docs/setup-model-providers.md",
+      "destination": "workbench/docs/setup-model-providers.md",
+      "bytes": 10123,
+      "sha256": "5d84c9a389d83349d69938c867e0d6dcf2bc55b9be64503a5c51a28f88cbc7f4"
+    },
+    {
+      "source": "docs/setup-project-review.md",
+      "destination": "workbench/docs/setup-project-review.md",
+      "bytes": 15498,
+      "sha256": "03ff449079af741a988d7430cc0973fc0fa82ca147c2d6eb0116a00f4d852e17"
+    },
+    {
+      "source": "docs/setup-submission-checks.md",
+      "destination": "workbench/docs/setup-submission-checks.md",
+      "bytes": 6450,
+      "sha256": "42d586394305f7d25bfd605c34f229c5cc787872f977008c5e2ebb33a811e086"
+    },
+    {
+      "source": "docs/thesis-scale-review.md",
+      "destination": "workbench/docs/thesis-scale-review.md",
+      "bytes": 6477,
+      "sha256": "e24e16e699a56c2011c7c42b54a2283e433179a6e9434d0e85bc8568e26f4fe4"
+    },
+    {
+      "source": "examples/model-compatibility/profiles.json",
+      "destination": "workbench/examples/model-compatibility/profiles.json",
+      "bytes": 447,
+      "sha256": "6652f7549b7a63a1f94dcb639ce94b9e1221caf296209739c907c71f3651f1f7"
+    },
+    {
+      "source": "examples/model-compatibility/README.md",
+      "destination": "workbench/examples/model-compatibility/README.md",
+      "bytes": 1864,
+      "sha256": "7da38904205598d4161e8fcf9563c298967cbb812e77d5e0a10f88f68c66c557"
+    },
+    {
+      "source": "final_output/model-compatibility-dry-run-2026-09-05.json",
+      "destination": "workbench/final_output/model-compatibility-dry-run-2026-09-05.json",
+      "bytes": 2376,
+      "sha256": "98146e490aa52acee4510c5dc31e3c542bae047657886c9ee7b7de522948c252"
+    },
+    {
+      "source": "final_output/project-review-budget-qa-2026-09-05.jpg",
+      "destination": "workbench/final_output/project-review-budget-qa-2026-09-05.jpg",
+      "bytes": 65981,
+      "sha256": "b2098dae923ebc436b55e94e507a4add341089a5bb90c140177b2e6895822cee"
+    },
+    {
+      "source": "final_output/project-review-layout-qa-2026-09-05.jpg",
+      "destination": "workbench/final_output/project-review-layout-qa-2026-09-05.jpg",
+      "bytes": 59708,
+      "sha256": "454c129bafcf572a0a659a85560f4bb4895d683f42d37dfc55f5ce2753e855fb"
+    },
+    {
+      "source": "final_output/project-review-verification-2026-09-05.md",
+      "destination": "workbench/final_output/project-review-verification-2026-09-05.md",
+      "bytes": 4221,
+      "sha256": "58e6340b23bff761d730170e596010361fe2629c93cc2752c71ab7072f32b9b9"
+    },
+    {
+      "source": "final_output/project-review-zoom-qa-2026-09-05.jpg",
+      "destination": "workbench/final_output/project-review-zoom-qa-2026-09-05.jpg",
+      "bytes": 24679,
+      "sha256": "2f520fb1d25c7bdb0d4c32d98d64bf91603aa6d493b4dc55c4e2a174d22bc7cd"
+    },
+    {
+      "source": "final_output/submission-checks-verification-2026-09-05.md",
+      "destination": "workbench/final_output/submission-checks-verification-2026-09-05.md",
+      "bytes": 5404,
+      "sha256": "ab1c23de5fc4983be7402548f79e85178901a2f96d9158d09a2a3b4073a28b19"
+    },
+    {
+      "source": "final_output/submission-fictional-example-2026-09-05.json",
+      "destination": "workbench/final_output/submission-fictional-example-2026-09-05.json",
+      "bytes": 13361,
+      "sha256": "7049a606c0130fde6d2e851bb7f2a9267bb7588c29a3b62f983b13c32030d0cb"
+    },
+    {
+      "source": "final_output/submission-fictional-example-2026-09-05.md",
+      "destination": "workbench/final_output/submission-fictional-example-2026-09-05.md",
+      "bytes": 6246,
+      "sha256": "a57d925040c0b2fcc43cf5a81c5e1c7f45d47dd43c6aa13b1cb836c1ade1206b"
+    },
+    {
+      "source": "final_output/submission-install-verification-2026-09-05.json",
+      "destination": "workbench/final_output/submission-install-verification-2026-09-05.json",
+      "bytes": 783,
+      "sha256": "891311893ca7b89b19412066c0c55e0c324ed9141d6d210c03f09affa22780a1"
+    },
+    {
+      "source": "final_output/submission-manual-qa-2026-09-05.jpg",
+      "destination": "workbench/final_output/submission-manual-qa-2026-09-05.jpg",
+      "bytes": 104605,
+      "sha256": "04b65712ed205e25cac9541d5dca4c3031c863206c338b0751d96071bd14a694"
+    },
+    {
+      "source": "final_output/submission-report-qa-2026-09-05.jpg",
+      "destination": "workbench/final_output/submission-report-qa-2026-09-05.jpg",
+      "bytes": 126157,
+      "sha256": "ba5904c688fdbe7aa9fe4f4fdda6c579ef2a7d0d4683be7f51e2fd648c2a794c"
+    },
+    {
+      "source": "final_output/submission-stale-qa-2026-09-05.jpg",
+      "destination": "workbench/final_output/submission-stale-qa-2026-09-05.jpg",
+      "bytes": 118903,
+      "sha256": "14b782ab4babbacc665fdff179537a440d9977d1b820374f6702da56baa9e272"
+    },
+    {
+      "source": "final_output/submission-ui-verification-2026-09-05.json",
+      "destination": "workbench/final_output/submission-ui-verification-2026-09-05.json",
+      "bytes": 1388,
+      "sha256": "29f8e242d4fed38601d99e05620a6d31f6374f926021b159f80bb4501c864ed3"
+    },
+    {
+      "source": "final_output/submission-validation-error-qa-2026-09-05.jpg",
+      "destination": "workbench/final_output/submission-validation-error-qa-2026-09-05.jpg",
+      "bytes": 96278,
+      "sha256": "5be6a3c5c226f5f413aab16a782190d77a96e756c39c2594e54b9d68f5abd68d"
+    },
+    {
+      "source": "final_output/thesis-layout-enlarged-2026-09-05.jpg",
+      "destination": "workbench/final_output/thesis-layout-enlarged-2026-09-05.jpg",
+      "bytes": 215441,
+      "sha256": "5977200d250e4823438c62e304852cd1d8fabbe220cafa7acc63dd653d8101a5"
+    },
+    {
+      "source": "final_output/thesis-layout-page-199-2026-09-05.jpg",
+      "destination": "workbench/final_output/thesis-layout-page-199-2026-09-05.jpg",
+      "bytes": 147954,
+      "sha256": "4e415e358b04a4aab1c4fe3e78a7ca421b34fd7919e88c32e8a8d36c488b8817"
+    },
+    {
+      "source": "final_output/thesis-revision-completed-2026-09-05.jpg",
+      "destination": "workbench/final_output/thesis-revision-completed-2026-09-05.jpg",
+      "bytes": 76480,
+      "sha256": "6d0f8c84be0da24b06f2badbcdc56c2d25e24fa6061a1cae09adc59b57c345f1"
+    },
+    {
+      "source": "final_output/thesis-revision-qa-2026-09-05.jpg",
+      "destination": "workbench/final_output/thesis-revision-qa-2026-09-05.jpg",
+      "bytes": 77338,
+      "sha256": "f67702aba46db349ebade8866f43f1a9b1365b7f033263dbcadaa791cae9706f"
+    },
+    {
+      "source": "final_output/thesis-scale-200-2026-09-05.json",
+      "destination": "workbench/final_output/thesis-scale-200-2026-09-05.json",
+      "bytes": 1847,
+      "sha256": "bf2a2259e619f40084543e990a574cf93055fae36cd10515ffbcf494071d7fff"
+    },
+    {
+      "source": "final_output/thesis-scale-verification-2026-09-05.md",
+      "destination": "workbench/final_output/thesis-scale-verification-2026-09-05.md",
+      "bytes": 6986,
+      "sha256": "7366d412748a43bb8b044a389a66d0f6bcb250c2fa675926dd848f43f9b18a0b"
+    },
+    {
+      "source": "final_output/thesis-source-page-200-2026-09-05.jpg",
+      "destination": "workbench/final_output/thesis-source-page-200-2026-09-05.jpg",
+      "bytes": 96221,
+      "sha256": "decfe27379a52b9d78671bd85beb5703fa449a0edcc0e1539a7bfe7f709ebdcb"
+    },
+    {
+      "source": "final_output/thesis-ui-verification-2026-09-05.json",
+      "destination": "workbench/final_output/thesis-ui-verification-2026-09-05.json",
+      "bytes": 514,
+      "sha256": "375edbc5ba0311fff87bd377ad146f86bb037ce4777c738d4667a14da5167b66"
+    },
+    {
+      "source": "LICENSE",
+      "destination": "workbench/LICENSE",
+      "bytes": 1067,
+      "sha256": "775db395ee51cd5ad84f0391a71203893ee51650cb79367437952e7c85f2d42d"
+    },
+    {
+      "source": "pyproject.toml",
+      "destination": "workbench/pyproject.toml",
+      "bytes": 1240,
+      "sha256": "e085fd9ad037453de575451ee05b3585db54567fbbecdbbd24617b3a4af51753"
+    },
+    {
+      "source": "scripts/check-model-compatibility.py",
+      "destination": "workbench/scripts/check-model-compatibility.py",
+      "bytes": 6347,
+      "sha256": "f9ec40e99a3597662271720035813117b1f7a2143d627cbfe69913a4dfb610c1"
+    },
+    {
+      "source": "scripts/check-mvp-install.sh",
+      "destination": "workbench/scripts/check-mvp-install.sh",
+      "bytes": 8346,
+      "sha256": "1176ce0591e43219b71bee36cf5bc055006323bd793ea6f998f4bc8577309dd8"
+    },
+    {
+      "source": "scripts/check-thesis-scale.py",
+      "destination": "workbench/scripts/check-thesis-scale.py",
+      "bytes": 7941,
+      "sha256": "0e0c7b6667fd7c1786c15ec8e6cf2d216d55e492595b0ec27c7607371a8b9abc"
+    },
+    {
+      "source": "tests/runtime/__init__.py",
+      "destination": "workbench/tests/runtime/__init__.py",
+      "bytes": 50,
+      "sha256": "f2f616c3141dcec087d873ceb879555b3af5696c02356e51a3febc2302d9447a"
+    },
+    {
+      "source": "tests/runtime/test_model_compatibility.py",
+      "destination": "workbench/tests/runtime/test_model_compatibility.py",
+      "bytes": 4155,
+      "sha256": "9701fa80e1bc0097e362a224cd47b14ad25cdaaa59f874b4af6af65945fc425d"
+    },
+    {
+      "source": "tests/runtime/test_mvp_runtime.py",
+      "destination": "workbench/tests/runtime/test_mvp_runtime.py",
+      "bytes": 19491,
+      "sha256": "ebbc3c78283b00c4504181032df7d00c0c378883225c3a67b3b0ddb3f4a5e502"
+    },
+    {
+      "source": "tests/runtime/test_project_review.py",
+      "destination": "workbench/tests/runtime/test_project_review.py",
+      "bytes": 20162,
+      "sha256": "17b7af582dacfda94d58379e1055a4829de42774e9cf7d13042fe5b8660ddbdb"
+    },
+    {
+      "source": "tests/runtime/test_providers.py",
+      "destination": "workbench/tests/runtime/test_providers.py",
+      "bytes": 14073,
+      "sha256": "d73aa20c33d13ba81bf34928fb0180755026c6e08c0048ae69aaf54512534f7b"
+    },
+    {
+      "source": "tests/runtime/test_submission.py",
+      "destination": "workbench/tests/runtime/test_submission.py",
+      "bytes": 18190,
+      "sha256": "ba7af9f20234a0b48be757d1b2a7a8329a3210335ec8a4ef2500a8ac32a8b77a"
+    },
+    {
+      "source": "tests/runtime/test_thesis_scale.py",
+      "destination": "workbench/tests/runtime/test_thesis_scale.py",
+      "bytes": 14837,
+      "sha256": "8c096327c6ff204d7d807d5535faa8d2fe762c21a9a17d0e93dea9154dc88806"
+    }
+  ],
+  "status": "product_proposal_pending_issue_39",
+  "hashScope": "Source snapshot bytes before packaging edits and public metadata sanitisation; these are not hashes of the final proposed tree.",
+  "publicSanitisation": [
+    {
+      "path": "workbench/INTEGRATION.json",
+      "removed_fields": [
+        "sourceTask",
+        "sourceTaskId"
+      ]
+    },
+    {
+      "path": "workbench/final_output/submission-install-verification-2026-09-05.json",
+      "redacted_fields": [
+        "import_location",
+        "log_directory"
+      ]
+    },
+    {
+      "path": "workbench/final_output/integration-install-2026-09-05.json",
+      "redacted_fields": [
+        "module"
+      ]
+    }
+  ]
+}

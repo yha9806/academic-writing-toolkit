@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "academic-writing-toolkit"
+dynamic = ["version"]
+description = "Local-first, author-controlled academic writing review workbench"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Academic Writing Toolkit Maintainers" },
+]
+keywords = [
+  "academic-writing",
+  "author-control",
+  "evidence",
+  "local-first",
+  "review",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = []
+
+[project.optional-dependencies]
+documents = ["pypdf>=4,<7", "pypdfium2>=4.30,<6", "Pillow>=10,<13"]
+
+[project.urls]
+Homepage = "https://github.com/yha9806/academic-writing-toolkit"
+Repository = "https://github.com/yha9806/academic-writing-toolkit"
+
+[project.scripts]
+awt = "awt.mvp:main"
+awt-workbench = "awt.mvp:main"
+
+[tool.setuptools]
+packages = ["awt"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+awt = ["demo-paper.md", "mvp_index.html", "review_project.html", "review_project.js", "submission.js"]
+
+[tool.setuptools.dynamic]
+version = { attr = "awt.__version__" }

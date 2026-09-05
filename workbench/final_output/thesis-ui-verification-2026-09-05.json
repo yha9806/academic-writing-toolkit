@@ -1,0 +1,14 @@
+{
+  "scope": "Local HTTP and browser QA with fictional 200-page PDF and deterministic mock model; no hosted requests",
+  "revision": 2,
+  "state": "completed",
+  "total_mock_calls": 172,
+  "first_review_mock_calls": 151,
+  "incremental_mock_calls": 21,
+  "reused_source_blocks": 991,
+  "remaining_planned_calls": 0,
+  "layout_page_pairs": 200,
+  "changed_pages_count": 1,
+  "fixture_page_checks": 1,
+  "native_file_picker": "Not revalidated; actual binary uploads tested via staged HTTP endpoints"
+}
