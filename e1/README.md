@@ -3,7 +3,10 @@
 The offline lane checks the instrument with scripted synthetic arms (E0).
 Real model sessions over three chosen PDFs produce E1 results. Neither is
 the author's E2 chapter cycle. Model quality is reported as observed; a
-failed process is an incomplete run, not a favourable model result.
+transport or process failure is an incomplete run, not a favourable model
+result. A durable `max-tokens` or guard `blocked` terminal outcome is a
+measured model failure and remains in the sample, with its task outcome
+displayed beside the four metrics.
 
 ## Install and run offline
 
@@ -56,8 +59,15 @@ Both arms use the same chosen model and exclude user-level skills. Each
 source has a notes task and a draft task in each arm: up to 12 headless
 sessions in total. Each session can make multiple provider requests;
 `--timeout-ms` (1000–600000, default 600000 per session) is a time bound,
-not a currency or token cap. A process failure stops subsequent sessions;
+not a currency or token cap. An infrastructure failure stops subsequent sessions;
 there is no automatic paid retry.
+
+`--resume <saved-run-directory>` supports one narrow continuation: a run
+that stopped after its first skills notes task with a durable `max-tokens`
+outcome. It verifies identical inputs, model settings and grader/reader
+hashes, reuses the original log and file state, and runs only the remaining
+tasks. It never re-generates that failed observation. Both result directories
+are retained and the continuation records the original evidence hashes.
 
 ## Inspect and share results
 

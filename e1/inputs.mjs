@@ -10,7 +10,7 @@ const refuse = (code, message) => { throw new E1InputError(code, message) }
 export function parseOptions(args) {
   const options = { real: false, check: false, help: false, provider: 'deepseek', timeoutMs: 600_000 }
   const flags = { '--real': 'real', '--check': 'check', '--help': 'help' }
-  const values = { '--manifest': 'manifest', '--out': 'out', '--provider': 'provider', '--model': 'model', '--base-url': 'baseURL', '--timeout-ms': 'timeoutMs' }
+  const values = { '--manifest': 'manifest', '--out': 'out', '--provider': 'provider', '--model': 'model', '--base-url': 'baseURL', '--resume': 'resume', '--timeout-ms': 'timeoutMs' }
   const seen = new Set()
   for (let index = 0; index < args.length; index++) {
     const flag = args[index]
@@ -27,6 +27,7 @@ export function parseOptions(args) {
     refuse('E1_USAGE', '--timeout-ms must be an integer between 1000 and 600000')
   }
   if (options.check && !options.real) refuse('E1_USAGE', '--check requires --real')
+  if (options.resume && (!options.real || options.check)) refuse('E1_USAGE', '--resume requires a real execution, not a preflight')
   return options
 }
 
@@ -84,12 +85,18 @@ export function readManifest(manifestPath) {
   })
 }
 
-// A failed process is an infrastructure outcome. A successful session that
-// produces poor or missing notes is still an observed model outcome.
+// The headless app uses exit 1 for both provider errors and a model exhausting
+// its output budget. A durable, recognised terminal outcome distinguishes them.
+export function measuredRun(run) {
+  return !run.error && !run.signal && (run.status === 0 ||
+    (run.status === 1 && ['max-tokens', 'blocked'].includes(run.outcome)))
+}
+
 export function classifyRun(lane, runs, sourceOpened, logsPresent = true) {
-  const operational = logsPresent && runs.length === 2 && runs.every((run) => run.status === 0 && !run.error && !run.signal)
+  const operational = logsPresent && runs.length === 2 && runs.every(measuredRun)
   return {
     status: operational ? 'completed' : 'incomplete',
+    taskOutcomes: runs.map((run) => run.outcome ?? (run.status === 0 ? 'completed' : 'unobserved-failure')),
     sourceOpened,
     evidenceClass: operational ? (lane === 'real' ? 'E1' : 'E0') : null,
     efficacyEligible: lane === 'real' && operational,

@@ -29,10 +29,11 @@ import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parseOptions, modelRoute, readManifest, classifyRun } from './inputs.mjs'
+import { parseOptions, modelRoute, readManifest, classifyRun, measuredRun } from './inputs.mjs'
 import { labelPdfPages } from '../profiles/awt-headless/pdf-pages.mjs'
-import { readOpeningEvidence } from './evidence.mjs'
+import { readOpeningEvidence, sessionFiles, terminalOutcome } from './evidence.mjs'
 import { inspectLocalModel, localProviderPatch } from './local-provider.mjs'
+import { readResume } from './resume.mjs'
 import {
   extractQuotedSpans, gradeNotesParseability, gradePageAccuracy,
   gradeQuoteFidelity, gradeUnopenedCitations, pagesFromLabeledText,
@@ -271,6 +272,7 @@ Digital archives relocate judgement into ranking and retention policy.
 // --- run one arm ------------------------------------------------------------------
 
 function runHeadless(home, ws, task, extraEnv) {
+  const before = new Set(sessionFiles(home))
   const res = spawnSync(
     process.execPath,
     [DSH_BIN, '--profile', 'awt-headless', task],
@@ -295,7 +297,8 @@ function runHeadless(home, ws, task, extraEnv) {
       maxBuffer: 16 * 1024 * 1024,
     },
   )
-  return res
+  const logs = sessionFiles(home).filter((file) => !before.has(file)).map((file) => readFileSync(file, 'utf8'))
+  return { ...res, outcome: terminalOutcome(logs) }
 }
 
 function referenceFor(entry) {
@@ -341,13 +344,22 @@ async function runArm(entry, arm, runDir) {
   }
 
   const runs = []
-  runs.push(runHeadless(home, ws, NOTES_TASK(entry), scriptEnv(scripts?.notes)))
-  // Do not spend a second request after a failed or uncertain first task.
-  if (runs[0].status === 0 && !runs[0].error) runs.push(runHeadless(home, ws, DRAFT_TASK(entry), scriptEnv(scripts?.draft)))
+  if (resume && entry.id === resume.id && arm === 'skills') {
+    for (const tree of ['chapters', 'contracts']) cpSync(join(resume.artifactDir, tree), join(ws, tree), { recursive: true })
+    cpSync(join(resume.artifactDir, 'reading_notes'), join(ws, 'literature', 'reading_notes'), { recursive: true })
+    cpSync(join(resume.artifactDir, 'sessions'), join(home, 'sessions'), { recursive: true })
+    runs.push(resume.process)
+    console.log(`  reusing recorded ${entry.id}/skills notes outcome; no model retry`)
+  } else {
+    runs.push(runHeadless(home, ws, NOTES_TASK(entry), scriptEnv(scripts?.notes)))
+  }
+  // A recorded model-budget exhaustion remains in the sample. Only an
+  // unobserved or infrastructure failure stops subsequent tasks.
+  if (measuredRun(runs[0])) runs.push(runHeadless(home, ws, DRAFT_TASK(entry), scriptEnv(scripts?.draft)))
   for (const [i, res] of runs.entries()) {
     if (res.status !== 0) {
       const tail = `${res.stderr ?? ''}`.trim().split('\n').slice(-4).join(' | ')
-      console.error(`  ${arm} run ${i + 1} exited ${res.status}: ${tail}`)
+      console.error(`  ${arm} run ${i + 1} exited ${res.status} (${res.outcome ?? 'unobserved'}): ${tail}`)
     }
   }
 
@@ -356,7 +368,7 @@ async function runArm(entry, arm, runDir) {
   for (const tree of ['chapters', 'contracts']) cpSync(join(ws, tree), join(artifactDir, tree), { recursive: true, dereference: false })
   cpSync(join(ws, 'literature', 'reading_notes'), join(artifactDir, 'reading_notes'), { recursive: true, dereference: false })
   if (existsSync(join(home, 'sessions'))) cpSync(join(home, 'sessions'), join(artifactDir, 'sessions'), { recursive: true, dereference: false })
-  const processes = runs.map((run) => ({ status: run.status, signal: run.signal, error: run.error ? { code: run.error.code ?? 'SPAWN_ERROR' } : null }))
+  const processes = runs.map((run) => ({ status: run.status, signal: run.signal, outcome: run.outcome, error: run.error ? { code: run.error.code ?? 'SPAWN_ERROR' } : null }))
   writeFileSync(join(artifactDir, 'processes.json'), JSON.stringify(processes, null, 2))
 
   const { notesText, draftText } = collectArtifacts(ws, entry)
@@ -369,7 +381,7 @@ async function runArm(entry, arm, runDir) {
   ]
   return {
     arm,
-    ...classifyRun(REAL ? 'real' : 'offline', runs, opening.sourceOpened, opening.files.length > 0),
+    ...classifyRun(REAL ? 'real' : 'offline', runs, opening.sourceOpened, opening.files.length >= runs.length),
     artifacts: `${entry.id}/${arm}`,
     quoteFidelity: gradeQuoteFidelity(spans, referenceText),
     pageAccuracy: gradePageAccuracy(spans, pages),
@@ -390,6 +402,11 @@ for (const entry of entries) referenceFor(entry)
 if (REAL && route.provider === 'ollama') {
   try { route.localInfo = await inspectLocalModel(route) }
   catch (error) { die(error.code ?? 'E1_LOCAL_UNAVAILABLE', error.message) }
+}
+let resume
+if (options.resume) {
+  try { resume = readResume(options.resume, entries, route, `@deepseek-ai/dsh@${PINNED_DSH}`, PRODUCT_ROOT) }
+  catch (error) { die(error.code ?? 'E1_RESUME_INVALID', error.message) }
 }
 if (REAL && options.check) {
   console.log(JSON.stringify({ status: route.keyPresent ? 'ready' : 'blocked', code: route.keyPresent ? null : 'E1_KEY_MISSING', sources: entries.length, provider: route.provider, model: route.model, keyEnv: route.keyEnv, keyPresent: route.keyPresent, localModel: route.localInfo, modelRequests: 0 }, null, 2))
@@ -436,12 +453,13 @@ async function runExperiment() {
     producer: 'e1/run-e1.mjs',
     producerSha256: sha256(join(E1_DIR, 'run-e1.mjs')),
     implementationSha256: Object.fromEntries([
-      'e1/run-e1.mjs', 'e1/inputs.mjs', 'e1/evidence.mjs', 'e1/local-provider.mjs', 'e1/graders.mjs',
+      'e1/run-e1.mjs', 'e1/inputs.mjs', 'e1/evidence.mjs', 'e1/local-provider.mjs', 'e1/resume.mjs', 'e1/graders.mjs',
       'profiles/awt-headless/cordis.patch.yml', 'profiles/awt-headless/awt-read-pdf.plugin.mjs',
       'profiles/awt-headless/pdf-pages.mjs', 'guards/dist/notes-lint.js', 'guards/dist/decisions.js',
     ].map((path) => [path, sha256(join(PRODUCT_ROOT, path))])),
     inputs: entries.map(({ path, referenceTextPath, ...entry }) => ({ ...entry, sha256: entry.sha256 ?? sha256(referenceTextPath) })),
     model: REAL ? { provider: route.provider, id: route.model, ...(route.localInfo ? { local: route.localInfo } : {}) } : { provider: 'scripted', id: 'scripted-1' },
+    ...(resume ? { continuation: resume.provenance } : {}),
     note: failure ? 'Incomplete execution: diagnostic results only; no E1 efficacy claim. Inspect retained session logs and process statuses before a deliberate new run.' : lane === 'offline'
       ? 'Offline lane: scripted synthetic arms. Proves the instrument discriminates (E0 about the instrument); NOT efficacy evidence about the skills.'
       : 'Real lane: paired sessions over the manifest PDFs. E1 evidence per §11.',
@@ -451,14 +469,14 @@ async function runExperiment() {
   writeFileSync(jsonPath, JSON.stringify(payload, null, 2))
 
   const rows = results.map((r) =>
-    `| ${r.id} | ${r.arm} | ${r.quoteFidelity.matched}/${r.quoteFidelity.quotes} | ${r.pageAccuracy.correct}/${r.pageAccuracy.cited} | ${r.notes.parseable ? 'yes' : 'no'} | ${r.unopenedCitations.unopened.length} |`)
+    `| ${r.id} | ${r.arm} | ${r.quoteFidelity.matched}/${r.quoteFidelity.quotes} | ${r.pageAccuracy.correct}/${r.pageAccuracy.cited} | ${r.notes.parseable ? 'yes' : 'no'} | ${r.unopenedCitations.unopened.length} | ${r.taskOutcomes.join(' / ')} |`)
   const table = [
     `# E1 ${lane} results (${payload.generatedAt})`,
     '',
     payload.note,
     '',
-    '| source | arm | verbatim quotes | correct pages | notes parseable | unopened citations |',
-    '| --- | --- | --- | --- | --- | --- |',
+    '| source | arm | verbatim quotes | correct pages | notes parseable | unopened citations | notes / draft outcomes |',
+    '| --- | --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',
     `Producer: \`${payload.producer}\` against \`${payload.harness}\`. Metrics JSON: \`metrics.json\`. Logs and model outputs are retained per source/arm beside it; review before sharing.`,

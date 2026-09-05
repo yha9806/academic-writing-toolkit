@@ -73,3 +73,21 @@ seconds; the local provider retry count is zero.
 node e1/run-e1.mjs --real --check --provider ollama --model awt-e1-qwen3vl4b-32k:20260905
 node e1/run-e1.mjs --real --provider ollama --model awt-e1-qwen3vl4b-32k:20260905
 ```
+
+## Collector amendment after the first task, without re-generation
+
+The first skills notes task (Gao) opened the requested PDF and then consumed
+its 4096-token output budget. The durable log recorded `max-tokens`; dsh
+exited 1. The initial producer treated every nonzero exit as infrastructure
+failure and stopped. This is a collector classification defect: a logged
+model-budget exhaustion is an observed failure of the model under the fixed
+budget, not missing evidence.
+
+The original run `e1-real-2026-09-05T16-19-37-906Z` remains intact. A narrow
+continuation reuses that task's original log and filesystem artifacts,
+bound by hashes, then executes only the remaining 11 tasks. Model, seed,
+output cap, context, source windows, tasks and all four graders are unchanged.
+No failed observation is retried or discarded. The completed comparison
+will show terminal task outcomes alongside metric counts; budget exhaustion
+does not become a successful notes result. Unobserved failures, crashes and
+transport errors still stop execution with no E1 classification.

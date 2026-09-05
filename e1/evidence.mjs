@@ -48,3 +48,13 @@ export function readOpeningEvidence(home, workspace, entry) {
   const files = sessionFiles(home)
   return { files, ...openedReference(files.map((file) => readFileSync(file, 'utf8')), workspace, entry) }
 }
+
+export function terminalOutcome(logs) {
+  if (logs.length !== 1) return undefined
+  try {
+    const events = logs[0].split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line))
+    const ends = events.filter((event) => event.type === 'turn/end')
+    if (ends.length !== 1) return undefined
+    return ends[0].data?.reason?.kind
+  } catch { return undefined }
+}
