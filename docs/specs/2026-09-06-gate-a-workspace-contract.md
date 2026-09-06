@@ -1,8 +1,13 @@
 # Gate A — The workspace contract
 
-- **Status:** DRAFT (2026-09-06). Not author-approved; no implementation may
-  begin. The ⚑ decision in §5 is the author's to take, and this document is
-  the record of it, not a substitute for it.
+- **Status:** author_approved (2026-09-06). The ⚑ decision in §5 is taken:
+  **Option D** — the five standalone scripts move into the skill that calls
+  them and are named relative to it; `audit-citation-fidelity.mjs`, whose
+  dependence on the guards' own extractor and notes parser is deliberate,
+  becomes a registered profile tool. Implementation may begin. Per-item truth
+  moves through this header's successors (`implemented` → `verified`), never
+  into prose. Approval is not implementation and implementation is not
+  verification; §7 states what verification means here.
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §6 (catalogue),
   §7 (Enforced vs Advisory), §11 (evidence classes)
 - **Inputs:** the doc-vs-reality audit of `main` at `b48d0f6` (2026-09-06, ten
