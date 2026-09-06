@@ -57,6 +57,19 @@ test('a citation with no notes file is reported, never guessed at', () => {
   assert.deepEqual(kinds(out), ['notes-missing'])
 })
 
+test('the first prose sentence after each Markdown heading is audited', () => {
+  const { out } = run(workspace(
+    '# Chapter introduction\r\n\r\nJones (2021) argues that memory is contested terrain.\r\n\r\n' +
+    '  ## Another section\n\nBrown (2020) discusses a different archive.\n',
+  ))
+  assert.deepEqual(kinds(out), ['notes-missing', 'notes-missing'])
+})
+
+test('heading-only citations remain outside the prose audit', () => {
+  const { out } = run(workspace('# Jones (2021)\n\nAn uncited introduction.\n'))
+  assert.deepEqual(kinds(out), [])
+})
+
 test('low-overlap is experimental: flagged, labelled, and never a failure', () => {
   const { status, out } = run(workspace('Smith (2024) demonstrates that retrieval latency dominates throughput budgets in sharded clusters.\n'))
   assert.deepEqual(kinds(out), ['low-overlap'])
