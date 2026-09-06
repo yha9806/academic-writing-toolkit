@@ -1,0 +1,49 @@
+{
+  "fixture_only": true,
+  "model_calls": "deterministic mock calls only",
+  "tokenizer": {
+    "name": "tiktoken",
+    "version": "0.14.0",
+    "encoding": "o200k_base"
+  },
+  "input_tokens": 4000,
+  "chapters": [
+    {
+      "chapter": "Abstract",
+      "text_batches": 2,
+      "checked_blocks": 81,
+      "total_blocks": 81,
+      "chapter_summaries": 0
+    },
+    {
+      "chapter": "Methods",
+      "text_batches": 3,
+      "checked_blocks": 81,
+      "total_blocks": 81,
+      "chapter_summaries": 1
+    },
+    {
+      "chapter": "Results",
+      "text_batches": 3,
+      "checked_blocks": 81,
+      "total_blocks": 81,
+      "chapter_summaries": 1
+    },
+    {
+      "chapter": "Discussion",
+      "text_batches": 3,
+      "checked_blocks": 81,
+      "total_blocks": 81,
+      "chapter_summaries": 1
+    }
+  ],
+  "revision": {
+    "unchanged_blocks": 323,
+    "reused_blocks": 285,
+    "pending_blocks": 39
+  },
+  "old_tests": {
+    "fixed_reuse_threshold": "285 > 290 fails even when the entire unchanged-batch set is reused",
+    "all_nodes_have_summaries": "A chapter with fewer than three text batches does not schedule a separate chapter summary; source text coverage remains complete."
+  }
+}

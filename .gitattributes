@@ -9,3 +9,7 @@
 *.py   text eol=lf
 *.md   text eol=lf
 Makefile text eol=lf
+
+# Historical measurement records retain their bytes; sanitised copies disclose edits.
+workbench/final_output/** -text -eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+workbench/INTEGRATION.json -text -eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

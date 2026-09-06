@@ -1,0 +1,526 @@
+{
+  "schema_version": 1,
+  "kind": "real_pdf_review_reliability",
+  "protocol": "source-ids-v1",
+  "model": "awt-e1-qwen3vl4b-32k:20260905",
+  "goal": "Check whether the main numerical claims and conclusions are consistent across the abstract, experiments, results, limitations and appendices. Report only issues supported by exact source quotes; do not rewrite the paper.",
+  "source": {
+    "filename": "gao2023-alce.pdf",
+    "sha256": "ae9868f07f0f7ffaae5346778f79b7827d9ec6b13b1e6aae4dff6b2ffc37a2e1",
+    "pages": 24,
+    "blocks": 5787,
+    "source_unchanged_after_run": true
+  },
+  "runtime_sha256": {
+    "__init__.py": "46980f24b7ec3880c6d138666a68f056666eb3ba506aed28ed0cbc0c8a696a11",
+    "context_pack.py": "4c80b1ce3c22e446e7fffc79b0982e26661870ed3ec1c88b6b2c67b3651f2cc8",
+    "cross_review.py": "2c69729854962e50f070e922eec8599111b0d2fa9506cbbf0a9d6c54d62f28b7",
+    "documents.py": "bed38846b3b71b8f2b154726e8e894035a4a45503cc14a820b3699a12e224d4f",
+    "layout_jobs.py": "41b6a50006b7de4aff6609a1f0a111dce7e8ff2d62af3db1e6c8fe5528b39bbd",
+    "mvp.py": "0aeae5a5840b921309e262a5461eb14b41d1671340f9688aa5fd409f92d00de8",
+    "providers.py": "d7f410a3b333d152b16cfe20f45a8038314cfe168e9f49e21e8f3dc09cf49d9e",
+    "review_index.py": "188d67ed6a1027904f998e66bf98daadfd95ca77e08cd85fe6147a2f06934e7f",
+    "review_jobs.py": "e3ea3803066fe01bfaa9fb6de496886e3ea09199a5fec87a63636b0690ccbb78",
+    "submission_checks.py": "c50c78cb4e36dec1d59a88de2d5b37e68f0d9a08a48123fcb5300aa85faae121",
+    "submission_jobs.py": "f315cba01c22c0850a3cb527668fa71b7706931b1e4c6b8a382abd1d25d8f30f",
+    "workflow_io.py": "26acb7f618924ebf8aeb9765d04a75ac2fa5959ccaa7e8635ad665e2b3fd509c"
+  },
+  "script_sha256": "d98d0e3b389e97639dc542a9fb252b5b5130ccb107616a9c4e1f09385ddc610e",
+  "python": "3.12.14",
+  "pdfium": "5.13.0",
+  "explicit_role_overrides": {
+    "2 Task Setup and Datasets": "methods",
+    "3 Automatic Evaluation": "methods",
+    "3.1 Fluency": "methods",
+    "3.2 Correctness": "methods",
+    "3.3 Citation Quality": "methods",
+    "3.4 ALCE is Robust to Shortcut Cases": "methods",
+    "4 Modeling": "methods",
+    "4.1 Retrieval": "methods",
+    "4.2 Synthesis": "methods",
+    "4.3 Post-editing": "methods",
+    "5 Experiments": "methods",
+    "6 Human Evaluation": "results",
+    "Limitations": "discussion"
+  },
+  "role_override_operator": "agent_experiment_configuration",
+  "criteria_frozen_before_calls": [
+    "all text blocks in completed batches exactly once",
+    "at least one source-bound observation in every completed batch",
+    "chapter and cross stages reached",
+    "all selected IDs and quotations match offered sources",
+    "no automatic retry and no hosted provider",
+    "all attempts remain in a fresh checkpoint"
+  ],
+  "real_author_cycle_complete": false,
+  "review_quality_established": false,
+  "publicSanitisation": {
+    "local_paths_included": false,
+    "raw_checkpoints_published": false,
+    "source_text_or_model_responses_published": false
+  },
+  "initial_plan": {
+    "pending_calls": 44,
+    "pending_token_reservation": 417877,
+    "reused_batches": 0,
+    "future_stages_pending": true,
+    "note": "此处为已规划批次估算；章节汇总和跨章节检索在前序结果保存后规划，仍受同一总预算约束。"
+  },
+  "budget": {
+    "profile": "economy",
+    "input_tokens": 8000,
+    "output_tokens": 1600,
+    "max_calls": 80,
+    "total_tokens": 800000,
+    "input_price_per_million": null,
+    "output_price_per_million": null
+  },
+  "state": "failed",
+  "error": "Model JSON has an invalid list length at $.checks.",
+  "technical_completion": false,
+  "elapsed_seconds": 61.094,
+  "calls_reserved": 16,
+  "tokens_reserved_estimate": 153036,
+  "actual_attempts": 16,
+  "completed_by_phase": {
+    "text": 15
+  },
+  "checked_blocks": 1853,
+  "total_blocks": 5787,
+  "each_text_block_once_in_order": false,
+  "chapter_stage_reached": false,
+  "cross_stage_reached": false,
+  "cross_pairs": [],
+  "observations": 43,
+  "every_completed_batch_has_observations": true,
+  "claims": 0,
+  "findings": 1,
+  "empty_reports": 0,
+  "observed_provider_usage": [
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 7.266,
+      "usage": {
+        "prompt_tokens": 5796,
+        "completion_tokens": 196,
+        "total_tokens": 5992
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "8fe3b7fff7206f63423e5b0ce441fa5842ca4063bcdf1b4c613792a85d1ded7c",
+      "wire_response_sha256": "a7feb1c957c8664db70eae0647bf5bf11284949d323de045de1f90cee0bd258b"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.469,
+      "usage": {
+        "prompt_tokens": 5789,
+        "completion_tokens": 145,
+        "total_tokens": 5934
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "40bf1b58517e92f878200608620538c294b0d23c3e4179466548260c91c49038",
+      "wire_response_sha256": "663129ae4b5d3284343e48998ce14cba3d05380ae51e9242c04a7578e95fd2d5"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.469,
+      "usage": {
+        "prompt_tokens": 5880,
+        "completion_tokens": 142,
+        "total_tokens": 6022
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "87beecb2e98efb62e3d18f416b253fcca2c59bc545bce4af5fc3cbda60282a1b",
+      "wire_response_sha256": "283a3861ab6f87d3003146e18053aa9c5f6bdafdfbaffec1af50599f7ceed31c"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.343,
+      "usage": {
+        "prompt_tokens": 6024,
+        "completion_tokens": 134,
+        "total_tokens": 6158
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "25878a70c8ea4f2eda9ade592725faddf2c53b00d85f15d31886b82db99a181b",
+      "wire_response_sha256": "22e67f48e2d26bb682424bfb6d4d74365d9e368d1c4fccbe76eb17faf853bede"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.438,
+      "usage": {
+        "prompt_tokens": 6090,
+        "completion_tokens": 135,
+        "total_tokens": 6225
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "0d9e8397735c2814d1731432487687e83ea7e3c29ee93cc894090e7e18f5565a",
+      "wire_response_sha256": "60fdb81b51d298ae6997ee16779436f72d8d03c67c23f5925e4ef2e012929b94"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.297,
+      "usage": {
+        "prompt_tokens": 6048,
+        "completion_tokens": 106,
+        "total_tokens": 6154
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "60d7c00de31462dff747db093d8edfd934c8455d85bf17929a43ecd872fb0c80",
+      "wire_response_sha256": "25c389c3acdae1fde16d45536855d67fb3a61a472d62e61f3d29c69174a6c49c"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.765,
+      "usage": {
+        "prompt_tokens": 5943,
+        "completion_tokens": 171,
+        "total_tokens": 6114
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "d1c97d1d59669935a2bd15a553ee61c21bbad8434684d3a4fafcc7608a12601a",
+      "wire_response_sha256": "8893e4887bb1a8e402019d876072791383e5b7755fb1db33897928c8db34b65a"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.828,
+      "usage": {
+        "prompt_tokens": 6231,
+        "completion_tokens": 150,
+        "total_tokens": 6381
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "d1d8c175884a6c0fc80b0fa82c03310778dc65e0634a1b26050e9c35cd0cff32",
+      "wire_response_sha256": "c1117f125f980924c1338def7faadec58ce35fa53359725930915bbbcd0b63e2"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.891,
+      "usage": {
+        "prompt_tokens": 6137,
+        "completion_tokens": 74,
+        "total_tokens": 6211
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "9fdaac7aadbb57f6b0b3050203e8b4c6d9efbc12d50484f8eabd9dd594700020",
+      "wire_response_sha256": "ce928fc8d9d4ebefb9f0e3941e1b243c7f5b9c8012021b77dbf09555a7f5891b"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 4.015,
+      "usage": {
+        "prompt_tokens": 6321,
+        "completion_tokens": 281,
+        "total_tokens": 6602
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "9181c969843a6e8f4f0643d4090c983bb3bfd4a631416cfd70534fa8134f29ac",
+      "wire_response_sha256": "c10d756fcf07a6eac1310ccf752b77e2838844030ce9dab3366a1d6a5053d287"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 3.078,
+      "usage": {
+        "prompt_tokens": 6316,
+        "completion_tokens": 202,
+        "total_tokens": 6518
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "31166d73237bfa1633ec78833fa30efed60e4bc3108ac7bfdad570c06410bb24",
+      "wire_response_sha256": "e06db6d54c8be87536d64d06ffafdf55c2059976580353b6b31bb74c08a17b48"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 3.813,
+      "usage": {
+        "prompt_tokens": 6399,
+        "completion_tokens": 271,
+        "total_tokens": 6670
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "70b9edecc7def06e6ac0eaa2e39e665e4943478bea50800da7f5655bc02520f1",
+      "wire_response_sha256": "f8084f2ca863de2d100b95da882172f32259080f589a8d29d99675dfda862ce6"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 3.703,
+      "usage": {
+        "prompt_tokens": 6169,
+        "completion_tokens": 274,
+        "total_tokens": 6443
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "ffbfcd5aa4b3e005a2e63de4ab49371a1e4bca1904db5cc64fb69eb41e7fdad1",
+      "wire_response_sha256": "ab070f4ef55eb82edfc4d105fe6c96cf4af2ec3279e3f27623568bda1e9ff581"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 2.813,
+      "usage": {
+        "prompt_tokens": 5868,
+        "completion_tokens": 169,
+        "total_tokens": 6037
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "7ee7cc33e50662531670231e9f9f781e61e66fcd0780c9ef3916676d4aebf365",
+      "wire_response_sha256": "4e6c783069bb29b32e4bbdd0a20d583d612b93266b72ba4514416dc0eb29a416"
+    },
+    {
+      "provider": "ollama",
+      "protocol": "chat-completions",
+      "requested_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "response_format": "prompt",
+      "max_output_tokens": 1600,
+      "supports_images": false,
+      "returned_model": "awt-e1-qwen3vl4b-32k:20260905",
+      "elapsed_seconds": 3.234,
+      "usage": {
+        "prompt_tokens": 6008,
+        "completion_tokens": 234,
+        "total_tokens": 6242
+      },
+      "normalizations": [],
+      "live_response_received": true,
+      "images_sent": 0,
+      "wire_schema_constraints_validated_locally": false,
+      "review_protocol": "source-ids-v1",
+      "source_map_sha256": "5211d4c84d2f734c4b2ee5839621f91d377ea8632fb55cf8f0ea6808ea89984f",
+      "wire_response_sha256": "6a06c110172434d72fa5336376a189da67799084834466952b6facffc8ad84ed"
+    }
+  ],
+  "attempts_with_missing_provider_usage": 1,
+  "source_choice_audit": [
+    {
+      "phase": "text",
+      "source_map_sha256": "8fe3b7fff7206f63423e5b0ce441fa5842ca4063bcdf1b4c613792a85d1ded7c",
+      "wire_response_sha256": "a7feb1c957c8664db70eae0647bf5bf11284949d323de045de1f90cee0bd258b"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "40bf1b58517e92f878200608620538c294b0d23c3e4179466548260c91c49038",
+      "wire_response_sha256": "663129ae4b5d3284343e48998ce14cba3d05380ae51e9242c04a7578e95fd2d5"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "87beecb2e98efb62e3d18f416b253fcca2c59bc545bce4af5fc3cbda60282a1b",
+      "wire_response_sha256": "283a3861ab6f87d3003146e18053aa9c5f6bdafdfbaffec1af50599f7ceed31c"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "25878a70c8ea4f2eda9ade592725faddf2c53b00d85f15d31886b82db99a181b",
+      "wire_response_sha256": "22e67f48e2d26bb682424bfb6d4d74365d9e368d1c4fccbe76eb17faf853bede"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "0d9e8397735c2814d1731432487687e83ea7e3c29ee93cc894090e7e18f5565a",
+      "wire_response_sha256": "60fdb81b51d298ae6997ee16779436f72d8d03c67c23f5925e4ef2e012929b94"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "60d7c00de31462dff747db093d8edfd934c8455d85bf17929a43ecd872fb0c80",
+      "wire_response_sha256": "25c389c3acdae1fde16d45536855d67fb3a61a472d62e61f3d29c69174a6c49c"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "d1c97d1d59669935a2bd15a553ee61c21bbad8434684d3a4fafcc7608a12601a",
+      "wire_response_sha256": "8893e4887bb1a8e402019d876072791383e5b7755fb1db33897928c8db34b65a"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "d1d8c175884a6c0fc80b0fa82c03310778dc65e0634a1b26050e9c35cd0cff32",
+      "wire_response_sha256": "c1117f125f980924c1338def7faadec58ce35fa53359725930915bbbcd0b63e2"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "9fdaac7aadbb57f6b0b3050203e8b4c6d9efbc12d50484f8eabd9dd594700020",
+      "wire_response_sha256": "ce928fc8d9d4ebefb9f0e3941e1b243c7f5b9c8012021b77dbf09555a7f5891b"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "9181c969843a6e8f4f0643d4090c983bb3bfd4a631416cfd70534fa8134f29ac",
+      "wire_response_sha256": "c10d756fcf07a6eac1310ccf752b77e2838844030ce9dab3366a1d6a5053d287"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "31166d73237bfa1633ec78833fa30efed60e4bc3108ac7bfdad570c06410bb24",
+      "wire_response_sha256": "e06db6d54c8be87536d64d06ffafdf55c2059976580353b6b31bb74c08a17b48"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "70b9edecc7def06e6ac0eaa2e39e665e4943478bea50800da7f5655bc02520f1",
+      "wire_response_sha256": "f8084f2ca863de2d100b95da882172f32259080f589a8d29d99675dfda862ce6"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "ffbfcd5aa4b3e005a2e63de4ab49371a1e4bca1904db5cc64fb69eb41e7fdad1",
+      "wire_response_sha256": "ab070f4ef55eb82edfc4d105fe6c96cf4af2ec3279e3f27623568bda1e9ff581"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "7ee7cc33e50662531670231e9f9f781e61e66fcd0780c9ef3916676d4aebf365",
+      "wire_response_sha256": "4e6c783069bb29b32e4bbdd0a20d583d612b93266b72ba4514416dc0eb29a416"
+    },
+    {
+      "phase": "text",
+      "source_map_sha256": "5211d4c84d2f734c4b2ee5839621f91d377ea8632fb55cf8f0ea6808ea89984f",
+      "wire_response_sha256": "6a06c110172434d72fa5336376a189da67799084834466952b6facffc8ad84ed"
+    }
+  ],
+  "automatic_retries": 0,
+  "hosted_calls": 0
+}

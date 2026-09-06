@@ -1,0 +1,31 @@
+{
+  "fixture_only": true,
+  "wheel_sha256": "31f5d667708f5be3e3613ad8d2ef9f908a6360b818865a0aab3bbb484a11ce2c",
+  "runtime_file_count": 17,
+  "import_location": "<temporary-install-dir>/venv/lib/site-packages/awt/__init__.py",
+  "checks": [
+    "build",
+    "venv",
+    "install",
+    "import-location",
+    "runtime-tests",
+    "entrypoint",
+    "installed-http-assets-reports-staleness-host-origin"
+  ],
+  "test_summary": [
+    "----------------------------------------------------------------------",
+    "Ran 71 tests in 28.187s",
+    "",
+    "OK (skipped=9)"
+  ],
+  "model_calls": 0,
+  "log_directory": "<temporary-install-dir>",
+  "published": false,
+  "public_copy": {
+    "redacted_fields": [
+      "import_location",
+      "log_directory"
+    ],
+    "result_values_unchanged": true
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "fixture_only": true,
+  "report_id": "5e06d8c23b7ef211ad7be490a51cd140",
+  "report_sha256": "6ca68ce29098a81ce122aa4ea850f86a0ff2c976c18cabdb084d6130cc08458c",
+  "export_sha256": "42c38bab511041f6728967167093c2ff3ff9c2236b94b2d33bff4d86209dafb3",
+  "model_calls": 0,
+  "items": 23,
+  "counts": {
+    "block": 5,
+    "warning": 4,
+    "manual": 5,
+    "unchecked": 2,
+    "pass": 6,
+    "recorded": 1
+  },
+  "file_roles": {
+    "cover-letter.md": "attachment",
+    "paper.md": "manuscript",
+    "refs.bib": "references"
+  },
+  "confirmed_checks": [
+    "file-role exclusion",
+    "configuration persistence",
+    "run selects newest report",
+    "23-item pagination",
+    "source locator opens original heading",
+    "local form error visible in modal",
+    "named human record",
+    "old report stale after rule change",
+    "stale confirmation disabled",
+    "JSON and Markdown export",
+    "report and export hashes"
+  ],
+  "screenshots": [
+    "submission-report-qa-2026-09-05.jpg",
+    "submission-manual-qa-2026-09-05.jpg",
+    "submission-stale-qa-2026-09-05.jpg",
+    "submission-validation-error-qa-2026-09-05.jpg"
+  ],
+  "not_verified": [
+    "Native operating-system file picker in this run",
+    "Independent Gemini visual gate: screenshot precheck rejected readable JPEG",
+    "Live model or journal submission platform"
+  ]
+}
