@@ -75,6 +75,21 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(export_ui["interface"]["display_name"], "Export UI")
         self.assertEqual(export_ui["dependencies"], {"tools": []})
 
+    def test_exporter_handles_unicode_paths_with_legacy_stdout_encoding(self):
+        source = installer.SOURCE / ".claude/skills/export/scripts/convert_to_docx.py"
+        installer.write_text(self.root / "chapters/ch01.md", "# Fixture\n\nUnicode path export fixture.\n")
+        code = (
+            "import runpy,sys; "
+            "sys.stdout.reconfigure(encoding='cp1252',errors='strict'); "
+            "sys.stderr.reconfigure(encoding='cp1252',errors='strict'); "
+            "sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')"
+        )
+        output = installer.run([self.python, "-I", "-c", code, source,
+                                "--base-dir", self.root, "--output-dir", self.root / "output", "--scope", "chapters"])
+        self.assertIn("文本", output)
+        self.assertTrue(list((self.root / "output").rglob("*.docx")))
+        self.assertTrue(list((self.root / "output").glob("*.zip")))
+
     def test_unmanaged_collision_is_refused_before_any_replacement(self):
         installer.write_text(self.dest / "audit/SKILL.md", "A different audit skill")
         before = installer.snapshot(self.dest)
