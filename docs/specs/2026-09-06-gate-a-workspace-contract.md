@@ -7,8 +7,15 @@
   §7 (Enforced vs Advisory), §11 (evidence classes)
 - **Inputs:** the doc-vs-reality audit of `main` at `b48d0f6` (2026-09-06, ten
   product surfaces, seventy findings each independently re-run before it was
-  kept), the audience decision below, and a fresh-clone walk of the documented
-  quickstart on 2026-09-06.
+  kept), the audience decision below, a fresh-clone walk of the documented
+  quickstart on 2026-09-06, and a survey of the published harness the same day.
+- **Harness survey (2026-09-06):** npm now carries up to
+  `@deepseek-ai/dsh@0.1.2-rc.1`. Nothing in it bears on this decision. The
+  additions since our pinned `0.1.0-rc.6` are the `sdk`, `sdk-minimal` and
+  `acp` profiles; `dsh plugin --profile <name> <pnpm args>`, the supported way
+  to install out-of-tree plugins into a profile, was already present in rc.6.
+  **The pin does not need to move for Gate A**, and moving it would re-open
+  every attestation in `COMPAT.json` for no gain here.
 
 ## 1. Audience decision this spec serves
 
@@ -132,11 +139,62 @@ already are, and the agent calls a tool rather than a shell command.
   this spec exists to close; it also moves Advisory analysis into the Enforced
   layer, which the parent spec's vocabulary keeps deliberately separate.
 
-**Recommendation: Option B.** It is the only one that addresses the cause named
-in §2 rather than its symptoms, it keeps an invariant that has already caught a
-real defect, and it puts the export dependency problem somewhere a typed error
-can live. Option A is cheaper today and more expensive every time a skill grows
-a new command.
+### Option D — co-locate each script with the skill that calls it, and make a
+tool of the one that cannot be moved
+
+The first draft of this spec framed the choice as one mechanism for all six
+commands. Measuring their dependencies shows that is the wrong unit.
+
+| Script | Depends on the toolkit tree |
+| --- | --- |
+| `audit-claim-positioning.py` | nothing |
+| `audit-prose-fingerprint.py` | nothing |
+| `verify-refs.py` | nothing |
+| `check-author-control.py` | nothing |
+| `scaffold-author-control.py` | the `references/author-control` templates only |
+| `audit-citation-fidelity.mjs` | `guards/dist` (three modules) and `e1/graders.mjs` |
+
+Five of the six are standalone. They move into the `scripts/` directory of the
+skill that calls them, and the skill names a path relative to itself. Both
+surfaces then resolve, because both mount the same skill directory — one at
+`.claude/skills/<skill>/`, the other at `.agents/skills/<skill>/`.
+
+This is not a new idea to invent. `/export` already ships its converter at
+`.claude/skills/export/scripts/convert_to_docx.py`, and
+`profiles/awt-headless/awt-export.plugin.mjs:16` already resolves it by trying
+both prefixes against the workspace root. The pattern is shipping and proven.
+
+The sixth is different in kind: it reuses the guards' own citation extractor
+and notes parser on purpose, so that the audit and the enforcement cannot drift
+apart. It becomes a registered profile tool alongside `export_docx`, resolving
+the guards from `awt-guards`, which `install-profile` already places in the
+profile. On the Advisory surface it keeps working from the checkout as it does
+today, because that is where its dependencies are.
+
+- *For:* preserves the manifest invariant with no new links; introduces no new
+  CLI surface, no new documentation, and no new "where is the toolkit" state;
+  reuses two patterns already in the product; and the one script that becomes a
+  tool is precisely the one whose dependencies the Enforced surface already
+  installs. Five skills stop naming paths that only exist in a checkout without
+  anything being wrapped.
+- *Against:* moves files, so anyone with a bookmark to `scripts/…` follows a
+  redirect; `scaffold-author-control.py` must take its templates with it; and
+  the split has to be justified per script rather than stated once, which is a
+  little more to explain in `CONTRIBUTING.md`.
+
+**Recommendation: Option D.** It addresses the cause named in §2 — a skill that
+names a path only one of its two contexts has — by giving each skill a path
+both contexts have. It keeps the manifest invariant, adds no surface, and reuses
+two mechanisms that already ship. Option B was the first draft's recommendation
+and remains the best answer *if* the six commands must share one mechanism; the
+dependency table above is the evidence that they need not. Option A is cheaper
+today and more expensive every time a skill grows a command. Option C is right
+for exactly one of the six and wrong for the other five, which is what Option D
+says.
+
+A caveat this spec should not hide: Option D leaves `/export`'s Python backend
+problem untouched. That is work item 2, and it needs a home for a typed
+dependency error whichever option is chosen.
 
 ## 6. Work items, once the decision is taken
 
