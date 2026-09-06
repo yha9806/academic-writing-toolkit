@@ -34,6 +34,7 @@ import { labelPdfPages } from '../profiles/awt-headless/pdf-pages.mjs'
 import { readOpeningEvidence, sessionFiles, terminalOutcome } from './evidence.mjs'
 import { inspectLocalModel, localProviderPatch } from './local-provider.mjs'
 import { readResume } from './resume.mjs'
+import { publicContinuation } from './public-paths.mjs'
 import {
   extractQuotedSpans, gradeNotesParseability, gradePageAccuracy,
   gradeQuoteFidelity, gradeUnopenedCitations, pagesFromLabeledText,
@@ -374,7 +375,12 @@ async function runArm(entry, arm, runDir) {
   mkdirSync(artifactDir, { recursive: true })
   for (const tree of ['chapters', 'contracts']) cpSync(join(ws, tree), join(artifactDir, tree), { recursive: true, dereference: false })
   cpSync(join(ws, 'literature', 'reading_notes'), join(artifactDir, 'reading_notes'), { recursive: true, dereference: false })
-  if (existsSync(join(home, 'sessions'))) cpSync(join(home, 'sessions'), join(artifactDir, 'sessions'), { recursive: true, dereference: false })
+  // dsh names session directories after the absolute workspace. Keep the log
+  // bytes, but do not copy that encoded machine path into a portable artifact.
+  mkdirSync(join(artifactDir, 'sessions'), { recursive: true })
+  for (const file of sessionFiles(home)) {
+    cpSync(file, join(artifactDir, 'sessions', `sha256-${sha256(file)}.jsonl`))
+  }
   const processes = runs.map((run) => ({ status: run.status, signal: run.signal, outcome: run.outcome, error: run.error ? { code: run.error.code ?? 'SPAWN_ERROR' } : null }))
   writeFileSync(join(artifactDir, 'processes.json'), JSON.stringify(processes, null, 2))
 
@@ -427,6 +433,9 @@ async function runExperiment() {
   mkdirSync(outDir, { recursive: true })
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const runDir = join(outDir, `e1-${lane}-${stamp}`)
+  // Resolve provenance before any generation: cross-volume paths cannot be
+  // published as relative references and must fail before a model request.
+  const continuation = resume ? publicContinuation(resume.provenance, runDir, resume.provenance.run) : undefined
   mkdirSync(runDir)
   const results = []
   let failure
@@ -460,13 +469,13 @@ async function runExperiment() {
     producer: 'e1/run-e1.mjs',
     producerSha256: sha256(join(E1_DIR, 'run-e1.mjs')),
     implementationSha256: Object.fromEntries([
-      'e1/run-e1.mjs', 'e1/inputs.mjs', 'e1/evidence.mjs', 'e1/local-provider.mjs', 'e1/resume.mjs', 'e1/graders.mjs',
+      'e1/run-e1.mjs', 'e1/inputs.mjs', 'e1/evidence.mjs', 'e1/local-provider.mjs', 'e1/resume.mjs', 'e1/public-paths.mjs', 'e1/graders.mjs',
       'profiles/awt-headless/cordis.patch.yml', 'profiles/awt-headless/awt-read-pdf.plugin.mjs',
       'profiles/awt-headless/pdf-pages.mjs', 'guards/dist/notes-lint.js', 'guards/dist/decisions.js',
     ].map((path) => [path, sha256(join(PRODUCT_ROOT, path))])),
     inputs: entries.map(({ path, referenceTextPath, ...entry }) => ({ ...entry, sha256: entry.sha256 ?? sha256(referenceTextPath) })),
     model: REAL ? { provider: route.provider, id: route.model, ...(route.localInfo ? { local: route.localInfo } : {}) } : { provider: 'scripted', id: 'scripted-1' },
-    ...(resume ? { continuation: resume.provenance } : {}),
+    ...(resume ? { continuation } : {}),
     note: failure ? 'Incomplete execution: diagnostic results only; no E1 efficacy claim. Inspect retained session logs and process statuses before a deliberate new run.' : lane === 'offline'
       ? 'Offline lane: scripted synthetic arms. Proves the instrument discriminates (E0 about the instrument); NOT efficacy evidence about the skills.'
       : 'Real lane: paired sessions over the manifest PDFs. E1 evidence per §11.',

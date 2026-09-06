@@ -13,9 +13,13 @@ def digest(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run", type=Path)
+    parser.add_argument("--metrics", type=Path, help="Use a path-sanitised copy of the same producer metrics")
+    parser.add_argument("--output", type=Path, help="Write derived summaries separately, leaving the raw run unchanged")
     args = parser.parse_args()
     root = args.run.resolve()
-    metrics_path = root / "metrics.json"
+    metrics_path = args.metrics or root / "metrics.json"
+    output = args.output or root
+    output.mkdir(parents=True, exist_ok=True)
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     arms = []
     sessions = []
@@ -45,7 +49,11 @@ def main():
                 calls = collections.Counter(event["data"]["name"] for event in events if event.get("type") == "tool/call")
                 times = [event["time"] for event in events if isinstance(event.get("time"), (int, float))]
                 ends = [event["data"]["reason"] for event in events if event.get("type") == "turn/end"]
-                sessions.append({"source": result["id"], "arm": arm, "log": log.relative_to(root).as_posix(),
+                # A legacy log may live below an encoded absolute workspace
+                # directory. Its public reference is content-addressed; the raw
+                # file is neither renamed nor rewritten by this summariser.
+                sessions.append({"source": result["id"], "arm": arm,
+                                 "log": result["artifacts"] + "/sessions/sha256-" + digest(log) + ".jsonl",
                                  "sha256": digest(log), "terminalReasons": ends, "toolCalls": dict(calls),
                                  "elapsedSeconds": round((max(times) - min(times)) / 1000, 3) if times else None,
                                  "assistantMessagesWithUsage": len(usage),
@@ -63,7 +71,7 @@ def main():
                "disclosedTransportRetries": list(failures.values()), "sessions": sessions,
                "notesErrors": {result["id"] + "/" + result["arm"]: result["notes"]["errors"] for result in metrics["results"]},
                "usageCaveat": "Counts are reported assistant-message usage, not bills. They exclude background title generation and requests without reported usage. Latency was not controlled."}
-    (root / "analysis.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    (output / "analysis.json").write_bytes((json.dumps(summary, indent=2) + "\n").encode("utf-8"))
     lines = ["# Machine-generated observation summary", "", "Derived from the producer's metrics and retained logs; no scores were edited.", "",
              "| arm | sources opened | notes present | notes lint pass | drafts present | matched / detected quotes | page-adjacent citations | detected draft citations |",
              "| --- | --- | --- | --- | --- | --- | --- | --- |"]
@@ -82,7 +90,7 @@ def main():
                   "- Model failures remain in the table. A disclosed local transport retry is separate from the twelve retained task observations.",
                   "", "Retained session logs: " + str(len(sessions)) + "; unique log hashes: " + str(summary["uniqueSessionLogs"]) + ".",
                   "", "Metrics SHA-256: `" + summary["metricsSha256"] + "`.", ""])
-    (root / "analysis.md").write_text("\n".join(lines), encoding="utf-8")
+    (output / "analysis.md").write_bytes("\n".join(lines).encode("utf-8"))
     print(json.dumps({key: summary[key] for key in ("status", "evidenceClass", "arms", "retainedSessionLogs", "uniqueSessionLogs", "disclosedTransportRetries")}, indent=2))
 
 
