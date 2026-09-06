@@ -331,6 +331,12 @@ def package_zip(out_dir: Path, zip_path: Path) -> None:
 
 
 def main():
+    # A piped Windows process otherwise uses the system code page, which
+    # cannot represent many valid manuscript paths. Match our UTF-8 inputs
+    # and the agent's captured-output decoder for both messages and errors.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(
         description="Convert thesis Markdown files to Word (.docx)"
     )

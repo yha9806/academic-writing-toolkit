@@ -107,7 +107,29 @@ guard deliberately does not do.
 The canonical skill tree is exposed at `.agents/skills/` (the same files
 Claude Code reads from `.claude/skills/` and dsh discovers per workspace) —
 clone the repo and point Codex at it, or let `awt init` link the skills
-into your thesis workspace. The former packaged Codex plugin (`plugins/`)
+into your thesis workspace.
+
+To use the nine skills across your local Codex projects, install them in
+user scope from a source checkout (Python 3.9+, Node.js ^22.12 or >=24):
+
+```bash
+git clone https://github.com/yha9806/academic-writing-toolkit.git
+cd academic-writing-toolkit
+npm ci --prefix guards
+python scripts/install-codex-skills.py --install-deps
+```
+
+Use `python3` if that is your Python command. This copies self-contained
+skills to `~/.agents/skills`, builds their audit helpers, creates a private
+Python environment, and verifies the installed files. `--install-deps`
+downloads the declared Python dependencies on first use; no model key is
+needed. Repeat the last two commands after `git pull --ff-only` to update.
+Existing skills from another installer, or locally edited skills, require
+an explicit `--replace-existing`; their complete folders are backed up
+before replacement. Use `--dest` to update an existing legacy Codex skills
+directory. See [global installation, verification and recovery](docs/setup-codex-cli.md).
+
+These remain **Advisory** skills. The former packaged Codex plugin (`plugins/`)
 was decommissioned with the v0.1 rebuild; it remains installable from the
 immutable [v0.5.0 tag](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.5.0).
 

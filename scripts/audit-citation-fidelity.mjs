@@ -34,6 +34,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { extractQuotedSpans, gradeQuoteFidelity, normalizeForMatch, pagesFromLabeledText } from '../e1/graders.mjs'
 
 const PRODUCT_ROOT = resolve(import.meta.dirname, '..')
@@ -54,9 +55,9 @@ function die(code, message, remedy) {
 if (!existsSync(join(GUARDS_DIST, 'decisions.js'))) {
   die('FIDELITY_GUARDS_UNBUILT', 'guards/dist is missing; this audit reuses the guards\' citation extractor and notes parser', 'npm --prefix guards install && npm --prefix guards run build')
 }
-const { extractCitations } = await import(join(GUARDS_DIST, 'decisions.js'))
-const { parseNotesSource } = await import(join(GUARDS_DIST, 'projections.js'))
-const { lintNotes, hasErrors } = await import(join(GUARDS_DIST, 'notes-lint.js'))
+const { extractCitations } = await import(pathToFileURL(join(GUARDS_DIST, 'decisions.js')).href)
+const { parseNotesSource } = await import(pathToFileURL(join(GUARDS_DIST, 'projections.js')).href)
+const { lintNotes, hasErrors } = await import(pathToFileURL(join(GUARDS_DIST, 'notes-lint.js')).href)
 
 // --- corpus ----------------------------------------------------------------------
 
@@ -116,7 +117,10 @@ function pdfText(root, surname, year) {
  * "et al.", "3.5" and "e.g." do not cut a citing sentence in half.
  */
 function sentences(text) {
-  const src = text.replace(/\r/g, '')
+  // Drop ATX heading lines before buffering prose. Filtering a completed
+  // sentence starting with '#' also discarded the first paragraph that
+  // followed a heading without punctuation.
+  const src = text.replace(/\r/g, '').replace(/^ {0,3}#{1,6}(?:[ \t]+.*|[ \t]*)$/gm, '')
   const out = []
   let buf = ''
   let inQuote = false

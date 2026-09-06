@@ -30,7 +30,7 @@ If `make doctor` reports anything red, run `make repair` to fix what it can.
 
 Ask Claude: "What skills are available?"
 
-You should see the public local agent skills listed in [the skills guide](skills/README.md), including `/evidence-review` and `/release-governance`.
+You should see the nine canonical skills listed in [the skills guide](skills/README.md), including `/review` and `/edit-contract`.
 
 ## Available Skills
 
@@ -38,16 +38,12 @@ You should see the public local agent skills listed in [the skills guide](skills
 |---------|---------|
 | `/read` | Guided reading with page-by-page PDF extraction |
 | `/note` | Record structured reading notes |
-| `/verify` | Fact-check claims against sources |
 | `/map` | View literature coverage matrix |
-| `/evidence-review` | Build evidence-controlled gap maps and claim registers |
+| `/review` | External manuscript review or own-work clean-room review |
 | `/integrate` | Weave reading notes into chapter drafts |
 | `/audit` | Pre-submission consistency check |
-| `/release-governance` | Prepare release, rebuttal, artifact, and claim packets |
-| `/style` | Check British English consistency |
-| `/logic-review` | Review paragraph flow and transitions |
+| `/edit-contract` | Define a bounded edit scope and record revision attempts |
 | `/verify-refs` | Check BibTeX records and metadata |
-| `/progress` | Writing progress dashboard |
 | `/export` | Export chapters to Word (.docx) and ZIP |
 
 ## Customise
@@ -58,28 +54,23 @@ Edit `CLAUDE.md` to set your:
 - Reading pace limits (e.g. max pages per session)
 - Directory paths for literature and chapters
 
-## Global Installation (optional)
+## Helper resources
 
-To use these skills across all projects:
-
-```bash
-cp -r .claude/skills/* ~/.claude/skills/
-```
+Use the source checkout for this project-local route. Several skills call
+repository helpers or load templates outside their own directory; copying
+only `.claude/skills/` produces an incomplete standalone installation.
+The [global installer](setup-codex-cli.md) packages those resources for Codex.
 
 ## Usage Examples
 
 ```
 /read literature/my-paper.pdf        # Start reading a paper
 /note                                 # Record notes from reading
-/verify Smith published the article in 2020  # Fact-check a claim
 /map                                  # See literature coverage matrix
-/evidence-review                      # Build evidence-controlled review maps
+/review                      # Review the submitted manuscript
 /integrate                            # Weave notes into chapters
 /audit                                # Pre-submission consistency check
-/release-governance                   # Prepare release evidence packet
-/style                                # Check British English consistency
-/logic-review                         # Review paragraph flow
+/edit-contract                   # Define the edit scope
 /verify-refs references.bib           # Check BibTeX records
-/progress                             # View writing dashboard
 /export chapters en-only             # Export chapters to Word
 ```

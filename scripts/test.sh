@@ -3071,11 +3071,20 @@ test_T59() {
     local stale_phrase="11 public academic writing skill"
     ! grep -R -q "${stale_phrase}s" "${setup_docs[@]}" || return 1
 
-    local doc
-    for doc in "${setup_docs[@]}"; do
-        grep -q "evidence-review" "$doc" || return 1
-        grep -q "release-governance" "$doc" || return 1
-    done
+    # Compare advertised skill tables with the canonical catalogue. Requiring
+    # retired names made a stale guide pass and an accurate guide fail.
+    python3 - "$REPO_ROOT" "${setup_docs[@]}" <<'PY' || return 1
+import re
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+expected = {p.parent.name for p in (root / '.claude/skills').glob('*/SKILL.md')}
+assert expected, 'canonical skill catalogue is empty'
+for name in sys.argv[2:]:
+    text = Path(name).read_text(encoding='utf-8')
+    rows = re.findall(r'^\|\s*`?/?([a-z][a-z-]*)`?\s*\|', text, re.M)
+    assert len(rows) == len(expected) and set(rows) == expected, '{}: advertised skills drifted from canonical catalogue'.format(name)
+PY
 
     # The README pins the v0.1 surface truth: the two-mode vocabulary,
     # the dsh app as the enforced surface, and the pointer to the last
