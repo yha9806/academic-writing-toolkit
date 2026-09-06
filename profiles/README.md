@@ -23,8 +23,7 @@ node scaffold/awt.mjs install-profile
 Verify the composition without booting or credentials:
 
 ```bash
-node ~/.dsh/profiles/node_modules/@deepseek-ai/dsh/lib/bin.js \\
-  --profile awt-headless --dump-config | grep awt-guards
+node harness/node_modules/@deepseek-ai/dsh/lib/bin.js --profile awt-headless --dump-config | grep awt-guards
 ```
 
 Run inside a thesis workspace created by `awt init` (profile boot is a
@@ -35,10 +34,21 @@ export DEEPSEEK_API_KEY=...   # or ANTHROPIC_API_KEY for the anthropic route
 node scaffold/awt.mjs run <your-thesis-workspace> "task"
 ```
 
-`awt run` resolves the pinned launcher from `$DSH_HOME/profiles/node_modules`
-— the dependency tree `install-profile` already wrote — so no package is
-resolved at launch time and an off-pin harness is a typed refusal
+`awt run` resolves the pinned launcher from `harness/` in the toolkit
+checkout, which `install-profile` populates with `npm ci` from a tracked
+lockfile. It does not live in `$DSH_HOME`: dsh owns
+`$DSH_HOME/profiles/node_modules` and heals it by symlinking in the
+installation it was launched out of, so AWT owns that installation rather
+than inheriting whatever a machine happens to have. No package is resolved
+at launch time, and an off-pin harness is a typed refusal
 (`AWT_LAUNCH_HARNESS_UNPINNED`).
+
+Anything after `--` goes to the harness untouched, which is how a launcher
+overlay reaches it:
+
+```bash
+node scaffold/awt.mjs run <workspace> "task" -- --patch model.yml
+```
 
 Remove by deleting `$DSH_HOME/profiles/awt-headless`; upgrade by
 re-running `install-profile` after removing (never merges in place).

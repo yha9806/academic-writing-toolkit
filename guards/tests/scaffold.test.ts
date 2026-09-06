@@ -130,16 +130,25 @@ test('install-profile lands both canonical profiles in a DSH_HOME and refuses to
  * point, the notes template, and a catalogue built to order. `true` makes a
  * real skill (a directory with a SKILL.md); `false` makes a bare directory.
  */
-function productRoot(catalogue: Record<string, boolean>): string {
+function productRoot(catalogue: Record<string, boolean>, harnessVersion?: string): string {
   const root = scratch()
   mkdirSync(join(root, 'scaffold'), { recursive: true })
   cpSync(AWT, join(root, 'scaffold', 'awt.mjs'))
+  cpSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), join(root, 'COMPAT.json'))
   mkdirSync(join(root, 'literature', 'reading_notes'), { recursive: true })
   cpSync(TEMPLATE, join(root, 'literature', 'reading_notes', '_template_NOTES.md'))
   for (const [name, isSkill] of Object.entries(catalogue)) {
     const dir = join(root, '.claude', 'skills', name, 'scripts')
     mkdirSync(dir, { recursive: true })
     if (isSkill) writeFileSync(join(root, '.claude', 'skills', name, 'SKILL.md'), `---\nname: ${name}\n---\n`)
+  }
+  if (harnessVersion !== undefined) {
+    // A launcher that prints its argv, so forwarding is observable and no
+    // real harness (or credential) is needed to test launch's preconditions.
+    const pkg = join(root, 'harness', 'node_modules', '@deepseek-ai', 'dsh')
+    mkdirSync(join(pkg, 'lib'), { recursive: true })
+    writeFileSync(join(pkg, 'lib', 'bin.js'), 'console.log(JSON.stringify(process.argv.slice(2)))\n')
+    writeFileSync(join(pkg, 'package.json'), JSON.stringify({ version: harnessVersion }))
   }
   return join(root, 'scaffold', 'awt.mjs')
 }
@@ -166,62 +175,113 @@ test('init links exactly the real skills of a clean catalogue', () => {
 })
 
 // --- awt web / awt run: the supported launch path ----------------------------------
-// `install-profile` already places the pinned launcher inside
-// $DSH_HOME/profiles/node_modules. These gates pin the refusals that run
-// BEFORE anything boots, so they need neither a harness nor a credential.
+// The launcher lives in the TOOLKIT CHECKOUT, not in $DSH_HOME: dsh owns
+// $DSH_HOME/profiles/node_modules and heals it from the installation it was
+// launched out of, rejecting a real directory placed there. An earlier version
+// of these tests hand-built the launcher under a scratch $DSH_HOME and
+// asserted in a comment that install-profile put it there. It never did, and
+// the mock made a blocks-use gap untestable: on any machine that had run dsh
+// before, launch worked; on every clean one it refused.
 
-/** A $DSH_HOME with an installed profile and a launcher of the given version. */
-function dshHome(opts: { profile?: string; harnessVersion?: string | null }): string {
-  const home = scratch()
-  if (opts.profile) mkdirSync(join(home, 'profiles', opts.profile), { recursive: true })
-  if (opts.harnessVersion !== null) {
-    const pkg = join(home, 'profiles', 'node_modules', '@deepseek-ai', 'dsh')
-    mkdirSync(join(pkg, 'lib'), { recursive: true })
-    writeFileSync(join(pkg, 'lib', 'bin.js'), '')
-    writeFileSync(join(pkg, 'package.json'), JSON.stringify({ version: opts.harnessVersion }))
-  }
-  return home
-}
-
-function awtIn(home: string, ...args: string[]) {
-  return spawnSync(process.execPath, [AWT, ...args], {
+function awtAt(entry: string, home: string, ...args: string[]) {
+  return spawnSync(process.execPath, [entry, ...args], {
     encoding: 'utf8', timeout: 60_000, env: { ...process.env, DSH_HOME: home },
   })
 }
 
-test('web refuses when the profile was never installed into DSH_HOME', () => {
+/** A $DSH_HOME holding only installed profile directories — no launcher. */
+function dshHome(profile?: string): string {
+  const home = scratch()
+  if (profile) mkdirSync(join(home, 'profiles', profile), { recursive: true })
+  return home
+}
+
+test('launch refuses when the harness was never installed into the checkout', () => {
+  const entry = productRoot({ note: true })            // no harness/
   const ws = join(scratch(), 'ws')
-  awt('init', ws)
-  const res = awtIn(dshHome({ harnessVersion: '0.1.0-rc.6' }), 'web', ws)
+  spawnSync(process.execPath, [entry, 'init', ws], { encoding: 'utf8', timeout: 60_000 })
+  const res = awtAt(entry, dshHome('awt-headless'), 'run', ws, 'anything')
+  assert.notEqual(res.status, 0)
+  assert.match(res.stderr, /AWT_LAUNCH_HARNESS_MISSING/)
+  assert.match(res.stderr, /install-profile/)
+})
+
+test('launch refuses a harness that is not the COMPAT-pinned version', () => {
+  // Silently launching a different harness would void every attested gate.
+  const entry = productRoot({ note: true }, '0.1.2-rc.1')
+  const ws = join(scratch(), 'ws')
+  spawnSync(process.execPath, [entry, 'init', ws], { encoding: 'utf8', timeout: 60_000 })
+  const res = awtAt(entry, dshHome('awt-headless'), 'run', ws, 'anything')
+  assert.notEqual(res.status, 0)
+  assert.match(res.stderr, /AWT_LAUNCH_HARNESS_UNPINNED/)
+  assert.match(res.stderr, /0\.1\.2-rc\.1/)
+  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness.split('@').pop()
+  assert.match(res.stderr, new RegExp(pinned.replace(/\./g, '\\.')))
+})
+
+test('web refuses when the profile was never installed into DSH_HOME', () => {
+  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness.split('@').pop()
+  const entry = productRoot({ note: true }, pinned)
+  const ws = join(scratch(), 'ws')
+  spawnSync(process.execPath, [entry, 'init', ws], { encoding: 'utf8', timeout: 60_000 })
+  const res = awtAt(entry, dshHome(), 'web', ws)
   assert.notEqual(res.status, 0)
   assert.match(res.stderr, /AWT_LAUNCH_PROFILE_MISSING/)
   assert.match(res.stderr, /install-profile/)
 })
 
 test('web refuses a directory that is not an AWT workspace', () => {
-  const home = dshHome({ profile: 'awt-web', harnessVersion: '0.1.0-rc.6' })
-  const res = awtIn(home, 'web', scratch())
+  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness.split('@').pop()
+  const entry = productRoot({ note: true }, pinned)
+  const res = awtAt(entry, dshHome('awt-web'), 'web', scratch())
   assert.notEqual(res.status, 0)
   assert.match(res.stderr, /AWT_LAUNCH_NOT_WORKSPACE/)
 })
 
-test('launch refuses a harness that is not the COMPAT-pinned version', () => {
-  // Silently launching a different harness would void every attested gate.
-  const home = dshHome({ profile: 'awt-headless', harnessVersion: '0.1.2-rc.1' })
+test('run refuses without a task, and web without a workspace', () => {
+  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness.split('@').pop()
+  const entry = productRoot({ note: true }, pinned)
   const ws = join(scratch(), 'ws')
-  awt('init', ws)
-  const res = awtIn(home, 'run', ws, 'anything')
-  assert.notEqual(res.status, 0)
-  assert.match(res.stderr, /AWT_LAUNCH_HARNESS_UNPINNED/)
-  assert.match(res.stderr, /0\.1\.2-rc\.1/)
-  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness
-  assert.match(res.stderr, new RegExp(pinned.split('@').pop().replace(/\./g, '\\.')))
+  spawnSync(process.execPath, [entry, 'init', ws], { encoding: 'utf8', timeout: 60_000 })
+  const home = dshHome('awt-headless')
+  assert.match(awtAt(entry, home, 'run', ws).stderr, /AWT_LAUNCH_USAGE/)
+  assert.match(awtAt(entry, home, 'web').stderr, /AWT_LAUNCH_USAGE/)
 })
 
-test('run refuses without a task, and web without a workspace', () => {
-  const home = dshHome({ profile: 'awt-headless', harnessVersion: '0.1.0-rc.6' })
+test('launch forwards everything after `--` to the harness, so documented overlays work', () => {
+  // The runbook tells authors to select a model with the launcher's --patch
+  // overlay; silently dropping extra argv would make that impossible.
+  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness.split('@').pop()
+  const entry = productRoot({ note: true }, pinned)
   const ws = join(scratch(), 'ws')
-  awt('init', ws)
-  assert.match(awtIn(home, 'run', ws).stderr, /AWT_LAUNCH_USAGE/)
-  assert.match(awtIn(home, 'web').stderr, /AWT_LAUNCH_USAGE/)
+  spawnSync(process.execPath, [entry, 'init', ws], { encoding: 'utf8', timeout: 60_000 })
+  const res = awtAt(entry, dshHome('awt-headless'), 'run', ws, 'a task', '--', '--patch', 'model.yml')
+  assert.equal(res.status, 0, res.stderr)
+  assert.deepEqual(JSON.parse(res.stdout), ['--profile', 'awt-headless', 'a task', '--patch', 'model.yml'])
+})
+
+test('web forwards after `--` too, and keeps its port argument', () => {
+  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness.split('@').pop()
+  const entry = productRoot({ note: true }, pinned)
+  const ws = join(scratch(), 'ws')
+  spawnSync(process.execPath, [entry, 'init', ws], { encoding: 'utf8', timeout: 60_000 })
+  const res = awtAt(entry, dshHome('awt-web'), 'web', ws, '3199', '--', '--patch', 'model.yml')
+  assert.equal(res.status, 0, res.stderr)
+  assert.deepEqual(JSON.parse(res.stdout), ['--profile', 'awt-web', '--host', '127.0.0.1', '--port', '3199', '--patch', 'model.yml'])
+})
+
+test('install-profile installs the pinned launcher, so the next command can actually start', () => {
+  // The gap this closes: install-profile wrote only the profile directories,
+  // and the launcher was assumed to exist under $DSH_HOME. On a clean machine
+  // both `awt run` and `awt web` refused. Needs the network on a cold checkout.
+  const home = scratch()
+  const res = awt('install-profile', home)
+  assert.equal(res.status, 0, res.stderr)
+  const pkgRoot = resolve(import.meta.dirname, '..', '..', 'harness', 'node_modules', '@deepseek-ai', 'dsh')
+  assert.ok(lstatSync(join(pkgRoot, 'lib', 'bin.js')).isFile(), 'no launcher in the toolkit harness')
+  const pinned = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'COMPAT.json'), 'utf8')).harness.split('@').pop()
+  assert.equal(JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).version, pinned)
+  // And what it tells the user to run next must be the supported commands.
+  assert.doesNotMatch(res.stdout, /npx/, 'install-profile still advertises the npx launch path')
+  assert.match(res.stdout, /awt\.mjs (web|run)/)
 })
