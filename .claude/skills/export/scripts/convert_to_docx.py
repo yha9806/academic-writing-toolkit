@@ -47,14 +47,32 @@ try:
 except ImportError:
     pass
 
+# A bare `pip install` is refused as externally-managed by any PEP 668
+# interpreter — the default on Homebrew Python and on current Debian and
+# Ubuntu — so the remedy leads with a virtual environment. Naming a command
+# the reader cannot run is the same as naming none.
 BACKEND_ERROR = (
     "Error: No conversion backend available.\n"
     "  - pypandoc is unavailable (not installed, or `pandoc` binary missing/broken on PATH).\n"
+    "    Note: the `pandoc` binary alone is not enough; pypandoc is the Python binding.\n"
     "  - python-docx + markdown fallback is also missing.\n"
-    "Install one of:\n"
-    "  pip install pypandoc       (also requires `pandoc` binary on PATH)\n"
-    "  pip install python-docx markdown"
+    "Install one backend into a virtual environment, then run this converter with it:\n"
+    "  python3 -m venv .venv\n"
+    "  .venv/bin/pip install python-docx markdown\n"
+    "  .venv/bin/python <this script> --check\n"
+    "Alternatives, if your interpreter is not externally managed:\n"
+    "  python3 -m pip install --user python-docx markdown\n"
+    "  pipx install pypandoc       (also requires the `pandoc` binary on PATH)"
 )
+
+
+def backend_name() -> str:
+    """Which backend this interpreter would convert with, or the empty string."""
+    if USE_PANDOC:
+        return "pypandoc (pandoc)"
+    if HAS_DOCX:
+        return "python-docx + markdown"
+    return ""
 
 
 def ensure_conversion_backend() -> None:
@@ -335,6 +353,12 @@ def main():
         description="Convert thesis Markdown files to Word (.docx)"
     )
     parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Report whether this interpreter has a conversion backend, and exit. "
+             "Converts nothing and needs no project directory.",
+    )
+    parser.add_argument(
         "--base-dir",
         type=Path,
         required=True,
@@ -358,6 +382,16 @@ def main():
         default="all",
         help="Language filter for notes (default: all)",
     )
+    if "--check" in sys.argv[1:]:
+        # Answered before parse_args, whose required arguments describe a
+        # conversion this mode never performs.
+        found = backend_name()
+        if not found:
+            print(BACKEND_ERROR, file=sys.stderr)
+            return 1
+        print(f"conversion backend available: {found}")
+        return 0
+
     args = parser.parse_args()
     ensure_conversion_backend()
 
@@ -399,4 +433,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main() returns a status only for --check; a conversion falls off the end
+    # and returns None, which sys.exit reads as success.
+    sys.exit(main())

@@ -71,29 +71,43 @@ else
 fi
 
 # --- Check (v): system dependencies ------------------------------------------
+# The export toolchain is asked, not inferred. This block used to probe the
+# `pandoc` binary and `python-docx` and conclude the environment was healthy;
+# the converter needs pypandoc (the binding, not the binary) OR python-docx
+# *and* markdown, so a machine could satisfy every proxy and still fail at the
+# first export. Only the converter knows whether it can convert.
 deps_ok=true
-if command -v pandoc >/dev/null 2>&1; then
-    pandoc_v=$(pandoc --version | head -1)
-    pass "pandoc available ($pandoc_v)"
+# The remedy this check prints creates a project-local .venv, so the check
+# looks there before falling back — otherwise following the instructions
+# would leave the check still failing, which is worse than not printing them.
+if [ -n "${AWT_PYTHON:-}" ]; then
+    :
+elif [ -x "$SCRIPT_DIR/../.venv/bin/python" ]; then
+    AWT_PYTHON="$SCRIPT_DIR/../.venv/bin/python"
 else
-    fail "pandoc not found"
-    hint "macOS: brew install pandoc  |  Debian/Ubuntu: apt install pandoc"
-    deps_ok=false
+    AWT_PYTHON="python3"
 fi
-if command -v python3 >/dev/null 2>&1; then
-    py_v=$(python3 --version 2>&1)
+CONVERTER="$SCRIPT_DIR/../.claude/skills/export/scripts/convert_to_docx.py"
+if command -v "$AWT_PYTHON" >/dev/null 2>&1 || [ -x "$AWT_PYTHON" ]; then
+    py_v=$("$AWT_PYTHON" --version 2>&1)
     pass "python3 available ($py_v)"
-    if python3 -c "import docx" >/dev/null 2>&1; then
-        pass "python-docx importable"
+    if backend=$("$AWT_PYTHON" "$CONVERTER" --check 2>&1); then
+        pass "/export can convert — ${backend#conversion backend available: }"
     else
-        fail "python-docx not importable"
-        hint "pip install python-docx  (or: pip3 install python-docx)"
+        fail "/export cannot convert: no backend for $AWT_PYTHON"
+        while IFS= read -r line; do [ -n "$line" ] && hint "$line"; done <<<"$backend"
         deps_ok=false
     fi
 else
     fail "python3 not found"
     hint "macOS: brew install python3  |  Debian/Ubuntu: apt install python3 python3-pip"
     deps_ok=false
+fi
+if command -v pandoc >/dev/null 2>&1; then
+    pandoc_v=$(pandoc --version | head -1)
+    pass "pandoc available ($pandoc_v) — used by the pypandoc backend only"
+else
+    warn "pandoc not on PATH; the python-docx backend does not need it"
 fi
 
 # --- Summary ------------------------------------------------------------------

@@ -14,8 +14,15 @@ product has to answer.
 cd guards && npm install && npm run build && cd ..
 cd e2e && npm ci && cd ..
 
+# /export needs a conversion backend; a bare `pip install` is refused on a
+# PEP 668 interpreter, which is the default on Homebrew Python and current
+# Debian/Ubuntu. `awt verify` asks the converter, so this is not optional.
+python3 -m venv .venv
+.venv/bin/pip install -r .claude/skills/export/scripts/requirements.txt
+
 node scaffold/awt.mjs init ~/thesis            # or your chosen workspace path
-node scaffold/awt.mjs verify ~/thesis          # 5/5 stages, keyless, scratch-only
+AWT_PYTHON=.venv/bin/python \
+  node scaffold/awt.mjs verify ~/thesis        # 6/6 stages, keyless, scratch-only
 node scaffold/awt.mjs install-profile          # profile into ~/.dsh
 ```
 

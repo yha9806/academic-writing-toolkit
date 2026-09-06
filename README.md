@@ -77,7 +77,10 @@ See [Choose the right product surface](docs/use-cases/choose-product-surface.md)
 
 The dsh app is the enforced surface: profile boot itself truth-tests your
 workspace, and every daily-loop constraint is a typed guard denial or an
-explicit author approval. It needs Node 22+, `pdftotext` (poppler), and one
+explicit author approval. It needs Node 22+, `pdftotext` (poppler), a Python
+conversion backend for `/export` (see
+`.claude/skills/export/scripts/requirements.txt`; `awt verify` asks the
+converter rather than guessing), and one
 provider key at run time.
 
 ```bash
