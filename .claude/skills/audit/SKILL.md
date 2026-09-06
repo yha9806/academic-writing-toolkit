@@ -49,7 +49,7 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    is not repairable after review; style is)**
 
    ```
-   python3 scripts/audit-claim-positioning.py --base-dir chapters --bib references.bib --json
+   python3 .claude/skills/audit/scripts/audit-claim-positioning.py --base-dir chapters --bib references.bib --json
    ```
 
    (omit `--bib` when the project has no bibliography file). Report every
@@ -63,7 +63,7 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    **F. Citation fidelity — does the citing sentence match its source?**
 
    ```
-   node scripts/audit-citation-fidelity.mjs --base-dir . --json
+   node .claude/skills/audit/scripts/audit-citation-fidelity.mjs --base-dir . --json
    ```
 
    (needs the guards built once: `npm --prefix guards install && npm --prefix guards run build`.)
@@ -84,7 +84,7 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    PDFs (`literature/`, twenty or more, the author's own papers excluded):
 
    ```
-   python3 scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude '<author-surname>*'
+   python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude '<author-surname>*'
    ```
 
    Report the distributions under **Measurements**, never as issues: this is

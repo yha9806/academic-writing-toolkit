@@ -1,4 +1,4 @@
-// scripts/audit-citation-fidelity.mjs (P4 item 4): the audit's four findings
+// .claude/skills/audit/scripts/audit-citation-fidelity.mjs (P4 item 4): the audit's four findings
 // pinned on temp workspaces, plus the honesty test — a citing sentence that
 // INVERTS its source in the source's own words, which the tool is REQUIRED
 // to pass without a finding, while its output states that limit. The limit
@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { notesFixture } from './dsh-harness.ts'
 
-const AUDIT = resolve(import.meta.dirname, '..', '..', 'scripts', 'audit-citation-fidelity.mjs')
+const AUDIT = resolve(import.meta.dirname, '..', '..', '.claude', 'skills', 'audit', 'scripts', 'audit-citation-fidelity.mjs')
 const dirs: string[] = []
 after(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
 

@@ -11,14 +11,14 @@ Use [`/verify-refs`](../skills/11-verify-refs.md) before submission, camera-read
 ## Validate
 
 ```bash
-python3 scripts/verify-refs.py --bib references.bib --json
-python3 scripts/verify-refs.py --bib references.bib --json --online
+python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib references.bib --json
+python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib references.bib --json --online
 ```
 
 For deterministic review or CI, use metadata fixtures:
 
 ```bash
-python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
+python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
 ```
 
 The public toolkit intentionally excludes project-specific self-citation rules and author-name assumptions.

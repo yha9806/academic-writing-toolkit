@@ -34,7 +34,7 @@ Examples:
    cites nor lacks an entry a chapter cites:
 
    ```
-   python3 scripts/audit-claim-positioning.py --base-dir chapters --bib references.bib --json
+   python3 .claude/skills/audit/scripts/audit-claim-positioning.py --base-dir chapters --bib references.bib --json
    ```
 
    Stop and report if anything is unresolved. On this surface nothing blocks
@@ -48,7 +48,7 @@ Examples:
 
 2. **Run the conversion script.**
    ```
-   python .claude/skills/export/scripts/convert_to_docx.py \
+   python3 .claude/skills/export/scripts/convert_to_docx.py \
      --base-dir {project_root} \
      --output-dir {project_root}/final_output \
      --scope {scope} \

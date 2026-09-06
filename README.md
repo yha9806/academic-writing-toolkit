@@ -149,7 +149,7 @@ Local discovery paths:
 The demo uses fictional public-safe sources. It exercises the same validators used by real projects without requiring network access.
 
 ```bash
-python3 scripts/verify-refs.py \
+python3 .claude/skills/verify-refs/scripts/verify-refs.py \
   --bib examples/demo-project/references.bib --json
 
 npm --prefix guards install
@@ -214,18 +214,18 @@ npm --prefix guards test  # notes-contract lint + catalogue truth tests
 python3 scripts/audit-citations.py --base-dir . --style harvard --json
 python3 scripts/audit-british-english.py --base-dir . --json
 python3 scripts/audit-logic.py --base-dir . --json
-python3 scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude 'ourname*'
-python3 scripts/audit-claim-positioning.py --base-dir . --json
-node scripts/audit-citation-fidelity.mjs --base-dir . --json   # needs guards built once
+python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude 'ourname*'
+python3 .claude/skills/audit/scripts/audit-claim-positioning.py --base-dir . --json
+node .claude/skills/audit/scripts/audit-citation-fidelity.mjs --base-dir . --json   # needs guards built once
 python3 scripts/audit-public-content.py --base-dir .
 ```
 
 Reference verification is offline by default:
 
 ```bash
-python3 scripts/verify-refs.py --bib references.bib --json
-python3 scripts/verify-refs.py --bib references.bib --json --online
-python3 scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
+python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib references.bib --json
+python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib references.bib --json --online
+python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib references.bib --json --online --metadata-dir path/to/metadata-fixtures
 ```
 
 `--exclude` drops baseline files by glob. Point it at the authors' own

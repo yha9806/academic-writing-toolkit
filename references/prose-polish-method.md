@@ -2,7 +2,7 @@
 
 Distilled from ten polishing rounds on a real manuscript; every rule below
 stands on a mistake that actually happened. Tool-neutral: the measurements
-come from `scripts/audit-prose-fingerprint.py` (punctuation and distribution)
+come from `.claude/skills/audit/scripts/audit-prose-fingerprint.py` (punctuation and distribution)
 and, when available, a sentence-structure measure of the project's own; the
 rules do not depend on either.
 
@@ -45,7 +45,7 @@ in order and do not proceed while one fails:
    citation.
 5. Only then, style.
 
-`scripts/audit-claim-positioning.py` covers step 1 and the method-citation
+`.claude/skills/audit/scripts/audit-claim-positioning.py` covers step 1 and the method-citation
 part of step 4 deterministically. It checks that a source is present, never
 that it is the right one.
 

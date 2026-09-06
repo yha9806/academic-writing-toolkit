@@ -437,7 +437,7 @@ test_T40() {
   doi = {10.1000/example}
 }
 EOF
-    python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --json >/dev/null
+    python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --json >/dev/null
     local ok=$?
     rm -rf "$tmp"
     return "$ok"
@@ -463,7 +463,7 @@ test_T41() {
   journal = {Journal of Tools}
 }
 EOF
-    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/bad.bib" --json 2>&1)
+    out=$(python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/refs/bad.bib" --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -494,7 +494,7 @@ test_T43() {
     grep -q "/export" "$REPO_ROOT/README.md" || return 1
     grep -q "local agent skill" "$REPO_ROOT/README.md" || return 1
     grep -q "guards test" "$REPO_ROOT/README.md" || return 1
-    grep -q "scripts/verify-refs.py --bib" "$REPO_ROOT/README.md" || return 1
+    grep -q ".claude/skills/verify-refs/scripts/verify-refs.py --bib" "$REPO_ROOT/README.md" || return 1
     grep -q -- "--metadata-dir" "$REPO_ROOT/README.md" || return 1
     ! grep -q "room for explicit online checks" "$REPO_ROOT/README.md" || return 1
     ! grep -R -q "docs/superpowers" "$REPO_ROOT/README.md" "$REPO_ROOT/docs" "$REPO_ROOT/.claude/skills" || return 1
@@ -524,7 +524,7 @@ EOF
     cat > "$tmp/meta/semantic-scholar/10.1000_example.json" <<'EOF'
 {"title":"A Generic Toolkit Study","authors":[{"name":"Jane Smith"},{"name":"Alex Jones"}],"year":2024,"venue":"Journal of Tools"}
 EOF
-    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json) || {
+    out=$(python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -551,7 +551,7 @@ EOF
     cat > "$tmp/meta/semantic-scholar/10.1000_example.json" <<'EOF'
 {"title":"A Generic Toolkit Study","authors":[{"name":"Jane Smith"}],"year":2024,"venue":"Journal of Tools"}
 EOF
-    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json 2>&1)
+    out=$(python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -577,7 +577,7 @@ EOF
     cat > "$tmp/meta/semantic-scholar/10.1000_example.json" <<'EOF'
 {"title":"A Generic Toolkit Study","authors":[{"name":"Jane Smith"}],"year":2024,"venue":"Journal of Tools"}
 EOF
-    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json 2>&1)
+    out=$(python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -609,7 +609,7 @@ EOF
     cat > "$tmp/meta/semantic-scholar/2401.12345.json" <<'EOF'
 {"title":"A Generic Preprint Study","authors":[{"name":"Jane Smith"}],"year":2024,"venue":"arXiv"}
 EOF
-    out=$(python3 scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json) || {
+    out=$(python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/refs/paper.bib" --online --metadata-dir "$tmp/meta" --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -629,7 +629,7 @@ test_T125() {
   journal = {Journal of Tools}
 }
 BIB
-    out="$(python3 "$REPO_ROOT/scripts/verify-refs.py" --bib "$tmp/refs.bib" --json)" || { rm -rf "$tmp"; return 1; }
+    out="$(python3 "$REPO_ROOT/.claude/skills/verify-refs/scripts/verify-refs.py" --bib "$tmp/refs.bib" --json)" || { rm -rf "$tmp"; return 1; }
     rm -rf "$tmp"
     ! echo "$out" | grep -q "missing-required-field" || return 1
 }
@@ -647,7 +647,7 @@ test_T126() {
 BIB
     out="$(python3 - "$tmp/refs.bib" <<'PY'
 import importlib.util, sys
-spec = importlib.util.spec_from_file_location("vr", "scripts/verify-refs.py")
+spec = importlib.util.spec_from_file_location("vr", ".claude/skills/verify-refs/scripts/verify-refs.py")
 vr = importlib.util.module_from_spec(spec); spec.loader.exec_module(vr)
 entries = vr.parse_bibtex(open(sys.argv[1]).read())
 print(entries[0]["fields"]["title"])
@@ -658,8 +658,8 @@ PY
 }
 
 test_T49() {
-    python3 scripts/verify-refs.py --help | grep -q -- "--online" || return 1
-    python3 scripts/verify-refs.py --help | grep -q -- "--metadata-dir"
+    python3 .claude/skills/verify-refs/scripts/verify-refs.py --help | grep -q -- "--online" || return 1
+    python3 .claude/skills/verify-refs/scripts/verify-refs.py --help | grep -q -- "--metadata-dir"
 }
 
 test_T60() {
@@ -679,7 +679,7 @@ test_T60() {
 }
 ```
 EOF
-    out=$(python3 scripts/verify-refs.py "$tmp/refs/papers.md" --json) || {
+    out=$(python3 .claude/skills/verify-refs/scripts/verify-refs.py "$tmp/refs/papers.md" --json) || {
         rm -rf "$tmp"
         return 1
     }
@@ -718,7 +718,7 @@ test_T62() {
     local demo="$REPO_ROOT/examples/demo-project"
     local out
 
-    python3 scripts/verify-refs.py --bib "$demo/references.bib" --json >/dev/null || return 1
+    python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$demo/references.bib" --json >/dev/null || return 1
     python3 archive/skills/evidence-review/scripts/check_review_package.py "$demo" --strict >/dev/null || return 1
     out=$(python3 archive/skills/release-governance/scripts/check_release_packet.py "$demo" --json) || return 1
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['issue_count'] == 0"
@@ -2949,7 +2949,7 @@ The pool holds many images and the queries are short. The pool holds many images
 Shortcut learning is the central worry of this chapter, as Smith (2024) argues at length
 and as later work confirms (Smith and Doe, 2024, p. 12).
 EOF
-    out=$(python3 scripts/audit-claim-positioning.py --base-dir "$tmp/chapters" --bib "$tmp/references.bib" --json 2>&1)
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py --base-dir "$tmp/chapters" --bib "$tmp/references.bib" --json 2>&1)
     rm -rf "$tmp"
     echo "$out" | python3 -c "
 import json,sys
@@ -3089,7 +3089,7 @@ test_T59() {
 test_T135() {
     local tmp before after second control_file
     tmp=$(mktemp -d) || return 1
-    python3 scripts/scaffold-author-control.py "$tmp" --json >/dev/null || {
+    python3 .claude/skills/edit-contract/scripts/scaffold-author-control.py "$tmp" --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
@@ -3099,12 +3099,12 @@ test_T135() {
             return 1
         }
     done
-    python3 scripts/check-author-control.py "$tmp" --json >/dev/null || {
+    python3 .claude/skills/edit-contract/scripts/check-author-control.py "$tmp" --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
     before=$(sha256sum "$tmp"/*.md | sort)
-    second=$(python3 scripts/scaffold-author-control.py "$tmp" --json 2>&1)
+    second=$(python3 .claude/skills/edit-contract/scripts/scaffold-author-control.py "$tmp" --json 2>&1)
     [[ $? -eq 1 ]] || {
         rm -rf "$tmp"
         return 1
@@ -3117,7 +3117,7 @@ test_T135() {
 test_T136() {
     local tmp out rc file
     tmp=$(mktemp -d) || return 1
-    python3 scripts/scaffold-author-control.py "$tmp" >/dev/null || {
+    python3 .claude/skills/edit-contract/scripts/scaffold-author-control.py "$tmp" >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
@@ -3138,13 +3138,13 @@ test_T136() {
         -e 's#Author post-edit decision: pending / accept / partial_accept / revise / rollback#Author post-edit decision: pending#' \
         "$tmp/02_REVISION_LOG.md"
     rm -f "$tmp/02_REVISION_LOG.md.bak"
-    python3 scripts/check-author-control.py "$tmp" --strict --json >/dev/null || {
+    python3 .claude/skills/edit-contract/scripts/check-author-control.py "$tmp" --strict --json >/dev/null || {
         rm -rf "$tmp"
         return 1
     }
     sed -i.bak 's/Author pre-edit decision: approved/Author pre-edit decision: pending/' "$tmp/02_REVISION_LOG.md"
     rm -f "$tmp/02_REVISION_LOG.md.bak"
-    out=$(python3 scripts/check-author-control.py "$tmp" --strict --json 2>&1)
+    out=$(python3 .claude/skills/edit-contract/scripts/check-author-control.py "$tmp" --strict --json 2>&1)
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 1 ]] || return 1
@@ -3298,10 +3298,10 @@ bursty = (filler * 24 + (marked + filler) * 6
 (d / "even.txt").write_text(even, encoding="utf-8")
 (d / "bursty.txt").write_text(bursty, encoding="utf-8")
 PYEOF
-    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/even.txt" --json 2>&1) || true
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/even.txt" --json 2>&1) || true
     local even_cv
     even_cv=$(echo "$out" | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['contrast_gap_cv']['value'])")
-    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/bursty.txt" --json 2>&1) || true
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/bursty.txt" --json 2>&1) || true
     local bursty_cv
     bursty_cv=$(echo "$out" | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['contrast_gap_cv']['value'])")
     rm -rf "$tmp"
@@ -3328,10 +3328,10 @@ body = ("The retrieval pool holds one relevant image for every query. "
 (d / "target.txt").write_text(body, encoding="utf-8")
 (d / "base" / "one.txt").write_text(body, encoding="utf-8")
 PYEOF
-    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
             --baseline "$tmp/base" --json 2>&1) || true
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['baseline_sufficient'] is False; assert 'percentile' not in d['metrics']['semicolon_per_1k']" || { rm -rf "$tmp"; return 1; }
-    python3 scripts/audit-prose-fingerprint.py --target "$tmp/nope.txt" >/dev/null 2>&1
+    python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/nope.txt" >/dev/null 2>&1
     rc=$?
     rm -rf "$tmp"
     [[ "$rc" -eq 2 ]]
@@ -3362,7 +3362,7 @@ and the queries are short. The pool holds many images and the queries are short.
 Prior work on unrelated things is relevant here~\cite{smith2020thing}.
 \end{document}
 EOF
-    out=$(python3 scripts/audit-claim-positioning.py --base-dir "$tmp" --json 2>&1)
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py --base-dir "$tmp" --json 2>&1)
     rm -rf "$tmp"
     echo "$out" | python3 -c "
 import json,sys
@@ -3395,7 +3395,7 @@ applies throughout.
 We also run a permutation test at $K \in \{1,5,10\}$.
 \end{document}
 EOF
-    out=$(python3 scripts/audit-claim-positioning.py --base-dir "$tmp" --json 2>&1)
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py --base-dir "$tmp" --json 2>&1)
     rm -rf "$tmp"
     echo "$out" | python3 -c "
 import json,sys
@@ -3443,9 +3443,9 @@ spliced = (long_s + splice + long_s * 2 + short_s * 3) * 20
 (d / "plain.txt").write_text(plain, encoding="utf-8")
 (d / "spliced.txt").write_text(spliced, encoding="utf-8")
 PYEOF
-    a=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/plain.txt" --json 2>&1 \
+    a=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/plain.txt" --json 2>&1 \
         | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['sentence_length_lag1']['value'])")
-    b=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/spliced.txt" --json 2>&1 \
+    b=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/spliced.txt" --json 2>&1 \
         | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['sentence_length_lag1']['value'])")
     rm -rf "$tmp"
     python3 - "$a" "$b" <<'PYEOF'
@@ -3474,10 +3474,10 @@ for i in range(6):
     (d / "base" / ("paper%d.txt" % i)).write_text(calm, encoding="utf-8")
 (d / "base" / "ours2025.txt").write_text(loud, encoding="utf-8")
 PYEOF
-    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
             --baseline "$tmp/base" --json 2>&1) || true
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['baseline_documents']==7, d['baseline_documents']; assert d['metrics']['semicolon_per_1k']['baseline_max'] > 5" || { rm -rf "$tmp"; return 1; }
-    out=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
             --baseline "$tmp/base" --exclude 'ours*' --json 2>&1) || true
     rm -rf "$tmp"
     echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['baseline_documents']==6, d['baseline_documents']; assert d['baseline_excluded']==['ours2025.txt'], d['baseline_excluded']; assert d['metrics']['semicolon_per_1k']['baseline_max'] < 1"
@@ -3497,7 +3497,7 @@ body = ("The encoder scores each candidate image against the query text and "
 frag = "(2019); Smith et al. "
 (d / "cited.txt").write_text((body + frag) * 40, encoding="utf-8")
 PYEOF
-    cv=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/cited.txt" --json 2>&1 \
+    cv=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/cited.txt" --json 2>&1 \
          | python3 -c "import json,sys; print(json.load(sys.stdin)['metrics']['sentence_length_cv']['value'])")
     rm -rf "$tmp"
     python3 - "$cv" <<'PYEOF'
@@ -3522,9 +3522,9 @@ body = "The pool holds one relevant image for every query in this evaluation. " 
     "\\documentclass{acmart}\n" + "\\usepackage{amsmath} % maths support here\n" * 200
     + "\\begin{document}\n" + body + "\n\\end{document}\n", encoding="utf-8")
 PYEOF
-    plain=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/plain.tex" --json 2>&1 \
+    plain=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/plain.tex" --json 2>&1 \
             | python3 -c "import json,sys; print(json.load(sys.stdin)['target_words'])")
-    pre=$(python3 scripts/audit-prose-fingerprint.py --target "$tmp/pre.tex" --json 2>&1 \
+    pre=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/pre.tex" --json 2>&1 \
           | python3 -c "import json,sys; print(json.load(sys.stdin)['target_words'])")
     rm -rf "$tmp"
     [[ "$plain" -eq "$pre" ]]
