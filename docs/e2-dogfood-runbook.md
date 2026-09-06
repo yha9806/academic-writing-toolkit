@@ -53,9 +53,8 @@ route when no model change is intended.
 Run every step from inside the workspace so the guards see it:
 
 ```bash
-cd ~/thesis
 export DEEPSEEK_API_KEY=...
-npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless "<task>"
+node scaffold/awt.mjs run ~/thesis "<task>"
 ```
 
 1. **read** — put the chapter's key source PDF under `literature/`; task:
