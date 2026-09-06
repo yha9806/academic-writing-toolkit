@@ -291,12 +291,16 @@ customer-facing terms before payment is accepted.
 
 ```bash
 make sync          # regenerate AGENTS.md and GEMINI.md from CLAUDE.md
-make plugin-sync   # regenerate plugin skills from .claude/skills
 make repair        # apply narrow, idempotent local repairs
 make test
 ```
 
-The canonical skill source is `.claude/skills/`; plugin copies are generated from it. Finished changes should pass the full quality gates before they are merged or tagged.
+The canonical skill source is `.claude/skills/`. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request: it carries
+the evidence classes every claim here is stated in, the rule that installation
+and first-run changes are verified on a machine that has never run this
+toolkit, and the branch and review conventions. Each of those rules names the
+incident that produced it.
 
 ## License
 
