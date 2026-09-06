@@ -1,13 +1,22 @@
 # Gate A — The workspace contract
 
-- **Status:** author_approved (2026-09-06). The ⚑ decision in §5 is taken:
-  **Option D** — the five standalone scripts move into the skill that calls
-  them and are named relative to it; `audit-citation-fidelity.mjs`, whose
-  dependence on the guards' own extractor and notes parser is deliberate,
-  becomes a registered profile tool. Implementation may begin. Per-item truth
-  moves through this header's successors (`implemented` → `verified`), never
-  into prose. Approval is not implementation and implementation is not
-  verification; §7 states what verification means here.
+- **Status:** item 1 IMPLEMENTED (2026-09-06), not yet verified against §7.
+  Author-approved the same day: the ⚑ decision in §5 is **Option D**. Items
+  2–5 are not started. Approval is not implementation and implementation is
+  not verification; §7 states what verification means here, and no run of it
+  has been recorded.
+- **Amendment to §5, item 1 (2026-09-06).** As approved, Option D split the
+  work five-and-one: five standalone scripts move into the skill that calls
+  them, and `audit-citation-fidelity.mjs` becomes a registered profile tool
+  because its dependence on `guards/dist` and `e1/graders.mjs` was thought to
+  prevent it travelling. That premise is wrong, and was tested rather than
+  assumed: Node resolves modules through the real path, so a workspace
+  reaching that file through `.agents/skills` still finds the toolkit's own
+  trees beneath it. All six moved; the tool was unnecessary surface and was
+  not built. The mechanism that makes one path resolve on both surfaces is
+  `awt init` mounting the catalogue under both names — `.agents/skills` and
+  `.claude/skills`, one directory, the same dual-naming this scaffold already
+  applies to AGENTS.md and CLAUDE.md.
 - **Parent spec:** `2026-08-16-awt-dsh-app-v0.1-design.md` §6 (catalogue),
   §7 (Enforced vs Advisory), §11 (evidence classes)
 - **Inputs:** the doc-vs-reality audit of `main` at `b48d0f6` (2026-09-06, ten
