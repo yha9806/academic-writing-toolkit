@@ -26,7 +26,7 @@ import {
   cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync,
   rmSync, symlinkSync, linkSync, writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -159,10 +159,10 @@ function relativeToCwd(path) {
  * existing profile is a typed refusal — remove it first to upgrade.
  */
 function installProfile(targetHome) {
-  const home = resolve(targetHome ?? process.env.DSH_HOME ?? join(process.env.HOME ?? '', '.dsh'))
+  const home = resolve(targetHome ?? process.env.DSH_HOME ?? join(homedir(), '.dsh'))
   const guardsDist = join(GUARDS_DIR, 'dist')
   if (!existsSync(join(guardsDist, 'dsh-plugin.js'))) {
-    throw new AwtError('AWT_PROFILE_GUARDS_UNBUILT', `built guards bundle missing at ${guardsDist}`, `cd ${GUARDS_DIR} && npm install && npm run build`)
+    throw new AwtError('AWT_PROFILE_GUARDS_UNBUILT', `cannot install profiles into ${home}: built guards bundle missing at ${guardsDist}`, `cd ${GUARDS_DIR} && npm install && npm run build`)
   }
   for (const name of ['awt-headless', 'awt-web']) {
     const target = join(home, 'profiles', name)
@@ -182,8 +182,10 @@ function installProfile(targetHome) {
     console.log(`profile installed: ${target}`)
   }
   console.log('  routes need DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in the environment at run time (never in files)')
-  console.log(`verify composition: DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless --dump-config | grep awt-guards`)
-  console.log(`web UI: run from your workspace — DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180`)
+  console.log(`one-time launcher install: ${launcherInstallCommand(home)}`)
+  console.log(`use DSH_HOME=${home} for these profiles`)
+  console.log(`verify composition: node "${join(home, 'profiles', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')}" --profile awt-headless --dump-config`)
+  console.log(`web UI: node "${join(PRODUCT_ROOT, 'scaffold', 'awt.mjs')}" web <workspace>`)
 }
 
 // --- launch ------------------------------------------------------------------------
@@ -191,6 +193,10 @@ function installProfile(targetHome) {
 /** The one pin, read from COMPAT.json so a launcher and a claim cannot drift. */
 function pinnedHarnessVersion() {
   return JSON.parse(readFileSync(COMPAT, 'utf8')).harness.split('@').pop()
+}
+
+function launcherInstallCommand(home) {
+  return `npm install --prefix "${join(home, 'profiles')}" --no-audit --no-fund --save-exact @deepseek-ai/dsh@${pinnedHarnessVersion()}`
 }
 
 /** The markers `init` creates; the same truth test `verify` applies. */
@@ -203,14 +209,14 @@ function assertWorkspace(ws, code) {
 }
 
 /**
- * Run a profile against a workspace using the launcher `install-profile`
- * already placed in $DSH_HOME — not a `npx` resolution and not a checkout's
+ * Run a profile against a workspace using the explicitly installed launcher
+ * in $DSH_HOME — not a `npx` resolution and not a checkout's
  * dev dependencies. Every refusal here happens before anything boots, so
  * none of them needs a credential. The provider key stays in the caller's
  * environment; this command never reads, stores or forwards one.
  */
 function launch(profile, ws, extra) {
-  const home = resolve(process.env.DSH_HOME ?? join(process.env.HOME ?? '', '.dsh'))
+  const home = resolve(process.env.DSH_HOME ?? join(homedir(), '.dsh'))
   if (!existsSync(join(home, 'profiles', profile))) {
     throw new AwtError(
       'AWT_LAUNCH_PROFILE_MISSING',
@@ -224,7 +230,7 @@ function launch(profile, ws, extra) {
     throw new AwtError(
       'AWT_LAUNCH_HARNESS_MISSING',
       `no dsh launcher under ${pkgRoot}`,
-      `reinstall the profiles so their dependency tree is present`,
+      launcherInstallCommand(home),
     )
   }
   // A different harness would void every gate COMPAT.json attests, so an

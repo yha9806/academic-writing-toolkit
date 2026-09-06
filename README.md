@@ -83,8 +83,10 @@ explicit author approval. It needs Node 22+, `pdftotext` (poppler), and one
 provider key at run time.
 
 ```bash
+npm ci --prefix guards && npm run build --prefix guards
 node scaffold/awt.mjs init ~/thesis          # clean workspace + skill links
 node scaffold/awt.mjs install-profile        # awt-headless + awt-web into ~/.dsh
+npm install --prefix "${DSH_HOME:-$HOME/.dsh}/profiles" --no-audit --no-fund --save-exact @deepseek-ai/dsh@0.1.0-rc.6
 export DEEPSEEK_API_KEY=...                  # or ANTHROPIC_API_KEY
 node scaffold/awt.mjs run ~/thesis "task"    # one headless task
 
@@ -92,10 +94,17 @@ node scaffold/awt.mjs run ~/thesis "task"    # one headless task
 node scaffold/awt.mjs web ~/thesis           # 127.0.0.1:3180 by default
 ```
 
-`run` and `web` launch the pinned harness that `install-profile` placed in
-`$DSH_HOME`, refuse a target that is not a workspace, and refuse a launcher
+`install-profile` copies the profiles and prints the exact one-time launcher
+installation command for the selected home. The explicit `npm install` above
+installs that pinned launcher; network activity and errors are visible during
+setup. `run` and `web` then use it from `$DSH_HOME`, refuse a target that is
+not a workspace, and refuse a launcher
 whose version is not the one `COMPAT.json` attests. Your provider key stays
 in your environment; no AWT command reads or stores one.
+
+On Windows PowerShell, use `"$HOME/.dsh/profiles"` as the npm prefix, or
+`"$env:DSH_HOME/profiles"` if you set a custom `DSH_HOME`. The default is the
+OS user home on Windows as well as macOS/Linux.
 
 `node scaffold/awt.mjs verify ~/thesis` runs the five-stage verification
 ladder (build, notes-lint smoke, composition proof, scripted-denial evidence
