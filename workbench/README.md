@@ -54,6 +54,12 @@ model API. Provider checks are generation-free unless `--live` is supplied.
   reduces the same ALCE text plan from 486 to 44 requests at the same per-call
   budget, retaining every original region. The live attempt stopped on an
   invalid model quote; a complete real-author cycle remains pending.
+- [Real-PDF review reliability](final_output/alce-review-reliability-2026-09-06.md)
+  records a subsequent complete technical run: 44 text, 4 chapter and 5 cross
+  requests, with nonempty source-bound observations and exact source choices.
+  Two intervening failed experiments are retained. The agent's source check
+  did not accept any of the five model flags as a confirmed correction; a
+  complete, useful real-author cycle remains pending.
 
 The configured PDF ceiling is 1,000 pages; the completed scale experiment
 uses 200 synthetic pages. Batching and file completion do not prove review

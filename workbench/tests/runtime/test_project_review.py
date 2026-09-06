@@ -103,7 +103,7 @@ class ProjectReviewTests(unittest.TestCase):
         self.assertTrue(all(row["checked_blocks"] == row["total_blocks"] for row in result["coverage"]))
         self.assertTrue(result["claims"])
         for config, _, context, schema, images in self.calls:
-            self.assertEqual(config.response_format, "prompt")
+            self.assertEqual(config.response_format, "json_schema")
             self.assertEqual(config.max_output_tokens, 1200)
             self.assertEqual(schema, CHECK_SCHEMA)
             self.assertFalse(images)

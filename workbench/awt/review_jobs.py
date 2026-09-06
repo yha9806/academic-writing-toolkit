@@ -18,7 +18,8 @@ from pathlib import Path
 
 from awt.cross_review import (CHECK_SCHEMA, INSTRUCTIONS, block_map, budget_settings, claim_index,
     chapter_steps, completed_steps, coverage_table, cross_steps, input_estimate, source_payload,
-    step_cache_key, step_materials, text_steps, validate_review)
+    step_cache_key, step_materials, text_steps, validate_review, grounded_request,
+    decode_grounded_review, SOURCE_SCHEMA, GROUNDING_PROTOCOL)
 from awt.documents import (DocumentError, MAX_FILES, MAX_FILE_BYTES, MAX_TOTAL_BYTES, decode_upload,
     digest, import_document, render_pdf_page)
 from awt.providers import ModelResult, ProviderConfig, ProviderError, load_provider_config, run_api
@@ -82,14 +83,47 @@ def _root_lock(root: Path):
 
 
 def default_call(config, instructions, context, schema, images):
+    sources = None
+    if not images:
+        instructions, context, sources = grounded_request(context)
+        schema = SOURCE_SCHEMA
+    elif config.provider != "codex":
+        # Keep the existing image contract on its portable prompt transport.
+        config = replace(config, response_format="prompt")
+
+    def record_wire(response):
+        response.review_wire = dict(response)
+        response.metadata.update(review_protocol=GROUNDING_PROTOCOL,
+            source_map_sha256=fingerprint(sources), wire_response_sha256=fingerprint(dict(response)))
     if config.provider == "codex":
         from awt.mvp import codex_json_runner
         started = time.monotonic()
         value = codex_json_runner(instructions + "\n<source>\n" + context + "\n</source>", schema,
                                  model=config.model or None, timeout=config.timeout_seconds)
-        return ModelResult(value, {**config.public_metadata(), "elapsed_seconds": round(time.monotonic() - started, 3),
+        response = ModelResult(value, {**config.public_metadata(), "elapsed_seconds": round(time.monotonic() - started, 3),
                                   "usage": {}, "returned_model": None, "output_limit_enforced_by_transport": False})
-    return run_api(config, instructions, context, schema, images=images)
+    else:
+        try:
+            response = run_api(config, instructions, context, schema, images=images)
+        except ProviderError as error:
+            if sources is not None and isinstance(getattr(error, "model_result", None), ModelResult):
+                if getattr(error.model_result, "complete_json_object", False):
+                    record_wire(error.model_result)
+                else:
+                    error.model_result.metadata.update(review_protocol=GROUNDING_PROTOCOL,
+                        source_map_sha256=fingerprint(sources), rejected_response_parseable=False)
+            raise
+    if sources is None:
+        return response
+    record_wire(response)
+    try:
+        decoded = decode_grounded_review(response, sources)
+    except ProviderError as error:
+        error.model_result = response  # Retain measured usage and the rejected choices.
+        raise
+    result = ModelResult(decoded, response.metadata)
+    result.review_wire = response.review_wire
+    return result
 
 
 class JobManager:
@@ -183,8 +217,9 @@ class JobManager:
                 reused += bool(step.get("reused_from"))
                 continue
             calls += 1
-            if "estimated_reservation" not in step:
+            if "estimated_reservation" not in step or step.get("reservation_protocol") != GROUNDING_PROTOCOL:
                 step["estimated_reservation"] = input_estimate(step_materials(job, step), job["goal"], step["phase"]) + job["budget"]["output_tokens"] + 1024 * len(step.get("image_ids", []))
+                step["reservation_protocol"] = GROUNDING_PROTOCOL
             tokens += step["estimated_reservation"]
         job["plan"] = {"pending_calls": calls, "pending_token_reservation": tokens, "reused_batches": reused,
             "future_stages_pending": not job.get("cross_built", False),
@@ -383,10 +418,13 @@ class JobManager:
             raise DocumentError("审阅要求需要 1–1500 个字符")
         budget = budget_settings(payload.get("budget", {}))
         config = load_provider_config()
-        # The economical contract works with older text-only models without tools
-        # or native constrained decoding. The legacy single-file route is intact.
+        # Local Ollama can constrain the new source-choice schema at generation.
+        # Explicit transport configuration remains authoritative; older API models
+        # keep the portable prompt default and no fallback request is made.
+        response_format = config.response_format if "AWT_RESPONSE_FORMAT" in os.environ else (
+            "json_schema" if config.provider in {"codex", "ollama"} else "prompt")
         config = replace(config, max_output_tokens=min(config.max_output_tokens, budget["output_tokens"]),
-                         response_format="json_schema" if config.provider == "codex" else "prompt")
+                         response_format=response_format)
         budget["output_tokens"] = config.max_output_tokens
         documents = [import_document(name, data) for name, data in decoded]
         steps = text_steps(documents, budget, goal, 1)
@@ -451,7 +489,9 @@ class JobManager:
                     row["status"] = "anchors_reviewed" if done_count == len(row["step_ids"]) else "partial" if done_count else "pending"
             value["findings"] = [{**finding, "step_id": step["id"]} for step in done for finding in step["result"]["findings"]]
             value["limitations"] = list(dict.fromkeys(item for step in done for item in step["result"]["limitations"]))
-            value["steps"] = [{key: step[key] for key in ("id", "phase", "label", "status", "attempts")} for step in job["steps"]]
+            value["steps"] = [{**{key: step[key] for key in ("id", "phase", "label", "status")},
+                "attempts": [{key: item for key, item in attempt.items() if key != "review_wire"}
+                             for attempt in step["attempts"]]} for step in job["steps"]]
             value["progress"] = {"completed": len(done), "planned": len(job["steps"]), "cross_pending_planning": not job["cross_built"],
                                  "active": next((step["label"] for step in job["steps"] if step["status"] == "running"), None)}
             image_checked = {image for step in done if step["phase"] == "vision" for image in step["image_ids"]}
@@ -767,6 +807,8 @@ class JobManager:
                     checked = validate_review(response, blocks, [item["id"] for item in images])
                     error = None
                 except Exception as failure:
+                    if isinstance(getattr(failure, "model_result", None), ModelResult):
+                        response = failure.model_result
                     checked = None
                     error = str(failure) if isinstance(failure, (ProviderError, DocumentError)) else "模型请求或本地校验失败；当前批次没有计为已检查，可按需重试。"
                 with self.lock:
@@ -775,6 +817,8 @@ class JobManager:
                     step["attempts"][-1].update(ended_at=now(), status="failed" if error else "completed")
                     if isinstance(response, ModelResult):
                         step["attempts"][-1]["model_run"] = response.metadata
+                        if hasattr(response, "review_wire"):
+                            step["attempts"][-1]["review_wire"] = response.review_wire
                     if error:
                         step["status"] = "failed"
                         job.update(state="failed", error=error)

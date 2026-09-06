@@ -183,6 +183,9 @@ def validate_schema(value: Any, schema: Mapping[str, Any], path: str = "$", dept
             raise ProviderError(f"Model JSON has an invalid list length at {path}.")
         for index, child in enumerate(value):
             validate_schema(child, schema["items"], f"{path}[{index}]", depth + 1)
+    elif expected == "string":
+        if not schema.get("minLength", 0) <= len(value) <= schema.get("maxLength", len(value)):
+            raise ProviderError(f"Model JSON has an invalid string length at {path}.")
 
 
 def parse_model_json(content: str, schema: Mapping[str, Any]) -> tuple[dict, list[str]]:
@@ -205,7 +208,12 @@ def parse_model_json(content: str, schema: Mapping[str, Any]) -> tuple[dict, lis
         value = json.loads(text, object_pairs_hook=object_pairs)
     except (ValueError, RecursionError):
         raise ProviderError("Model did not return one complete JSON object; no review was generated.") from None
-    validate_schema(value, schema)
+    try:
+        validate_schema(value, schema)
+    except ProviderError as error:
+        if isinstance(value, dict):
+            error.model_value = value  # A complete but rejected object, never a usable review.
+        raise
     return value, normalizations
 
 
@@ -357,7 +365,6 @@ def run_api(config: ProviderConfig, instructions: str, source_context: str, sche
         content = message.get("content")
         if not isinstance(content, str):
             raise ProviderError("Model response contained no final review text.")
-    value, normalizations = parse_model_json(content, schema)
     usage = envelope.get("usage", {})
     usage = usage if isinstance(usage, dict) else {}
     metadata = config.public_metadata()
@@ -366,9 +373,16 @@ def run_api(config: ProviderConfig, instructions: str, source_context: str, sche
         elapsed_seconds=round(time.monotonic() - started, 3),
         usage={field: usage[field] for field in ("input_tokens", "output_tokens", "prompt_tokens", "completion_tokens", "total_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
                if type(usage.get(field)) is int and usage[field] >= 0},
-        normalizations=normalizations,
+        normalizations=[],
         live_response_received=True,
         images_sent=len(images),
         wire_schema_constraints_validated_locally=config.protocol == "anthropic-messages" and config.response_format == "json_schema",
     )
+    try:
+        value, normalizations = parse_model_json(content, schema)
+    except ProviderError as error:
+        error.model_result = ModelResult(getattr(error, "model_value", {}), metadata)
+        error.model_result.complete_json_object = hasattr(error, "model_value")
+        raise
+    metadata["normalizations"] = normalizations
     return ModelResult(value, metadata)

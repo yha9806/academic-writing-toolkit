@@ -93,6 +93,16 @@ Choose the exact model ID your account or local server exposes.
 The `prompt` presets intentionally omit provider-specific constrained-decoding
 parameters because available models differ. If your chosen model supports
 `json_schema` or `json_object`, select it explicitly with `AWT_RESPONSE_FORMAT`.
+
+The multi-document Workbench text route uses a separate source-choice schema.
+For newly created local Ollama jobs, it defaults to `json_schema`; an explicit
+`AWT_RESPONSE_FORMAT` overrides this choice. Other API models retain the portable
+prompt default unless explicitly configured. Image review keeps its existing
+prompt transport. There is no automatic format fallback or retry.
+[Ollama documents native schema constraints](https://docs.ollama.com/capabilities/structured-outputs)
+through its OpenAI-compatible `response_format`. AWT still validates every
+selected source ID, exact source-owned quote, required observation and length
+limit locally; structured JSON is not a review-quality guarantee.
 For MiniMax Chat Completions, AWT sets the documented `reasoning_split=true` so
 reasoning stays outside the final review. It does not strip `<think>` tags from
 model-authored content to make a malformed review appear valid.

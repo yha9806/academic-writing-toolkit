@@ -53,6 +53,18 @@ preserved. A new 12-call live attempt stopped on an invalid model quote after
 cross-section stages were not reached. This is evidence of a planning
 improvement, not a completed useful review or a reason to restore the surface.
 
+A [review-reliability follow-up](../../workbench/final_output/alce-review-reliability-2026-09-06.md)
+now completes the technical text/chapter/cross workflow in 53 local Qwen calls
+(44 + 4 + 5), at the same 8,000 input estimate / 1,600 output limits. Source IDs
+replace model-copied locators and quotations, empty observations are rejected,
+and bounded native JSON generation avoids the observed output truncation.
+The two intervening failed experiments remain published. This run uses explicit,
+recorded section-role assignments made by the agent; these are not author approval.
+All 5,787 text blocks were submitted in completed batches, but cross-stage
+excerpts still omit many possible relationships. The agent's source check did
+not accept any of the five model flags as a confirmed correction. Technical
+completion therefore does not satisfy the useful real-author cycle gate below.
+
 ## Decision gate
 
 - Complete and report one real-paper use cycle, including failures and
