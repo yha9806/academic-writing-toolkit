@@ -58,6 +58,8 @@ test('init scaffolds exactly the thesis-workspace manifest — no toolkit-dev fi
     'dir .agents',
     'dir .agents/skills',
     ...SKILLS.map((name) => `link .agents/skills/${name}`),
+    'dir .claude',
+    'link .claude/skills',
     'dir chapters',
     'dir contracts',
     'dir literature',

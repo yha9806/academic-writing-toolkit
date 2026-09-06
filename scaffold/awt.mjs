@@ -134,9 +134,16 @@ function init(target) {
   for (const name of skills) {
     symlinkSync(join(SKILLS_SRC, name), join(ws, '.agents', 'skills', name))
   }
+  // The catalogue is mounted at .agents/skills here and at .claude/skills in a
+  // toolkit checkout. One directory under two names — the same dual-naming as
+  // AGENTS.md/CLAUDE.md above — so a skill can name a single path that resolves
+  // on both surfaces instead of being correct in one and unrunnable in the other.
+  mkdirSync(join(ws, '.claude'), { recursive: true })
+  if (process.platform === 'win32') symlinkSync(join(ws, '.agents', 'skills'), join(ws, '.claude', 'skills'), 'junction')
+  else symlinkSync(join('..', '.agents', 'skills'), join(ws, '.claude', 'skills'), 'dir')
 
   console.log(`workspace created: ${ws}`)
-  console.log(`  chapters/  literature/reading_notes/  contracts/  .agents/skills (${skills.length} links)  AGENTS.md  CLAUDE.md`)
+  console.log(`  chapters/  literature/reading_notes/  contracts/  .agents/skills (${skills.length} links, also as .claude/skills)  AGENTS.md  CLAUDE.md`)
   console.log(`next: node ${relativeToCwd(join(PRODUCT_ROOT, 'scaffold', 'awt.mjs'))} verify ${target}`)
 }
 
