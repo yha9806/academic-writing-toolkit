@@ -10,7 +10,7 @@
 // never falling through to ambient discovery. Exit 0 only when it does.
 
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -39,8 +39,9 @@ try {
   const profile = join(home, 'profiles', 'awt-headless')
   mkdirSync(profile, { recursive: true })
   cpSync(join(PROFILE_SRC, 'package.json'), join(profile, 'package.json'))
-  for (const shared of ['cordis.patch.yml', 'awt-read-pdf.plugin.mjs', 'awt-brand.plugin.mjs', 'awt-export.plugin.mjs']) {
-    cpSync(join(PROFILE_SRC, shared), join(profile, shared))
+  cpSync(join(PROFILE_SRC, 'cordis.patch.yml'), join(profile, 'cordis.patch.yml'))
+  for (const f of readdirSync(PROFILE_SRC).filter((n) => n.endsWith('.mjs'))) {
+    cpSync(join(PROFILE_SRC, f), join(profile, f))
   }
   cpSync(GUARDS_DIST, join(profile, 'awt-guards'), { recursive: true })
 

@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { exportInterpreter } from './export-interpreter.mjs'
 
 export const name = 'awt-export'
 export const inject = ['tools']
@@ -31,11 +32,17 @@ export function apply(ctx) {
       const root = process.cwd()
       const script = CONVERTER.map((rel) => join(root, rel)).find((p) => existsSync(p))
       if (script === undefined) throw new Error('EXPORT_TOOL_MISSING: no export converter under .agents/skills or .claude/skills — run awt init in this workspace')
-      const res = spawnSync('python3', [script, '--base-dir', root, '--output-dir', join(root, 'final_output'),
+      const res = spawnSync(exportInterpreter(script), [script, '--base-dir', root, '--output-dir', join(root, 'final_output'),
         '--scope', String(args.scope), '--lang-filter', String(args.lang_filter)],
       { encoding: 'utf8', timeout: 300_000, maxBuffer: 16 * 1024 * 1024 })
       if (res.error?.code === 'ENOENT') throw new Error('EXPORT_TOOL_MISSING: python3 is not installed')
-      if (res.status !== 0) throw new Error(`EXPORT_FAILED: converter exited ${res.status ?? `signal ${res.signal}`}`)
+      // The converter's own diagnosis is the actionable part — a missing
+      // backend names the packages and a remedy that survives PEP 668. Dropping
+      // it left the author with a bare exit code and nothing to act on.
+      if (res.status !== 0) {
+        const why = `${res.stdout ?? ''}${res.stderr ?? ''}`.trim()
+        throw new Error(`EXPORT_FAILED: converter exited ${res.status ?? `signal ${res.signal}`}${why ? `\n${why}` : ''}`)
+      }
       return res.stdout.trim().split('\n').slice(-12).join('\n')
     },
   }))

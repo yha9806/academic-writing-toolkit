@@ -1,0 +1,22 @@
+# Conversion backends for /export. One of the two groups is enough.
+#
+# Declared because nothing else did: CI installed these for itself while no
+# manifest told a reader they existed, so `/export` failed on a machine whose
+# environment check reported healthy. Ask the converter which group you have:
+#
+#   python3 .claude/skills/export/scripts/convert_to_docx.py --check
+#
+# On a PEP 668 interpreter (Homebrew Python, current Debian and Ubuntu), a bare
+# `pip install` is refused. Install into a virtual environment and run the
+# converter with it:
+#
+#   python3 -m venv .venv
+#   .venv/bin/pip install -r .claude/skills/export/scripts/requirements.txt
+
+# Group 1 — the fallback backend, no external binary needed.
+python-docx
+markdown
+
+# Group 2 — the pandoc backend. Uncomment BOTH the binding below and install
+# the `pandoc` binary separately; the binary alone is not enough.
+# pypandoc

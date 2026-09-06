@@ -178,8 +178,12 @@ function installProfile(targetHome) {
     }
     mkdirSync(target, { recursive: true })
     cpSync(join(PRODUCT_ROOT, 'profiles', name, 'package.json'), join(target, 'package.json'))
-    for (const shared of ['cordis.patch.yml', 'awt-read-pdf.plugin.mjs', 'awt-brand.plugin.mjs', 'awt-export.plugin.mjs']) {
-      cpSync(join(PROFILE_SRC, shared), join(target, shared))
+    // Every .mjs beside the patch, derived rather than listed: a plugin's
+    // sibling module is as necessary as the plugin, and a hardcoded list is
+    // one more thing to remember when adding one.
+    cpSync(join(PROFILE_SRC, 'cordis.patch.yml'), join(target, 'cordis.patch.yml'))
+    for (const f of readdirSync(PROFILE_SRC).filter((n) => n.endsWith('.mjs'))) {
+      cpSync(join(PROFILE_SRC, f), join(target, f))
     }
     cpSync(guardsDist, join(target, 'awt-guards'), { recursive: true })
     console.log(`profile installed: ${target}`)
@@ -392,7 +396,25 @@ async function verify(target) {
   run('AWT_VERIFY_CREDENTIAL', process.execPath, ['run-credential-probe.mjs'], { cwd: E2E_DIR })
   record('credential-probe', 'MISSING_CREDENTIAL fails typed and keyless')
 
-  console.log(`\nVERIFY PASSED (${stages.length}/5): ${ws}`)
+  // 6. the export toolchain, asked rather than inferred (Gate A item 2). A
+  // ladder that reports green while /export cannot produce a .docx is telling
+  // the author the workflow ends where it does not.
+  const converter = join(SKILLS_SRC, 'export', 'scripts', 'convert_to_docx.py')
+  // Same fallback order as doctor: an explicit interpreter, then the .venv the
+  // printed remedy creates, then the system one.
+  const localVenv = join(PRODUCT_ROOT, '.venv', 'bin', 'python')
+  const python = process.env.AWT_PYTHON ?? (existsSync(localVenv) ? localVenv : 'python3')
+  const backend = spawnSync(python, [converter, '--check'], { encoding: 'utf8', timeout: RUN_TIMEOUT_MS })
+  if (backend.status !== 0) {
+    throw new AwtError(
+      'AWT_VERIFY_EXPORT_BACKEND',
+      `the export converter has no backend: ${(backend.stdout + backend.stderr).trim().split('\n')[0]}`,
+      `install one: python3 -m venv .venv && .venv/bin/pip install -r ${relativeToCwd(join(SKILLS_SRC, 'export', 'scripts', 'requirements.txt'))}`,
+    )
+  }
+  record('export-backend', backend.stdout.trim() || 'export converter has a backend')
+
+  console.log(`\nVERIFY PASSED (${stages.length}/6): ${ws}`)
 }
 
 // --- entry -------------------------------------------------------------------------

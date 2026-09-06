@@ -10,6 +10,15 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Several tests run doctor inside a throwaway copy of the repository, which has
+# no project-local .venv. Doctor asks the export converter whether it can
+# convert, so without this the copies fall back to the system interpreter and
+# report a broken export the test did not introduce. Declared here rather than
+# by loosening what those tests assert.
+if [ -z "${AWT_PYTHON:-}" ] && [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+    export AWT_PYTHON="$REPO_ROOT/.venv/bin/python"
+fi
 source "$SCRIPT_DIR/lib.sh"
 
 cd "$REPO_ROOT"
