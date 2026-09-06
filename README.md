@@ -90,10 +90,13 @@ node scaffold/awt.mjs run ~/thesis "task"    # one headless task
 node scaffold/awt.mjs web ~/thesis           # 127.0.0.1:3180 by default
 ```
 
-`run` and `web` launch the pinned harness that `install-profile` placed in
-`$DSH_HOME`, refuse a target that is not a workspace, and refuse a launcher
-whose version is not the one `COMPAT.json` attests. Your provider key stays
-in your environment; no AWT command reads or stores one.
+`install-profile` fetches the pinned harness into `harness/` once (the only
+step that needs the network) as well as writing the two profiles. `run` and
+`web` launch that harness, refuse a target that is not a workspace, and
+refuse a launcher whose version is not the one `COMPAT.json` attests.
+Anything after `--` is forwarded to the harness untouched, so a launcher
+overlay works: `... run ~/thesis "task" -- --patch model.yml`. Your provider
+key stays in your environment; no AWT command reads or stores one.
 
 `node scaffold/awt.mjs verify ~/thesis` runs the five-stage verification
 ladder (build, notes-lint smoke, composition proof, scripted-denial evidence
@@ -251,6 +254,7 @@ my-writing-project/
 ├── profiles/                canonical awt-headless dsh profile template
 ├── scaffold/                awt init / verify / install-profile
 ├── e1/                      paired-session evidence instrument (§11)
+├── harness/                 the pinned dsh installation `awt run`/`awt web` launch
 ├── e2e/                     live headless denial table + credential probe
 ├── validators/              harness-neutral Python validators
 ├── references/              on-demand reference documents

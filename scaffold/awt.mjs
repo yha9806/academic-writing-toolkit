@@ -37,6 +37,7 @@ const E2E_DIR = join(PRODUCT_ROOT, 'e2e')
 const PROFILE_SRC = join(PRODUCT_ROOT, 'profiles', 'awt-headless')
 const DSH_BIN = join(E2E_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 const COMPAT = join(PRODUCT_ROOT, 'COMPAT.json')
+const HARNESS_DIR = join(PRODUCT_ROOT, 'harness')
 const RUN_TIMEOUT_MS = 300_000
 
 // --- typed failure -----------------------------------------------------------------
@@ -176,9 +177,40 @@ function installProfile(targetHome) {
     cpSync(guardsDist, join(target, 'awt-guards'), { recursive: true })
     console.log(`profile installed: ${target}`)
   }
+  const harness = ensureHarness()
+  const self = relativeToCwd(join(PRODUCT_ROOT, 'scaffold', 'awt.mjs'))
+  console.log(`harness ${harness.version} ${harness.installed ? 'installed' : 'already present'} in ${relativeToCwd(HARNESS_DIR)}`)
   console.log('  routes need DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in the environment at run time (never in files)')
-  console.log(`verify composition: DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless --dump-config | grep awt-guards`)
-  console.log(`web UI: run from your workspace — DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180`)
+  console.log(`next: node ${self} web <your-workspace>          # the UI on 127.0.0.1:3180`)
+  console.log(`      node ${self} run <your-workspace> "<task>"  # one headless task`)
+}
+
+/**
+ * The harness AWT launches lives in the toolkit checkout, not in $DSH_HOME.
+ * dsh owns `$DSH_HOME/profiles/node_modules` and heals it by symlinking its
+ * own packages in from an existing installation — it rejects a real directory
+ * placed there. So AWT must own that installation instead of inheriting
+ * whatever a machine happens to have; a machine that had run dsh before
+ * looked fine while every clean one refused. Idempotent, and `npm ci` from
+ * the tracked lockfile so the pin is the same everywhere.
+ */
+function ensureHarness() {
+  const pkgRoot = join(HARNESS_DIR, 'node_modules', '@deepseek-ai', 'dsh')
+  const want = pinnedHarnessVersion()
+  if (existsSync(join(pkgRoot, 'lib', 'bin.js')) && existsSync(join(pkgRoot, 'package.json'))) {
+    if (JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).version === want) return { installed: false, version: want }
+  }
+  console.log(`installing the pinned harness @deepseek-ai/dsh@${want} into ${relativeToCwd(HARNESS_DIR)} (needs the network) ...`)
+  const res = spawnSync('npm', ['ci', '--prefix', HARNESS_DIR, '--no-audit', '--no-fund'], { encoding: 'utf8', timeout: RUN_TIMEOUT_MS })
+  if (res.status !== 0 || !existsSync(join(pkgRoot, 'lib', 'bin.js'))) {
+    const why = (res.stderr || res.stdout || '').trim().split('\n').slice(-2).join(' ')
+    throw new AwtError(
+      'AWT_HARNESS_INSTALL',
+      `could not install the pinned harness into ${HARNESS_DIR}${why ? `: ${why}` : ''}`,
+      `this step needs the network — retry, or run it yourself: npm ci --prefix ${relativeToCwd(HARNESS_DIR)}`,
+    )
+  }
+  return { installed: true, version: want }
 }
 
 // --- launch ------------------------------------------------------------------------
@@ -213,13 +245,15 @@ function launch(profile, ws, extra) {
       `node ${relativeToCwd(join(PRODUCT_ROOT, 'scaffold', 'awt.mjs'))} install-profile`,
     )
   }
-  const pkgRoot = join(home, 'profiles', 'node_modules', '@deepseek-ai', 'dsh')
+  // dsh populates $DSH_HOME/profiles/node_modules itself on first run, from
+  // the installation it was launched out of. That installation is ours.
+  const pkgRoot = join(HARNESS_DIR, 'node_modules', '@deepseek-ai', 'dsh')
   const bin = join(pkgRoot, 'lib', 'bin.js')
   if (!existsSync(bin)) {
     throw new AwtError(
       'AWT_LAUNCH_HARNESS_MISSING',
       `no dsh launcher under ${pkgRoot}`,
-      `reinstall the profiles so their dependency tree is present`,
+      `node ${relativeToCwd(join(PRODUCT_ROOT, 'scaffold', 'awt.mjs'))} install-profile`,
     )
   }
   // A different harness would void every gate COMPAT.json attests, so an
@@ -238,14 +272,14 @@ function launch(profile, ws, extra) {
   process.exit(res.status ?? 1)
 }
 
-function web(target, port) {
-  if (target === undefined) throw new AwtError('AWT_LAUNCH_USAGE', 'usage: awt web <workspace> [port]')
-  launch('awt-web', resolve(target), ['--host', '127.0.0.1', '--port', port ?? '3180'])
+function web(target, port, forwarded) {
+  if (target === undefined) throw new AwtError('AWT_LAUNCH_USAGE', 'usage: awt web <workspace> [port] [-- <harness flags>]')
+  launch('awt-web', resolve(target), ['--host', '127.0.0.1', '--port', port ?? '3180', ...forwarded])
 }
 
-function runTask(target, task) {
-  if (target === undefined || task === undefined) throw new AwtError('AWT_LAUNCH_USAGE', 'usage: awt run <workspace> "<task>"')
-  launch('awt-headless', resolve(target), [task])
+function runTask(target, task, forwarded) {
+  if (target === undefined || task === undefined) throw new AwtError('AWT_LAUNCH_USAGE', 'usage: awt run <workspace> "<task>" [-- <harness flags>]')
+  launch('awt-headless', resolve(target), [task, ...forwarded])
 }
 
 // --- verify ------------------------------------------------------------------------
@@ -356,14 +390,20 @@ async function verify(target) {
 
 // --- entry -------------------------------------------------------------------------
 
-const [command, target, third] = process.argv.slice(2)
+// Everything after `--` belongs to the harness, not to awt — that is how a
+// documented launcher overlay (`--patch <model.yml>`) reaches it.
+const argv = process.argv.slice(2)
+const separator = argv.indexOf('--')
+const own = separator === -1 ? argv : argv.slice(0, separator)
+const forwarded = separator === -1 ? [] : argv.slice(separator + 1)
+const [command, target, third] = own
 try {
   if (command === 'init') init(target)
   else if (command === 'verify') await verify(target)
   else if (command === 'install-profile') installProfile(target)
-  else if (command === 'web') web(target, third)
-  else if (command === 'run') runTask(target, third)
-  else fail(new AwtError('AWT_USAGE', 'usage: awt <init|verify> <dir> | awt install-profile [dsh-home] | awt web <dir> [port] | awt run <dir> "<task>"'))
+  else if (command === 'web') web(target, third, forwarded)
+  else if (command === 'run') runTask(target, third, forwarded)
+  else fail(new AwtError('AWT_USAGE', 'usage: awt <init|verify> <dir> | awt install-profile [dsh-home] | awt web <dir> [port] [-- <harness flags>] | awt run <dir> "<task>" [-- <harness flags>]'))
 } catch (error) {
   fail(error instanceof AwtError ? error : new AwtError('AWT_UNEXPECTED', error?.stack ?? String(error)))
 }

@@ -19,3 +19,6 @@ node_modules/
 # E1 instrument: author-local inputs and producer outputs
 e1/pdfs.json
 e1/results/
+
+# The pinned harness AWT installs; the manifest and lockfile are tracked.
+harness/node_modules/

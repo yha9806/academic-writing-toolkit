@@ -1,0 +1,10 @@
+{
+  "name": "@awt/harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The pinned DeepSeek Harness installation AWT launches. Kept in the toolkit checkout because dsh owns $DSH_HOME/profiles/node_modules and heals it from an existing installation; AWT must own that installation rather than inherit whatever the machine happens to have.",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.6"
+  }
+}
