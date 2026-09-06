@@ -23,11 +23,18 @@
 import { spawnSync } from 'node:child_process'
 import {
   cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
-  rmSync, symlinkSync, writeFileSync, createReadStream,
+  rmSync, symlinkSync, writeFileSync,
 } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { parseOptions, modelRoute, readManifest, classifyRun, measuredRun } from './inputs.mjs'
+import { labelPdfPages } from '../profiles/awt-headless/pdf-pages.mjs'
+import { readOpeningEvidence, sessionFiles, terminalOutcome } from './evidence.mjs'
+import { inspectLocalModel, localProviderPatch } from './local-provider.mjs'
+import { readResume } from './resume.mjs'
+import { publicContinuation } from './public-paths.mjs'
 import {
   extractQuotedSpans, gradeNotesParseability, gradePageAccuracy,
   gradeQuoteFidelity, gradeUnopenedCitations, pagesFromLabeledText,
@@ -41,19 +48,19 @@ const SKILLS_SRC = join(PRODUCT_ROOT, '.claude', 'skills')
 const TEMPLATE_SRC = join(PRODUCT_ROOT, 'literature', 'reading_notes', '_template_NOTES.md')
 const DSH_BIN = join(PRODUCT_ROOT, 'e2e', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 const PINNED_DSH = '0.1.0-rc.6'
-const RUN_TIMEOUT_MS = 600_000
-
-const args = process.argv.slice(2)
-const REAL = args.includes('--real')
-const manifestPath = args.includes('--manifest')
-  ? resolve(args[args.indexOf('--manifest') + 1])
-  : join(E1_DIR, 'pdfs.json')
-const outDir = args.includes('--out')
-  ? resolve(args[args.indexOf('--out') + 1])
-  : join(E1_DIR, 'results')
-
-const { lintNotes, hasErrors } = await import(join(GUARDS_DIST, 'notes-lint.js'))
-const { extractCitations } = await import(join(GUARDS_DIST, 'decisions.js'))
+let options
+try { options = parseOptions(process.argv.slice(2)) }
+catch (error) { die(error.code ?? 'E1_USAGE', error.message) }
+if (options.help) {
+  console.log('Usage: node e1/run-e1.mjs [--real [--check] --manifest FILE --provider deepseek|anthropic|ollama --model MODEL [--base-url LOOPBACK_URL]] [--out DIR] [--timeout-ms 1000..600000]\nNo flag runs the keyless E0 instrument. --real --check validates all inputs without model generations. Anthropic and Ollama require an explicit model. Relative PDF paths resolve beside the manifest.')
+  process.exit(0)
+}
+const REAL = options.real
+const manifestPath = resolve(options.manifest ?? join(E1_DIR, 'pdfs.json'))
+const outDir = resolve(options.out ?? join(E1_DIR, 'results'))
+let route
+try { route = modelRoute(options.provider, options.model, process.env, options.baseURL) }
+catch (error) { die(error.code, error.message) }
 
 function die(code, message, remedy) {
   console.error(`${code}: ${message}`)
@@ -63,15 +70,14 @@ function die(code, message, remedy) {
 
 if (!existsSync(DSH_BIN)) die('E1_DSH_MISSING', `pinned dsh launcher missing at ${DSH_BIN}`, 'cd e2e && npm ci')
 if (!existsSync(join(GUARDS_DIST, 'dsh-plugin.js'))) die('E1_GUARDS_UNBUILT', 'guards/dist missing', 'cd guards && npm install && npm run build')
+const installedVersion = JSON.parse(readFileSync(join(dirname(DSH_BIN), '..', 'package.json'), 'utf8')).version
+if (installedVersion !== PINNED_DSH) die('E1_PIN_MISMATCH', `installed harness ${installedVersion} differs from ${PINNED_DSH}`)
+const { lintNotes, hasErrors } = await import(pathToFileURL(join(GUARDS_DIST, 'notes-lint.js')).href)
+const { extractCitations } = await import(pathToFileURL(join(GUARDS_DIST, 'decisions.js')).href)
 
 // --- manifest ---------------------------------------------------------------------
 
-function sha256(path) {
-  return new Promise((resolveHash, reject) => {
-    const hash = createHash('sha256')
-    createReadStream(path).on('data', (d) => hash.update(d)).on('end', () => resolveHash(hash.digest('hex'))).on('error', reject)
-  })
-}
+const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
 
 async function loadEntries() {
   if (!REAL) {
@@ -83,23 +89,8 @@ async function loadEntries() {
       source: { surname: 'smith', year: '2024' },
     }]
   }
-  if (!process.env.DEEPSEEK_API_KEY && !process.env.ANTHROPIC_API_KEY) {
-    die('E1_KEY_MISSING', 'the real lane needs DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in the environment', 'export a key, or run the offline lane (no flag)')
-  }
-  if (!existsSync(manifestPath)) {
-    die('E1_MANIFEST_MISSING', `no manifest at ${manifestPath}`, 'copy e1/pdfs.example.json to e1/pdfs.json and point it at three local PDFs (never committed)')
-  }
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  for (const entry of manifest.pdfs) {
-    const path = isAbsolute(entry.path) ? entry.path : resolve(E1_DIR, entry.path)
-    if (!existsSync(path)) die('E1_PDF_MISSING', `${entry.id}: no file at ${path}`)
-    const digest = await sha256(path)
-    if (entry.sha256 !== digest) {
-      die('E1_PDF_HASH_MISMATCH', `${entry.id}: manifest sha256 ${entry.sha256} != actual ${digest}`, 'the published claim must byte-identify its inputs; update the manifest deliberately')
-    }
-    entry.path = path
-  }
-  return manifest.pdfs
+  try { return readManifest(manifestPath) }
+  catch (error) { die(error.code ?? 'E1_MANIFEST_INVALID', error.message) }
 }
 
 // --- workspace / profile synthesis ------------------------------------------------
@@ -120,7 +111,7 @@ function buildWorkspace(arm) {
   if (arm === 'skills') {
     mkdirSync(join(ws, '.agents', 'skills'), { recursive: true })
     for (const name of readdirSync(SKILLS_SRC)) {
-      symlinkSync(join(SKILLS_SRC, name), join(ws, '.agents', 'skills', name))
+      symlinkSync(join(SKILLS_SRC, name), join(ws, '.agents', 'skills', name), process.platform === 'win32' ? 'junction' : 'dir')
     }
   }
   return ws
@@ -139,6 +130,12 @@ const PLAIN_PATCH = `# E1 plain arm: identical bundles and model access, no guar
         apiKeyEnv: DEEPSEEK_API_KEY
       anthropic:
         apiKeyEnv: ANTHROPIC_API_KEY
+
+# Same isolation as the skills arm: no user-level catalogue in either arm.
+- id: skill-filesystem
+  config:
+    dshHome: !!js dshHomePath('awt-no-user-skills')
+    agentsHome: !!js dshHomePath('awt-no-user-skills')
 
 - insert:
     - id: awt-read-pdf
@@ -165,6 +162,19 @@ function buildHome(arm) {
     patch = PLAIN_PATCH
   }
   cpSync(join(PROFILE_SRC, 'awt-read-pdf.plugin.mjs'), join(profile, 'awt-read-pdf.plugin.mjs'))
+  cpSync(join(PROFILE_SRC, 'pdf-pages.mjs'), join(profile, 'pdf-pages.mjs'))
+
+  if (REAL) {
+    // Both arms receive exactly the chosen route. Supplying only an Anthropic
+    // key must never leave the profile pointed at the default DeepSeek model.
+    patch = patch.replace('provider: deepseek', `provider: ${route.provider}`)
+      .replace('model: deepseek-v4-flash', `model: ${JSON.stringify(route.model)}`)
+    if (route.provider === 'ollama') {
+      const providerBlock = /- id: llm-pi-ai\r?\n  config:\r?\n    providers:\r?\n(?:[ \t].*(?:\r?\n|$))+/
+      if (!providerBlock.test(patch)) throw new Error('E1 provider profile block is missing')
+      patch = patch.replace(providerBlock, localProviderPatch(route))
+    }
+  }
 
   if (!REAL) {
     // Offline overlay: scripted default model, scripted adapter row, and the
@@ -181,6 +191,14 @@ function buildHome(arm) {
     cpSync(join(E1_DIR, 'plugins', 'awt-e1-scripted-llm.plugin.mjs'), join(profile, 'awt-e1-scripted-llm.plugin.mjs'))
     cpSync(join(E1_DIR, 'plugins', 'awt-e1-read-pdf-fixture.plugin.mjs'), join(profile, 'awt-read-pdf.plugin.mjs'))
   }
+  // Identical observable storage in both arms. The harness otherwise writes
+  // zstd logs, which a JSONL reader must not silently treat as missing.
+  patch += `
+- id: session-persistence-jsonl
+  config:
+    root: !!js dshHomePath('sessions')
+    compression: none
+`
   writeFileSync(join(profile, 'cordis.patch.yml'), patch)
   return home
 }
@@ -255,30 +273,33 @@ Digital archives relocate judgement into ranking and retention policy.
 // --- run one arm ------------------------------------------------------------------
 
 function runHeadless(home, ws, task, extraEnv) {
+  const before = new Set(sessionFiles(home))
   const res = spawnSync(
     process.execPath,
     [DSH_BIN, '--profile', 'awt-headless', task],
     {
       cwd: ws,
       env: {
-        PATH: process.env.PATH,
+        PATH: process.env.PATH ?? process.env.Path,
         LANG: process.env.LANG ?? 'en_US.UTF-8',
         HOME: process.env.HOME,
+        ...Object.fromEntries(['SystemRoot', 'WINDIR', 'USERPROFILE', 'TEMP', 'TMP', 'COMSPEC'].filter((key) => process.env[key]).map((key) => [key, process.env[key]])),
         DSH_HOME: home,
         DSH_TELEMETRY_DISABLED: '1',
         ...(REAL
           ? {
-            ...(process.env.DEEPSEEK_API_KEY ? { DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY } : {}),
-            ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
+            [route.keyEnv]: route.provider === 'ollama' ? 'ollama' : process.env[route.keyEnv],
           }
           : {}),
         ...extraEnv,
       },
       encoding: 'utf8',
-      timeout: RUN_TIMEOUT_MS,
+      timeout: options.timeoutMs,
+      maxBuffer: 16 * 1024 * 1024,
     },
   )
-  return res
+  const logs = sessionFiles(home).filter((file) => !before.has(file)).map((file) => readFileSync(file, 'utf8'))
+  return { ...res, outcome: terminalOutcome(logs) }
 }
 
 function referenceFor(entry) {
@@ -286,32 +307,41 @@ function referenceFor(entry) {
   // Regenerate exactly what the read_pdf tool shows the model.
   const res = spawnSync('pdftotext', ['-layout', '-f', String(entry.firstPage), '-l', String(entry.lastPage), entry.path, '-'],
     { encoding: 'utf8', timeout: 60_000, maxBuffer: 16 * 1024 * 1024 })
-  if (res.status !== 0) die('E1_PDFTOTEXT_FAILED', `pdftotext failed for ${entry.id}`)
-  const pages = res.stdout.split('\f').filter((p) => p.trim() !== '')
-  return pages.map((p, i) => `--- page ${entry.firstPage + i} ---\n${p.trimEnd()}`).join('\n\n')
+  if (res.error?.code === 'ENOENT') die('E1_PDFTOTEXT_MISSING', 'pdftotext is not on PATH', 'select a working Poppler installation before running the real lane')
+  if (res.status !== 0) die('E1_PDFTOTEXT_FAILED', `pdftotext failed for ${entry.id}`, 'check the PDF and select a working Poppler executable on PATH')
+  const labeled = labelPdfPages(res.stdout, entry.firstPage)
+  if (pagesFromLabeledText(labeled).size !== entry.lastPage - entry.firstPage + 1) die('E1_PAGE_RANGE', `${entry.id}: PDF does not contain the complete requested page range`)
+  if (!res.stdout.replace(/[\s\f]/g, '')) die('E1_PDF_TEXT_MISSING', `${entry.id}: selected pages contain no extractable text`)
+  return labeled
 }
 
-function collectArtifacts(ws) {
+function collectArtifacts(ws, entry) {
   const notesDir = join(ws, 'literature', 'reading_notes')
-  const notesFile = readdirSync(notesDir).find((f) => f.endsWith('_NOTES.md') && f !== '_template_NOTES.md')
-  const chapters = readdirSync(join(ws, 'chapters'))
-  const draftFile = chapters.find((f) => f.endsWith('.md'))
+  const notesFile = join(notesDir, `${REAL ? entry.id : entry.source.surname + entry.source.year}_NOTES.md`)
+  const draftFile = join(ws, 'chapters', 'draft_section.md')
   return {
-    notesText: notesFile ? readFileSync(join(notesDir, notesFile), 'utf8') : undefined,
-    draftText: draftFile ? readFileSync(join(ws, 'chapters', draftFile), 'utf8') : undefined,
+    notesText: existsSync(notesFile) ? readFileSync(notesFile, 'utf8') : undefined,
+    draftText: existsSync(draftFile) ? readFileSync(draftFile, 'utf8') : undefined,
   }
 }
 
 const NOTES_TASK = (entry) => REAL
-  ? `Read pages ${entry.firstPage}-${entry.lastPage} of ${entry.path} using the read_pdf tool, then write a reading-notes file literature/reading_notes/${entry.id}_NOTES.md following literature/reading_notes/_template_NOTES.md exactly. Quote at least two passages verbatim with their page numbers.`
+  ? `Read pages ${entry.firstPage}-${entry.lastPage} of literature/source.pdf using the read_pdf tool, then write a reading-notes file literature/reading_notes/${entry.id}_NOTES.md following literature/reading_notes/_template_NOTES.md exactly. Quote at least two passages verbatim with their page numbers.`
   : 'E1 offline notes task'
 const DRAFT_TASK = () => REAL
   ? 'Write chapters/draft_section.md: a ~300-word thesis section arguing from the source you have read, quoting evidence verbatim with page numbers and Harvard citations.'
   : 'E1 offline draft task'
 
-async function runArm(entry, arm) {
+async function runArm(entry, arm, runDir) {
+  const saved = resume?.arms.find((item) => item.id === entry.id && item.arm === arm)
+  if (saved?.processes.length === 2) {
+    cpSync(saved.artifactDir, join(runDir, entry.id, arm), { recursive: true })
+    console.log(`  reusing both recorded ${entry.id}/${arm} outcomes; no model retry`)
+    return { ...saved.result, ...classifyRun('real', saved.processes, saved.result.sourceOpened, true), processes: saved.processes }
+  }
   const ws = buildWorkspace(arm)
   const home = buildHome(arm)
+  if (REAL) cpSync(entry.path, join(ws, 'literature', 'source.pdf'))
   const scripts = REAL ? undefined : offlineScripts(entry, arm, ws)
   const scriptEnv = (script) => {
     if (script === undefined) return {}
@@ -321,17 +351,42 @@ async function runArm(entry, arm) {
   }
 
   const runs = []
-  runs.push(runHeadless(home, ws, NOTES_TASK(entry), scriptEnv(scripts?.notes)))
-  runs.push(runHeadless(home, ws, DRAFT_TASK(entry), scriptEnv(scripts?.draft)))
+  if (saved?.processes.length === 1) {
+    for (const tree of ['chapters', 'contracts']) cpSync(join(saved.artifactDir, tree), join(ws, tree), { recursive: true })
+    cpSync(join(saved.artifactDir, 'reading_notes'), join(ws, 'literature', 'reading_notes'), { recursive: true })
+    mkdirSync(join(home, 'sessions', 'preserved-prefix'), { recursive: true })
+    for (const [index, log] of saved.savedLogs.entries()) cpSync(log.file, join(home, 'sessions', 'preserved-prefix', `${index}.jsonl`))
+    runs.push(...saved.processes)
+    console.log(`  reusing recorded ${entry.id}/${arm} notes outcome; no model retry`)
+  } else {
+    runs.push(runHeadless(home, ws, NOTES_TASK(entry), scriptEnv(scripts?.notes)))
+  }
+  // A recorded model-budget exhaustion remains in the sample. Only an
+  // unobserved or infrastructure failure stops subsequent tasks.
+  if (runs.length === 1 && measuredRun(runs[0])) runs.push(runHeadless(home, ws, DRAFT_TASK(entry), scriptEnv(scripts?.draft)))
   for (const [i, res] of runs.entries()) {
     if (res.status !== 0) {
       const tail = `${res.stderr ?? ''}`.trim().split('\n').slice(-4).join(' | ')
-      console.error(`  ${arm} run ${i + 1} exited ${res.status}: ${tail}`)
+      console.error(`  ${arm} run ${i + 1} exited ${res.status} (${res.outcome ?? 'unobserved'}): ${tail}`)
     }
   }
 
-  const { notesText, draftText } = collectArtifacts(ws)
-  const referenceText = referenceFor(entry)
+  const artifactDir = join(runDir, entry.id, arm)
+  mkdirSync(artifactDir, { recursive: true })
+  for (const tree of ['chapters', 'contracts']) cpSync(join(ws, tree), join(artifactDir, tree), { recursive: true, dereference: false })
+  cpSync(join(ws, 'literature', 'reading_notes'), join(artifactDir, 'reading_notes'), { recursive: true, dereference: false })
+  // dsh names session directories after the absolute workspace. Keep the log
+  // bytes, but do not copy that encoded machine path into a portable artifact.
+  mkdirSync(join(artifactDir, 'sessions'), { recursive: true })
+  for (const file of sessionFiles(home)) {
+    cpSync(file, join(artifactDir, 'sessions', `sha256-${sha256(file)}.jsonl`))
+  }
+  const processes = runs.map((run) => ({ status: run.status, signal: run.signal, outcome: run.outcome, error: run.error ? { code: run.error.code ?? 'SPAWN_ERROR' } : null }))
+  writeFileSync(join(artifactDir, 'processes.json'), JSON.stringify(processes, null, 2))
+
+  const { notesText, draftText } = collectArtifacts(ws, entry)
+  const opening = readOpeningEvidence(home, ws, entry)
+  const { referenceText } = opening
   const pages = pagesFromLabeledText(referenceText)
   const spans = [
     ...extractQuotedSpans(notesText ?? ''),
@@ -339,11 +394,14 @@ async function runArm(entry, arm) {
   ]
   return {
     arm,
+    ...classifyRun(REAL ? 'real' : 'offline', runs, opening.sourceOpened, opening.files.length >= runs.length),
+    artifacts: `${entry.id}/${arm}`,
     quoteFidelity: gradeQuoteFidelity(spans, referenceText),
     pageAccuracy: gradePageAccuracy(spans, pages),
     notes: gradeNotesParseability(notesText, lintNotes, hasErrors),
-    unopenedCitations: gradeUnopenedCitations(draftText, [entry.source], extractCitations),
+    unopenedCitations: gradeUnopenedCitations(draftText, opening.sourceOpened ? [entry.source] : [], extractCitations),
     runExitCodes: runs.map((r) => r.status),
+    processes,
   }
 }
 
@@ -351,48 +409,97 @@ async function runArm(entry, arm) {
 
 const lane = REAL ? 'real' : 'offline'
 const entries = await loadEntries()
-const results = []
-try {
-  for (const entry of entries) {
-    console.log(`E1 ${lane}: ${entry.id}`)
-    for (const arm of ['skills', 'plain']) {
-      const graded = await runArm(entry, arm)
-      results.push({ id: entry.id, ...graded })
-      console.log(`  ${arm}: quotes ${graded.quoteFidelity.matched}/${graded.quoteFidelity.quotes} verbatim, pages ${graded.pageAccuracy.correct}/${graded.pageAccuracy.cited} correct, notes ${graded.notes.parseable ? 'parseable' : 'NOT parseable'}, unopened citations ${graded.unopenedCitations.unopened.length}`)
+// Check every source before launching any model session. No PDF is sent to
+// a provider during this preflight; pdftotext operates locally.
+for (const entry of entries) referenceFor(entry)
+if (REAL && route.provider === 'ollama') {
+  try { route.localInfo = await inspectLocalModel(route) }
+  catch (error) { die(error.code ?? 'E1_LOCAL_UNAVAILABLE', error.message) }
+}
+let resume
+if (options.resume) {
+  try { resume = readResume(options.resume, entries, route, `@deepseek-ai/dsh@${PINNED_DSH}`, PRODUCT_ROOT, options.retryLocalTransport) }
+  catch (error) { die(error.code ?? 'E1_RESUME_INVALID', error.message) }
+}
+if (REAL && options.check) {
+  console.log(JSON.stringify({ status: route.keyPresent ? 'ready' : 'blocked', code: route.keyPresent ? null : 'E1_KEY_MISSING', sources: entries.length, provider: route.provider, model: route.model, keyEnv: route.keyEnv, keyPresent: route.keyPresent, localModel: route.localInfo, modelRequests: 0 }, null, 2))
+  process.exitCode = route.keyPresent ? 0 : 1
+} else {
+  await runExperiment()
+}
+
+async function runExperiment() {
+  if (REAL && !route.keyPresent) die('E1_KEY_MISSING', `set ${route.keyEnv} locally for the explicitly selected ${route.provider} route`)
+  mkdirSync(outDir, { recursive: true })
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const runDir = join(outDir, `e1-${lane}-${stamp}`)
+  // Resolve provenance before any generation: cross-volume paths cannot be
+  // published as relative references and must fail before a model request.
+  const continuation = resume ? publicContinuation(resume.provenance, runDir, resume.provenance.run) : undefined
+  mkdirSync(runDir)
+  const results = []
+  let failure
+  try {
+    for (const entry of entries) {
+      console.log(`E1 ${lane}: ${entry.id}`)
+      for (const arm of ['skills', 'plain']) {
+        let graded
+        try { graded = await runArm(entry, arm, runDir) }
+        catch (error) { failure = { code: error.code ?? 'E1_RUN_FAILED', id: entry.id, arm }; break }
+        results.push({ id: entry.id, ...graded })
+        console.log(`  ${arm}: quotes ${graded.quoteFidelity.matched}/${graded.quoteFidelity.quotes} verbatim, pages ${graded.pageAccuracy.correct}/${graded.pageAccuracy.cited} correct, notes ${graded.notes.parseable ? 'parseable' : 'NOT parseable'}, unopened citations ${graded.unopenedCitations.unopened.length}`)
+        if (graded.status !== 'completed') { failure = { code: 'E1_SESSION_INCOMPLETE', id: entry.id, arm }; break }
+      }
+      if (failure) break
+    }
+  } finally {
+    for (const dir of scratchRoots.splice(0)) {
+      if (dirname(resolve(dir)) !== resolve(tmpdir()) || !basename(dir).startsWith('awt-e1-')) throw new Error('E1 scratch cleanup target is outside the allocated temporary roots')
+      rmSync(dir, { recursive: true, force: true })
     }
   }
-} finally {
-  for (const dir of scratchRoots.splice(0)) rmSync(dir, { recursive: true, force: true })
-}
 
-mkdirSync(outDir, { recursive: true })
-const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-const payload = {
-  lane,
-  generatedAt: new Date().toISOString(),
-  harness: `@deepseek-ai/dsh@${PINNED_DSH}`,
-  producer: 'e1/run-e1.mjs',
-  note: lane === 'offline'
-    ? 'Offline lane: scripted synthetic arms. Proves the instrument discriminates (E0 about the instrument); NOT efficacy evidence about the skills.'
-    : 'Real lane: paired sessions over the manifest PDFs. E1 evidence per §11.',
-  results,
-}
-const jsonPath = join(outDir, `e1-${lane}-${stamp}.json`)
-writeFileSync(jsonPath, JSON.stringify(payload, null, 2))
+  const payload = {
+    lane,
+    status: failure ? 'incomplete' : 'completed',
+    evidenceClass: failure ? null : (REAL ? 'E1' : 'E0'),
+    failure: failure ?? null,
+    generatedAt: new Date().toISOString(),
+    harness: `@deepseek-ai/dsh@${PINNED_DSH}`,
+    producer: 'e1/run-e1.mjs',
+    producerSha256: sha256(join(E1_DIR, 'run-e1.mjs')),
+    implementationSha256: Object.fromEntries([
+      'e1/run-e1.mjs', 'e1/inputs.mjs', 'e1/evidence.mjs', 'e1/local-provider.mjs', 'e1/resume.mjs', 'e1/public-paths.mjs', 'e1/graders.mjs',
+      'profiles/awt-headless/cordis.patch.yml', 'profiles/awt-headless/awt-read-pdf.plugin.mjs',
+      'profiles/awt-headless/pdf-pages.mjs', 'guards/dist/notes-lint.js', 'guards/dist/decisions.js',
+    ].map((path) => [path, sha256(join(PRODUCT_ROOT, path))])),
+    inputs: entries.map(({ path, referenceTextPath, ...entry }) => ({ ...entry, sha256: entry.sha256 ?? sha256(referenceTextPath) })),
+    model: REAL ? { provider: route.provider, id: route.model, ...(route.localInfo ? { local: route.localInfo } : {}) } : { provider: 'scripted', id: 'scripted-1' },
+    ...(resume ? { continuation } : {}),
+    note: failure ? 'Incomplete execution: diagnostic results only; no E1 efficacy claim. Inspect retained session logs and process statuses before a deliberate new run.' : lane === 'offline'
+      ? 'Offline lane: scripted synthetic arms. Proves the instrument discriminates (E0 about the instrument); NOT efficacy evidence about the skills.'
+      : 'Real lane: paired sessions over the manifest PDFs. E1 evidence per §11.',
+    results,
+  }
+  const jsonPath = join(runDir, 'metrics.json')
+  writeFileSync(jsonPath, JSON.stringify(payload, null, 2))
 
-const rows = results.map((r) =>
-  `| ${r.id} | ${r.arm} | ${r.quoteFidelity.matched}/${r.quoteFidelity.quotes} | ${r.pageAccuracy.correct}/${r.pageAccuracy.cited} | ${r.notes.parseable ? 'yes' : 'no'} | ${r.unopenedCitations.unopened.length} |`)
-const table = [
-  `# E1 ${lane} results (${payload.generatedAt})`,
-  '',
-  payload.note,
-  '',
-  '| source | arm | verbatim quotes | correct pages | notes parseable | unopened citations |',
-  '| --- | --- | --- | --- | --- | --- |',
-  ...rows,
-  '',
-  `Producer: \`${payload.producer}\` against \`${payload.harness}\`. Metrics JSON: \`${jsonPath}\`.`,
-].join('\n')
-const mdPath = join(outDir, `e1-${lane}-${stamp}.md`)
-writeFileSync(mdPath, table)
-console.log(`\n${table}`)
+  const rows = results.map((r) =>
+    `| ${r.id} | ${r.arm} | ${r.quoteFidelity.matched}/${r.quoteFidelity.quotes} | ${r.pageAccuracy.correct}/${r.pageAccuracy.cited} | ${r.notes.parseable ? 'yes' : 'no'} | ${r.unopenedCitations.unopened.length} | ${r.taskOutcomes.join(' / ')} |`)
+  const table = [
+    `# E1 ${lane} results (${payload.generatedAt})`,
+    '',
+    payload.note,
+    '',
+    '| source | arm | verbatim quotes | correct pages | notes parseable | unopened citations | notes / draft outcomes |',
+    '| --- | --- | --- | --- | --- | --- | --- |',
+    ...rows,
+    '',
+    `Producer: \`${payload.producer}\` against \`${payload.harness}\`. Metrics JSON: \`metrics.json\`. Logs and model outputs are retained per source/arm beside it; review before sharing.`,
+  ].join('\n')
+  const mdPath = join(runDir, 'results.md')
+  writeFileSync(mdPath, table)
+  console.log(`\n${table}`)
+  console.log(`\nSaved: ${runDir}`)
+  if (failure) process.exitCode = 1
+}

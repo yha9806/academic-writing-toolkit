@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { labelPdfPages } from './pdf-pages.mjs'
 
 export const name = 'awt-read-pdf'
 export const inject = ['tools']
@@ -38,9 +39,7 @@ export function apply(ctx) {
       if (res.status !== 0) {
         throw new Error(`READ_PDF_FAILED: pdftotext exited ${res.status ?? `signal ${res.signal}`} for ${args.file_path}`)
       }
-      const pages = res.stdout.split('\f').filter((page) => page.trim() !== '')
-      const labeled = pages.map((page, i) => `--- page ${Number(args.first_page) + i} ---\n${page.trimEnd()}`)
-      return labeled.join('\n\n')
+      return labelPdfPages(res.stdout, Number(args.first_page))
     },
   }))
 }

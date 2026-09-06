@@ -1,0 +1,5 @@
+FROM qwen3-vl:4b-instruct
+PARAMETER num_ctx 32768
+PARAMETER num_predict 4096
+PARAMETER temperature 0.2
+PARAMETER seed 20260905

@@ -7,10 +7,12 @@
   the `awt-headless` and `awt-web` profiles, the E1 instrument, and the §13
   decommission. Per-phase truth lives in each phase spec's own Status header;
   those headers, not this one, are the working state source.
-  **Evidence class reached: E0 only** (deterministic gates green in CI —
+  **Evidence: E0 gates plus a bounded local E1 pilot** (original deterministic gates green in CI —
   guards 84/84, regression 120/120, live headless denial table, credential
-  probe, pack-and-install smoke). E1 has a working instrument but no real-lane
-  results; E2 (the author's chapter cycle) has not been run; E3 does not
+  probe, pack-and-install smoke). The [2026-09-05 three-source local E1 pilot](../../e1/published/2026-09-05-local-qwen/README.md)
+  collected twelve task observations with Qwen3-VL 4B; neither arm produced
+  conforming notes. It does not establish improved writing efficacy.
+  E2 (the author's chapter cycle) has not been run; E3 does not
   exist. Two open deviations are recorded in the phase specs: the
   structured-fact writer waits on a published ignorable-append harness
   (tripwire armed), and `archive/skills/` is retained.
@@ -317,7 +319,10 @@ For every reachable v0.1 state:
 Evidence classes, never collapsed: (E0) deterministic gate green in CI;
 (E1) paired-session comparison on real inputs with machine-graded criteria;
 (E2) author dogfood through one real chapter cycle; (E3) external user
-evidence. Today every skill sits at E0 or below; the README must say so.
+evidence. The original individual-skill claims remain at E0 or below. A
+three-source E1 pilot now measures the combined AWT profile under one local
+model; its negative/inconclusive outcomes do not upgrade individual-skill
+efficacy claims. The README links its measured record and boundaries.
 
 Committed E1 instrument (from the efficacy review's ground lane): three real
 PDFs; paired sessions (skills vs plain prompting); machine-graded quote

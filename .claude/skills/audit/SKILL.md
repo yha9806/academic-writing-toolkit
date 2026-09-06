@@ -60,6 +60,15 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    that it is the right one, and it cannot tell whether a citing sentence
    says what its source says; do not present its silence as either.
 
+   For a requested claim-scope or contribution review, consult
+   `references/argument-licence/argument-level-lock.md`. Separate the field
+   gap, delivered contribution, observed finding and extrapolation; report
+   the six-line claim licence and any unsupported transition with a text or
+   evidence anchor. This is an Advisory reading task. Do not create standing
+   CSV ledgers or infer scientific validity from a checker result. Existing
+   legacy packets can be interpreted with the schema and checks linked in
+   `references/argument-licence/README.md`.
+
    **F. Citation fidelity — does the citing sentence match its source?**
 
    ```

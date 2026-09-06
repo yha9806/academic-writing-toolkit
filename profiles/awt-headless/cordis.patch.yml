@@ -18,7 +18,7 @@
 # so rows below restate every field they keep.
 
 # Cost route by default; switch to the prose-fidelity route per session
-# with the headless model flags or a $DSH_HOME patch overlay.
+# with the launcher's --patch overlay (the pinned headless app has no model flags).
 - id: agent-default-model
   config:
     provider: deepseek

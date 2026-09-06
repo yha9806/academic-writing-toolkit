@@ -8,7 +8,7 @@ import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 const AWT = resolve(import.meta.dirname, '..', '..', 'scaffold', 'awt.mjs')
@@ -64,12 +64,16 @@ test('init scaffolds exactly the thesis-workspace manifest — no toolkit-dev fi
     'dir literature/reading_notes',
     'file AGENTS.md',
     'file literature/reading_notes/_template_NOTES.md',
-    'link CLAUDE.md',
+    'link references',
+    process.platform === 'win32' ? 'file CLAUDE.md' : 'link CLAUDE.md',
   ].sort())
 
   // The config link resolves and both names read the same contract.
-  assert.equal(readlinkSync(join(ws, 'CLAUDE.md')), 'AGENTS.md')
+  if (process.platform !== 'win32') assert.equal(readlinkSync(join(ws, 'CLAUDE.md')), 'AGENTS.md')
   assert.match(readFileSync(join(ws, 'CLAUDE.md'), 'utf8'), /Academic Writing Workspace/)
+  writeFileSync(join(ws, 'AGENTS.md'), 'author-updated workspace contract')
+  assert.equal(readFileSync(join(ws, 'CLAUDE.md'), 'utf8'), 'author-updated workspace contract')
+  assert.ok(readFileSync(join(ws, 'references', 'argument-checklist.md'), 'utf8').length > 0)
 
   // Every skill link resolves into the product catalogue at a real SKILL.md.
   for (const name of SKILLS) {
@@ -99,6 +103,9 @@ test('install-profile lands both canonical profiles in a DSH_HOME and refuses to
   const home = scratch()
   const res = awt('install-profile', home)
   assert.equal(res.status, 0, res.stderr)
+  assert.match(res.stdout, /npm install --prefix/)
+  assert.match(res.stdout, /--save-exact @deepseek-ai\/dsh@0\.1\.0-rc\.6/)
+  assert.doesNotMatch(res.stdout, /npx/)
   for (const name of ['awt-headless', 'awt-web']) {
     const profile = join(home, 'profiles', name)
     for (const file of ['package.json', 'cordis.patch.yml', 'awt-read-pdf.plugin.mjs', join('awt-guards', 'dsh-plugin.js')]) {
@@ -166,7 +173,7 @@ test('init links exactly the real skills of a clean catalogue', () => {
 })
 
 // --- awt web / awt run: the supported launch path ----------------------------------
-// `install-profile` already places the pinned launcher inside
+// The explicit one-time npm install places the pinned launcher inside
 // $DSH_HOME/profiles/node_modules. These gates pin the refusals that run
 // BEFORE anything boots, so they need neither a harness nor a credential.
 
@@ -224,4 +231,28 @@ test('run refuses without a task, and web without a workspace', () => {
   awt('init', ws)
   assert.match(awtIn(home, 'run', ws).stderr, /AWT_LAUNCH_USAGE/)
   assert.match(awtIn(home, 'web').stderr, /AWT_LAUNCH_USAGE/)
+})
+
+test('missing launcher gives the pinned persistent install command', () => {
+  const home = dshHome({ profile: 'awt-web', harnessVersion: null })
+  const res = awtIn(home, 'web', scratch())
+  assert.match(res.stderr, /AWT_LAUNCH_HARNESS_MISSING/)
+  assert.ok(res.stderr.includes(`npm install --prefix "${join(home, 'profiles')}"`))
+  assert.match(res.stderr, /--save-exact @deepseek-ai\/dsh@0\.1\.0-rc\.6/)
+  assert.doesNotMatch(res.stderr, /reinstall the profiles/)
+})
+
+test('default DSH_HOME is the OS user home even when HOME is absent', () => {
+  const root = scratch()
+  mkdirSync(join(root, 'scaffold'))
+  cpSync(AWT, join(root, 'scaffold', 'awt.mjs'))
+  const env = { ...process.env }
+  delete env.HOME
+  delete env.DSH_HOME
+  const res = spawnSync(process.execPath, [join(root, 'scaffold', 'awt.mjs'), 'install-profile'], {
+    encoding: 'utf8', env, cwd: root, timeout: 60_000,
+  })
+  // Deliberately unbuilt fixture: refuse before creating or changing ~/.dsh.
+  assert.match(res.stderr, /AWT_PROFILE_GUARDS_UNBUILT/)
+  assert.ok(res.stderr.includes(join(homedir(), '.dsh')), res.stderr)
 })

@@ -352,7 +352,7 @@ if (installedVersion !== PINNED_DSH_VERSION) {
 
 console.log(`dsh: @deepseek-ai/dsh@${installedVersion} (real published launcher, ${DSH_BIN})`)
 console.log('building guards kernel: npm run build in guards/ ...')
-const build = spawnSync('npm', ['run', 'build'], { cwd: GUARDS_DIR, encoding: 'utf8' })
+const build = spawnSync(process.execPath, [join(GUARDS_DIR, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', 'tsconfig.json'], { cwd: GUARDS_DIR, encoding: 'utf8' })
 if (build.status !== 0) {
   console.error(`FATAL: guards build failed:\n${build.stdout}\n${build.stderr}`)
   process.exit(1)

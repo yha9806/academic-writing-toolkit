@@ -116,3 +116,25 @@ rotting silently), in `guards/tests/harness-pin-probe.test.ts`:
 Consequences: session 2 proceeds with `awt init`/`awt verify` and the
 ask-seam approvals (neither depends on the writer); projections keep folding
 the derived channel with their documented gaps until the gate lifts.
+
+## Published-package recheck — 2026-09-05
+
+Newer launcher and session packages now exist on npm, so the historical
+"nothing newer is published" observation above is no longer current.
+The required append behaviour is still absent: a detached-session runtime
+probe against both `@deepseek-ai/dsh-session@0.1.0-rc.6` and the published
+`0.1.2-rc.1` appended a content-free `awt-guards/fact` with
+`{ ignorable: true }`; the returned event omitted the marker in both cases.
+The rc.7 and rc.8 published source was also inspected and still omitted it.
+
+Use `node scripts/probe-session-append.mjs` for the installed pin, or pass
+`--package <installed-dsh-session-directory> --out <report.json>` for an
+isolated candidate installation. The report records the package version
+and entry-file SHA-256. It never downloads packages or changes the pin.
+The tested latest entry SHA-256 was
+`be25b05ffd1403908796935ef11a61d4c002f7ff3d12f83ef82a8c9976984342`.
+
+Issue #37 therefore remains blocked. Do not enable the writer or equate a
+new version number with compatibility. A future marker-preserving result
+is a candidate for the writer implementation and refold/live gates, not
+automatic permission to ship. No dependency was upgraded by this recheck.

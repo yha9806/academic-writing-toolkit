@@ -5,6 +5,14 @@ the value; the 5-CSV standing ledger it prescribed was never maintained by
 any project and is retired. Use this as a one-shot interrogation during
 `/review` or before a major edit — emit a REPORT, not standing files.
 
+When the question concerns a stronger headline, an extrapolation, or a
+change in contribution emphasis, use
+[`argument-licence/argument-level-lock.md`](argument-licence/argument-level-lock.md)
+for the four-level distinction and six-line claim licence. Its
+[schema and checks](argument-licence/README.md) are optional interpretation
+references for existing records, not a new ledger requirement or an
+enforcement mechanism.
+
 ## Gap → contribution → claim → evidence
 
 1. Does every stated contribution answer a **named** gap, in the

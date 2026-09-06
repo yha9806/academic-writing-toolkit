@@ -39,7 +39,7 @@ try {
   const profile = join(home, 'profiles', 'awt-headless')
   mkdirSync(profile, { recursive: true })
   cpSync(join(PROFILE_SRC, 'package.json'), join(profile, 'package.json'))
-  for (const shared of ['cordis.patch.yml', 'awt-read-pdf.plugin.mjs', 'awt-brand.plugin.mjs', 'awt-export.plugin.mjs']) {
+  for (const shared of ['cordis.patch.yml', 'awt-read-pdf.plugin.mjs', 'pdf-pages.mjs', 'awt-brand.plugin.mjs', 'awt-export.plugin.mjs']) {
     cpSync(join(PROFILE_SRC, shared), join(profile, shared))
   }
   cpSync(GUARDS_DIST, join(profile, 'awt-guards'), { recursive: true })

@@ -1,0 +1,40 @@
+{
+  "runDirectory": ".",
+  "producerCommit": "a197d8738a154789f75836d96964e42e35bb4bb2",
+  "implementationHashesVerified": 11,
+  "sourceHashesVerified": 3,
+  "uniqueObservedSessions": 12,
+  "priorRunsVerified": [
+    "../e1-real-2026-09-05T16-42-34-640Z",
+    "../e1-real-2026-09-05T16-32-57-798Z",
+    "../e1-real-2026-09-05T16-19-37-906Z"
+  ],
+  "publishedFilesSha256": {
+    "metrics.json": "45a010180841793676f8a872a74d8c5dc1e88f2281c5eefe0331f62888d016cc",
+    "results.md": "cb8a5c5c52dfee1776684d8579f460cce190d4eeb2607f72371b834279ffda17",
+    "analysis.json": "efd03bb772e502be27216bd3c872ff3afacecdf59fcba9975fd2efa427333a56",
+    "analysis.md": "1fad6bd711f009c5111ae6249bc6c2fd2fed830a36b91120019466d6823acfd7",
+    "Modelfile": "8db9a0fa19b38d850f2a0eca7f2b2db7d892224321423b6b03482e4ef2c62d94",
+    "pdfs.json": "8dd73992d19ca1375feedef84e2deb801c95a13a36972d527538b5465b9d784f"
+  },
+  "publicSanitisation": {
+    "method": "run-relative paths and content-addressed session references; original bytes retained privately",
+    "originalVerificationSha256": "ef8bb3f46389ab4ec5324d736c5b967fa442567bcaa70c537374d480366ee2dd",
+    "originalPublishedFilesSha256": {
+      "metrics.json": "d9e2806d96127fba16293717170d98451c9a10d67b1f11ef5cd807830665b46f",
+      "results.md": "cb8a5c5c52dfee1776684d8579f460cce190d4eeb2607f72371b834279ffda17",
+      "analysis.json": "c042b805809432378d89dc65cdcb4b5a9bc1ae70602b620c2facb2f3361fd678",
+      "analysis.md": "555b044bae92ffab60aa56e41d4d48d0d5981da101f721b560f323f6dbbc4c51",
+      "Modelfile": "8db9a0fa19b38d850f2a0eca7f2b2db7d892224321423b6b03482e4ef2c62d94",
+      "pdfs.json": "8dd73992d19ca1375feedef84e2deb801c95a13a36972d527538b5465b9d784f"
+    },
+    "pathFieldsRewritten": 19,
+    "unchangedSessionLogHashes": 12,
+    "originalContinuationHashesVerified": 3,
+    "measurementsUsageOutcomesAndOriginalHashChainUnchanged": true,
+    "rawSessionLogsPublished": false,
+    "localMachinePathsIncluded": false,
+    "producer": "e1/sanitise-published.mjs",
+    "producerSha256": "39c0ed0fc4791fc5bba9d1d81c51c6429af173ba2fcebb7de1271266fcf125ed"
+  }
+}

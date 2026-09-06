@@ -24,10 +24,11 @@
 import { spawnSync } from 'node:child_process'
 import {
   cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync,
-  rmSync, symlinkSync, writeFileSync,
+  rmSync, symlinkSync, linkSync, writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const PRODUCT_ROOT = resolve(import.meta.dirname, '..')
 const SKILLS_SRC = join(PRODUCT_ROOT, '.claude', 'skills')
@@ -68,6 +69,7 @@ toolkit development files never belong here.
 - Literature PDFs: \`literature/\`
 - Reading notes: \`literature/reading_notes/\` (template: \`_template_NOTES.md\`)
 - Edit contracts: \`contracts/\`
+- On-demand reference documents: \`references/\` (linked to the toolkit)
 
 ## Reading constraints (enforced by AWT guards when run under dsh)
 - Max pages per read invocation: 15
@@ -111,7 +113,9 @@ function init(target) {
   cpSync(TEMPLATE_SRC, join(ws, 'literature', 'reading_notes', '_template_NOTES.md'))
   writeFileSync(join(ws, 'AGENTS.md'), WORKSPACE_CONFIG)
   // Claude Code reads CLAUDE.md; one file is the source, the other a link.
-  symlinkSync('AGENTS.md', join(ws, 'CLAUDE.md'))
+  // Windows hard links and directory junctions do not need Developer Mode.
+  if (process.platform === 'win32') linkSync(join(ws, 'AGENTS.md'), join(ws, 'CLAUDE.md'))
+  else symlinkSync('AGENTS.md', join(ws, 'CLAUDE.md'))
 
   const skills = readdirSync(SKILLS_SRC, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -130,12 +134,13 @@ function init(target) {
       `remove ${strays.length === 1 ? 'it' : 'them'} from the toolkit checkout, then re-run init`,
     )
   }
+  symlinkSync(join(PRODUCT_ROOT, 'references'), join(ws, 'references'), process.platform === 'win32' ? 'junction' : 'dir')
   for (const name of skills) {
-    symlinkSync(join(SKILLS_SRC, name), join(ws, '.agents', 'skills', name))
+    symlinkSync(join(SKILLS_SRC, name), join(ws, '.agents', 'skills', name), process.platform === 'win32' ? 'junction' : 'dir')
   }
 
   console.log(`workspace created: ${ws}`)
-  console.log(`  chapters/  literature/reading_notes/  contracts/  .agents/skills (${skills.length} links)  AGENTS.md  CLAUDE.md`)
+  console.log(`  chapters/  literature/reading_notes/  contracts/  references/ (link)  .agents/skills (${skills.length} links)  AGENTS.md  CLAUDE.md`)
   console.log(`next: node ${relativeToCwd(join(PRODUCT_ROOT, 'scaffold', 'awt.mjs'))} verify ${target}`)
 }
 
@@ -154,10 +159,10 @@ function relativeToCwd(path) {
  * existing profile is a typed refusal — remove it first to upgrade.
  */
 function installProfile(targetHome) {
-  const home = resolve(targetHome ?? process.env.DSH_HOME ?? join(process.env.HOME ?? '', '.dsh'))
+  const home = resolve(targetHome ?? process.env.DSH_HOME ?? join(homedir(), '.dsh'))
   const guardsDist = join(GUARDS_DIR, 'dist')
   if (!existsSync(join(guardsDist, 'dsh-plugin.js'))) {
-    throw new AwtError('AWT_PROFILE_GUARDS_UNBUILT', `built guards bundle missing at ${guardsDist}`, `cd ${GUARDS_DIR} && npm install && npm run build`)
+    throw new AwtError('AWT_PROFILE_GUARDS_UNBUILT', `cannot install profiles into ${home}: built guards bundle missing at ${guardsDist}`, `cd ${GUARDS_DIR} && npm install && npm run build`)
   }
   for (const name of ['awt-headless', 'awt-web']) {
     const target = join(home, 'profiles', name)
@@ -170,15 +175,17 @@ function installProfile(targetHome) {
     }
     mkdirSync(target, { recursive: true })
     cpSync(join(PRODUCT_ROOT, 'profiles', name, 'package.json'), join(target, 'package.json'))
-    for (const shared of ['cordis.patch.yml', 'awt-read-pdf.plugin.mjs', 'awt-brand.plugin.mjs', 'awt-export.plugin.mjs']) {
+    for (const shared of ['cordis.patch.yml', 'awt-read-pdf.plugin.mjs', 'pdf-pages.mjs', 'awt-brand.plugin.mjs', 'awt-export.plugin.mjs']) {
       cpSync(join(PROFILE_SRC, shared), join(target, shared))
     }
     cpSync(guardsDist, join(target, 'awt-guards'), { recursive: true })
     console.log(`profile installed: ${target}`)
   }
   console.log('  routes need DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in the environment at run time (never in files)')
-  console.log(`verify composition: DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-headless --dump-config | grep awt-guards`)
-  console.log(`web UI: run from your workspace — DSH_HOME=${home} npx --yes @deepseek-ai/dsh@0.1.0-rc.6 --profile awt-web --host 127.0.0.1 --port 3180`)
+  console.log(`one-time launcher install: ${launcherInstallCommand(home)}`)
+  console.log(`use DSH_HOME=${home} for these profiles`)
+  console.log(`verify composition: node "${join(home, 'profiles', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')}" --profile awt-headless --dump-config`)
+  console.log(`web UI: node "${join(PRODUCT_ROOT, 'scaffold', 'awt.mjs')}" web <workspace>`)
 }
 
 // --- launch ------------------------------------------------------------------------
@@ -186,6 +193,10 @@ function installProfile(targetHome) {
 /** The one pin, read from COMPAT.json so a launcher and a claim cannot drift. */
 function pinnedHarnessVersion() {
   return JSON.parse(readFileSync(COMPAT, 'utf8')).harness.split('@').pop()
+}
+
+function launcherInstallCommand(home) {
+  return `npm install --prefix "${join(home, 'profiles')}" --no-audit --no-fund --save-exact @deepseek-ai/dsh@${pinnedHarnessVersion()}`
 }
 
 /** The markers `init` creates; the same truth test `verify` applies. */
@@ -198,14 +209,14 @@ function assertWorkspace(ws, code) {
 }
 
 /**
- * Run a profile against a workspace using the launcher `install-profile`
- * already placed in $DSH_HOME — not a `npx` resolution and not a checkout's
+ * Run a profile against a workspace using the explicitly installed launcher
+ * in $DSH_HOME — not a `npx` resolution and not a checkout's
  * dev dependencies. Every refusal here happens before anything boots, so
  * none of them needs a credential. The provider key stays in the caller's
  * environment; this command never reads, stores or forwards one.
  */
 function launch(profile, ws, extra) {
-  const home = resolve(process.env.DSH_HOME ?? join(process.env.HOME ?? '', '.dsh'))
+  const home = resolve(process.env.DSH_HOME ?? join(homedir(), '.dsh'))
   if (!existsSync(join(home, 'profiles', profile))) {
     throw new AwtError(
       'AWT_LAUNCH_PROFILE_MISSING',
@@ -219,7 +230,7 @@ function launch(profile, ws, extra) {
     throw new AwtError(
       'AWT_LAUNCH_HARNESS_MISSING',
       `no dsh launcher under ${pkgRoot}`,
-      `reinstall the profiles so their dependency tree is present`,
+      launcherInstallCommand(home),
     )
   }
   // A different harness would void every gate COMPAT.json attests, so an
@@ -296,12 +307,12 @@ async function verify(target) {
   if (!existsSync(join(GUARDS_DIR, 'node_modules'))) {
     throw new AwtError('AWT_VERIFY_GUARDS_DEPS', 'guards/node_modules missing', `cd ${GUARDS_DIR} && npm install`)
   }
-  run('AWT_VERIFY_BUILD', 'npm', ['run', 'build'], { cwd: GUARDS_DIR })
+  run('AWT_VERIFY_BUILD', process.execPath, [join(GUARDS_DIR, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', 'tsconfig.json'], { cwd: GUARDS_DIR })
   record('build', 'guards typecheck + build green (tsc)')
 
   // 2. offline notes-lint smoke: the linter must discriminate (an empty file
   // fails), and every real notes file in the workspace must pass.
-  const lint = await import(join(GUARDS_DIR, 'dist', 'notes-lint.js'))
+  const lint = await import(pathToFileURL(join(GUARDS_DIR, 'dist', 'notes-lint.js')).href)
   if (!lint.hasErrors(lint.lintNotes(''))) {
     throw new AwtError('AWT_VERIFY_LINT_SMOKE', 'notes lint accepted an empty file — the linter is not discriminating')
   }
@@ -343,7 +354,7 @@ async function verify(target) {
   // throwaway workspaces + DSH_HOME roots; exit 0 only when every typed
   // denial and the negative control hold).
   run('AWT_VERIFY_E2E', process.execPath, ['run-e2e.mjs'], { cwd: E2E_DIR })
-  record('scripted-denial', 'live e2e evidence table green (5 scenarios)')
+  record('scripted-denial', 'live e2e evidence table green (6 scenarios)')
 
   // 5. credential discipline (P3, keyless): a configured apiKeyEnv reference
   // that resolves to nothing must fail typed (MISSING_CREDENTIAL), never

@@ -1,0 +1,356 @@
+{
+  "metricsSha256": "45a010180841793676f8a872a74d8c5dc1e88f2281c5eefe0331f62888d016cc",
+  "status": "completed",
+  "evidenceClass": "E1",
+  "model": {
+    "provider": "ollama",
+    "id": "awt-e1-qwen3vl4b-32k:20260905",
+    "local": {
+      "server": "Ollama",
+      "serverVersion": "0.33.2",
+      "modelDigest": "690ec27bb8e35303029f8bfa1f6f55816f7a63499caf3062d64b671fee001dcd",
+      "contextWindow": 32768,
+      "maxTokens": 4096,
+      "parameters": "num_ctx                        32768\nnum_predict                    4096\nseed                           2.0260905e+07\ntemperature                    0.2\ntop_k                          20\ntop_p                          0.95",
+      "details": {
+        "parent_model": "qwen3-vl:4b-instruct",
+        "format": "gguf",
+        "family": "qwen3vl",
+        "families": [
+          "qwen3vl"
+        ],
+        "parameter_size": "4.4B",
+        "quantization_level": "Q4_K_M"
+      },
+      "baseURL": "http://127.0.0.1:11434/v1"
+    }
+  },
+  "harness": "@deepseek-ai/dsh@0.1.0-rc.6",
+  "arms": [
+    {
+      "arm": "skills",
+      "sources": 3,
+      "sourceOpened": 3,
+      "notesPresent": 1,
+      "notesParseable": 0,
+      "draftsPresent": 1,
+      "quotedSpans": 2,
+      "matchedSpans": 0,
+      "pageCitedSpans": 0,
+      "correctPageSpans": 0,
+      "uncitedSpans": 2,
+      "detectedDraftCitations": 0,
+      "unopenedDraftCitations": 0,
+      "taskOutcomes": {
+        "max-tokens": 2,
+        "empty-response": 1,
+        "completed": 3
+      }
+    },
+    {
+      "arm": "plain",
+      "sources": 3,
+      "sourceOpened": 3,
+      "notesPresent": 3,
+      "notesParseable": 0,
+      "draftsPresent": 2,
+      "quotedSpans": 12,
+      "matchedSpans": 0,
+      "pageCitedSpans": 0,
+      "correctPageSpans": 0,
+      "uncitedSpans": 12,
+      "detectedDraftCitations": 0,
+      "unopenedDraftCitations": 0,
+      "taskOutcomes": {
+        "completed": 6
+      }
+    }
+  ],
+  "retainedSessionLogs": 12,
+  "uniqueSessionLogs": 12,
+  "disclosedTransportRetries": [
+    {
+      "task": "min2023-factscore/skills/notes",
+      "failedLogSha256": "61ff9f6f02a545a13fa1c9af3146bf6ba8d2e28cd85024a03528e8b112099918",
+      "reason": "explicit local transport retry after health check; no prior tool write"
+    }
+  ],
+  "sessions": [
+    {
+      "source": "gao2023-alce",
+      "arm": "skills",
+      "log": "gao2023-alce/skills/sessions/sha256-ae2e89a4c6754c4d586672b5581282fa0af7b974bceedcd6151f62db2d9751f1.jsonl",
+      "sha256": "ae2e89a4c6754c4d586672b5581282fa0af7b974bceedcd6151f62db2d9751f1",
+      "terminalReasons": [
+        {
+          "kind": "error",
+          "error": {
+            "message": "model \"awt-e1-qwen3vl4b-32k:20260905\" returned a completed response with no content",
+            "code": "EMPTY_RESPONSE"
+          }
+        }
+      ],
+      "toolCalls": {
+        "skill": 3,
+        "read": 111,
+        "web_search": 163
+      },
+      "elapsedSeconds": 220.081,
+      "assistantMessagesWithUsage": 277,
+      "reportedInputTokens": 5227833,
+      "reportedOutputTokens": 11305
+    },
+    {
+      "source": "gao2023-alce",
+      "arm": "skills",
+      "log": "gao2023-alce/skills/sessions/sha256-922af7c04552eb917c89ebda8fb2638921921a7e9806b0c5985447a12f11c8bb.jsonl",
+      "sha256": "922af7c04552eb917c89ebda8fb2638921921a7e9806b0c5985447a12f11c8bb",
+      "terminalReasons": [
+        {
+          "kind": "max-tokens"
+        }
+      ],
+      "toolCalls": {
+        "read_pdf": 1
+      },
+      "elapsedSeconds": 60.428,
+      "assistantMessagesWithUsage": 2,
+      "reportedInputTokens": 23705,
+      "reportedOutputTokens": 4134
+    },
+    {
+      "source": "min2023-factscore",
+      "arm": "skills",
+      "log": "min2023-factscore/skills/sessions/sha256-92e47c54fb75facedb083eed1e6f0b8c16214fa414b6a6e68956e72f88cc13ae.jsonl",
+      "sha256": "92e47c54fb75facedb083eed1e6f0b8c16214fa414b6a6e68956e72f88cc13ae",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {
+        "glob": 1,
+        "read": 1,
+        "write": 1
+      },
+      "elapsedSeconds": 15.107,
+      "assistantMessagesWithUsage": 4,
+      "reportedInputTokens": 37440,
+      "reportedOutputTokens": 1154
+    },
+    {
+      "source": "min2023-factscore",
+      "arm": "skills",
+      "log": "min2023-factscore/skills/sessions/sha256-3bc054861863ccab5bc426ac6e4186e116d9291257886e6f3d053ce4442c5587.jsonl",
+      "sha256": "3bc054861863ccab5bc426ac6e4186e116d9291257886e6f3d053ce4442c5587",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {
+        "read_pdf": 1,
+        "write": 1
+      },
+      "elapsedSeconds": 21.926,
+      "assistantMessagesWithUsage": 3,
+      "reportedInputTokens": 40220,
+      "reportedOutputTokens": 922
+    },
+    {
+      "source": "liu2023-verifiability",
+      "arm": "skills",
+      "log": "liu2023-verifiability/skills/sessions/sha256-0cca8e8c50b8732bc1f328d2232b1be3eeb70de65491a04dfcdc4955eba5fd15.jsonl",
+      "sha256": "0cca8e8c50b8732bc1f328d2232b1be3eeb70de65491a04dfcdc4955eba5fd15",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {},
+      "elapsedSeconds": 22.749,
+      "assistantMessagesWithUsage": 1,
+      "reportedInputTokens": 8578,
+      "reportedOutputTokens": 2202
+    },
+    {
+      "source": "liu2023-verifiability",
+      "arm": "skills",
+      "log": "liu2023-verifiability/skills/sessions/sha256-9ef3902da124fd463d04c89f99e4a47280739064f9febdf0eb61c2b24d73b510.jsonl",
+      "sha256": "9ef3902da124fd463d04c89f99e4a47280739064f9febdf0eb61c2b24d73b510",
+      "terminalReasons": [
+        {
+          "kind": "max-tokens"
+        }
+      ],
+      "toolCalls": {
+        "read_pdf": 1
+      },
+      "elapsedSeconds": 52.184,
+      "assistantMessagesWithUsage": 2,
+      "reportedInputTokens": 23150,
+      "reportedOutputTokens": 4134
+    },
+    {
+      "source": "gao2023-alce",
+      "arm": "plain",
+      "log": "gao2023-alce/plain/sessions/sha256-1b6c115d58c169cea4b5cb7247644b7b7c3902119155f4fdf6997f45d5ad4f35.jsonl",
+      "sha256": "1b6c115d58c169cea4b5cb7247644b7b7c3902119155f4fdf6997f45d5ad4f35",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {
+        "write": 1
+      },
+      "elapsedSeconds": 9.629,
+      "assistantMessagesWithUsage": 2,
+      "reportedInputTokens": 16538,
+      "reportedOutputTokens": 743
+    },
+    {
+      "source": "gao2023-alce",
+      "arm": "plain",
+      "log": "gao2023-alce/plain/sessions/sha256-57d644574b83878dece27db907ed029beba0f45f1bab8ace1143f5551f49fae2.jsonl",
+      "sha256": "57d644574b83878dece27db907ed029beba0f45f1bab8ace1143f5551f49fae2",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {
+        "read_pdf": 1,
+        "write": 1
+      },
+      "elapsedSeconds": 23.432,
+      "assistantMessagesWithUsage": 3,
+      "reportedInputTokens": 38033,
+      "reportedOutputTokens": 1011
+    },
+    {
+      "source": "min2023-factscore",
+      "arm": "plain",
+      "log": "min2023-factscore/plain/sessions/sha256-de1f914e4272c7c7b2cfc4bf6ffcb4c2e03f3364e6fe4773aa3bd084edbb6bfa.jsonl",
+      "sha256": "de1f914e4272c7c7b2cfc4bf6ffcb4c2e03f3364e6fe4773aa3bd084edbb6bfa",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {
+        "read_pdf": 1,
+        "write": 4
+      },
+      "elapsedSeconds": 39.775,
+      "assistantMessagesWithUsage": 6,
+      "reportedInputTokens": 89042,
+      "reportedOutputTokens": 2969
+    },
+    {
+      "source": "min2023-factscore",
+      "arm": "plain",
+      "log": "min2023-factscore/plain/sessions/sha256-3d54d9776251e06e2d553faca584e98565d24c8a4330f98229935d393a860d9c.jsonl",
+      "sha256": "3d54d9776251e06e2d553faca584e98565d24c8a4330f98229935d393a860d9c",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {
+        "write": 1
+      },
+      "elapsedSeconds": 10.884,
+      "assistantMessagesWithUsage": 2,
+      "reportedInputTokens": 16757,
+      "reportedOutputTokens": 916
+    },
+    {
+      "source": "liu2023-verifiability",
+      "arm": "plain",
+      "log": "liu2023-verifiability/plain/sessions/sha256-1d870cc3e35d5e7fb92398bb0336bc430331d3c175ed66f4377c57cf5fa5a54d.jsonl",
+      "sha256": "1d870cc3e35d5e7fb92398bb0336bc430331d3c175ed66f4377c57cf5fa5a54d",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {
+        "read_pdf": 1,
+        "write": 1
+      },
+      "elapsedSeconds": 12.185,
+      "assistantMessagesWithUsage": 3,
+      "reportedInputTokens": 36642,
+      "reportedOutputTokens": 759
+    },
+    {
+      "source": "liu2023-verifiability",
+      "arm": "plain",
+      "log": "liu2023-verifiability/plain/sessions/sha256-60c612ef5c9fda01aa54edf8a0fba67884cecd019911615b6a8be49a1e884927.jsonl",
+      "sha256": "60c612ef5c9fda01aa54edf8a0fba67884cecd019911615b6a8be49a1e884927",
+      "terminalReasons": [
+        {
+          "kind": "completed"
+        }
+      ],
+      "toolCalls": {},
+      "elapsedSeconds": 2.44,
+      "assistantMessagesWithUsage": 1,
+      "reportedInputTokens": 7983,
+      "reportedOutputTokens": 80
+    }
+  ],
+  "notesErrors": {
+    "gao2023-alce/skills": [
+      "notes file absent"
+    ],
+    "gao2023-alce/plain": [
+      "title-missing: first line must be \"# Reading Notes: {Author} -- {Title} ({Year})\"",
+      "source-missing: missing or empty \"**Source**:\" line",
+      "status-missing: missing \"**Status**:\" line",
+      "date-missing: missing \"**Date read**:\" line",
+      "relevance-missing: missing \"**Relevance**:\" line",
+      "section-missing: missing required section \"## Key Arguments\"",
+      "section-missing: missing required section \"## Detailed Notes\"",
+      "section-missing: missing required section \"## Thesis Connections\"",
+      "last-updated-missing: missing \"*Last updated: {YYYY-MM-DD}*\" footer"
+    ],
+    "min2023-factscore/skills": [
+      "title-missing: first line must be \"# Reading Notes: {Author} -- {Title} ({Year})\"",
+      "source-missing: missing or empty \"**Source**:\" line",
+      "status-missing: missing \"**Status**:\" line",
+      "date-missing: missing \"**Date read**:\" line",
+      "relevance-missing: missing \"**Relevance**:\" line",
+      "section-missing: missing required section \"## Key Arguments\"",
+      "section-missing: missing required section \"## Detailed Notes\"",
+      "section-missing: missing required section \"## Thesis Connections\"",
+      "last-updated-missing: missing \"*Last updated: {YYYY-MM-DD}*\" footer"
+    ],
+    "min2023-factscore/plain": [
+      "title-missing: first line must be \"# Reading Notes: {Author} -- {Title} ({Year})\"",
+      "source-missing: missing or empty \"**Source**:\" line",
+      "status-missing: missing \"**Status**:\" line",
+      "date-missing: missing \"**Date read**:\" line",
+      "relevance-missing: missing \"**Relevance**:\" line",
+      "section-missing: missing required section \"## Key Arguments\"",
+      "section-missing: missing required section \"## Detailed Notes\"",
+      "section-missing: missing required section \"## Thesis Connections\"",
+      "last-updated-missing: missing \"*Last updated: {YYYY-MM-DD}*\" footer"
+    ],
+    "liu2023-verifiability/skills": [
+      "notes file absent"
+    ],
+    "liu2023-verifiability/plain": [
+      "source-missing: missing or empty \"**Source**:\" line",
+      "status-missing: missing \"**Status**:\" line",
+      "date-missing: missing \"**Date read**:\" line",
+      "relevance-missing: missing \"**Relevance**:\" line",
+      "section-missing: missing required section \"## Key Arguments\"",
+      "section-missing: missing required section \"## Detailed Notes\"",
+      "section-missing: missing required section \"## Thesis Connections\"",
+      "last-updated-missing: missing \"*Last updated: {YYYY-MM-DD}*\" footer"
+    ]
+  },
+  "usageCaveat": "Counts are reported assistant-message usage, not bills. They exclude background title generation and requests without reported usage. Latency was not controlled."
+}

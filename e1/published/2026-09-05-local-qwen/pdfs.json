@@ -1,0 +1,38 @@
+{
+  "_readme": "Public ACL sources selected before any model run. Physical PDF pages 1-5 per source. Exploratory paired experiment; no population-level efficacy inference.",
+  "pdfs": [
+    {
+      "id": "gao2023-alce",
+      "path": "sources/gao2023-alce.pdf",
+      "sha256": "ae9868f07f0f7ffaae5346778f79b7827d9ec6b13b1e6aae4dff6b2ffc37a2e1",
+      "firstPage": 1,
+      "lastPage": 5,
+      "source": {
+        "surname": "gao",
+        "year": "2023"
+      }
+    },
+    {
+      "id": "min2023-factscore",
+      "path": "sources/min2023-factscore.pdf",
+      "sha256": "8486fe22a15aaf3fe2e1d7043d169000600205dde9c601c9fd31c0dd6f7380e9",
+      "firstPage": 1,
+      "lastPage": 5,
+      "source": {
+        "surname": "min",
+        "year": "2023"
+      }
+    },
+    {
+      "id": "liu2023-verifiability",
+      "path": "sources/liu2023-verifiability.pdf",
+      "sha256": "2ca08791359f27082d6210b4dec0ed84fe8c7ad6dc70fa57030f1d0066a28c87",
+      "firstPage": 1,
+      "lastPage": 5,
+      "source": {
+        "surname": "liu",
+        "year": "2023"
+      }
+    }
+  ]
+}

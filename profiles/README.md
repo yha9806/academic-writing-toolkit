@@ -18,7 +18,13 @@ an existing profile):
 
 ```bash
 node scaffold/awt.mjs install-profile
+npm install --prefix "${DSH_HOME:-$HOME/.dsh}/profiles" --no-audit --no-fund --save-exact @deepseek-ai/dsh@0.1.0-rc.6
 ```
+
+`install-profile` copies configuration and built guards, then prints the
+one-time launcher installation command for the selected home. Run that npm
+command once before `awt run` or `awt web`. In PowerShell, the default prefix
+is `"$HOME/.dsh/profiles"`; use `"$env:DSH_HOME/profiles"` for a custom home.
 
 Verify the composition without booting or credentials:
 
@@ -35,8 +41,14 @@ export DEEPSEEK_API_KEY=...   # or ANTHROPIC_API_KEY for the anthropic route
 node scaffold/awt.mjs run <your-thesis-workspace> "task"
 ```
 
-`awt run` resolves the pinned launcher from `$DSH_HOME/profiles/node_modules`
-— the dependency tree `install-profile` already wrote — so no package is
+Setting an Anthropic key alone does not change the default DeepSeek route.
+Select the model through a launcher `--patch` overlay as shown in the
+[author runbook](../docs/e2-dogfood-runbook.md); the pinned headless app has
+no provider/model CLI flags. The E1 producer has its own explicit
+`--provider`/`--model` options that generate the same route in both arms.
+
+`awt run` resolves the pinned launcher from `$DSH_HOME/profiles/node_modules`,
+the dependency tree installed by the explicit npm command above. No package is
 resolved at launch time and an off-pin harness is a typed refusal
 (`AWT_LAUNCH_HARNESS_UNPINNED`).
 

@@ -40,7 +40,7 @@ try {
   const profile = join(home, 'profiles', 'awt-headless')
   mkdirSync(profile, { recursive: true })
   cpSync(join(PROFILE_SRC, 'package.json'), join(profile, 'package.json'))
-  for (const f of readdirSync(PROFILE_SRC).filter((n) => n.endsWith('.plugin.mjs'))) cpSync(join(PROFILE_SRC, f), join(profile, f))
+  for (const f of readdirSync(PROFILE_SRC).filter((n) => n.endsWith('.mjs'))) cpSync(join(PROFILE_SRC, f), join(profile, f))
   cpSync(GUARDS_DIST, join(profile, 'awt-guards'), { recursive: true })
   cpSync(join(ROOT, 'e1', 'plugins', 'awt-e1-scripted-llm.plugin.mjs'), join(profile, 'awt-e1-scripted-llm.plugin.mjs'))
   let patch = readFileSync(join(PROFILE_SRC, 'cordis.patch.yml'), 'utf8')
@@ -62,7 +62,7 @@ try {
   mkdirSync(join(ws, 'literature', 'reading_notes'), { recursive: true })
   mkdirSync(join(ws, 'contracts'), { recursive: true })
   mkdirSync(join(ws, '.agents', 'skills'), { recursive: true })
-  for (const name of readdirSync(SKILLS_SRC)) symlinkSync(join(SKILLS_SRC, name), join(ws, '.agents', 'skills', name))
+  for (const name of readdirSync(SKILLS_SRC)) symlinkSync(join(SKILLS_SRC, name), join(ws, '.agents', 'skills', name), process.platform === 'win32' ? 'junction' : 'dir')
 
   const res = spawnSync(process.execPath, [DSH_BIN, '--profile', 'awt-headless', 'List the skills you can see.'], {
     cwd: ws,
