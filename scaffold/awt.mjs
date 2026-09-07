@@ -432,13 +432,13 @@ async function verify(target) {
   const localVenv = process.platform === 'win32'
     ? join(PRODUCT_ROOT, '.venv', 'Scripts', 'python.exe')
     : join(PRODUCT_ROOT, '.venv', 'bin', 'python')
-  const python = process.env.AWT_PYTHON ?? (existsSync(localVenv) ? localVenv : 'python3')
+  const python = process.env.AWT_PYTHON || (existsSync(localVenv) ? localVenv : process.platform === 'win32' ? 'python' : 'python3')
   const backend = spawnSync(python, [converter, '--check'], { encoding: 'utf8', timeout: RUN_TIMEOUT_MS })
   if (backend.status !== 0) {
     throw new AwtError(
       'AWT_VERIFY_EXPORT_BACKEND',
-      `the export converter has no backend: ${(backend.stdout + backend.stderr).trim().split('\n')[0]}`,
-      `install one: python3 -m venv .venv && .venv/bin/pip install -r ${relativeToCwd(join(SKILLS_SRC, 'export', 'scripts', 'requirements.txt'))}`,
+      `the export converter has no backend: ${((backend.stdout ?? '') + (backend.stderr ?? backend.error?.message ?? '')).trim().split('\n')[0]}`,
+      `install one: node "${join(PRODUCT_ROOT, 'scripts', 'setup.mjs')}" (or prepare the explicit AWT_PYTHON environment)`,
     )
   }
   record('export-backend', backend.stdout.trim() || 'export converter has a backend')

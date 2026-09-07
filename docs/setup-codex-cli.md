@@ -3,6 +3,22 @@
 AWT provides nine Advisory skills for local Codex use. Installing them does
 not enable the deterministic enforcement supplied by the separate dsh app.
 
+## Skills in a checkout or linked workspace
+
+Run `node scripts/setup.mjs` in the toolkit checkout after cloning. This native
+entrypoint also works in PowerShell: it prepares the export backend, generates
+the agent configs and makes the skill folders discoverable. With Windows Git's
+`core.symlinks=false`, it preserves tracked link-placeholder files and creates
+ignored `awt-local-*` junctions. These point to the canonical sources, so fixes
+are picked up without copying skills. `node scripts/setup.mjs doctor` verifies
+the target of every link; `node scripts/setup.mjs repair` repairs links/configs
+and backs up any replaced ordinary skill folders in `.awt-skill-backups/`.
+
+A workspace created by `awt init` gets its own working directory links. Follow
+the skill's link to find its toolkit Python environment; in PowerShell, prefix
+a quoted interpreter path with `&`. Python examples use the selected runtime,
+and the map counter uses Node instead of Unix `wc`.
+
 ## Global installation
 
 Install Python 3.9+ and Node.js ^22.12 or >=24. These commands work in a

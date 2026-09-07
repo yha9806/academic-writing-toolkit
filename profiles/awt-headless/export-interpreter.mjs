@@ -35,5 +35,5 @@ export function exportInterpreter(script, options = {}) {
     // An unreadable or dangling path is not this function's problem; the caller
     // already reports EXPORT_TOOL_MISSING for a converter it cannot find.
   }
-  return 'python3'
+  return process.platform === 'win32' ? 'python' : 'python3'
 }

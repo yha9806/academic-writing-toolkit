@@ -5,7 +5,12 @@
 This file provides instructions for AI coding agents working in this repository.
 
 ## Skill Discovery
-Skills are located in `.agents/skills/`. Each `.md` file in that directory defines a slash-command skill for academic writing workflows (reading, note-taking, chapter drafting, verification, etc.).
+Project skills are directories under `.agents/skills/`, each with `SKILL.md`,
+linked to canonical sources in `.claude/skills/`. A text file containing a link
+target is not a usable skill. Run `node scripts/setup.mjs` after cloning; on
+Windows it creates ignored `awt-local-*` junction aliases when Git flattens
+symlinks. `node scripts/setup.mjs doctor` checks actual link targets. Resolve a
+selected skill's directory link before following relative resource paths.
 
 ## Project Overview
 This project uses the academic-writing-toolkit skills for structured research and thesis writing.

@@ -14,10 +14,7 @@ help:  ## Show this help (default)
 	@printf "Health check anytime:    \033[36mmake doctor\033[0m\n"
 
 setup:  ## One-time setup after clone (git config, configs, export backend, doctor)
-	@git config core.fileMode false
-	@bash scripts/sync-config.sh
-	@bash scripts/setup-export-backend.sh
-	@bash scripts/doctor.sh
+	@node scripts/setup.mjs
 
 init:  ## Open CLAUDE.md in $EDITOR for first-time customisation, then sync
 	@if [ ! -t 0 ]; then \
@@ -28,13 +25,13 @@ init:  ## Open CLAUDE.md in $EDITOR for first-time customisation, then sync
 	@bash scripts/sync-config.sh
 
 sync:  ## Regenerate AGENTS.md and GEMINI.md from CLAUDE.md
-	@bash scripts/sync-config.sh
+	@node scripts/setup.mjs sync
 
 doctor:  ## Run all read-only health checks (CI-suitable, exit 0/1)
-	@bash scripts/doctor.sh
+	@node scripts/setup.mjs doctor
 
 repair:  ## Apply idempotent fixes for issues doctor flags
-	@bash scripts/repair.sh
+	@node scripts/setup.mjs repair
 
 test:  ## Run the existing public regression suite
 	@bash scripts/test.sh

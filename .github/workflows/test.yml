@@ -25,6 +25,15 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Set up a fresh native Windows checkout without preinstalled export dependencies
+        run: node scripts/setup.mjs
+      - name: Check native skill links and the actual export backend
+        run: |
+          node scripts/setup.mjs doctor
+          git diff --exit-code
       - run: npm ci --prefix guards
       - run: npm test --prefix guards
       - run: npm ci --prefix e2e
@@ -53,6 +62,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
+      - name: Test native clean setup and safe link repair on every platform
+        run: node --test scripts/test-native-setup.mjs
       - run: npm ci --prefix guards
       - run: python -m pip install -r scripts/codex-skills-requirements.txt
       - name: Test isolated installs, updates, collisions, rollback and real helpers

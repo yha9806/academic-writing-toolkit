@@ -11,7 +11,10 @@
 # converter with it:
 #
 #   python3 -m venv .venv
-#   .venv/bin/pip install -r .claude/skills/export/scripts/requirements.txt
+#   .venv/bin/python -m pip install -r .claude/skills/export/scripts/requirements.txt
+#
+# Windows PowerShell uses .\.venv\Scripts\python.exe -m pip instead.
+# From a toolkit checkout, node scripts/setup.mjs prepares the native venv.
 
 # Group 1 — the fallback backend, no external binary needed.
 python-docx

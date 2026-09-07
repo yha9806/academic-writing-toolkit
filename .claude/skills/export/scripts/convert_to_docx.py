@@ -51,17 +51,19 @@ except ImportError:
 # interpreter — the default on Homebrew Python and on current Debian and
 # Ubuntu — so the remedy leads with a virtual environment. Naming a command
 # the reader cannot run is the same as naming none.
+VENV_COMMAND = r'.\.venv\Scripts\python.exe' if os.name == 'nt' else '.venv/bin/python'
+PYTHON_COMMAND = 'python' if os.name == 'nt' else 'python3'
 BACKEND_ERROR = (
     "Error: No conversion backend available.\n"
     "  - pypandoc is unavailable (not installed, or `pandoc` binary missing/broken on PATH).\n"
     "    Note: the `pandoc` binary alone is not enough; pypandoc is the Python binding.\n"
     "  - python-docx + markdown fallback is also missing.\n"
     "Install one backend into a virtual environment, then run this converter with it:\n"
-    "  python3 -m venv .venv\n"
-    "  .venv/bin/pip install python-docx markdown\n"
-    "  .venv/bin/python <this script> --check\n"
+    f"  {PYTHON_COMMAND} -m venv .venv\n"
+    f"  {VENV_COMMAND} -m pip install python-docx markdown\n"
+    f'  {VENV_COMMAND} "<this script>" --check\n'
     "Alternatives, if your interpreter is not externally managed:\n"
-    "  python3 -m pip install --user python-docx markdown\n"
+    f"  {PYTHON_COMMAND} -m pip install --user python-docx markdown\n"
     "  pipx install pypandoc       (also requires the `pandoc` binary on PATH)"
 )
 

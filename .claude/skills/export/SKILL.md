@@ -2,10 +2,21 @@
 name: export
 description: Convert thesis chapters and reading notes from Markdown to Word (.docx) and package for submission. Use when preparing materials for supervisors or examiners.
 disable-model-invocation: true
-allowed-tools: Bash(python3 *), Read, Glob, Write
+allowed-tools: Bash, Read, Glob, Write
 ---
 
 # /export — Document Export Skill
+
+## Running Python helpers
+
+Choose the interpreter before running the examples. For a globally installed
+copy, use the private runtime recorded by its installer. In a checkout or linked
+workspace, use `AWT_PYTHON` when set, otherwise the toolkit's `.venv` (follow the
+skill directory link back to the toolkit): `Scripts/python.exe` on Windows,
+`bin/python` on macOS/Linux. Without that environment, check that `python`
+(Windows) or `python3` (macOS/Linux) actually runs and has the helper's dependencies.
+Replace the example's `python3` with that executable. In PowerShell, prefix a
+quoted executable with `&`; keep commands on one line and quote file paths.
 
 ## Purpose
 
@@ -48,11 +59,7 @@ Examples:
 
 2. **Run the conversion script.**
    ```
-   python3 .claude/skills/export/scripts/convert_to_docx.py \
-     --base-dir {project_root} \
-     --output-dir {project_root}/final_output \
-     --scope {scope} \
-     --lang-filter {lang_filter}
+   python3 .claude/skills/export/scripts/convert_to_docx.py --base-dir "{project_root}" --output-dir "{project_root}/final_output" --scope {scope} --lang-filter {lang_filter}
    ```
 
 3. **Report results.**

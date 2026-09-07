@@ -23,9 +23,9 @@ import { pathToFileURL } from 'node:url'
 
 const PRODUCT_ROOT = resolve(import.meta.dirname, '..', '..')
 const CONVERTER = join(PRODUCT_ROOT, '.claude', 'skills', 'export', 'scripts', 'convert_to_docx.py')
-const DOCTOR = join(PRODUCT_ROOT, 'scripts', 'doctor.sh')
+const DOCTOR = join(PRODUCT_ROOT, 'scripts', 'setup.mjs')
 // Windows runners ship `python`, not `python3`.
-const PYTHON = process.platform === 'win32' ? 'python' : 'python3'
+const PYTHON = process.env.AWT_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3')
 
 /** A virtual environment's interpreter: Scripts\\python.exe on Windows. */
 function venvPython(venv: string): string {
@@ -82,7 +82,7 @@ test('the remedy works on a PEP 668 interpreter — no bare pip install', () => 
 
 test('doctor reports the export path as broken when the converter cannot run', () => {
   // The regression this pins: doctor said "all checks pass" while /export failed.
-  const res = spawnSync('bash', [DOCTOR], {
+  const res = spawnSync(process.execPath, [DOCTOR, 'doctor'], {
     encoding: 'utf8', timeout: 300_000, cwd: PRODUCT_ROOT,
     env: { ...process.env, AWT_PYTHON: bareInterpreter() },
   })
@@ -113,7 +113,7 @@ test('the app runs the converter with the toolkit interpreter, not the workspace
 
   const ws = join(dir, 'thesis', '.agents', 'skills')
   mkdirSync(ws, { recursive: true })
-  symlinkSync(join(toolkit, '.claude', 'skills', 'export'), join(ws, 'export'), 'dir')
+  symlinkSync(join(toolkit, '.claude', 'skills', 'export'), join(ws, 'export'), process.platform === 'win32' ? 'junction' : 'dir')
 
   const throughLink = join(ws, 'export', 'scripts', 'convert_to_docx.py')
   // The helper resolves through realpath, and on macOS the temp root is itself
@@ -123,7 +123,7 @@ test('the app runs the converter with the toolkit interpreter, not the workspace
 
   // No .venv in the toolkit: fall back rather than invent a path.
   rmSync(join(toolkit, '.venv'), { recursive: true, force: true })
-  assert.equal(exportInterpreter(throughLink, { env: {} }), 'python3')
+  assert.equal(exportInterpreter(throughLink, { env: {} }), process.platform === 'win32' ? 'python' : 'python3')
 
   // An explicit interpreter always wins.
   assert.equal(exportInterpreter(throughLink, { env: { AWT_PYTHON: '/usr/bin/python3.11' } }), '/usr/bin/python3.11')

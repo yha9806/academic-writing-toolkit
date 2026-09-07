@@ -6,6 +6,17 @@ allowed-tools: Read, Glob, Grep, Bash
 
 # /audit — Thesis Consistency Audit Skill
 
+## Running Python helpers
+
+Choose the interpreter before running the examples. For a globally installed
+copy, use the private runtime recorded by its installer. In a checkout or linked
+workspace, use `AWT_PYTHON` when set, otherwise the toolkit's `.venv` (follow the
+skill directory link back to the toolkit): `Scripts/python.exe` on Windows,
+`bin/python` on macOS/Linux. Without that environment, check that `python`
+(Windows) or `python3` (macOS/Linux) actually runs and has the helper's dependencies.
+Replace the example's `python3` with that executable. In PowerShell, prefix a
+quoted executable with `&`; keep commands on one line and quote file paths.
+
 ## Purpose
 
 Scan all thesis chapters for internal data consistency issues: contradictory numbers, inconsistent terminology, broken cross-references, and arithmetic errors. This is a pre-submission quality check.

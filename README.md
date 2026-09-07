@@ -111,21 +111,45 @@ node scaffold/awt.mjs run ~/thesis "task"    # one headless task
 node scaffold/awt.mjs web ~/thesis           # 127.0.0.1:3180 by default
 ```
 
-`install-profile` fetches the pinned harness into `harness/` once (the only
-step that needs the network) as well as writing the two profiles. `run` and
+`install-profile` fetches the pinned harness into `harness/` once
+as well as writing the two profiles. This fetch and the initial npm/Python
+dependency installation need the network. `run` and
 `web` launch that harness, refuse a target that is not a workspace, and
 refuse a launcher whose version is not the one `COMPAT.json` attests.
 Anything after `--` is forwarded to the harness untouched, so a launcher
 overlay works: `... run ~/thesis "task" -- --patch model.yml`. Your provider
 key stays in your environment; no AWT command reads or stores one.
 
-On Windows PowerShell, use `"$HOME/.dsh/profiles"` as the npm prefix, or
-`"$env:DSH_HOME/profiles"` if you set a custom `DSH_HOME`. The default is the
-OS user home on Windows as well as macOS/Linux.
+On Windows PowerShell, install native Python and Node.js first, then use the
+native entrypoint below. It needs neither Make nor Git Bash, and creates
+junctions without Developer Mode or administrator privileges:
 
-`node scaffold/awt.mjs verify ~/thesis` runs the five-stage verification
+```powershell
+node scripts/setup.mjs
+npm.cmd ci --prefix guards
+npm.cmd run build --prefix guards
+npm.cmd ci --prefix e2e
+$awtWorkspace = Join-Path $HOME "thesis"
+node scaffold/awt.mjs init "$awtWorkspace"
+node scaffold/awt.mjs install-profile
+node scaffold/awt.mjs verify "$awtWorkspace"
+$env:DEEPSEEK_API_KEY = "..."
+node scaffold/awt.mjs run "$awtWorkspace" "task"
+# Or: node scaffold/awt.mjs web "$awtWorkspace"
+```
+
+`node scripts/setup.mjs doctor` checks the links, generated configs and actual
+export backend; `node scripts/setup.mjs repair` repairs links/configs while
+preserving replaced skill folders in `.awt-skill-backups/`. The same commands
+work on macOS/Linux, and the existing Make/Bash entrypoints use this implementation.
+Setup uses `.venv/Scripts/python.exe` on Windows and `.venv/bin/python` elsewhere.
+`AWT_PYTHON`, when set, must point to an already prepared interpreter; unset it
+to let setup create the project's private environment. `DSH_HOME` defaults to
+the OS user home plus `.dsh` on every platform.
+
+`node scaffold/awt.mjs verify ~/thesis` runs the six-stage verification
 ladder (build, notes-lint smoke, composition proof, scripted-denial evidence
-table, credential probe) entirely on scratch profiles — no key, no real
+table, credential probe, export-backend check) entirely on scratch profiles — no key, no real
 thesis data. See [profiles/README.md](profiles/README.md) and
 [guards/README.md](guards/README.md) for enforcement semantics and what each
 guard deliberately does not do.
@@ -134,8 +158,10 @@ guard deliberately does not do.
 
 The canonical skill tree is exposed at `.agents/skills/` (the same files
 Claude Code reads from `.claude/skills/` and dsh discovers per workspace) —
-clone the repo and point Codex at it, or let `awt init` link the skills
-into your thesis workspace.
+clone the repo, run `node scripts/setup.mjs`, and point Codex at it, or let
+`awt init` link the skills into your thesis workspace. On Windows, setup keeps
+Git's flattened link files intact and adds ignored `awt-local-*` directory
+junctions to the same canonical skills.
 
 To use the nine skills across your local Codex projects, install them in
 user scope from a source checkout (Python 3.9+, Node.js ^22.12 or >=24):

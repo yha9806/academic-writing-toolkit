@@ -8,6 +8,17 @@ allowed-tools: Read, Write, Edit, Glob, Grep
 
 One file per contract at `contracts/{chapter}-{slug}.md`. No other ledgers.
 
+## Running Python helpers
+
+Choose the interpreter before running the examples. For a globally installed
+copy, use the private runtime recorded by its installer. In a checkout or linked
+workspace, use `AWT_PYTHON` when set, otherwise the toolkit's `.venv` (follow the
+skill directory link back to the toolkit): `Scripts/python.exe` on Windows,
+`bin/python` on macOS/Linux. Without that environment, check that `python`
+(Windows) or `python3` (macOS/Linux) actually runs and has the helper's dependencies.
+Replace the example's `python3` with that executable. In PowerShell, prefix a
+quoted executable with `&`; keep commands on one line and quote file paths.
+
 ## When to use
 
 Before a substantive edit (rewriting more than one paragraph, changing what a
@@ -90,8 +101,8 @@ produce a fourth patch under the old contract.
 Per-edit spine cards sit under a project-level intent. If the project keeps
 one, it is `00_AUTHOR_INTENT.md` from the lightweight author-control profile
 in `.claude/skills/edit-contract/references/author-control/` (scaffold with
-`python3 .claude/skills/edit-contract/scripts/scaffold-author-control.py <project_root>`, check structure
-with `python3 .claude/skills/edit-contract/scripts/check-author-control.py <project_root> --strict`). A
+`python3 .claude/skills/edit-contract/scripts/scaffold-author-control.py "{project_root}"`, check structure
+with `python3 .claude/skills/edit-contract/scripts/check-author-control.py "{project_root}" --strict`). A
 contract's core claim must not broaden beyond that card. The card's approval
 field is a record the author keeps, not an enforcement: nothing on this
 surface gates on it, and in the AWT app approvals exist only as harness

@@ -30,6 +30,9 @@ OWNER = "yha9806/academic-writing-toolkit"
 # it, and `export` borrows one of `audit`'s. Naming the full path means a moved
 # script is a missing-file error at install time rather than a silent no-op.
 HELPERS = {
+    # This skill's helper is already inside its own folder; still rewrite the
+    # command for user-scope installs instead of retaining a checkout path.
+    "map": (),
     "audit": (
         ".claude/skills/audit/scripts/audit-claim-positioning.py",
         ".claude/skills/audit/scripts/audit-citation-fidelity.mjs",
@@ -348,6 +351,9 @@ def smoke(skills, python):
         run([python, "-I", skills / "edit-contract/scripts/scaffold-author-control.py", root, "--json"])
         run([python, "-I", skills / "edit-contract/scripts/check-author-control.py", root, "--strict", "--json"], expected=1)
         write_text(root / "chapters/ch01.md", "# Fixture\n\nAWT portable skill installation fixture.\n")
+        counts = json.loads(run(["node", skills / "map/scripts/count-words.mjs", "--base-dir", root, "--json"]))
+        if counts["total"] != 7 or len(counts["chapters"]) != 1:
+            raise InstallError("Installed map counter did not count the fixture")
         run([python, "-I", skills / "export/scripts/convert_to_docx.py", "--base-dir", root, "--output-dir", root / "output", "--scope", "chapters"])
         documents = list((root / "output").rglob("*.docx"))
         if len(documents) != 1 or not list((root / "output").glob("*.zip")):

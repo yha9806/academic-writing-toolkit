@@ -151,6 +151,14 @@ node e1/run-e1.mjs               # offline instrument check
 
 All of these are keyless. Anything that needs a provider key is not a gate.
 
+On native Windows PowerShell, use `node scripts/setup.mjs` and
+`node scripts/setup.mjs doctor` for setup/checks, then the npm and Node gates
+above (`npm.cmd` works without a PowerShell script-policy change). Also run
+`node --test scripts/test-native-setup.mjs`; it exercises a real fresh Python
+venv and link repair, including Chinese/space paths and preservation of old
+skill contents. CI runs that check on Windows, macOS and Linux. The historical
+`make test` Bash suite continues to run on Linux.
+
 `make setup` is not optional before `make test`: several tests run `doctor`,
 doctor asks the export converter whether it can convert, and the converter
 needs a Python backend this repository does not vendor. Without it those tests

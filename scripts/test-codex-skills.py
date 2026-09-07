@@ -4,9 +4,11 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from unittest.mock import patch
 
@@ -89,6 +91,33 @@ class InstallerTests(unittest.TestCase):
         self.assertIn("文本", output)
         self.assertTrue(list((self.root / "output").rglob("*.docx")))
         self.assertTrue(list((self.root / "output").glob("*.zip")))
+
+    @unittest.skipUnless(os.name == "nt", "executes the documented commands in Windows PowerShell")
+    def test_installed_export_and_map_examples_run_in_powershell(self):
+        self.install()
+        installer.write_text(self.root / "chapters/ch01.md", "# Fixture\n\nPortable skill example.\n")
+        export = (self.dest / "export/SKILL.md").read_text(encoding="utf-8")
+        block = re.search(r"2\. \*\*Run the conversion script\.\*\*\s*```\w*\n(.*?)```", export, re.S)
+        self.assertIsNotNone(block, "the actual export example must be exercised")
+        command = textwrap.dedent(block.group(1)).strip()
+        for key, value in {"python": self.python, "skill_dir": self.dest / "export", "project_root": self.root, "scope": "chapters", "lang_filter": "all"}.items():
+            command = command.replace("{" + key + "}", str(value))
+        powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        script = self.root / "check-example.ps1"
+        # PowerShell 5.1 needs the BOM to read non-ASCII paths in a script file.
+        script.write_text("$ErrorActionPreference = 'Stop'\n& " + command + "\nexit $LASTEXITCODE\n", encoding="utf-8-sig")
+        result = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-File", str(script)], cwd=self.root, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(list((self.root / "final_output").rglob("*.docx"))), 1)
+
+        text = (self.dest / "map/SKILL.md").read_text(encoding="utf-8")
+        match = re.search(r'`(node "\{skill_dir\}/scripts/count-words\.mjs"[^`]+)`', text)
+        self.assertIsNotNone(match, "map must call its installed helper")
+        command = match.group(1).replace("{skill_dir}", str(self.dest / "map"))
+        script.write_text("$ErrorActionPreference = 'Stop'\n" + command + "\nexit $LASTEXITCODE\n", encoding="utf-8-sig")
+        result = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-File", str(script)], cwd=self.root, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)["total"], 5)
 
     def test_unmanaged_collision_is_refused_before_any_replacement(self):
         installer.write_text(self.dest / "audit/SKILL.md", "A different audit skill")
