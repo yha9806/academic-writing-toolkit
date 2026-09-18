@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the stdlib-only engine with whatever python3 is first on PATH.
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+PYTHONPATH="$HERE/engine${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m loop "$@"

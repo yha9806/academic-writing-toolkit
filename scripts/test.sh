@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (181 automated tests, labelled T2-T190: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (184 automated tests, labelled T2-T193: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3530,6 +3530,53 @@ test_T190() {
     [ "$(_readme_structure_paths "$REPO_ROOT/README.md" | wc -l | tr -d ' ')" -ge 8 ] || { echo "fewer than 8 paths parsed; the parser lost the block"; return 1; }
 }
 
+# ── T191–T193: the writing loop (experimental/writing-loop/) ──────────────────
+# The engine is stdlib-only Python. Its tests build throwaway git repositories
+# and fake transcripts; tests that read a real manuscript are kept outside this
+# public repository and are not part of this suite.
+
+test_T191() {
+    # The engine's own tests pass, and at least one ran: "OK" over zero tests
+    # would be a vacuous pass.
+    local out
+    out=$(cd experimental/writing-loop/engine/tests && PYTHONPATH="..:." python3 -m unittest -q 2>&1)
+    echo "$out" | grep -qE '^Ran [1-9][0-9]* tests?' || return 1
+    echo "$out" | grep -q '^OK' || return 1
+    ! echo "$out" | grep -q 'skipped'
+}
+
+test_T192() {
+    # Red check: each mutation breaks the engine in one known way and names the
+    # test that must then fail. A mutation whose test stays green means that
+    # test cannot see the fault it claims to guard.
+    local out rc
+    out=$(python3 experimental/writing-loop/engine/tests/redcheck.py 2>&1); rc=$?
+    [ "$rc" -eq 0 ] || { echo "$out" | tail -5; return 1; }
+    echo "$out" | grep -qE '^\[[0-9.]+\] ' || return 1
+}
+
+_home_paths_under() {
+    grep -rIlE '(/Users/[^/[:space:]"]+/|/home/[^/[:space:]"]+/)' "$1" 2>/dev/null
+}
+
+test_T193() {
+    # experimental/ is a public surface. The public-content audit must cover it
+    # and no file there may carry an absolute home-directory path. Both checks
+    # are first shown able to fail on a planted residue.
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/experimental/x"
+    printf 'owner = "%s%s"\n' "Hao" "rui" > "$tmp/experimental/x/a.py"
+    printf 'root = "/Users/%s/work/"\n' "someone" > "$tmp/experimental/x/b.py"
+    python3 scripts/audit-public-content.py --base-dir "$tmp" >/dev/null 2>&1; rc=$?
+    local planted_path
+    planted_path=$(_home_paths_under "$tmp/experimental")
+    rm -rf "$tmp"
+    [ "$rc" -eq 1 ] || return 1
+    [ -n "$planted_path" ] || return 1
+    [ -z "$(_home_paths_under experimental)" ]
+}
+
 run_test "T2  symlink corruption + repair"        test_T2
 run_test "T3  sync drift detection + restore"     test_T3
 run_test "T4  CLAUDE.md edit propagates to both"  test_T4
@@ -5089,6 +5136,9 @@ run_test "T187 public-content audit: the real tree's count clears an independent
 run_test "T188 the scripts/ audits fail closed on an empty base-dir" test_T188
 run_test "T189 every numbered mention of the skill catalogue matches the skills on disk" test_T189
 run_test "T190 every path the README's structure block names exists on disk" test_T190
+run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
+run_test "T192 every writing-loop mutation turns its named test red" test_T192
+run_test "T193 experimental/ is audited and carries no home-directory paths" test_T193
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then
