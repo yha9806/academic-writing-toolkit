@@ -1,5 +1,6 @@
 import json
 import unittest
+from pathlib import Path
 
 from loop import config as C
 from loop import doctor
@@ -40,6 +41,28 @@ class DoctorTest(unittest.TestCase):
                 C.save(ws, cfg)
                 problems, _ = doctor.run(ws)
                 self.assertIn(item, [p[0] for p in problems], problems)
+
+    def test_a_rebound_workspace_whose_history_is_elsewhere_is_not_a_fault(self):
+        """F6 (load report 2026-09-18): a workspace rebound to a new repo before any session ran there keeps its
+        history in a read-only `also` source. Calling that a fault put a false warning on the notch. With no
+        history anywhere it stays a fault: then it is as likely a typo in the branch as a fresh start."""
+        with TempDir() as root:
+            ws = self.setup_ws(root)
+            other = Path(root) / "elsewhere"
+            other.mkdir()
+            make_transcripts(root, other, "dev", [{"_file": "old", "type": "user", "timestamp": "2026-01-01T00:00:00Z",
+                                                   "origin": {"kind": "human"}, "message": {"role": "user", "content": "hi"}}])
+            cfg = C.load(ws)
+            cfg["transcripts"]["git_branch"] = "fresh"
+            cfg["transcripts"]["also"] = [{"git_branch": "dev", "cwd_prefix": str(other)}]
+            C.save(ws, cfg)
+            problems, facts = doctor.run(ws)
+            self.assertNotIn("transcripts.git_branch", [p[0] for p in problems], problems)
+            self.assertTrue(any("还没有" in f[1] for f in facts), facts)
+            cfg["transcripts"]["also"] = [{"git_branch": "nope", "cwd_prefix": str(other)}]
+            C.save(ws, cfg)
+            problems, _ = doctor.run(ws)
+            self.assertIn("transcripts.git_branch", [p[0] for p in problems])
 
     def test_cli_exit_code(self):
         from loop.cli import main

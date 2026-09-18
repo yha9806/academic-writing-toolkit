@@ -17,13 +17,18 @@ def draft_paths(cfg, commit):
     return sorted([n for n in names if fnmatch.fnmatch(n, g)], key=C.version_key)
 
 
-def transcript_files(cfg):
+def transcript_files(cfg, cwd_prefix=None):
     t = cfg["transcripts"]
     root = C.expand(t["projects_dir"])
-    prefix = C.escaped_project_dir(t["cwd_prefix"])
+    prefix = C.escaped_project_dir(cwd_prefix or t["cwd_prefix"])
     if not root.is_dir():
         return None
     return sorted(p for d in root.iterdir() if d.is_dir() and d.name.startswith(prefix) for p in d.glob("*.jsonl"))
+
+
+def _on_branch(files, branch):
+    needle = re.compile(rb'"gitBranch"\s*:\s*' + re.escape(json.dumps(branch).encode()))
+    return [f for f in files if needle.search(f.read_bytes())]
 
 
 def run(ws):
@@ -80,9 +85,16 @@ def run(ws):
     if files is None:
         bad("transcripts.projects_dir", f"目录不存在：{cfg['transcripts']['projects_dir']}")
     else:
-        needle = re.compile(rb'"gitBranch"\s*:\s*' + re.escape(json.dumps(cfg["transcripts"]["git_branch"]).encode()))
-        hits = [f for f in files if needle.search(f.read_bytes())]
+        hits = _on_branch(files, cfg["transcripts"]["git_branch"])
         facts.append(("transcripts", f"{len(files)} 个会话文件在该仓下，{len(hits)} 个记在分支 {cfg['transcripts']['git_branch']} 上"))
-        if not hits:
+        history = 0
+        for i, s in enumerate(cfg["transcripts"].get("also", [])):
+            n = len(_on_branch(transcript_files(cfg, s["cwd_prefix"]) or [], s["git_branch"]))
+            history += n
+            facts.append((f"transcripts.also[{i}]", f"历史来源（只读）{n} 个会话记在分支 {s['git_branch']} 上"))
+        if not hits and history:
+            # 刚改绑到新仓、还没在那里开过会话：记录在历史来源里。这是「还没开始」，不是故障（F6，负担实测 2026-09-18）。
+            facts.append(("transcripts", "主来源还没有会话；历史来源里有记录，等第一次在主来源开会话"))
+        elif not hits:
             bad("transcripts.git_branch", "没有任何会话记录在这个分支上")
     return problems, facts
