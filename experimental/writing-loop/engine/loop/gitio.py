@@ -1,4 +1,6 @@
 """Read-only git access. Nothing in the engine writes to the manuscript repository."""
+import contextlib
+import re
 import subprocess
 
 
@@ -24,7 +26,81 @@ def is_repo(repo):
         return False
 
 
+class _Objects:
+    """One `git cat-file --batch-command` answering object questions for the length of a `batch` block.
+
+    Load report F3 (2026-09-18): a warm update took 1.2 s, and 0.79 s of it was starting 86 git processes, most of
+    them one per file read. Scoped to a block rather than kept for the life of the process, so a resident producer
+    never holds a git process open against a repository that is being committed to."""
+
+    HEADER = re.compile(rb"^([0-9a-f]{40}|[0-9a-f]{64}) (\S+) (\d+)$")
+
+    def __init__(self, repo):
+        self.proc = subprocess.Popen(["git", "-C", str(repo), "cat-file", "--batch-command"],
+                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+    def ask(self, command, name):
+        """(oid, type, body or None) for the object, None when git says it is missing or ambiguous.
+        Raises OSError if the process cannot answer; callers then fall back to a single call."""
+        if "\n" in name:
+            raise OSError("a name with a line break cannot go through --batch-command")
+        self.proc.stdin.write(f"{command} {name}\n".encode("utf-8"))
+        self.proc.stdin.flush()
+        head = self.proc.stdout.readline()
+        if not head:
+            raise OSError("cat-file ended")
+        m = self.HEADER.match(head.rstrip(b"\n"))
+        if not m:
+            return None
+        body = None
+        if command == "contents":
+            body = self.proc.stdout.read(int(m.group(3)))
+            self.proc.stdout.read(1)
+        return m.group(1).decode(), m.group(2).decode(), body
+
+    def close(self):
+        with contextlib.suppress(OSError):
+            self.proc.stdin.close()
+        self.proc.wait()
+
+
+_batches = {}
+
+
+@contextlib.contextmanager
+def batch(repo):
+    """Within the block, show() and blob_id() on this repository go through one cat-file process."""
+    key = str(repo)
+    if key in _batches:
+        yield _batches[key]
+        return
+    b = _batches[key] = _Objects(repo)
+    try:
+        yield b
+    finally:
+        _batches.pop(key, None)  # already gone if it broke mid-block
+        b.close()
+
+
+def _batched(repo, command, commit, path):
+    """The batch's answer, or "unanswered" when there is no batch or it could not answer."""
+    b = _batches.get(str(repo))
+    if b is None:
+        return "unanswered"
+    try:
+        return b.ask(command, f"{commit}:{path}")
+    except OSError:
+        _batches.pop(str(repo), None)
+        return "unanswered"
+
+
 def show(repo, commit, path):
+    got = _batched(repo, "contents", commit, path)
+    if got is None:
+        return None
+    if got != "unanswered" and got[1] == "blob":
+        return got[2].decode("utf-8", errors="replace")
+    # no batch, or not a blob (git show prints a tree as a listing): ask git show itself
     r = _run(repo, "show", f"{commit}:{path}", check=False)
     if r.returncode != 0:
         return None
@@ -32,6 +108,9 @@ def show(repo, commit, path):
 
 
 def blob_id(repo, commit, path):
+    got = _batched(repo, "info", commit, path)
+    if got != "unanswered":
+        return got[0] if got else None
     r = _run(repo, "rev-parse", f"{commit}:{path}", check=False)
     return r.stdout.decode().strip() if r.returncode == 0 else None
 

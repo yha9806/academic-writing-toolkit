@@ -64,6 +64,11 @@ def cached_aligner(cache_dir):
 
 def build(cfg, cache=None):
     """Return {filename: bytes} for the whole index, plus a small summary dict."""
+    with gitio.batch(cfg["repo"]):  # one cat-file for every blob read below (load report F3)
+        return _build(cfg, cache)
+
+
+def _build(cfg, cache):
     head = gitio.rev_parse(cfg["repo"], cfg["ref"])
     versions = H.load_versions(cfg, until=head)
     transitions = H.assign_ids(versions, aligner=cached_aligner(Path(cfg["_ws"]) / "cache" / "align"))

@@ -33,6 +33,18 @@ class IndexTest(unittest.TestCase):
             self.assertEqual(X.check(cfg, X.build(cfg)[0]), ([], None))
             self.assertEqual((summary["versions"], summary["changesets"], summary["messages_attached"]), (2, 1, 1))
 
+    def test_building_the_index_reads_blobs_without_a_process_each(self):
+        """Load report F3 (2026-09-18): one git process per blob read was two thirds of a warm update."""
+        import subprocess
+        from unittest import mock
+        with TempDir() as root:
+            cfg, _ = setup(root)
+            with mock.patch("subprocess.run", side_effect=subprocess.run) as run:
+                X.build(cfg)
+            per_blob = [c[0][0] for c in run.call_args_list if c[0][0][:1] == ["git"]
+                        and (c[0][0][3] == "show" or (c[0][0][3] == "rev-parse" and ":" in c[0][0][-1]))]
+            self.assertEqual(per_blob, [])
+
     def test_warm_and_cold_cache_give_the_same_bytes(self):
         with TempDir() as root:
             cfg, _ = setup(root)
