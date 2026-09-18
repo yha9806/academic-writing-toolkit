@@ -82,8 +82,21 @@ def record_event(ws, kind, detail, now=None):
     _update(ws, f)
 
 
+def ack(ws, now=None):
+    """The author has seen the events so far: hook errors and refused writes before now stop being shown.
+    Nothing is deleted; events stay in health.json with their times."""
+    now = time.time() if now is None else now
+    _update(ws, lambda d: d.__setitem__("acked", {"at": _iso(now), "t": now}))
+
+
+def _unacked(h, kind):
+    since = (h.get("acked") or {}).get("t", 0)
+    return [e for e in h.get("events", []) if e.get("kind") == kind and e.get("t", 0) > since]
+
+
 def file_problems(ws):
-    """What health.json alone says is wrong: an uncleared error, no success ever, refused writes."""
+    """What health.json alone says is wrong: an uncleared error, no success ever, unacknowledged hook errors.
+    A refused write is not a problem (the guard worked); it is a notice, see file_notices."""
     h = load(ws)
     problems = []
     err = h.get("last_error")
@@ -91,13 +104,18 @@ def file_problems(ws):
         problems.append(("更新失败", f"{err.get('at')}：{err.get('message')}"))
     if not h.get("last_ok"):
         problems.append(("从未更新", "health.json 里没有一次成功的更新"))
-    denied = [e for e in h.get("events", []) if e.get("kind") == "guard_denied"]
-    if denied:
-        problems.append(("拦下写入", f"模型试图写 human/ 共 {len(denied)} 次，最近一次 {denied[-1]['at']}"))
-    bad = [e for e in h.get("events", []) if e.get("kind") == "hook_error"]
+    bad = _unacked(h, "hook_error")
     if bad:
         problems.append(("钩子异常", f"{len(bad)} 次，最近一次：{bad[-1]['detail']}"))
     return problems
+
+
+def file_notices(ws):
+    """Things the author should know about that are not faults: refused writes since the last ack."""
+    denied = _unacked(load(ws), "guard_denied")
+    if denied:
+        return [("拦下写入", f"模型试图写 human/ 共 {len(denied)} 次，最近一次 {denied[-1]['at']}：{denied[-1]['detail']}")]
+    return []
 
 
 def assess(cfg, check_index=True):

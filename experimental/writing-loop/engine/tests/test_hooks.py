@@ -90,13 +90,15 @@ class GuardTest(unittest.TestCase):
     def test_absolute_and_relative_writes_into_human_are_refused_and_recorded(self):
         with TempDir() as root:
             repo, ws, regs = setup(root)
+            problems_before = HL.file_problems(ws)
             self.assertTrue(self.denied(LH.handle(tool_payload("PreToolUse", repo, "Write",
                                                                {"file_path": str(ws / "human" / "comments.jsonl"), "content": "x"}), regs)))
             self.assertTrue(self.denied(LH.handle(tool_payload("PreToolUse", ws, "Edit",
                                                                {"file_path": "human/reactions.jsonl", "old_string": "a", "new_string": "b"}), regs)))
             events = [e for e in HL.load(ws)["events"] if e["kind"] == "guard_denied"]
             self.assertEqual(len(events), 2)
-            self.assertIn("拦下写入", [item for item, _ in HL.file_problems(ws)])
+            self.assertIn("拦下写入", [item for item, _ in HL.file_notices(ws)])
+            self.assertEqual(HL.file_problems(ws), problems_before)  # the guard worked; a refusal is not a fault
 
     def test_shell_writes_naming_human_are_refused_including_the_home_form(self):
         with TempDir() as root:
@@ -160,6 +162,25 @@ class TriggerTest(unittest.TestCase):
             repo, ws, regs = setup(root)
             LH.handle({"hook_event_name": "PostToolUse", "cwd": str(repo), "tool_name": "Write"}, regs, spawn=Spy())
             self.assertIn("钩子异常", [item for item, _ in HL.file_problems(ws)])
+
+
+class ProducerTest(unittest.TestCase):
+    def test_the_resident_producer_is_started_only_when_lintel_registered_it(self):
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            started = []
+            home = Path(root) / "lintel-home"
+            old = os.environ.get("LOOP_LINTEL_HOME")
+            os.environ["LOOP_LINTEL_HOME"] = str(home)
+            try:
+                self.assertFalse(LH.ensure_producer(ws, start=started.append))
+                self.assertFalse(home.exists())
+                home.mkdir()
+                (home / "registry.json").write_text(json.dumps({"producers": {LH.LN.PRODUCER: {}}}), encoding="utf-8")
+                self.assertTrue(LH.ensure_producer(ws, start=started.append))
+                self.assertEqual(started, [ws])
+            finally:
+                os.environ["LOOP_LINTEL_HOME"] = old
 
 
 class RegistryAndProcessTest(unittest.TestCase):

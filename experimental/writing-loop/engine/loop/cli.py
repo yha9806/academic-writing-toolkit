@@ -156,35 +156,68 @@ def cmd_bench(a):
     return 0 if ok else 1
 
 
+EMPTY_SUMMARY = {"head": "?", "versions": 0, "sentences": 0, "changesets": 0, "mixed": 0, "all_unknown": 0,
+                 "ledger": 0, "ledger_status": {}, "unattached_ledger": 0, "messages": 0, "messages_attached": 0,
+                 "messages_before_first_version": 0, "latest": None}
+
+
+def _producer_alive(pidfile):
+    """The pid in pidfile belongs to a running `loop lintel` process."""
+    import subprocess
+    try:
+        pid = int(pidfile.read_text().strip())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return False
+    r = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True)
+    return "loop" in r.stdout and "lintel" in r.stdout
+
+
 def cmd_lintel(a):
     """把「等你反应的事」交给 lintel 画（plan 阶段 4.2）。
 
+    常驻：读磁盘上的索引（由钩子触发的 update 维护），每 interval 秒同步一次卡片并续心跳；
+    不自己重建索引（--rebuild 才重建），所以常驻不吃 CPU。一个工作区只跑一个，第二个直接退出。
     引擎自己出的事也要交上去——不然工具一挂，刘海上只会安静下来，而「安静」和「没事」长得一样。"""
     import time as _t
 
     from . import doctor
+    from . import health as HL
     from . import index as X
     from . import lintel as LN
     cfg = C.load(a.workspace)
-    from . import health as HL
+    ws = Path(a.workspace)
+    a.home = a.home or LN.lintel_home()
+    pidfile = ws / "cache" / "lintel.pid"
+    if not a.once:
+        if not LN.registered(a.home, a.producer):
+            print(f"lintel 里没有登记来源 {a.producer}：不启动", file=sys.stderr)
+            return 2
+        if _producer_alive(pidfile):
+            print("lintel 来源进程已在跑", file=sys.stderr)
+            return 0
+        pidfile.parent.mkdir(parents=True, exist_ok=True)
+        pidfile.write_text(f"{os.getpid()}\n")
     while True:
         problems = [f"{item}：{msg}" for item, msg in doctor.run(a.workspace)[0]]
         summary = None
         if not problems:
             t0 = _t.time()
             try:
-                files, summary = X.build(cfg)
-                X.write(cfg, files)
-                HL.record_ok(a.workspace, "lintel", _t.time() - t0)
+                if a.rebuild:
+                    files, summary = X.build(cfg)
+                    X.write(cfg, files)
+                    HL.record_ok(a.workspace, "lintel", _t.time() - t0)
+                else:
+                    summary = X.load_summary(cfg)
+                    if summary is None:
+                        problems.append("索引：index/ 还没建或读不出（钩子触发的 update 会建）")
             except Exception as e:  # 引擎抛了 = 工具异常，不是「没有活动」
                 HL.record_error(a.workspace, f"{type(e).__name__}：{e}")
         problems += [f"{item}：{msg}" for item, msg in HL.file_problems(a.workspace)]
-        if summary is None:
-            summary = {"name": cfg["name"], "head": "?", "versions": 0, "sentences": 0, "changesets": 0,
-                       "mixed": 0, "all_unknown": 0, "ledger": 0, "ledger_status": {},
-                       "unattached_ledger": 0, "messages": 0, "messages_attached": 0,
-                       "messages_before_first_version": 0}
-        acts = LN.build(summary, now=_t.time(), problems=problems)
+        notices = [f"{item}：{msg}" for item, msg in HL.file_notices(a.workspace)]
+        summary = summary or {**EMPTY_SUMMARY, "name": cfg["name"]}
+        acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices)
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:
@@ -196,6 +229,13 @@ def cmd_lintel(a):
         if a.once:
             return 1 if problems else 0
         _t.sleep(a.interval)
+
+
+def cmd_ack(a):
+    from . import health as HL
+    HL.ack(a.workspace)
+    print("已确认：此前的拦截与钩子异常不再显示（记录仍在 health.json）")
+    return 0
 
 
 def main(argv=None):
@@ -243,13 +283,18 @@ def main(argv=None):
     b.add_argument("--json", action="store_true")
     b.set_defaults(fn=cmd_bench)
 
+    k = sub.add_parser("ack", help="the author has seen the refused writes and hook errors so far")
+    k.add_argument("workspace")
+    k.set_defaults(fn=cmd_ack)
+
     from . import lintel as _LN
     n = sub.add_parser("lintel", help="write activities for the lintel notch host")
     n.add_argument("workspace")
     n.add_argument("--once", action="store_true")
     n.add_argument("--interval", type=float, default=10.0)
-    n.add_argument("--home", default=_LN.HOME)
+    n.add_argument("--home", default=None, help="lintel's directory (default: $LOOP_LINTEL_HOME or the standard one)")
     n.add_argument("--producer", default=_LN.PRODUCER)
+    n.add_argument("--rebuild", action="store_true", help="rebuild the index on every round instead of reading it")
     n.set_defaults(fn=cmd_lintel)
 
     a = p.parse_args(argv)

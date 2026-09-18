@@ -3,12 +3,13 @@
 刘海由 lintel 统一画（spec D-L0），这里只交内容。样式归宿主，所以能挑的只有宿主词表里的词；
 spec 6.2 的来源色照下面这张表对到 lintel 的调色板，来源之外一律同时写文字。
 
-一件事一张卡（spec 6.1）。今天产五种，其中三种只在有事时存在：
+一件事一张卡（spec 6.1）。六种，除 draft 外都只在有事时存在：
 
     draft     稿件现状，永远在
-    reply     我回了你最新的一条消息，你还没看     ◐
+    reply     我回了你最新的一条消息（内容随最新回复变，所以新回复在宿主那边重新算「没看过」）  waiting
     ledger    台账里没落到原文上的条目             △
     triggers  不知道因为你哪句话而改的改动集       △ / ◌
+    guard     模型试图写 human/ 被拦下（门在工作，不是故障；loop ack 之后消失）
     tool      引擎自己出事                         ⚠
 
 「同一件事没有新变化不重写」靠 revision：内容算一个哈希，和磁盘上那份一样就不写。
@@ -23,6 +24,11 @@ from pathlib import Path
 
 PRODUCER = "awt-loop"
 HOME = "~/Library/Application Support/lintel"
+
+
+def lintel_home():
+    """lintel's directory, read at call time so tests (and other hosts) can point it elsewhere."""
+    return os.environ.get("LOOP_LINTEL_HOME") or HOME
 HEARTBEAT = 120.0
 
 #: spec 6.2 的来源色 → lintel 调色板。琥珀在调色板里最近的一档是 orange。
@@ -75,8 +81,9 @@ def card(aid, *, source, label, phase, tag, center, lines, ws, rank="none",
     return a
 
 
-def build(summary, *, now, problems=()):
-    """从索引摘要（`index.summarize`）生成活动。`problems` 是引擎自己的毛病，有就出 ⚠ 那张卡。"""
+def build(summary, *, now, problems=(), notices=()):
+    """从索引摘要（`index.summarize`）生成活动。`problems` 是引擎自己的毛病，有就出 ⚠ 那张卡；
+    `notices` 是该知道但不是故障的事（被拦下的写入），出一张不带 ⚠ 的卡。"""
     ws = summary["name"]
     st = summary.get("ledger_status") or {}
     out = []
@@ -87,6 +94,17 @@ def build(summary, *, now, problems=()):
         lines=f"{summary['sentences']} 句，{summary['versions']} 个定稿版本，最新 {summary['head']}",
         stats=[("句", summary["sentences"]), ("版", summary["versions"]),
                ("改动集", summary["changesets"]), ("你的消息", summary["messages"])]))
+
+    latest = summary.get("latest")
+    if latest and latest.get("replies"):
+        said = [x for x in (f"读成：{latest['reading']}" if latest.get("reading") else "没有写「读成」",
+                            f"改了：{latest['changed']}" if latest.get("changed") else None) if x]
+        out.append(card(
+            "reply", source="claude", label="有回复", phase="你的消息", tag=f"{latest['replies']} 条",
+            center="waiting", rank="waiting", ws=ws, pill="回复", now=now,
+            lines="；".join(said),
+            stats=[("回复", latest["replies"])],
+            events=[(f"answered:{latest['last_reply']}", "answered")]))
 
     bad = st.get("not_found", 0) + st.get("file_missing", 0) + st.get("no_source", 0) + summary["unattached_ledger"]
     if bad:
@@ -111,6 +129,13 @@ def build(summary, *, now, problems=()):
             stats=[("改动集", summary["changesets"]), ("全 △", unknown), ("推断", mixed)],
             events=[(f"drift:{unknown}:{mixed}", "drift")]))
 
+    if notices:
+        text = "；".join(notices)[:20000]
+        out.append(card(
+            "guard", source="tool", label="拦下", phase="human/", tag=f"{len(notices)} 项",
+            center="flagged", rank="none", ws=ws, now=now, lines=text,
+            events=[(f"guard:{hashlib.sha1(text.encode()).hexdigest()[:12]}", "guard")]))
+
     if problems:
         text = "；".join(problems)[:20000]
         out.append(card(
@@ -125,11 +150,11 @@ class NotRegistered(Exception):
     """lintel has no producer by this id. Off by default (spec v2 D5): write nothing, create nothing."""
 
 
-def registered(home=HOME, producer=PRODUCER):
+def registered(home=None, producer=PRODUCER):
     """True only if lintel's registry.json is readable, has the expected shape, and names this producer.
     Anything else — no file, bad JSON, a list where a mapping belongs — counts as not registered."""
     try:
-        data = json.loads((Path(os.path.expanduser(home)) / "registry.json").read_text(encoding="utf-8"))
+        data = json.loads((Path(os.path.expanduser(home or lintel_home())) / "registry.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
     producers = data.get("producers") if isinstance(data, dict) else None

@@ -5,7 +5,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from loop import config as C
+# Tests must never see the real notch host: its registry decides whether hooks start real producer processes.
+os.environ["LOOP_LINTEL_HOME"] = tempfile.mkdtemp(prefix="loop-tests-lintel-home-")
+
+from loop import config as C  # noqa: E402
 
 
 

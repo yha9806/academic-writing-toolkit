@@ -27,9 +27,10 @@ bin/loop doctor <workspace>          # every configured path resolves (not: the 
 bin/loop index <workspace>           # build index/ from git and transcripts
 bin/loop rebuild <workspace> --check # byte-for-byte comparison with a fresh rebuild
 bin/loop update <workspace>          # rebuild index/ and record the outcome in health.json (what the hooks call)
-bin/loop health <workspace>          # what is known to be wrong: failed updates, lag, a tampered index, refused writes
+bin/loop health <workspace>          # what is known to be wrong: failed updates, lag, a tampered index, hook errors
+bin/loop ack <workspace>             # the author has seen the refused writes and hook errors so far (records are kept)
 bin/loop bench                       # event -> updated index, through the hook path, on a throwaway workspace
-bin/loop lintel <workspace> --once   # write notch cards; refuses unless registered (see below)
+bin/loop lintel <workspace>          # resident notch producer: reads index/, syncs cards, keeps the heartbeat
 ```
 
 Rebuilds reuse two caches under `cache/`: per-transition alignments (keyed by the sentences and the engine code) and a per-file record of which session files hold the branch. `rebuild --check` gives the same bytes with or without them, and an unreadable cache file is recomputed rather than trusted.
@@ -58,7 +59,18 @@ Field names are the ones the runtime sends (read from the Claude Code binary, 2.
 
 ## Optional notch display
 
-`bin/loop lintel` writes cards for a separate notch host (lintel) as JSON activity files. It stays off until the producer has been registered with that host. Until then it refuses with a non-zero exit code and creates no directories.
+`bin/loop lintel` writes cards for a separate notch host (lintel) as JSON activity files. It stays off until the producer has been registered with that host; until then it refuses with a non-zero exit code and creates no directories.
+
+Once registered, the hooks start one resident `loop lintel` per workspace (a pid file prevents a second one). It reads the index that the hooks keep up to date and never rebuilds it, so it costs almost nothing while idle, and it rewrites unchanged cards often enough to keep lintel's heartbeat alive. Cards, each present only while it applies (except the first):
+
+| card | when | notes |
+|---|---|---|
+| draft | always | versions, sentences, latest commit |
+| reply | Claude has replied to the author's latest message | changes with every new reply, so the host shows it as unseen again |
+| ledger | ledger entries not found in their saved source | a standing state, so it does not pop the notch open |
+| triggers | change sets with no traceable trigger, or an inferred one | untraceable ones pop the notch open |
+| guard | a model write into `human/` was refused | the guard worked; a notice, not a fault; cleared by `loop ack` |
+| tool | the engine, an update or a hook failed | a fault; failed updates clear on the next success, hook errors on `loop ack` |
 
 ## Tests
 

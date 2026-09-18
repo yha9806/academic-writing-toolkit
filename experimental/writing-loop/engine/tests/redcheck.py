@@ -140,6 +140,20 @@ MUTATIONS = [
      'test_index.DiskCacheTest.test_unreadable_cache_files_are_recomputed_not_trusted'),
     ('2.5', 'transcripts.py', 'known == [st.st_size, st.st_mtime_ns, False]', 'known[2] is False',
      'test_index.DiskCacheTest.test_a_session_file_that_gains_the_branch_is_read_again'),
+    ('fix1', 'health.py', 'if e.get("kind") == kind and e.get("t", 0) > since]', 'if e.get("kind") == kind]',
+     'test_health.AckTest.test_ack_clears_what_was_shown_but_keeps_the_record'),
+    ('fix1', 'health.py', '    bad = _unacked(h, "hook_error")\n', '    bad = _unacked(h, "hook_error") + _unacked(h, "guard_denied")\n',
+     'test_hooks.GuardTest.test_absolute_and_relative_writes_into_human_are_refused_and_recorded'),
+    ('fix1', 'lintel.py', '"guard", source="tool", label="拦下", phase="human/", tag=f"{len(notices)} 项",\n            center="flagged", rank="none",', '"guard", source="tool", label="拦下", phase="human/", tag=f"{len(notices)} 项",\n            center="flagged", rank="anomaly",',
+     'test_lintel.NewCardsTest.test_a_refused_write_is_a_notice_card_not_an_anomaly'),
+    ('fix2', 'cli.py', '                if a.rebuild:\n', '                if True:\n',
+     'test_lintel.ResidentTest.test_the_resident_producer_reads_the_index_and_does_not_rebuild_it'),
+    ('fix2', 'cli.py', '    return "loop" in r.stdout and "lintel" in r.stdout', '    return True',
+     'test_lintel.ResidentTest.test_a_pid_that_is_not_a_producer_does_not_count_as_one'),
+    ('fix2', 'hooks/loop_hook.py', '    if LN.registered(LN.lintel_home(), LN.PRODUCER) and not', '    if not',
+     'test_hooks.ProducerTest.test_the_resident_producer_is_started_only_when_lintel_registered_it'),
+    ('fix3', 'lintel.py', '    if latest and latest.get("replies"):', '    if latest:',
+     'test_lintel.NewCardsTest.test_a_reply_card_appears_and_changes_with_each_new_reply'),
 ]
 
 

@@ -36,6 +36,7 @@ sys.path.insert(0, str(ENGINE))
 
 from loop import config as C  # noqa: E402
 from loop import health as HL  # noqa: E402
+from loop import lintel as LN  # noqa: E402
 
 REGISTRY = "~/.awt/loop-workspaces"
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
@@ -119,6 +120,26 @@ def spawn_update(ws, reason):
     log.close()
 
 
+def spawn_producer(ws):
+    """Start the resident `loop lintel` for this workspace, detached; it keeps the notch cards and heartbeat."""
+    (ws / "cache").mkdir(parents=True, exist_ok=True)
+    log = open(ws / "cache" / "lintel.log", "a")
+    subprocess.Popen([sys.executable, "-m", "loop", "lintel", str(ws)], cwd=str(ENGINE),
+                     env=dict(os.environ, PYTHONPATH=str(ENGINE)),
+                     stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    log.close()
+
+
+def ensure_producer(ws, start=spawn_producer):
+    """If lintel has registered this producer and no producer process is alive for ws, start one.
+    Unregistered: do nothing and create nothing (the notch display is off by default)."""
+    from loop.cli import _producer_alive
+    if LN.registered(LN.lintel_home(), LN.PRODUCER) and not _producer_alive(ws / "cache" / "lintel.pid"):
+        start(ws)
+        return True
+    return False
+
+
 def _target(tool, ti, cwd):
     fp = ti.get("file_path") or ti.get("notebook_path")
     if not isinstance(fp, str) or not fp:
@@ -179,6 +200,7 @@ def on_prompt(payload, regs, now):
            "prompt": prompt, "origin": "hook:UserPromptSubmit"}
     with open(ws / "human" / "comments.jsonl", "a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    ensure_producer(ws)
     return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
                                    "additionalContext": REMINDER.format(name=cfg["name"])}}
 
@@ -231,6 +253,7 @@ def on_stop(payload, regs, now, spawn):
     ws, _cfg = session_ws(payload, regs)
     if ws is not None:
         spawn(ws, "stop")
+        ensure_producer(ws)
     return None
 
 

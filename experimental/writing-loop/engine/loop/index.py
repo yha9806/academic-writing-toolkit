@@ -109,7 +109,30 @@ def summarize(cfg, head, versions, changesets, chk, threads, explanations=()):
         "messages": len(threads), "messages_attached": sum(1 for t in threads if t["attached"]),
         "messages_before_first_version": sum(1 for t in threads if t["draft_version"] is None),
         "explained": sum(1 for e in explanations if e["reading"] is not None),
+        "latest": _latest(explanations),
     }
+
+
+def _latest(explanations):
+    """The author's most recent message and what has been said since, for the notch's reply card."""
+    if not explanations:
+        return None
+    e = explanations[-1]
+    return {"mid": e["mid"], "ts": e["ts"], "replies": len(e["replies"]),
+            "last_reply": e["replies"][-1] if e["replies"] else None,
+            "reading": e["reading"], "changed": e["changed"]}
+
+
+def load_summary(cfg):
+    """The summary of the index as it is on disk, without rebuilding anything. None if it is not there."""
+    d = Path(cfg["_ws"]) / "index"
+    try:
+        docs = {name: json.loads((d / name).read_text(encoding="utf-8")) for name in FILES}
+    except (OSError, ValueError):
+        return None
+    versions = docs["sentences.json"]["versions"]
+    return summarize(cfg, docs["sources.json"]["head"], versions, docs["changesets.json"]["changesets"],
+                     docs["checks.json"], docs["threads.json"]["threads"], docs["explanations.json"]["explanations"])
 
 
 def write(cfg, files):

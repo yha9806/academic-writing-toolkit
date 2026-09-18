@@ -157,11 +157,54 @@ class CliOffByDefaultTest(unittest.TestCase):
         with TempDir() as root:
             ws = DoctorTest.setup_ws(None, root)
             home = root / "lintel-home"
+            self.assertEqual(main(["update", str(ws)]), 0)
             self.assertEqual(main(["lintel", str(ws), "--once", "--home", str(home)]), 2)
             self.assertFalse(home.exists())
             register(home)
             self.assertEqual(main(["lintel", str(ws), "--once", "--home", str(home)]), 0)
             self.assertTrue((home / "producers" / L.PRODUCER / "activities" / "draft.json").exists())
+
+
+class ResidentTest(unittest.TestCase):
+    def test_the_resident_producer_reads_the_index_and_does_not_rebuild_it(self):
+        from loop.cli import main
+        from test_doctor import DoctorTest
+        with TempDir() as root:
+            ws = DoctorTest.setup_ws(None, root)
+            home = root / "lintel-home"
+            register(home)
+            self.assertEqual(main(["update", str(ws)]), 0)
+            before = {p.name: p.stat().st_mtime_ns for p in (ws / "index").glob("*.json")}
+            self.assertEqual(main(["lintel", str(ws), "--once", "--home", str(home)]), 0)
+            self.assertEqual({p.name: p.stat().st_mtime_ns for p in (ws / "index").glob("*.json")}, before)
+
+    def test_a_pid_that_is_not_a_producer_does_not_count_as_one(self):
+        from loop.cli import _producer_alive
+        with TempDir() as root:
+            pf = root / "lintel.pid"
+            self.assertFalse(_producer_alive(pf))
+            pf.write_text(str(os.getpid()))
+            self.assertFalse(_producer_alive(pf))
+            pf.write_text("not a pid")
+            self.assertFalse(_producer_alive(pf))
+
+
+class NewCardsTest(unittest.TestCase):
+    def test_a_reply_card_appears_and_changes_with_each_new_reply(self):
+        s = summary()
+        s["latest"] = {"mid": "h1", "ts": "t", "replies": 1, "last_reply": "a1", "reading": "只改标题", "changed": "T01"}
+        a1 = next(a for a in L.build(s, now=NOW) if a["id"] == "reply")
+        s["latest"] = {**s["latest"], "replies": 2, "last_reply": "a2"}
+        a2 = next(a for a in L.build(s, now=NOW) if a["id"] == "reply")
+        self.assertNotEqual(a1["revision"], a2["revision"])
+        s["latest"] = {**s["latest"], "replies": 0, "last_reply": None}
+        self.assertNotIn("reply", [a["id"] for a in L.build(s, now=NOW)])
+
+    def test_a_refused_write_is_a_notice_card_not_an_anomaly(self):
+        acts = {a["id"]: a for a in L.build(summary(), now=NOW, notices=["拦下写入：1 次"])}
+        self.assertIn("guard", acts)
+        self.assertNotIn("tool", acts)
+        self.assertNotEqual(acts["guard"]["rank"], "anomaly")
 
 
 if __name__ == "__main__":

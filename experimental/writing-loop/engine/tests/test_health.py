@@ -107,6 +107,24 @@ class HealthTest(unittest.TestCase):
             self.assertEqual(main(["health", str(ws)]), 0)
 
 
+class AckTest(unittest.TestCase):
+    def test_ack_clears_what_was_shown_but_keeps_the_record(self):
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            HL.record_event(ws, "guard_denied", "Write → x", now=100)
+            HL.record_event(ws, "hook_error", "boom", now=101)
+            self.assertIn("钩子异常", items(HL.file_problems(ws)))
+            self.assertEqual(len(HL.file_notices(ws)), 1)
+            HL.ack(ws, now=102)
+            self.assertNotIn("钩子异常", items(HL.file_problems(ws)))
+            self.assertEqual(HL.file_notices(ws), [])
+            self.assertEqual(len(HL.load(ws)["events"]), 2)
+            HL.record_event(ws, "guard_denied", "Write → y", now=103)
+            self.assertEqual(len(HL.file_notices(ws)), 1)
+            self.assertEqual(main(["ack", str(ws)]), 0)
+            self.assertEqual(HL.file_notices(ws), [])
+
+
 class DetachedTest(unittest.TestCase):
     def test_the_hook_spawned_update_finishes_on_its_own(self):
         with TempDir() as root:
