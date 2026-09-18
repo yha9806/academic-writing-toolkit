@@ -117,7 +117,11 @@ class GuardTest(unittest.TestCase):
             repo, ws, regs = setup(root)
             h = ws / "human"
             self.assertIsNone(LH.handle(tool_payload("PreToolUse", repo, "Bash", {"command": f"cat {h}/comments.jsonl | wc -l"}), regs))
-            for cmd in (f"cat x > {h}/y", f"grep a {h}/c | tee {h}/d", f"sed -i s/a/b/ {h}/c", f"cat {h}/c; rm {h}/c"):
+            # found in live use: a compound command that only reads human/ but does other things elsewhere
+            for cmd in (f"ls -la {h}/; cd /tmp && python3 -c 'print(1)'", f"cat {h}/c 2>&1 | head -3", f"cat {h}/c > /tmp/out"):
+                self.assertIsNone(LH.handle(tool_payload("PreToolUse", repo, "Bash", {"command": cmd}), regs), cmd)
+            for cmd in (f"cat x > {h}/y", f"grep a {h}/c | tee {h}/d", f"sed -i s/a/b/ {h}/c", f"cat {h}/c; rm {h}/c",
+                        f"cd {h} && rm c", f"cat a >> {h}/c 2>&1"):
                 self.assertTrue(self.denied(LH.handle(tool_payload("PreToolUse", repo, "Bash", {"command": cmd}), regs)), cmd)
 
     def test_other_writes_pass_and_malformed_payloads_do_not_crash(self):

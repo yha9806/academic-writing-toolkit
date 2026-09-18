@@ -17,7 +17,8 @@ Updates run detached, so the hook returns at once; the updater merges overlappin
 Registered workspaces: one directory per line in ~/.awt/loop-workspaces (or $AWT_LOOP_REGISTRY).
 
 What this does not do: the guard matches the tool call statically, and for shell commands it lets through
-anything made only of reading commands (cat, grep, ...) with no redirection. A shell command that builds the path at
+a segment that names human/ only as the argument of a reading command (cat, grep, ...) and redirects
+nothing into it. A shell command that builds the path at
 run time (variables, encodings) gets through. It guards this harness's tool channel, not the file system,
 and a person editing files by hand never passes through it.
 """
@@ -126,33 +127,43 @@ def _target(tool, ti, cwd):
 
 
 PATHLIKE = re.compile(r"[^\s;&|<>()'\"`=]+")
+REDIRECT = re.compile(r"(?:\d*|&)>>?\s*([^\s;&|<>()]+)")
+SEGMENTS = re.compile(r"&&|\|\||[;|\n]")
 
 
-def _shell_hit(cmd, human, cwd):
-    """A path-like word of the command that resolves under human/ (absolute, ~, relative to cwd, via symlinks)."""
-    for tok in PATHLIKE.findall(cmd):
-        if "/" not in tok and not tok.startswith("~"):
+def _resolves_under(tok, human, cwd):
+    """A path-like word that resolves under human/ (absolute, ~, relative to cwd, via symlinks)."""
+    if "/" not in tok and not tok.startswith("~"):
+        return False
+    p = os.path.expanduser(tok)
+    if not os.path.isabs(p):
+        if not isinstance(cwd, str):
+            return False
+        p = os.path.join(cwd, p)
+    return _under(p, human)
+
+
+def _shell_write_hit(cmd, human, cwd):
+    """The human/ path a shell command may write, or None.
+
+    Only the segments (split on ; && || | and newlines) that name a path under human/ are judged. Such a
+    segment passes only if it starts with a reading command and redirects nothing into human/. Segments that
+    do not touch human/ do not matter, so `ls human/; cd x && python3 y` is a read, while `cat a > human/b`,
+    `… | tee human/b`, `cp a human/b` and `cd human && rm b` are writes. Heuristic, and stated as one."""
+    for seg in (s.strip() for s in SEGMENTS.split(cmd)):
+        if not seg:
             continue
-        p = os.path.expanduser(tok)
-        if not os.path.isabs(p):
-            if not isinstance(cwd, str):
-                continue
-            p = os.path.join(cwd, p)
-        if _under(p, human):
-            return tok
+        touched = [tok for tok in PATHLIKE.findall(seg) if _resolves_under(tok, human, cwd)]
+        if not touched:
+            continue
+        writes_human = any(_resolves_under(t, human, cwd) for t in REDIRECT.findall(seg) if not t.startswith("&"))
+        if seg.split()[0] not in READ_ONLY or writes_human:
+            return touched[0]
     return None
 
 
+# Reading the author's words is legitimate; only writing them is reserved to hooks and the interface.
 READ_ONLY = {"cat", "head", "tail", "less", "more", "wc", "grep", "rg", "ls", "jq", "stat", "file", "diff", "sha256sum", "shasum", "md5"}
-
-
-def _read_only(cmd):
-    """Heuristic: no redirection or tee, and every piped or chained segment starts with a reading command.
-    Reading the author's words is legitimate; only writing them is reserved to hooks and the interface."""
-    if ">" in cmd or re.search(r"\btee\b", cmd):
-        return False
-    segs = [s.strip() for s in re.split(r"&&|\|\||[;|\n]", cmd) if s.strip()]
-    return bool(segs) and all(s.split()[0] in READ_ONLY for s in segs)
 
 
 def on_prompt(payload, regs, now):
@@ -184,10 +195,7 @@ def on_pre_tool(payload, regs, now):
             if t and _under(t, human):
                 hit = t
         elif tool == "Bash":
-            cmd = ti.get("command") or ""
-            hit = _shell_hit(cmd, human, cwd)
-            if hit and _read_only(cmd):
-                hit = None
+            hit = _shell_write_hit(ti.get("command") or "", human, cwd)
         if hit:
             HL.record_event(ws, "guard_denied", f"{tool} → {hit}", now=now)
             return {"hookSpecificOutput": {

@@ -53,7 +53,7 @@ Field names are the ones the runtime sends (read from the Claude Code binary, 2.
 - The ledger check is string matching against saved source text. It shows that a quoted span exists in the source, not that the sentence represents the source faithfully.
 - Messages and card text are currently in Chinese.
 - There is no Windows support yet: `bin/loop` is a POSIX shell script and health.json locking uses `fcntl`.
-- The `human/` guard matches the tool call statically. A shell command that builds the path at run time gets through, and so does anything made only of reading commands (`cat`, `grep`, …) with no redirection. It guards the agent's tool channel, not the file system.
+- The `human/` guard matches the tool call statically. A shell command that builds the path at run time gets through. Only the parts of a shell command that name a `human/` path are judged: such a part passes if it starts with a reading command (`cat`, `grep`, …) and redirects nothing into `human/`. It guards the agent's tool channel, not the file system.
 - `loop bench` measures a small throwaway workspace. A real manuscript is slower: time `loop update` on it. The first update after the engine code changes is a cold rebuild.
 
 ## Optional notch display
