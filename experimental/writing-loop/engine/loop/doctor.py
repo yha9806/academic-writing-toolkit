@@ -11,6 +11,8 @@ from .text import sentences_of
 
 def draft_paths(cfg, commit):
     g = cfg["draft"]["glob"]
+    if isinstance(g, list):  # a draft made of several files: all must exist
+        return [p for p in g if gitio.ls_tree(cfg["repo"], commit, p)]
     names = gitio.ls_tree(cfg["repo"], commit, posixpath.dirname(g) or ".")
     return sorted([n for n in names if fnmatch.fnmatch(n, g)], key=C.version_key)
 
@@ -52,9 +54,11 @@ def run(ws):
     if not drafts:
         bad("draft.glob", f"在 {head[:7]} 上没有匹配 {cfg['draft']['glob']} 的文件")
     else:
-        latest = drafts[-1]
-        n = len(sentences_of(gitio.show(repo, head, latest) or "", cfg["draft"]["sections"]))
-        facts.append(("draft", f"{len(drafts)} 个版本文件，最新 {latest}，{n} 句"))
+        multi = isinstance(cfg["draft"]["glob"], list)
+        latest = "+".join(drafts) if multi else drafts[-1]
+        text = "\n\n".join(gitio.show(repo, head, p) or "" for p in (drafts if multi else [drafts[-1]]))
+        n = len(sentences_of(text, cfg["draft"]["sections"], cfg["draft"].get("format", "markdown")))
+        facts.append(("draft", (f"{len(drafts)} 个文件合为一份" if multi else f"{len(drafts)} 个版本文件") + f"，最新 {latest}，{n} 句"))
         if n == 0:
             bad("draft.sections", f"{latest} 按 sections 规则切不出任何句子")
     led = cfg.get("ledger")

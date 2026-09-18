@@ -45,17 +45,33 @@ def markdown_sections(md):
 
 
 _LIST_MARK = re.compile(r"^\s*(?:[-*]|\d+\.)\s+")
+_TEX_COMMENT = re.compile(r"(?<!\\)%.*$", re.M)
+_TEX_HEADING = re.compile(r"^\s*\\(?:sub){0,2}section\*?\{((?:[^{}]|\{[^{}]*\})*)\}(?:\\label\{[^}]*\})?[ \t]*$", re.M)
+_TEX_ABSTRACT = re.compile(r"\\begin\{abstract\}(.*?)\\end\{abstract\}", re.S)
 
 
-def sentences_of(md, section_rules):
-    """Cut a markdown draft into sentences.
+def latex_sections(tex):
+    """Return [(heading_text, body)]: the abstract environment as "Abstract", then every
+    \\section / \\subsection / \\subsubsection up to the next heading. Comments are dropped (an escaped \\% is text)."""
+    tex = _TEX_COMMENT.sub("", tex)
+    out = [("Abstract", m.group(1).strip("\n")) for m in _TEX_ABSTRACT.finditer(tex)]
+    body_tex = _TEX_ABSTRACT.sub("", tex)
+    matches = list(_TEX_HEADING.finditer(body_tex))
+    for k, m in enumerate(matches):
+        end = matches[k + 1].start() if k + 1 < len(matches) else len(body_tex)
+        out.append((m.group(1).strip(), body_tex[m.end():end].strip("\n")))
+    return out
+
+
+def sentences_of(md, section_rules, fmt="markdown"):
+    """Cut a markdown (or, with fmt="latex", a LaTeX) draft into sentences.
 
     section_rules: list of {"match": regex on the heading, "prefix": "A", "kind": "title"|"prose"}.
     Returns [{"label", "section", "par", "text"}]; labels are positional (A03, I4.2, T01)
     and are only for display. Stable identity is assigned later.
     """
     out = []
-    for heading, body in markdown_sections(md):
+    for heading, body in (latex_sections(md) if fmt == "latex" else markdown_sections(md)):
         rule = next((r for r in section_rules if re.search(r["match"], heading)), None)
         if rule is None:
             continue

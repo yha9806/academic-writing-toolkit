@@ -154,6 +154,14 @@ MUTATIONS = [
      'test_hooks.ProducerTest.test_the_resident_producer_is_started_only_when_lintel_registered_it'),
     ('fix3', 'lintel.py', '    if latest and latest.get("replies"):', '    if latest:',
      'test_lintel.NewCardsTest.test_a_reply_card_appears_and_changes_with_each_new_reply'),
+    ('latex', 'text.py', '    tex = _TEX_COMMENT.sub("", tex)\n', '',
+     'test_latex.LatexTest.test_sections_and_comments'),
+    ('latex', 'text.py', '_TEX_COMMENT = re.compile(r"(?<!\\\\)%.*$", re.M)', '_TEX_COMMENT = re.compile(r"%.*$", re.M)',
+     'test_latex.LatexTest.test_only_the_chosen_sections_become_sentences'),
+    ('latex', 'history.py', 'md = "\\n\\n".join(gitio.show(repo, c["sha"], p) for p in paths)', 'md = gitio.show(repo, c["sha"], paths[0])',
+     'test_latex.MultiFileTest.test_a_commit_to_either_file_is_a_new_version_of_one_draft'),
+    ('latex', 'history.py', '    return list(g) if isinstance(g, list) else [f":(glob){g}"]', '    return [f":(glob){g}"]',
+     'test_latex.MultiFileTest.test_a_commit_to_either_file_is_a_new_version_of_one_draft'),
 ]
 
 

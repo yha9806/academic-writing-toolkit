@@ -14,9 +14,19 @@ from .text import sentences_of, text_hash
 
 
 def _draft_at(cfg, commit):
+    """The draft's path(s) at commit. A glob names one file per version (the highest-numbered); a list names
+    several files that together are the draft, joined in the listed order (a LaTeX main file and its sections)."""
     g = cfg["draft"]["glob"]
+    if isinstance(g, list):
+        present = [p for p in g if gitio.ls_tree(cfg["repo"], commit, p)]
+        return present or None
     names = [n for n in gitio.ls_tree(cfg["repo"], commit, posixpath.dirname(g) or ".") if fnmatch.fnmatch(n, g)]
     return max(names, key=C.version_key) if names else None
+
+
+def _pathspecs(cfg):
+    g = cfg["draft"]["glob"]
+    return list(g) if isinstance(g, list) else [f":(glob){g}"]
 
 
 def load_versions(cfg, until=None):
@@ -24,17 +34,20 @@ def load_versions(cfg, until=None):
     Commits that leave the current draft's bytes unchanged are skipped."""
     repo = cfg["repo"]
     head = until or gitio.rev_parse(repo, cfg["ref"])
-    commits = gitio.log_touching(repo, head, [f":(glob){cfg['draft']['glob']}"])
+    commits = gitio.log_touching(repo, head, _pathspecs(cfg))
     versions, last_blob = [], None
     for c in commits:
         path = _draft_at(cfg, c["sha"])
         if path is None:
             continue
-        blob = gitio.blob_id(repo, c["sha"], path)
+        paths = path if isinstance(path, list) else [path]
+        blobs = [gitio.blob_id(repo, c["sha"], p) for p in paths]
+        blob = blobs[0] if len(blobs) == 1 else "+".join(blobs)
         if blob == last_blob:
             continue
-        md = gitio.show(repo, c["sha"], path)
-        sents = sentences_of(md, cfg["draft"]["sections"])
+        md = "\n\n".join(gitio.show(repo, c["sha"], p) for p in paths)
+        path = paths[0] if len(paths) == 1 else "+".join(paths)
+        sents = sentences_of(md, cfg["draft"]["sections"], cfg["draft"].get("format", "markdown"))
         for s in sents:
             s["hash"] = text_hash(s["text"])
         versions.append({**c, "path": path, "blob": blob, "sentences": sents})
