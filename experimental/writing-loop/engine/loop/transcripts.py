@@ -13,10 +13,12 @@ Field names were read from real records, not from documentation:
 """
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 
 from . import config as C
+from pathlib import Path
 
 _REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>\s*", re.S)
 
@@ -48,8 +50,28 @@ def session_files(cfg):
     return sorted(p for d in root.iterdir() if d.is_dir() and d.name.startswith(prefix) for p in d.glob("*.jsonl"))
 
 
-def read(cfg, files=None):
-    """Return {"human": [...], "assistant": [...], "unclassified": {kind: n}, "files": [(path, bytes)], "bad_lines": n}."""
+def _load_scan(path):
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_scan(path, data):
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(f".{p.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+    tmp.replace(p)
+
+
+def read(cfg, files=None, scan_cache=None):
+    """Return {"human": [...], "assistant": [...], "unclassified": {kind: n}, "files": [(path, bytes)], "bad_lines": n}.
+
+    scan_cache: optional path to a JSON file remembering, per session file, (size, mtime_ns, holds the branch).
+    A file whose size and mtime are unchanged and that did not hold the branch is not read again: most session
+    files under a busy repository belong to other branches. Any change to a file means it is read in full."""
     t = cfg["transcripts"]
     branch, cwd_prefix = t["git_branch"], str(t["cwd_prefix"])
     files = session_files(cfg) if files is None else files
@@ -67,10 +89,18 @@ def read(cfg, files=None):
                                "stripped_chars": len(raw) - len(text)}
         if r.get("sessionId") not in h["sessions"]:
             h["sessions"].append(r.get("sessionId"))
+    scan = _load_scan(scan_cache) if scan_cache else {}
     for f in files:
+        st = f.stat()
+        known = scan.get(str(f))
+        if isinstance(known, list) and known == [st.st_size, st.st_mtime_ns, False]:
+            seen_files.append((str(f), st.st_size))
+            continue
         data = f.read_bytes()
         seen_files.append((str(f), len(data)))
-        if not needle.search(data):
+        holds = bool(needle.search(data))
+        scan[str(f)] = [len(data), st.st_mtime_ns, holds] if len(data) == st.st_size else None
+        if not holds:
             continue
         branch_files.append((str(f), len(data)))
         for line in data.decode("utf-8", "replace").splitlines():
@@ -107,6 +137,8 @@ def read(cfg, files=None):
                 for x in texts:
                     if x not in a["parts"]:
                         a["parts"].append(x)
+    if scan_cache:
+        _save_scan(scan_cache, {k: v for k, v in scan.items() if v is not None})
     for h in humans.values():
         h["sessions"].sort()
     human = sorted(humans.values(), key=lambda h: (h["t"], h["mid"]))

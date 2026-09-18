@@ -1,6 +1,9 @@
 """Command line entry: `loop <command> <workspace> ...`."""
 import argparse
+import json
+import os
 import sys
+import time
 from pathlib import Path
 
 from . import config as C
@@ -71,6 +74,88 @@ def cmd_rebuild(a):
     return 1
 
 
+STALE_LOCK = 600.0
+
+
+def _acquire(lock):
+    """An exclusive lock file; one left behind by a killed update is taken over after STALE_LOCK seconds."""
+    for _ in range(2):
+        try:
+            return os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                if time.time() - lock.stat().st_mtime <= STALE_LOCK:
+                    return None
+                lock.unlink()
+            except FileNotFoundError:
+                pass
+    return None
+
+
+def cmd_update(a):
+    """Rebuild index/ and record the outcome in health.json. Hooks call this detached, possibly many at once:
+    if another update holds the lock, leave a marker so the running one goes round again, and return."""
+    from . import health as HL
+    from . import index as X
+    ws = Path(a.workspace)
+    (ws / "cache").mkdir(parents=True, exist_ok=True)
+    lock, dirty = ws / "cache" / "update.lock", ws / "cache" / "update.dirty"
+    summary = None
+    while True:
+        fd = _acquire(lock)
+        if fd is None:
+            dirty.touch()
+            print("另一次更新正在进行：已记为待重跑")
+            return 0
+        try:
+            while True:
+                dirty.unlink(missing_ok=True)
+                t0 = time.time()
+                try:
+                    cfg = C.load(ws)
+                    files, summary = X.build(cfg)
+                    X.write(cfg, files)
+                except Exception as e:  # recorded, never swallowed: health shows it until a later success
+                    HL.record_error(ws, f"{type(e).__name__}：{e}")
+                    print(f"update 失败：{type(e).__name__}：{e}", file=sys.stderr)
+                    return 1
+                HL.record_ok(ws, a.reason, time.time() - t0)
+                if not dirty.exists():
+                    break
+        finally:
+            os.close(fd)
+            lock.unlink(missing_ok=True)
+        if not dirty.exists():  # a request that arrived between the last check and the unlock
+            break
+    print(_summary_line(summary))
+    return 0
+
+
+def cmd_health(a):
+    from . import health as HL
+    cfg = C.load(a.workspace)
+    problems = HL.assess(cfg, check_index=not a.quick)
+    for item, msg in problems:
+        print(f"  ✗ {item}：{msg}")
+    last = HL.load(cfg["_ws"]).get("last_ok")
+    print(f"health：{len(problems)} 处问题" if problems else f"health：没有已知问题（最近一次成功 {last['at']}）")
+    return 1 if problems else 0
+
+
+def cmd_bench(a):
+    from . import bench as B
+    res = B.run(runs=a.runs)
+    rows, ok = B.report(res)
+    for kind, note, med, p95, target, passed in rows:
+        timing = f"中位 {med:.2f} s，p95 {p95:.2f} s" if med is not None else ""
+        verdict = "—" if passed is None else ("达标" if passed else "未达标")
+        print(f"  {kind:10} 目标 ≤{target:.0f} s  {timing:24} {note}  {verdict}")
+    if a.json:
+        print(json.dumps(res))
+    print("bench：可测的三类都达标" if ok else "bench：有未达标或超时的一类")
+    return 0 if ok else 1
+
+
 def cmd_lintel(a):
     """把「等你反应的事」交给 lintel 画（plan 阶段 4.2）。
 
@@ -81,15 +166,19 @@ def cmd_lintel(a):
     from . import index as X
     from . import lintel as LN
     cfg = C.load(a.workspace)
+    from . import health as HL
     while True:
         problems = [f"{item}：{msg}" for item, msg in doctor.run(a.workspace)[0]]
         summary = None
         if not problems:
+            t0 = _t.time()
             try:
                 files, summary = X.build(cfg)
                 X.write(cfg, files)
+                HL.record_ok(a.workspace, "lintel", _t.time() - t0)
             except Exception as e:  # 引擎抛了 = 工具异常，不是「没有活动」
-                problems = [f"{type(e).__name__}：{e}"]
+                HL.record_error(a.workspace, f"{type(e).__name__}：{e}")
+        problems += [f"{item}：{msg}" for item, msg in HL.file_problems(a.workspace)]
         if summary is None:
             summary = {"name": cfg["name"], "head": "?", "versions": 0, "sentences": 0, "changesets": 0,
                        "mixed": 0, "all_unknown": 0, "ledger": 0, "ledger_status": {},
@@ -138,6 +227,21 @@ def main(argv=None):
     r.add_argument("workspace")
     r.add_argument("--check", action="store_true")
     r.set_defaults(fn=cmd_rebuild)
+
+    u = sub.add_parser("update", help="rebuild index/ and record the outcome in health.json")
+    u.add_argument("workspace")
+    u.add_argument("--reason", default="manual")
+    u.set_defaults(fn=cmd_update)
+
+    h = sub.add_parser("health", help="what is known to be wrong: errors, lag, index consistency, refused writes")
+    h.add_argument("workspace")
+    h.add_argument("--quick", action="store_true", help="skip the full rebuild comparison")
+    h.set_defaults(fn=cmd_health)
+
+    b = sub.add_parser("bench", help="time event -> updated index through the hook path (spec T15)")
+    b.add_argument("--runs", type=int, default=10)
+    b.add_argument("--json", action="store_true")
+    b.set_defaults(fn=cmd_bench)
 
     from . import lintel as _LN
     n = sub.add_parser("lintel", help="write activities for the lintel notch host")

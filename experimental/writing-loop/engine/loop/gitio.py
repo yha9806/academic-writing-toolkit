@@ -71,3 +71,12 @@ def tree_blobs(repo, commit, path):
         if len(parts) == 3 and parts[1] == "blob":
             out[name] = parts[2]
     return out
+
+
+def count_between(repo, old, new):
+    """Commits reachable from new but not from old; None if either is unknown (e.g. history was rewritten)."""
+    if not old or not new:
+        return None
+    r = _run(repo, "rev-list", "--count", f"{old}..{new}", check=False)
+    out = r.stdout.decode().strip()
+    return int(out) if r.returncode == 0 and out.isdigit() else None

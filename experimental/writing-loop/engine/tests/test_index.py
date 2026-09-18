@@ -70,5 +70,51 @@ class IndexTest(unittest.TestCase):
             self.assertEqual(diffs, [("threads.json", "缺失")])
 
 
+class DiskCacheTest(unittest.TestCase):
+    """The alignment cache and the transcript scan cache may only make a rebuild faster, never different."""
+
+    def cold(self, cfg):
+        import shutil
+        shutil.rmtree(Path(cfg["_ws"]) / "cache", ignore_errors=True)
+        return X.build(cfg)[0]
+
+    def test_alignment_and_scan_caches_do_not_change_a_byte(self):
+        with TempDir() as root:
+            cfg, _ = setup(root)
+            cold = self.cold(cfg)
+            self.assertTrue(any((Path(cfg["_ws"]) / "cache" / "align").glob("*.json")))
+            self.assertTrue((Path(cfg["_ws"]) / "cache" / "transcript-scan.json").exists())
+            self.assertEqual(X.build(cfg)[0], cold)
+
+    def test_unreadable_cache_files_are_recomputed_not_trusted(self):
+        with TempDir() as root:
+            cfg, _ = setup(root)
+            cold = self.cold(cfg)
+            for f in (Path(cfg["_ws"]) / "cache" / "align").glob("*.json"):
+                f.write_text("{not json", encoding="utf-8")
+            (Path(cfg["_ws"]) / "cache" / "transcript-scan.json").write_text("[1, 2", encoding="utf-8")
+            self.assertEqual(X.build(cfg)[0], cold)
+
+    def test_a_rewritten_commit_does_not_reuse_the_old_alignment(self):
+        with TempDir() as root:
+            cfg, repo = setup(root)
+            X.build(cfg)  # the cache now holds v1 -> v2
+            (repo / "drafts" / "DRAFT-v1.md").write_text(
+                draft_md("T", "Abs one.", ["Inspectors work alone. Gauges lag surveyors [KK] at night, then rest."]), encoding="utf-8")
+            git(repo, "commit", "-q", "--amend", "-am", "v2 rewritten")
+            self.assertEqual(X.build(cfg)[0], self.cold(cfg))
+
+    def test_a_session_file_that_gains_the_branch_is_read_again(self):
+        with TempDir() as root:
+            cfg, repo = setup(root)
+            make_transcripts(root, repo, "dev", [{"_file": "s2", "type": "user", "timestamp": "2025-10-09T09:40:00.000Z",
+                                                  "origin": {"kind": "human"}, "message": {"role": "user", "content": "another branch"}}])
+            X.build(cfg)  # s2 is scanned and remembered as not holding the branch
+            make_transcripts(root, repo, "main", [{"_file": "s2", "type": "user", "timestamp": "2025-10-09T10:00:00.000Z",
+                                                   "origin": {"kind": "human"}, "message": {"role": "user", "content": "再补一句"}}])
+            threads = json.loads(X.build(cfg)[0]["threads.json"])
+            self.assertIn("再补一句", [t["text"] for t in threads["threads"]])
+
+
 if __name__ == "__main__":
     unittest.main()

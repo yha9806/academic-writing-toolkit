@@ -8,17 +8,20 @@ index/sources.json records what the index was built from, so `rebuild --check` c
 """
 import hashlib
 import json
+import os
 from pathlib import Path
 
+from . import align as A
 from . import changesets as CS
 from . import checks as K
 from . import config as C
+from . import explain as EX
 from . import gitio
 from . import history as H
 from . import threads as TH
 from . import transcripts as T
 
-FILES = ("sentences.json", "changesets.json", "checks.json", "threads.json", "sources.json")
+FILES = ("sentences.json", "changesets.json", "checks.json", "threads.json", "explanations.json", "sources.json")
 
 
 def dump(obj):
@@ -33,14 +36,41 @@ def engine_hash():
     return h.hexdigest()[:12]
 
 
+def cached_aligner(cache_dir):
+    """A.align with its results kept on disk, keyed by the inputs and the engine code.
+
+    Alignment is the slow part of a rebuild (difflib over every consecutive pair of versions), and a new
+    commit adds one pair; without this every update re-aligns the whole history. A result is always passed
+    through JSON, computed or loaded, so a cold and a warm cache give the same bytes. An unreadable cache
+    file is recomputed, never trusted."""
+    d = Path(cache_dir)
+    salt = engine_hash()
+
+    def aligner(old, new, old_groups=None, new_groups=None):
+        key = hashlib.sha1(json.dumps([salt, old, new, old_groups, new_groups], ensure_ascii=False).encode()).hexdigest()
+        p = d / f"{key}.json"
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        res = json.loads(json.dumps(A.align(old, new, old_groups, new_groups)))
+        d.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(f".{key}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(res), encoding="utf-8")
+        tmp.replace(p)
+        return res
+    return aligner
+
+
 def build(cfg, cache=None):
     """Return {filename: bytes} for the whole index, plus a small summary dict."""
     head = gitio.rev_parse(cfg["repo"], cfg["ref"])
     versions = H.load_versions(cfg, until=head)
-    transitions = H.assign_ids(versions)
-    conv = T.read(cfg)
+    transitions = H.assign_ids(versions, aligner=cached_aligner(Path(cfg["_ws"]) / "cache" / "align"))
+    conv = T.read(cfg, scan_cache=Path(cfg["_ws"]) / "cache" / "transcript-scan.json")
     threads = TH.build(conv, versions)
     changesets = CS.build(versions, transitions, conv)
+    explanations = EX.build(conv)
     current = versions[-1] if versions else None
     chk = K.check_version(cfg, current, cache, at=head) if current and cfg.get("ledger") else None
     if chk:
@@ -53,15 +83,16 @@ def build(cfg, cache=None):
         "changesets.json": {"head": head, "changesets": changesets},
         "checks.json": chk,
         "threads.json": {"threads": threads, "assistant": conv["assistant"], "unclassified": conv["unclassified"]},
+        "explanations.json": {"explanations": explanations},
         "sources.json": {"ref": cfg["ref"], "head": head, "engine": engine_hash(),
                          "transcripts": sorted([str(Path(p).relative_to(C.expand(cfg["transcripts"]["projects_dir"]))), n]
                                                for p, n in conv["branch_files"])},
     }
-    summary = summarize(cfg, head, versions, changesets, chk, threads)
+    summary = summarize(cfg, head, versions, changesets, chk, threads, explanations)
     return {name: dump(doc) for name, doc in docs.items()}, summary
 
 
-def summarize(cfg, head, versions, changesets, chk, threads):
+def summarize(cfg, head, versions, changesets, chk, threads, explanations=()):
     st = {}
     if chk:
         for x in chk["sentences"].values():
@@ -77,6 +108,7 @@ def summarize(cfg, head, versions, changesets, chk, threads):
         "unattached_ledger": len(chk["unattached"]) if chk else 0,
         "messages": len(threads), "messages_attached": sum(1 for t in threads if t["attached"]),
         "messages_before_first_version": sum(1 for t in threads if t["draft_version"] is None),
+        "explained": sum(1 for e in explanations if e["reading"] is not None),
     }
 
 
