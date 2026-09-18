@@ -90,7 +90,7 @@ MUTATIONS = [
      "test_lintel.OffByDefaultTest.test_malformed_registry_counts_as_unregistered"),
     ("v2-D5", "cli.py", "            print(e, file=sys.stderr)\n            return 2", "            print(e, file=sys.stderr)\n            return 0",
      "test_lintel.CliOffByDefaultTest.test_cli_refuses_with_exit_2_and_creates_nothing"),
-    ('2.3', 'explain.py', '    if out["reading"] is None:\n        w = WILLOW.search(text)', '    if False:\n        w = WILLOW.search(text)',
+    ('2.3', 'explain.py', '    if out["reading"] is None:\n        w = willow_reading(text)', '    if False:\n        w = willow_reading(text)',
      'test_explain.ParseTest.test_first_line_reading_counts_when_the_block_omits_it'),
     ('2.3', 'explain.py', 'if f and out[KEYS[f.group(1)]] is None and f.group(2):', 'if f and f.group(2):',
      'test_explain.ParseTest.test_first_occurrence_of_a_field_wins_and_empty_values_do_not_count'),
