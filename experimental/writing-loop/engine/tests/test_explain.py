@@ -3,8 +3,8 @@ import unittest
 from loop import explain as EX
 
 
-def human(mid, t, text, session="s1"):
-    return {"mid": mid, "ts": f"t{t}", "t": t, "text": text, "sessions": [session]}
+def human(mid, t, text, session="s1", channel="prompt"):
+    return {"mid": mid, "ts": f"t{t}", "t": t, "text": text, "sessions": [session], "channel": channel}
 
 
 def reply(aid, t, text, session="s1"):
@@ -39,6 +39,13 @@ class ParseTest(unittest.TestCase):
         self.assertTrue(p["over_limit"])
         self.assertEqual(p["reading"], "甲")
 
+    def test_a_reading_written_over_several_lines_is_read_to_its_end(self):
+        """Found in use: a reading that went on as a list was cut at its first line."""
+        p = EX.parse("我读成了：对应的几件事是：\n- 修四处\n- 改 §5.5\n我补上的：无\n标签：修四处")
+        self.assertEqual(p["reading"], "对应的几件事是： 修四处 改 §5.5")
+        p = EX.parse("我读成了：只改标题\n\n正文开始。")
+        self.assertEqual(p["reading"], "只改标题")
+
     def test_nothing_said_is_none_not_empty_string(self):
         p = EX.parse("Just an answer.")
         self.assertEqual((p["reading"], p["source"], p["block"]), (None, None, False))
@@ -57,6 +64,17 @@ class BuildTest(unittest.TestCase):
         self.assertEqual((e[0]["reading"], e[0]["changed"], e[0]["source"]), ("同意推进，但 A03 保持原样", "A01, A02", "我读成了"))
         self.assertEqual(e[0]["replies"], ["a1", "a2"])
         self.assertIsNone(e[1]["reading"])
+
+    def test_a_message_typed_mid_turn_does_not_take_the_turns_block(self):
+        """Found in use: a question typed while Claude was working took the explanation of the turn it interrupted."""
+        conv = {"human": [human("p", 10, "改 §5.5 那句"), human("q", 12, "先给我看看刘海", channel="queued"),
+                          human("n", 50, "下一件事")],
+                "assistant": [reply("a1", 11, "开始改。"),
+                              reply("a2", 13, "我读成了：先画刘海的图\n\n做完了。\n〔循环〕\n读成：改正 §5.5 那句\n改了：X6.2\n依据：你的原话\n〔/循环〕")]}
+        e = {x["mid"]: x for x in EX.build(conv)}
+        self.assertEqual((e["p"]["reading"], e["p"]["changed"], e["p"]["source"]), ("改正 §5.5 那句", "X6.2", "解释块"))
+        self.assertEqual((e["q"]["reading"], e["q"]["changed"], e["q"]["source"]), ("先画刘海的图", None, "我读成了"))
+        self.assertIsNone(e["n"]["reading"])
 
     def test_replies_from_another_session_are_not_borrowed(self):
         conv = {"human": [human("h1", 10, "改一下标题", session="s1")],

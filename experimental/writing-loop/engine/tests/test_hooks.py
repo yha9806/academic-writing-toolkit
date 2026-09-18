@@ -183,6 +183,26 @@ class ProducerTest(unittest.TestCase):
                 os.environ["LOOP_LINTEL_HOME"] = old
 
 
+class AlsoSourceTest(unittest.TestCase):
+    def test_an_also_source_is_read_but_the_hooks_do_not_act_on_it(self):
+        """A session that once worked on the manuscript stays readable (its messages still trace commits),
+        but after rebinding it no longer gets the hooks' reminder or records."""
+        from loop import config as C
+        from loop import transcripts as T
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            make_transcripts(root, repo, "other", [{"_file": "s9", "type": "user", "timestamp": "2026-01-03T00:00:00Z",
+                                                    "origin": {"kind": "human"}, "message": {"role": "user", "content": "旧会话里的话"}}])
+            cfg = json.loads((ws / "config.json").read_text())
+            cfg["transcripts"]["also"] = [{"git_branch": "other", "cwd_prefix": str(repo)}]
+            (ws / "config.json").write_text(json.dumps(cfg))
+            self.assertIn("旧会话里的话", [h["text"] for h in T.read(C.load(ws))["human"]])
+            reg = Path(root) / "registry"
+            regs, _ = LH.registry(str(reg))
+            git(repo, "checkout", "-q", "-b", "other")
+            self.assertEqual(LH.session_ws(prompt_payload(repo), regs), (None, None))
+
+
 class RegistryAndProcessTest(unittest.TestCase):
     def test_a_line_that_does_not_load_is_skipped_and_reported(self):
         with TempDir() as root:

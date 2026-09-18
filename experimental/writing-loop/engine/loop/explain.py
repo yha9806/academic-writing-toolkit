@@ -17,7 +17,10 @@ import re
 
 BLOCK = re.compile(r"〔循环〕[ \t]*\n(.*?)\n[ \t]*〔/循环〕", re.S)
 FIELD = re.compile(r"^\s*(读成|改了|依据)\s*[：:]\s*(.*?)\s*$")
-WILLOW = re.compile(r"^\s*⚠?\s*我读成了\s*[：:]\s*(.*?)\s*$", re.M)
+# [ \t] rather than \s at both ends: \s would swallow the line break and run past the blank line that ends a reading
+WILLOW = re.compile(r"^[ \t]*⚠?[ \t]*我读成了[ \t]*[：:][ \t]*(.*?)[ \t]*$", re.M)
+WILLOW_STOP = re.compile(r"^\s*(?:我补上的|标签|你批准的)\s*[：:]")
+LIST_MARK = re.compile(r"^\s*(?:[-*•]|\d+[.、])\s*")
 MAX_LINES = 6
 KEYS = {"读成": "reading", "改了": "changed", "依据": "basis"}
 
@@ -40,22 +43,60 @@ def parse(text):
         if out["reading"] is not None:
             out["source"] = "解释块"
     if out["reading"] is None:
-        w = WILLOW.search(text)
-        if w and w.group(1):
-            out["reading"], out["source"] = w.group(1), "我读成了"
+        w = willow_reading(text)
+        if w:
+            out["reading"], out["source"] = w, "我读成了"
     return out
 
 
-def build(conv):
-    """One record per author message: the verbatim text, and what the replies up to the next author message said.
+def willow_reading(text):
+    """The "我读成了" line and its continuation: a reading written as a list runs on until the next field
+    ("我补上的" / "标签" / "你批准的") or a blank line. Found in use: taking only the first line lost the list."""
+    m = WILLOW.search(text)
+    if not m:
+        return None
+    parts = [m.group(1)]
+    for line in text[m.end():].split("\n")[1:]:
+        if not line.strip() or WILLOW_STOP.match(line):
+            break
+        parts.append(LIST_MARK.sub("", line).strip())
+    return " ".join(x for x in parts if x) or None
 
-    Replies are taken from the sessions the message was seen in, in time order, joined, then parsed once, so a
-    "我读成了" line at the start of the turn and a block at its end are both found."""
+
+def build(conv):
+    """One record per author message: the verbatim text and what the replies said about it.
+
+    Turns decide who owns what (found in use: a question typed while Claude was working took the explanation
+    of the turn it interrupted). A turn starts at a message sent normally and includes messages queued during it.
+      - the explanation block belongs to the message that started the turn;
+      - a "我读成了" line belongs to the latest author message before the reply that carries it.
+    Replies count only in the sessions the message was seen in."""
     humans, replies = conv["human"], conv["assistant"]
+    turn_of, cur = {}, None
+    for h in humans:
+        if cur is None or h.get("channel", "prompt") != "queued":
+            cur = h
+        turn_of[h["mid"]] = cur["mid"]
+    own = {h["mid"]: [] for h in humans}     # replies whose latest preceding author message is this one
+    turn = {h["mid"]: [] for h in humans}    # replies inside the turn this message started
+    for a in replies:
+        before = [h for h in humans if h["t"] < a["t"] and a["session"] in h["sessions"]]
+        if before:
+            own[before[-1]["mid"]].append(a)
+            turn[turn_of[before[-1]["mid"]]].append(a)
     out = []
-    for i, h in enumerate(humans):
-        end = humans[i + 1]["t"] if i + 1 < len(humans) else float("inf")
-        turn = [a for a in replies if h["t"] < a["t"] < end and a["session"] in h["sessions"]]
-        p = parse("\n\n".join(a["text"] for a in turn))
-        out.append({"mid": h["mid"], "ts": h["ts"], "verbatim": h["text"], "replies": [a["aid"] for a in turn], **p})
+    for h in humans:
+        starts_turn = turn_of[h["mid"]] == h["mid"]
+        block = parse("\n\n".join(a["text"] for a in turn[h["mid"]])) if starts_turn else None
+        rec = {"mid": h["mid"], "ts": h["ts"], "verbatim": h["text"], "replies": [a["aid"] for a in own[h["mid"]]],
+               "reading": None, "changed": None, "basis": None, "source": None, "block": False, "over_limit": False}
+        if block and block["block"]:
+            rec.update(changed=block["changed"], basis=block["basis"], block=True, over_limit=block["over_limit"])
+            if block["source"] == "解释块":
+                rec.update(reading=block["reading"], source="解释块")
+        if rec["reading"] is None:
+            w = willow_reading("\n\n".join(a["text"] for a in own[h["mid"]]))
+            if w:
+                rec.update(reading=w, source="我读成了")
+        out.append(rec)
     return out

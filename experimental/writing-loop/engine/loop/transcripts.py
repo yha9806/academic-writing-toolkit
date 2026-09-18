@@ -41,13 +41,22 @@ def _unclassified_kind(text):
     return "其他"
 
 
+def sources(cfg):
+    """(branch, cwd_prefix) pairs whose sessions belong to this manuscript: the primary one, plus any listed under
+    transcripts.also. `also` is read-only history (e.g. a session that once worked on the manuscript); hooks act
+    only on the primary source."""
+    t = cfg["transcripts"]
+    return [(t["git_branch"], str(t["cwd_prefix"]))] + [(s["git_branch"], str(s["cwd_prefix"])) for s in t.get("also", [])]
+
+
 def session_files(cfg):
     t = cfg["transcripts"]
     root = C.expand(t["projects_dir"])
-    prefix = C.escaped_project_dir(t["cwd_prefix"])
+    prefixes = {C.escaped_project_dir(p) for _, p in sources(cfg)}
     if not root.is_dir():
         return []
-    return sorted(p for d in root.iterdir() if d.is_dir() and d.name.startswith(prefix) for p in d.glob("*.jsonl"))
+    return sorted({p for d in root.iterdir() if d.is_dir() and any(d.name.startswith(x) for x in prefixes)
+                   for p in d.glob("*.jsonl")})
 
 
 def _load_scan(path):
@@ -73,10 +82,10 @@ def read(cfg, files=None, scan_cache=None):
     A file whose size and mtime are unchanged and that did not hold the branch is not read again: most session
     files under a busy repository belong to other branches. Any change to a file means it is read in full."""
     t = cfg["transcripts"]
-    branch, cwd_prefix = t["git_branch"], str(t["cwd_prefix"])
+    srcs = sources(cfg)
     files = session_files(cfg) if files is None else files
     humans, assistants, uncl, bad, seen_files, branch_files = {}, {}, {}, 0, [], []
-    needle = re.compile(rb'"gitBranch"\s*:\s*' + re.escape(json.dumps(branch).encode()))
+    needle = re.compile(rb'"gitBranch"\s*:\s*(?:' + b"|".join(re.escape(json.dumps(b).encode()) for b, _ in srcs) + rb")")
 
     def add_human(r, raw, channel, command_mode):
         text = _REMINDER.sub("", raw).strip()
@@ -111,7 +120,7 @@ def read(cfg, files=None, scan_cache=None):
             except json.JSONDecodeError:
                 bad += 1  # a session being written can end mid-line
                 continue
-            if r.get("gitBranch") != branch or not str(r.get("cwd", "")).startswith(cwd_prefix) or r.get("isSidechain"):
+            if r.get("isSidechain") or not any(r.get("gitBranch") == b and str(r.get("cwd", "")).startswith(p) for b, p in srcs):
                 continue
             typ = r.get("type")
             att = r.get("attachment") if typ == "attachment" else None

@@ -162,6 +162,12 @@ MUTATIONS = [
      'test_latex.MultiFileTest.test_a_commit_to_either_file_is_a_new_version_of_one_draft'),
     ('latex', 'history.py', '    return list(g) if isinstance(g, list) else [f":(glob){g}"]', '    return [f":(glob){g}"]',
      'test_latex.MultiFileTest.test_a_commit_to_either_file_is_a_new_version_of_one_draft'),
+    ('rebind', 'explain.py', '        if not line.strip() or WILLOW_STOP.match(line):', '        if WILLOW_STOP.match(line):',
+     'test_explain.ParseTest.test_a_reading_written_over_several_lines_is_read_to_its_end'),
+    ('rebind', 'explain.py', '        if cur is None or h.get("channel", "prompt") != "queued":', '        if True:',
+     'test_explain.BuildTest.test_a_message_typed_mid_turn_does_not_take_the_turns_block'),
+    ('rebind', 'transcripts.py', ' + [(s["git_branch"], str(s["cwd_prefix"])) for s in t.get("also", [])]', '',
+     'test_hooks.AlsoSourceTest.test_an_also_source_is_read_but_the_hooks_do_not_act_on_it'),
 ]
 
 
