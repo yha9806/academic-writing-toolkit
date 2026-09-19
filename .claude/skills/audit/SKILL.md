@@ -87,6 +87,10 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    ```
 
    (needs the guards built once: `npm --prefix guards install && npm --prefix guards run build`.)
+   Exit 2 with `nothing_checked: true` means the audit found no citation under
+   `chapters/**/*.md` — report it as **not audited**, never as clean. For a LaTeX
+   manuscript, `not_covered.latex_cite_commands` counts the `\cite` commands this
+   audit does not read. `--allow-empty` accepts an empty workspace on purpose.
    Report `quote-not-in-source` and `page-mismatch` as **High** — a quoted
    span that is not verbatim in the source's notes or PDF, or a page that the
    source contradicts — and `notes-missing` as **Medium**. `low-overlap` is

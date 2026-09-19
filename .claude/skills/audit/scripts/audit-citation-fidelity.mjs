@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Sentence-level citation fidelity audit (P4 item 4).
 //
-//   node scripts/audit-citation-fidelity.mjs [--base-dir <workspace>] [--json]
+//   node scripts/audit-citation-fidelity.mjs [--base-dir <workspace>] [--json] [--allow-empty]
+//
+// Exit: 1 on a hard finding; 2 when nothing was checked (no citation found in
+// chapters/**/*.md), unless --allow-empty — checking nothing is not a pass.
 //
 // The gap this closes: every existing gate asks whether a source was read,
 // verified, or cited — none asks whether the CITING SENTENCE matches the
@@ -47,6 +50,7 @@ const SCHEMA_VERSION = 1
 
 const args = process.argv.slice(2)
 const emitJson = args.includes('--json')
+const allowEmpty = args.includes('--allow-empty')
 const baseArg = args.includes('--base-dir') ? args[args.indexOf('--base-dir') + 1] : '.'
 const base = resolve(baseArg)
 
@@ -216,6 +220,30 @@ for (const rel of chapterFiles(base)) {
 }
 
 const hard = findings.filter((f) => f.kind === 'quote-not-in-source' || f.kind === 'page-mismatch')
+
+// Checking nothing is not a pass. The corpus is chapters/**/*.md; a manuscript
+// kept elsewhere (a LaTeX paper's sections/*.tex with \cite) yields zero
+// citations here, which must not read as a clean audit.
+function latexCites(root) {
+  let n = 0
+  let files = 0
+  const walk = (dir, depth) => {
+    if (depth > 6 || !existsSync(dir)) return
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name.startsWith('.') || e.name === 'node_modules') continue
+      const p = join(dir, e.name)
+      if (e.isDirectory()) walk(p, depth + 1)
+      else if (e.name.endsWith('.tex')) {
+        const k = (readFileSync(p, 'utf8').match(/\\[A-Za-z]*cite[A-Za-z]*\*?(?:\[[^\]]*\])*\{/g) || []).length
+        n += k
+        if (k > 0) files += 1
+      }
+    }
+  }
+  walk(root, 0)
+  return { commands: n, files }
+}
+const nothingChecked = citationsChecked === 0
 const payload = {
   schema_version: SCHEMA_VERSION,
   base: base,
@@ -223,6 +251,8 @@ const payload = {
   citations_checked: citationsChecked,
   findings,
   hard_finding_count: hard.length,
+  nothing_checked: nothingChecked,
+  ...(nothingChecked ? { not_covered: { reads: 'chapters/**/*.md (author-year citations) against literature/reading_notes/*_NOTES.md', ...(() => { const l = latexCites(base); return { latex_cite_commands: l.commands, latex_files_with_cites: l.files } })() } } : {}),
   limits: {
     semantic_inversion: 'NOT detected: a sentence asserting the opposite of its source in the source\'s own words passes every check here; that still requires reading the source',
     low_overlap: 'experimental — no false-positive rate has been measured on real notes; it never fails the audit',
@@ -241,5 +271,8 @@ if (emitJson) {
     for (const f of group) console.log(`  ${f.source} — ${f.location}\n    ${f.detail}`)
   }
   console.log(`\nNot checked: whether a citing sentence says the OPPOSITE of its source. ${payload.limits.semantic_inversion}.`)
+  if (nothingChecked) {
+    console.log(`\nNOTHING CHECKED: no citation found under chapters/**/*.md.${payload.not_covered.latex_cite_commands > 0 ? ` ${payload.not_covered.latex_cite_commands} LaTeX \\cite command(s) exist in ${payload.not_covered.latex_files_with_cites} .tex file(s); this audit does not read them.` : ''} This is not a pass${allowEmpty ? ' (accepted by --allow-empty)' : ''}.`)
+  }
 }
-process.exit(hard.length > 0 ? 1 : 0)
+process.exit(hard.length > 0 ? 1 : nothingChecked && !allowEmpty ? 2 : 0)

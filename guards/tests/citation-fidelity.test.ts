@@ -88,3 +88,42 @@ test('HONESTY: a sentence inverting its source in the source\'s own words is NOT
   assert.equal(status, 0)
   assert.match(out.limits.semantic_inversion, /NOT detected/)
 })
+
+// Checking nothing is not a pass (writing-control overhaul, thin floor rule 4).
+// Before this, a LaTeX manuscript — sections/*.tex with \cite — produced
+// citations_checked 0, no findings and exit 0: a clean-looking result for a
+// manuscript the audit never read.
+function runRaw(ws: string, extra: string[] = []) {
+  const res = spawnSync(process.execPath, [AUDIT, '--base-dir', ws, '--json', ...extra], { encoding: 'utf8', timeout: 60_000 })
+  return { status: res.status, out: JSON.parse(res.stdout) as { citations_checked: number; nothing_checked?: boolean; not_covered?: { latex_cite_commands: number } } }
+}
+
+test('a workspace with nothing to check exits 2 and says nothing was checked', () => {
+  const ws = mkdtempSync(join(tmpdir(), 'awt-fidelity-'))
+  dirs.push(ws)
+  const { status, out } = runRaw(ws)
+  assert.equal(out.citations_checked, 0)
+  assert.equal(out.nothing_checked, true)
+  assert.equal(status, 2)
+})
+
+test('a LaTeX manuscript is reported as not covered, not as clean', () => {
+  const ws = mkdtempSync(join(tmpdir(), 'awt-fidelity-'))
+  dirs.push(ws)
+  mkdirSync(join(ws, 'sections'), { recursive: true })
+  writeFileSync(join(ws, 'sections', 'intro.tex'), 'As \\citet{smith2024} argues, archives shape evidence~\\cite{jones2021,lee2020}.\n')
+  const { status, out } = runRaw(ws)
+  assert.equal(out.nothing_checked, true)
+  assert.equal(out.not_covered?.latex_cite_commands, 2)
+  assert.equal((out.not_covered as { latex_files_with_cites?: number } | undefined)?.latex_files_with_cites, 1)
+  assert.equal(status, 2)
+})
+
+test('--allow-empty accepts a workspace with nothing to check', () => {
+  const ws = mkdtempSync(join(tmpdir(), 'awt-fidelity-'))
+  dirs.push(ws)
+  const { status, out } = runRaw(ws, ['--allow-empty'])
+  assert.equal(out.nothing_checked, true)
+  assert.equal(status, 0)
+})
+
