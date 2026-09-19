@@ -3867,6 +3867,64 @@ assert 'credit-outside-its-procedure' in kinds, kinds
     [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
 }
 
+# --- Fails closed ----------------------------------------------------------
+# A check that examines nothing and exits 0 is worse than no check: the green
+# result is read as "looked and found nothing wrong". Three of these shipped.
+test_T154() {
+    # An empty bibliography verifies no reference. That is not a pass.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    : > "$tmp/empty.bib"
+    out=$(python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/empty.bib" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['entries'] == 0, d
+assert d['nothing_checked'] is True, d
+" || return 1
+    [ "$status" = "2" ] || { echo "expected exit 2, got $status"; return 1; }
+}
+
+test_T155() {
+    # --allow-empty is the way to say an empty bibliography is expected here.
+    local tmp status
+    tmp=$(mktemp -d) || return 1
+    : > "$tmp/empty.bib"
+    python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/empty.bib" --allow-empty >/dev/null 2>&1
+    status=$?
+    rm -rf "$tmp"
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T156() {
+    # An argument the script does not recognise must stop it. count-words took
+    # an unknown positional, counted a different directory and exited 0.
+    local status
+    node .claude/skills/map/scripts/count-words.mjs --zzz-not-a-real-flag >/dev/null 2>&1
+    status=$?
+    [ "$status" != "0" ] || { echo "expected non-zero for an unknown flag, got 0"; return 1; }
+    node .claude/skills/map/scripts/count-words.mjs /tmp >/dev/null 2>&1
+    status=$?
+    [ "$status" != "0" ] || { echo "expected non-zero for an unknown positional, got 0"; return 1; }
+}
+
+test_T157() {
+    # The property itself, kept green: every check fails closed on an empty
+    # target, and every script under a skill is registered as a check or not.
+    local out status
+    out=$(python3 scripts/check-fails-closed.py --json 2>&1)
+    status=$?
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['problem_count'] == 0, d['problems']
+assert d['checks_run'] >= 6, d
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -3880,6 +3938,10 @@ run_test "T150 commit gate: a credit passes only when the key is listed" test_T1
 run_test "T151 commit gate: an existing key used in a new sentence is unaccounted" test_T151
 run_test "T152 commit gate: gating against a ref without the file" test_T152
 run_test "T153 commit gate: a credit does not cover a different procedure" test_T153
+run_test "T154 verify-refs: an empty bibliography is not a pass" test_T154
+run_test "T155 verify-refs: --allow-empty says the emptiness is expected" test_T155
+run_test "T156 count-words: an unrecognised argument stops it" test_T156
+run_test "T157 every check fails closed and every script is registered" test_T157
 
 
 header ""

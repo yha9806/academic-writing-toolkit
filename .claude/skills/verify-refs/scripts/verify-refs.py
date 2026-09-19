@@ -394,6 +394,8 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", dest="emit_json")
     parser.add_argument("--online", action="store_true", help="Verify records against external metadata sources.")
     parser.add_argument("--metadata-dir", help="Read metadata fixtures from DIR instead of live APIs when present.")
+    parser.add_argument("--allow-empty", action="store_true",
+                        help="a bibliography with no entries is expected here, so exit 0 rather than 2")
     args = parser.parse_args()
     target = Path(args.bib_path or args.path or "")
     if not target.is_file():
@@ -408,9 +410,14 @@ def main() -> int:
         metadata_dir = Path(args.metadata_dir) if args.metadata_dir else None
         online_issues, verified, metadata_checks = verify_online(entries, metadata_dir)
         issues.extend(online_issues)
+    # A bibliography with no entries verifies no reference, so "0 issues" here
+    # states only that nothing was examined. Reported as a pass it reads as
+    # "the references were checked and are sound", which is the opposite.
+    nothing_checked = not entries
     payload = {
         "schema_version": 1,
         "entries": len(entries),
+        "nothing_checked": nothing_checked,
         "issues": issues,
         "issue_count": len(issues),
         "verified": verified,
@@ -423,7 +430,11 @@ def main() -> int:
         print("entries: {}".format(len(entries)))
         for issue in issues:
             print("{entry}: {kind}: {message}".format(**issue))
-    return 1 if issues else 0
+        if nothing_checked:
+            print("NOTHING CHECKED: the bibliography holds no entries. This is not a pass.")
+    if issues:
+        return 1
+    return 2 if nothing_checked and not args.allow_empty else 0
 
 
 if __name__ == "__main__":

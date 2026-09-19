@@ -11,6 +11,13 @@ try {
   } else {
     const index = args.indexOf('--base-dir')
     if (index !== -1 && (!args[index + 1] || args[index + 1].startsWith('--'))) throw new Error('--base-dir needs a workspace path')
+    // Anything not recognised stops the run. Handed an unknown positional this
+    // silently resolved the base to '.', counted the toolkit's own template and
+    // exited 0 — a confident word count for a directory nobody asked about.
+    const known = new Set(['--base-dir', '--json', '--help'])
+    const valueAt = index === -1 ? -1 : index + 1
+    const stray = args.filter((arg, at) => !known.has(arg) && at !== valueAt)
+    if (stray.length) throw new Error(`unrecognised argument(s): ${stray.join(' ')}`)
     const base = resolve(index === -1 ? '.' : args[index + 1])
     const chapters = readdirSync(join(base, 'chapters'), { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith('.md')).map((entry) => entry.name).sort()
