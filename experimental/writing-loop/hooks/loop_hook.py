@@ -18,14 +18,16 @@ Registered workspaces: one directory per line in ~/.awt/loop-workspaces (or $AWT
 
 What this does not do: the guard matches the tool call statically, and for shell commands it lets through
 a segment that names human/ only as the argument of a reading command (cat, grep, ...) and redirects
-nothing into it. A shell command that builds the path at
-run time (variables, encodings) gets through. It guards this harness's tool channel, not the file system,
-and a person editing files by hand never passes through it.
+nothing into it. Segments end where the shell would end them, outside quotes; a segment that names human/
+and contains a command substitution, or that cannot be parsed, is refused. A shell command that builds the
+path at run time (variables, encodings) gets through. It guards this harness's tool channel, not the file
+system, and a person editing files by hand never passes through it.
 """
 import fnmatch
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -148,8 +150,13 @@ def _target(tool, ti, cwd):
 
 
 PATHLIKE = re.compile(r"[^\s;&|<>()'\"`=]+")
-REDIRECT = re.compile(r"(?:\d*|&)>>?\s*([^\s;&|<>()]+)")
 SEGMENTS = re.compile(r"&&|\|\||[;|\n]")
+# Command substitution runs inside double quotes too, so its text cannot be judged by the command around it.
+SUBSTITUTION = re.compile(r"\$\(|`|<\(|>\(")
+# A reading command named by its full path counts only from a system directory: a file called grep
+# elsewhere could be anything.
+SYSTEM_BIN = {"/bin", "/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"}
+OPERATOR = set("<>&|0123456789")
 
 
 def _resolves_under(tok, human, cwd):
@@ -164,27 +171,100 @@ def _resolves_under(tok, human, cwd):
     return _under(p, human)
 
 
+def _segments(cmd):
+    """Split where the shell ends a command: ; & && || | and newlines, outside quotes.
+
+    Found in live use (2026-09-19): splitting on every | refused `jq '.a|.b' human/c` and `grep 'a|b' human/c`,
+    reads both. Unbalanced quotes (a heredoc body, a typo) fall back to splitting everywhere, as before."""
+    segs, cur, q, i = [], [], None, 0
+    while i < len(cmd):
+        c = cmd[i]
+        if q:
+            cur.append(c)
+            if c == "\\" and q == '"' and i + 1 < len(cmd):
+                cur.append(cmd[i + 1])
+                i += 1
+            elif c == q:
+                q = None
+        elif c == "\\" and i + 1 < len(cmd):
+            cur.append(cmd[i:i + 2])
+            i += 1
+        elif c in "'\"":
+            q = c
+            cur.append(c)
+        elif c in ";|\n" or (c == "&" and cmd[i - 1:i] not in (">", "<") and cmd[i + 1:i + 2] != ">"):
+            segs.append("".join(cur))
+            cur = []
+            if cmd[i:i + 2] in ("&&", "||"):
+                i += 1
+        else:
+            cur.append(c)
+        i += 1
+    if q:
+        return SEGMENTS.split(cmd)
+    segs.append("".join(cur))
+    return segs
+
+
+def _words(seg):
+    """The shell words of one segment with their quotes kept, so a quoted > stays a word; None if unparseable."""
+    try:
+        lex = shlex.shlex(seg, posix=False, punctuation_chars=True)
+        lex.whitespace_split = True
+        return list(lex)
+    except ValueError:
+        return None
+
+
+def _unquote(word):
+    try:
+        parts = shlex.split(word)
+    except ValueError:
+        return word
+    return parts[0] if len(parts) == 1 else word
+
+
+def _command_name(word):
+    d, base = os.path.split(_unquote(word))
+    return base if d in SYSTEM_BIN else _unquote(word)
+
+
+def _redirect_targets(words):
+    """The word after each unquoted output redirection (>, >>, 2>, &>, >| ...)."""
+    return [_unquote(words[i + 1]) for i, w in enumerate(words[:-1]) if ">" in w and set(w) <= OPERATOR]
+
+
 def _shell_write_hit(cmd, human, cwd):
     """The human/ path a shell command may write, or None.
 
-    Only the segments (split on ; && || | and newlines) that name a path under human/ are judged. Such a
-    segment passes only if it starts with a reading command and redirects nothing into human/. Segments that
-    do not touch human/ do not matter, so `ls human/; cd x && python3 y` is a read, while `cat a > human/b`,
-    `… | tee human/b`, `cp a human/b` and `cd human && rm b` are writes. Heuristic, and stated as one."""
-    for seg in (s.strip() for s in SEGMENTS.split(cmd)):
+    Only the segments (split, outside quotes, on ; & && || | and newlines) that name a path under human/ are
+    judged. Such a segment passes only if it starts with a reading command and redirects nothing into human/.
+    Segments that do not touch human/ do not matter, so `ls human/; cd x && python3 y` is a read, while
+    `cat a > human/b`, `cat a > "human/b"`, `… | tee human/b`, `cp a human/b`, `cat "$(cp a human/b)"` and
+    `cd human && rm b` are writes. Heuristic, and stated as one."""
+    for seg in (s.strip() for s in _segments(cmd)):
         if not seg:
             continue
         touched = [tok for tok in PATHLIKE.findall(seg) if _resolves_under(tok, human, cwd)]
         if not touched:
             continue
-        writes_human = any(_resolves_under(t, human, cwd) for t in REDIRECT.findall(seg) if not t.startswith("&"))
-        if seg.split()[0] not in READ_ONLY or writes_human:
+        words = _words(seg)
+        if not words or SUBSTITUTION.search(seg):
+            return touched[0]
+        writes_human = any(_resolves_under(t, human, cwd) for t in _redirect_targets(words))
+        if _command_name(words[0]) not in READ_ONLY or writes_human:
             return touched[0]
     return None
 
 
 # Reading the author's words is legitimate; only writing them is reserved to hooks and the interface.
 READ_ONLY = {"cat", "head", "tail", "less", "more", "wc", "grep", "rg", "ls", "jq", "stat", "file", "diff", "sha256sum", "shasum", "md5"}
+
+# Said to the model, not by the author. Background-task notices, messages from another Claude session and the
+# like reach UserPromptSubmit as well (checked against real transcripts, 2026-09-17); none of them belongs in
+# human/. The same heads as the wishing-willow plugin's envelope rule.
+ENVELOPE = re.compile(r"\s*(?:<(?:task-notification|ci-monitor-event|system-reminder|command-name|command-message|"
+                      r"local-command-stdout|cross-session-message)\b|\[SYSTEM NOTIFICATION)", re.I)
 
 
 def on_prompt(payload, regs, now):
@@ -195,14 +275,17 @@ def on_prompt(payload, regs, now):
     if not isinstance(prompt, str):
         HL.record_event(ws, "hook_error", "UserPromptSubmit 的载荷里没有字符串字段 prompt（运行时字段名变了？）", now=now)
         return None
+    reminder = {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                       "additionalContext": REMINDER.format(name=cfg["name"])}}
+    if ENVELOPE.match(prompt):
+        return reminder  # the turn it starts can still edit the draft
     (ws / "human").mkdir(parents=True, exist_ok=True)
     rec = {"at": _iso(now), "session_id": payload.get("session_id"), "prompt_id": payload.get("prompt_id"),
            "prompt": prompt, "origin": "hook:UserPromptSubmit"}
     with open(ws / "human" / "comments.jsonl", "a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
     ensure_producer(ws)
-    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                   "additionalContext": REMINDER.format(name=cfg["name"])}}
+    return reminder
 
 
 def on_pre_tool(payload, regs, now):

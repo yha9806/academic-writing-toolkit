@@ -82,6 +82,29 @@ class PromptTest(unittest.TestCase):
             self.assertIsNone(LH.handle(prompt_payload(root), regs))
             self.assertFalse((ws / "human" / "comments.jsonl").exists())
 
+    def test_system_envelopes_are_not_recorded_as_the_authors_words(self):
+        """Background-task notices and messages from another Claude session reach UserPromptSubmit too
+        (checked against real transcripts, 2026-09-17). They are said to the model, not by the author, so they
+        stay out of human/; the reminder still goes out, since the turn they start can still edit the draft.
+        A quoted reply starts with markup as well, and it is the author's."""
+        envelopes = [
+            "<task-notification>\n<task-id>t1</task-id>\n<status>completed</status>\n</task-notification>",
+            '<cross-session-message from="uds:/tmp/fake/1.sock" from-name="other" from-mode="prompting">\n'
+            "Status from session B: the nightly build finished.\n</cross-session-message>",
+            "  <system-reminder>\nsynthetic\n</system-reminder>",
+            "[SYSTEM NOTIFICATION] synthetic",
+        ]
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            for text in envelopes:
+                out = LH.handle(prompt_payload(repo, prompt=text), regs)
+                self.assertIn("〔循环〕", out["hookSpecificOutput"]["additionalContext"], text[:24])
+            self.assertFalse((ws / "human" / "comments.jsonl").exists())
+            quoted = "<!-- reply -->\n> 〔循环〕\n> 改了：无\n> 〔/循环〕\n\n这一块是什么意思？"
+            LH.handle(prompt_payload(repo, prompt=quoted), regs)
+            recs = [json.loads(line) for line in (ws / "human" / "comments.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual([r["prompt"] for r in recs], [quoted])
+
 
 class GuardTest(unittest.TestCase):
     def denied(self, out):
@@ -124,6 +147,38 @@ class GuardTest(unittest.TestCase):
                 self.assertIsNone(LH.handle(tool_payload("PreToolUse", repo, "Bash", {"command": cmd}), regs), cmd)
             for cmd in (f"cat x > {h}/y", f"grep a {h}/c | tee {h}/d", f"sed -i s/a/b/ {h}/c", f"cat {h}/c; rm {h}/c",
                         f"cd {h} && rm c", f"cat a >> {h}/c 2>&1"):
+                self.assertTrue(self.denied(LH.handle(tool_payload("PreToolUse", repo, "Bash", {"command": cmd}), regs)), cmd)
+
+    def test_a_read_is_split_and_named_the_way_the_shell_does_it(self):
+        """Found in live use (2026-09-19): a jq program with | inside single quotes, a grep pattern with | in it,
+        and /usr/bin/grep were all refused although they only read. A quoted | does not end a command, and a
+        reading command named by its full path from a system directory is still that command."""
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            h = ws / "human"
+            for cmd in (f"jq -r 'select(.prompt|startswith(\"<\")) | .at' {h}/comments.jsonl",
+                        f"grep -E 'a|b' {h}/c",
+                        f'grep -o -E "(at|prompt)" {h}/c; echo done',
+                        f"/usr/bin/grep -c x {h}/c",
+                        f"grep '>' {h}/c"):
+                self.assertIsNone(LH.handle(tool_payload("PreToolUse", repo, "Bash", {"command": cmd}), regs), cmd)
+
+    def test_quotes_do_not_hide_a_write(self):
+        """Reading quotes the shell's way must not open a door: a quoted redirect target, a command substitution
+        inside quotes, a background & and a reading command's name borrowed by a file elsewhere are all writes
+        or unknowns. The first four were let through before quotes were read at all."""
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            h = ws / "human"
+            for cmd in (f'cat a > "{h}/b"',
+                        f"cat a >'{h}/b'",
+                        f'cat "$(tee {h}/b < a)"',
+                        f"cat {h}/c & rm {h}/c",
+                        f"cat `cp a {h}/b`",
+                        f"grep x <(cat a) > {h}/b",
+                        f"/tmp/fake/bin/grep x {h}/c",
+                        f"sh -c 'rm {h}/c'",
+                        f"grep 'x' {h}/c | sh -c 'cat > {h}/d'"):
                 self.assertTrue(self.denied(LH.handle(tool_payload("PreToolUse", repo, "Bash", {"command": cmd}), regs)), cmd)
 
     def test_other_writes_pass_and_malformed_payloads_do_not_crash(self):
