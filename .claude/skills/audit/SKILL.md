@@ -80,6 +80,24 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    legacy packets can be interpreted with the schema and checks linked in
    `references/argument-licence/README.md`.
 
+   **G. Claim ledger — does a LaTeX manuscript's claim match its archived source?**
+
+   ```
+   python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir . --ledger ledger.tsv --json
+   ```
+
+   For manuscripts kept as `.tex` (which audit F does not read). The ledger is a
+   TSV with the columns `claim, cite_key, snippet, source_file, level`: one row
+   binds one manuscript sentence to one verbatim snippet in one archived source.
+   Report `snippet-not-in-source`, `claim-not-in-manuscript`,
+   `key-not-in-claim-sentence`, `source-file-missing` and
+   `negative-claim-without-fulltext` as **High**; `unledgered-assertion` as
+   **Medium**; `qualifier-dropped` and `unledgered-credit` are prompts, not
+   findings. Exit 2 means no ledger row was checked at all — report that as
+   **not audited**, never as clean. `--pairs` prints the claim/snippet pairs so
+   a reader can judge what the audit does not: whether a claim says more than
+   its snippet.
+
    **F. Citation fidelity — does the citing sentence match its source?**
 
    ```

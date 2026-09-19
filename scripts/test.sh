@@ -3569,7 +3569,157 @@ run_test "T134 a LaTeX preamble is not prose" test_T134
 run_test "T135 author-control scaffold is conservative and repeat-safe" test_T135
 run_test "T136 author-control strict checker enforces approval state" test_T136
 run_test "T137 cross-skill author-control gates remain present" test_T137
+# --- T142-T146: claim ledger for LaTeX manuscripts ---------------------------
+# The gap: the citation fidelity audit reads chapters/**/*.md; a LaTeX
+# manuscript's claims about its sources were checked by nothing. Each row of a
+# claim ledger binds a manuscript sentence to a verbatim snippet in an archived
+# source, and the audit checks the binding in both directions.
+ledger_fixture() {
+    # $1 = dir. Two content-asserting citing sentences (one ledgered, one not)
+    # and one credit-only citation.
+    mkdir -p "$1/sections" "$1/evidence"
+    cat > "$1/sections/02_related.tex" <<'EOF'
+\section{Related work}
+Buckley et al. show that small pools bias the judgments toward documents with topic words~\cite{buckley2007}.
+Voorhees notes that an absolute score is not meaningful in isolation~\cite{voorhees2002}.
+We control the false discovery rate with the Benjamini--Hochberg procedure~\cite{bh1995}.
+EOF
+    cat > "$1/evidence/buckley2007.txt" <<'EOF'
+This paper shows that the judgment sets produced by traditional pooling when the pools are
+too small can be biased in that they favor relevant documents that contain some of the topic
+title words.
+EOF
+    printf 'claim\tcite_key\tsnippet\tsource_file\tlevel\n' > "$1/ledger.tsv"
+    printf 'Buckley et al. show that small pools bias the judgments toward documents with topic words\tbuckley2007\tcan be biased in that they favor relevant documents that contain some of the topic title words\tevidence/buckley2007.txt\tfulltext\n' >> "$1/ledger.tsv"
+}
+
+test_T147() {
+    # Citing sentences but an empty ledger: nothing was verified, so this is
+    # not a pass either — the coverage list alone must not read as clean.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    printf 'claim\tcite_key\tsnippet\tsource_file\tlevel\n' > "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['citing_sentences'] == 3 and d['ledger_rows'] == 0, d
+assert d['nothing_checked'] is True, d
+" || return 1
+    [ "$status" = "2" ] || { echo "expected exit 2, got $status"; return 1; }
+}
+
+test_T142() {
+    # A snippet that is not verbatim in the archived source is a hard finding.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    sed -i.bak 's/can be biased in that they favor/are always biased because they favour/' "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    local status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'snippet-not-in-source' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T143() {
+    # A ledger row whose claim is no longer in the manuscript is a hard finding:
+    # the sentence was edited and the binding went stale.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    sed -i.bak 's/Buckley et al. show that small pools bias the judgments toward documents with topic words~/Buckley et al. show that pooling is unreliable~/' "$tmp/sections/02_related.tex"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'claim-not-in-manuscript' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T144() {
+    # Coverage: a citing sentence that asserts something about its source and
+    # has no ledger row is reported; a credit-only citation is not a finding.
+    # The ledgered row prompts about a qualifier the claim drops.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert d['citing_sentences'] == 3, d['citing_sentences']
+assert d['ledger_rows'] == 1, d['ledger_rows']
+assert 'unledgered-assertion' in kinds, kinds
+assert 'voorhees2002' in [f['detail'] for f in d['findings'] if f['kind']=='unledgered-assertion'][0]
+assert 'unledgered-credit' not in [f['kind'] for f in d['findings'] if not f.get('prompt')], kinds
+assert any(f['kind']=='qualifier-dropped' and f.get('prompt') for f in d['findings']), kinds
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T145() {
+    # Checking nothing is not a pass.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/sections"
+    printf '\\section{Empty}\nNo citations here.\n' > "$tmp/sections/01.tex"
+    printf 'claim\tcite_key\tsnippet\tsource_file\tlevel\n' > "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['nothing_checked'] is True, d
+" || return 1
+    [ "$status" = "2" ] || { echo "expected exit 2, got $status"; return 1; }
+}
+
+test_T146() {
+    # A negative claim about a source needs the full text, never an abstract.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+Buckley et al. did not test pooled judgments on image retrieval~\cite{buckley2007}.
+EOF
+    printf 'Buckley et al. did not test pooled judgments on image retrieval\tbuckley2007\tcan be biased in that they favor relevant documents\tevidence/buckley2007.txt\tabstract-only\n' >> "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'negative-claim-without-fulltext' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
+run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
+run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
+run_test "T144 claim ledger: coverage of citing sentences and the qualifier prompt" test_T144
+run_test "T145 claim ledger: checking nothing is not a pass" test_T145
+run_test "T146 claim ledger: a negative claim needs the full text" test_T146
+run_test "T147 claim ledger: citing sentences with an empty ledger is not a pass" test_T147
+
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
