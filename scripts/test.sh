@@ -3712,6 +3712,161 @@ assert 'negative-claim-without-fulltext' in kinds, kinds
     [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
 }
 
+# --- Commit gate ------------------------------------------------------------
+# Every one of the six wrong citations in the TriCH manuscript was introduced by
+# a commit whose stated purpose was something else (a rewrite, a positioning
+# pass, a page-count compression, a change of venue), and the structural check
+# that ran at the time was green. The gate narrows the audit to what THIS change
+# added, so it can sit on the commit rather than on the submission.
+gate_fixture() {
+    # $1 = dir. A git repo whose HEAD holds one ledgered assertion and one
+    # credit. The caller then edits the working tree and gates against HEAD.
+    ledger_fixture "$1"
+    git -C "$1" init -q 2>/dev/null
+    git -C "$1" config user.email t@example.com
+    git -C "$1" config user.name Test
+    git -C "$1" add -A 2>/dev/null
+    git -C "$1" commit -qm base 2>/dev/null
+}
+
+test_T148() {
+    # A newly added sentence that asserts something about its source, with no
+    # ledger row, is a hard finding in gate mode.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+Chun et al. report that the standard test set under-counts correct matches~\cite{chun2022}.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'new-assertion-unledgered' in kinds, kinds
+assert d['gate']['new_citing_sentences'] == 1, d.get('gate')
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T149() {
+    # Sentences that did not change are not the gate's business, however many
+    # unledgered assertions the manuscript already carries.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    printf '\n%% a comment, no new citation\n' >> "$tmp/sections/02_related.tex"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['gate']['new_citing_sentences'] == 0, d.get('gate')
+assert d['hard_finding_count'] == 0, d['findings']
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T150() {
+    # A method credit passes the gate only when the author has listed that key.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    printf 'bh1995\nclopper1934\n' > "$tmp/credits.txt"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+We report Clopper--Pearson intervals throughout~\cite{clopper1934}.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --credits "$tmp/credits.txt" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['hard_finding_count'] == 0, d['findings']
+assert d['gate']['new_citing_sentences'] == 1, d.get('gate')
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T151() {
+    # The Lakens shape: a key already cited elsewhere in the manuscript, dropped
+    # into a new sentence about a different procedure. Being present already is
+    # not an account of the new use.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+A family-level permutation test rejects the null here~\cite{bh1995}.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'new-citation-unaccounted' in kinds or 'new-assertion-unledgered' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T152() {
+    # Gating against a ref where the file did not exist makes every citing
+    # sentence new; an empty ledger then cannot be a pass.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp"
+    git -C "$tmp" init -q 2>/dev/null
+    git -C "$tmp" config user.email t@example.com
+    git -C "$tmp" config user.name Test
+    printf 'placeholder\n' > "$tmp/README"
+    git -C "$tmp" add -A 2>/dev/null
+    git -C "$tmp" commit -qm empty 2>/dev/null
+    ledger_fixture "$tmp"
+    printf 'claim\tcite_key\tsnippet\tsource_file\tlevel\n' > "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['gate']['new_citing_sentences'] == 3, d.get('gate')
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T153() {
+    # The Lakens shape, with the key allowlisted. A credit is accepted for a
+    # named procedure; the same key attached to a different procedure is not
+    # accounted for by that entry.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    printf 'bh1995equivalence = equivalence bounds\n' > "$tmp/credits.txt"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+A family-level permutation test rejects the null here~\cite{bh1995equivalence}.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --credits "$tmp/credits.txt" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'credit-outside-its-procedure' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -3719,6 +3874,12 @@ run_test "T144 claim ledger: coverage of citing sentences and the qualifier prom
 run_test "T145 claim ledger: checking nothing is not a pass" test_T145
 run_test "T146 claim ledger: a negative claim needs the full text" test_T146
 run_test "T147 claim ledger: citing sentences with an empty ledger is not a pass" test_T147
+run_test "T148 commit gate: a new assertion with no ledger row" test_T148
+run_test "T149 commit gate: unchanged sentences are not this change's business" test_T149
+run_test "T150 commit gate: a credit passes only when the key is listed" test_T150
+run_test "T151 commit gate: an existing key used in a new sentence is unaccounted" test_T151
+run_test "T152 commit gate: gating against a ref without the file" test_T152
+run_test "T153 commit gate: a credit does not cover a different procedure" test_T153
 
 
 header ""

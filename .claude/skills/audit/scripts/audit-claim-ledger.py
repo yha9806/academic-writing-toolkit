@@ -26,13 +26,38 @@ small red-check set: with the claim and its passage paired it caught 7 of 8,
 and it missed a dropped "expected" every time. So the audit binds and prompts;
 a reader still decides. `--pairs` prints claim/snippet pairs for that reading.
 
+Commit gate (--gate-since GITREF, --credits FILE)
+------------------------------------------------
+Run over a whole manuscript the audit produces a long coverage list that nobody
+reads at the moment a citation is written. `--gate-since` narrows it to the
+citing sentences this change added, and makes those hard findings, so the check
+can sit on the commit instead of on the submission.
+
+  new-assertion-unledgered     a new sentence asserts something about its source
+  new-citation-unaccounted     a new sentence cites a source with no account
+  credit-outside-its-procedure a credited key used for a procedure it was not
+                               credited for
+
+`--credits` holds the method credits the author accepts, one per line, as
+`key = the procedure it may be cited for`. The procedure matters: run against
+the six commits that introduced the wrong citations in a real manuscript, a
+key-only allowlist let an equivalence-testing paper through as the source of a
+permutation test, because the key was listed and the sentence read like a
+credit. A bare key (no `=`) restores that hole.
+
+Historical check, 2026-09-20: over the four commits that introduced them, the
+gate flags all six wrong citations plus the dropped qualifier, as part of 34,
+14, 6 and 4 flagged sentences respectively. It demands an account; it does not
+judge whether the account is right.
+
 Exit: 1 on a hard finding, 2 when no ledger row was checked at all (an empty
 ledger verifies nothing, whatever the coverage list says) unless --allow-empty,
-0 otherwise.
+0 otherwise. In gate mode a change that added no citation is a pass.
 """
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -74,16 +99,48 @@ def tex_files(base):
             if not any(part.startswith(".") or part in {"node_modules", "build"} for part in p.relative_to(base).parts)]
 
 
+def split_cited(text):
+    """[(sentence, keys)] for every sentence of `text` that carries a \\cite."""
+    out = []
+    for sentence in re.split(r"(?<=[.])\s+(?=[A-Z\\])", clean_tex(text)):
+        keys = [k.strip() for group in CITE.findall(sentence) for k in group.split(",") if k.strip()]
+        if keys:
+            out.append((sentence.strip(), keys))
+    return out
+
+
 def citing_sentences(base):
     """[(file, sentence, keys)] for every sentence that carries a \\cite."""
     out = []
     for path in tex_files(base):
-        text = clean_tex(path.read_text(encoding="utf-8", errors="replace"))
-        for sentence in re.split(r"(?<=[.])\s+(?=[A-Z\\])", text):
-            keys = [k.strip() for group in CITE.findall(sentence) for k in group.split(",") if k.strip()]
-            if keys:
-                out.append((str(path.relative_to(base)), sentence.strip(), keys))
+        for sentence, keys in split_cited(path.read_text(encoding="utf-8", errors="replace")):
+            out.append((str(path.relative_to(base)), sentence, keys))
     return out
+
+
+def sentences_at_ref(base, ref):
+    """Normalised citing sentences as they stood at `ref`.
+
+    Files that did not exist there contribute nothing, so every sentence of a
+    newly added file counts as new.
+    """
+    top = subprocess.run(["git", "-C", str(base), "rev-parse", "--show-toplevel"],
+                         capture_output=True, text=True)
+    if top.returncode:
+        sys.exit(f"GATE_NOT_A_REPO: {base} is not inside a git repository")
+    root = Path(top.stdout.strip())
+    if subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+                      capture_output=True).returncode:
+        sys.exit(f"GATE_BAD_REF: {ref} is not a commit in {root}")
+    before = set()
+    for path in tex_files(base):
+        rel = path.resolve().relative_to(root)
+        shown = subprocess.run(["git", "-C", str(root), "show", f"{ref}:{rel}"],
+                               capture_output=True, text=True)
+        if shown.returncode:
+            continue
+        before.update(norm(s) for s, _ in split_cited(shown.stdout))
+    return before
 
 
 def read_ledger(path):
@@ -113,6 +170,11 @@ def main(argv=None):
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--pairs", action="store_true", help="print claim/snippet pairs for reading")
     ap.add_argument("--allow-empty", action="store_true")
+    ap.add_argument("--gate-since", metavar="GITREF",
+                    help="only citing sentences that are new since GITREF are hard findings")
+    ap.add_argument("--credits", metavar="FILE",
+                    help="method credits the author has accepted, one per line, as "
+                         "'key = the procedure it may be cited for'; a bare key accepts any use")
     a = ap.parse_args(argv)
     base = Path(a.base_dir).expanduser().resolve()
     ledger_path = Path(a.ledger).expanduser().resolve()
@@ -167,18 +229,63 @@ def main(argv=None):
                          "cite_key": ",".join(keys),
                          "detail": f"{'asserts something about' if kind == 'unledgered-assertion' else 'credits'} {','.join(keys)} with no ledger row: {s[:90]}"})
 
+    gate = None
+    if a.gate_since:
+        # A credit is accepted for a named procedure, not for a key outright.
+        # Run against the commit that introduced them, a key-only allowlist let
+        # an equivalence-testing paper through as the source of a permutation
+        # test: the key was listed, and the sentence read like a credit.
+        credits = {}
+        if a.credits:
+            for line in Path(a.credits).expanduser().read_text(encoding="utf-8").splitlines():
+                line = line.split("#")[0].strip()
+                if not line:
+                    continue
+                key, _, procedure = line.partition("=")
+                credits[key.strip()] = norm(procedure)
+        before = sentences_at_ref(base, a.gate_since)
+        added = [(f, s, k) for f, s, k in sentences if norm(s) not in before]
+        for f, s, keys in added:
+            if any(c and c in norm(s) for c in ledgered):
+                continue
+            # Match the procedure against the prose only. Key names carry the
+            # procedure's own words (lakens2017equivalence), so leaving the
+            # \cite in would let a key vouch for itself.
+            prose = norm(CITE.sub(" ", s))
+            off = [k for k in keys
+                   if k not in credits or (credits[k] and credits[k] not in prose)]
+            if not off:
+                continue
+            miscredited = [k for k in off if k in credits]
+            if miscredited:
+                kind, why = "credit-outside-its-procedure", (
+                    "; ".join(f"{k} is accepted for \"{credits[k]}\", which this sentence does not mention"
+                              for k in miscredited))
+            else:
+                kind = "new-assertion-unledgered" if REPORTING.search(s) else "new-citation-unaccounted"
+                why = "no ledger row and no credit entry"
+            findings.append({"kind": kind, "location": f, "cite_key": ",".join(off),
+                             "detail": f"new since {a.gate_since}, {why}: {s[:90]}"})
+        gate = {"since": a.gate_since, "new_citing_sentences": len(added),
+                "credits_file": a.credits, "credits": {k: v for k, v in sorted(credits.items())}}
+
     hard_kinds = {"snippet-not-in-source", "claim-not-in-manuscript", "key-not-in-claim-sentence",
-                  "source-file-missing", "negative-claim-without-fulltext"}
+                  "source-file-missing", "negative-claim-without-fulltext",
+                  "new-assertion-unledgered", "new-citation-unaccounted",
+                  "credit-outside-its-procedure"}
     hard = [f for f in findings if f["kind"] in hard_kinds]
     # Nothing verified is not a pass: an empty ledger over a citing manuscript
     # produces a coverage list and no verification at all.
-    nothing = not rows
+    # In gate mode the question is what this change added, so a change that
+    # added no citation is a legitimate pass even with an empty ledger.
+    nothing = not rows and not a.gate_since
     payload = {
         "schema_version": 1,
         "base": str(base),
         "ledger": str(ledger_path),
         "citing_sentences": len(sentences),
         "ledger_rows": len(rows),
+        "gate": gate,
         "findings": findings,
         "hard_finding_count": len(hard),
         "nothing_checked": nothing,
@@ -191,7 +298,11 @@ def main(argv=None):
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print(f"claim ledger: {len(rows)} row(s) against {len(sentences)} citing sentence(s) under {base}")
-        for kind in ["snippet-not-in-source", "claim-not-in-manuscript", "key-not-in-claim-sentence",
+        if gate:
+            print(f"gate: {gate['new_citing_sentences']} citing sentence(s) new since {gate['since']}"
+                  f"; {len(gate['credits'])} key(s) accepted as credits")
+        for kind in ["new-assertion-unledgered", "new-citation-unaccounted", "credit-outside-its-procedure",
+                     "snippet-not-in-source", "claim-not-in-manuscript", "key-not-in-claim-sentence",
                      "source-file-missing", "negative-claim-without-fulltext", "unledgered-assertion",
                      "qualifier-dropped", "unledgered-credit"]:
             group = [f for f in findings if f["kind"] == kind]
