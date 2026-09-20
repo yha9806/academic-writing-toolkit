@@ -16,6 +16,7 @@ re-measure everything.
 | --- | --- |
 | The baseline corpus is the manuscript's **own** reference PDFs, twenty or more | count them |
 | The baseline contains **none of the author's own papers** | the tool scans for it; a suspected draft or copy withholds all percentiles and exits 2. Remove it with `--exclude`, or waive with `--allow-overlap`, which still reports `preconditions_checked: false` |
+| Target and baseline are read through **comparable pipelines** | the tool reports `pipeline_mismatch`; `.tex` is stripped of floats, tables, captions and citation commands and a baseline PDF is not, so the same document reads 40% shorter on one side. When the built PDF is beside the target the tool measures both and fills `pipeline_cross_check` — read it before quoting a percentile |
 | The working tree is clean and the pre-polish commit is written down | `git status` empty; note the hash |
 | A compile/health baseline was recorded once before touching anything | run the project's checks, keep the numbers |
 | No other session is editing the same tree | check file mtimes; never treat an early copy as the current state |

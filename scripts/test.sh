@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (134 automated tests, labelled T2-T140: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (137 automated tests, labelled T2-T140 and T169-T171: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T169-T171 audits that name what they did not read) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3700,6 +3700,126 @@ assert len(d['baseline_suspect']) == 1, 'the suspect stays visible in the report
 "
 }
 
+test_T169() {
+    # The fidelity audit failed closed on its own build dependency -- a named
+    # code, a remedy, exit 2 -- and failed open on the data it judges: a missing
+    # chapters/ tree walked to nothing and produced `findings: [], exit 0`,
+    # byte-identical to a clean pass over a corpus it had fully read. A LaTeX
+    # project got that output, and reporting it as "category F clean" would
+    # have been an all-clear for an audit that never ran.
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/empty" "$tmp/real/chapters"
+    printf 'The pool was rescored after the second pass (Smith, 2019).\n' \
+        > "$tmp/real/chapters/ch1.md"
+
+    out=$(node .claude/skills/audit/scripts/audit-citation-fidelity.mjs \
+            --base-dir "$tmp/empty" --json 2>&1)
+    rc=$?
+    [[ "$rc" -eq 2 ]] || { rm -rf "$tmp"; return 1; }
+    grep -q 'FIDELITY_CORPUS_ABSENT' <<<"$out" || { rm -rf "$tmp"; return 1; }
+    # The remedy has to name the alternative, or the operator's only move is to
+    # read the empty result as a pass again.
+    grep -q 'NOT MEASURED' <<<"$out" || { rm -rf "$tmp"; return 1; }
+    # An error, not a report: nothing that parses as a clean audit.
+    if python3 -c "import json,sys; json.loads(sys.argv[1])" "$out" 2>/dev/null; then
+        rm -rf "$tmp"; return 1
+    fi
+
+    # A corpus that exists still audits, and the counts that say how much was
+    # read are now in the payload.
+    out=$(node .claude/skills/audit/scripts/audit-citation-fidelity.mjs \
+            --base-dir "$tmp/real" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['corpus_files'] == 1, d.get('corpus_files')
+assert d['sentences_checked'] == 1, d.get('sentences_checked')
+assert 'notes_sources_indexed' in d, 'the notes denominator must be visible too'
+"
+}
+
+test_T170() {
+    # Every baseline candidate has to leave a trace. `baseline_skipped` held
+    # only the unreadable ones, so a document that loaded fine and fell under
+    # the 1500-word floor vanished with no record: a corpus of 179 files
+    # reported 129 documents and nothing in the report accounted for the rest.
+    # The same silence once cost a test run its diagnosis.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+_tokens = ["".join(c) for c in itertools.product("abcdefgh", repeat=3)]
+(d / "target.txt").write_text("".join(
+    "The %s stage scored the candidate pool and recorded the rank of the item. " % tok
+    for tok in _tokens[:220]), encoding="utf-8")
+bodies = [
+    "Sediment cores from the northern shelf preserve annual laminations that record winter runoff. Each layer is counted twice against a reference scale. ",
+    "The compiler rewrites every loop whose bounds are known at build time and emits a specialised body. Register pressure is measured after each pass. ",
+    "Participants rated fourteen photographs on a seven point scale and then described what they noticed. Ratings were collected before any discussion. ",
+    "Orbital decay is dominated by atmospheric drag below six hundred kilometres. The residual acceleration is fitted over successive arcs and subtracted. ",
+    "Enzyme activity fell sharply above forty degrees and did not recover on cooling. Duplicate assays were run on separate days with fresh substrate. ",
+]
+for i, body in enumerate(bodies):
+    filled = body * 90
+    assert len(filled.split()) >= 1500, "fixture %d is too short" % i
+    (d / "base" / ("other%d.txt" % i)).write_text(filled, encoding="utf-8")
+# One admitted document short of the floor, deliberately.
+runt = bodies[0] * 4
+assert len(runt.split()) < 1500, "the runt must be under the floor"
+(d / "base" / "runt.txt").write_text(runt, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+short = {x['file'] for x in d['baseline_too_short']}
+assert short == {'runt.txt'}, 'the under-length document must be named, got %r' % short
+assert d['baseline_documents'] == 5, d['baseline_documents']
+# The point of the field is that the arithmetic closes inside the report.
+seen = (d['baseline_documents'] + len(d['baseline_skipped'])
+        + len(d['baseline_too_short']) + len(d['baseline_excluded']))
+assert seen == 6, 'candidates must be fully accounted for, got %d' % seen
+# Same pipeline on both sides here, so nothing to declare.
+assert d['pipeline_mismatch'] is False, d.get('baseline_pipeline_mix')
+"
+}
+
+test_T171() {
+    # Per-section evenness needs no baseline, which makes it the measurement
+    # that is never blocked -- and its key was simply absent when the target was
+    # a directory. A run that never computed it and a run with nothing to say
+    # produced the same report, so a whole-corpus reading silently lost the one
+    # metric that shows whether a device runs evenly across sections.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/dir"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+body = ("The reviewers agreed on the coding frame rather than on the labels. "
+        "Each pass was timed and the disagreements were logged for later reading. ") * 60
+(d / "dir" / "a.txt").write_text(body, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/dir" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert 'per_section_cv' in d, 'the key must be present even when not computed'
+assert d['per_section_cv'] is None, d['per_section_cv']
+note = d.get('per_section_note', '')
+assert 'NOT COMPUTED' in note, note
+assert 'directory' in note, 'the note must say WHY, not just that it is missing'
+"
+}
+
 run_test "T127 prose fingerprint separates even from bunched use" test_T127
 run_test "T128 prose fingerprint withholds percentiles on a thin baseline" test_T128
 run_test "T129 claim positioning flags advertised terms with no source" test_T129
@@ -3714,6 +3834,9 @@ run_test "T137 cross-skill author-control gates remain present" test_T137
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T139 a baseline holding a draft of the target withholds percentiles" test_T139
 run_test "T140 the overlap waiver restores percentiles without asserting the precondition" test_T140
+run_test "T169 the fidelity audit fails closed when its corpus is absent" test_T169
+run_test "T170 every baseline candidate is accounted for in the report" test_T170
+run_test "T171 per-section metrics report their absence instead of vanishing" test_T171
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

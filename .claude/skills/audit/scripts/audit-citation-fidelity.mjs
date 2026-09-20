@@ -156,11 +156,26 @@ function contentWords(text) {
 // --- audit -----------------------------------------------------------------------
 
 const notes = notesIndex(base)
+
+// The corpus this audit reads is chapters/**/*.md under --base-dir. When that
+// tree is absent the loop below runs zero times and the payload is
+// `findings: [], hard_finding_count: 0` with exit 0 -- byte-identical to a
+// clean pass over a corpus that was fully checked. The build dependency above
+// already fails closed with a named code and a remedy; the data being audited
+// has to as well, or this audit's most reassuring output is the one it emits
+// when it read nothing at all.
+const corpus = chapterFiles(base)
+if (corpus.length === 0) {
+  die('FIDELITY_CORPUS_ABSENT',
+      `no chapters/**/*.md under ${base}; this audit reads Markdown chapters and found none, so it checked nothing`,
+      'point --base-dir at the workspace holding chapters/, or record category F as NOT MEASURED for this project -- a LaTeX-only source tree is not supported here')
+}
+
 const findings = []
 let sentencesChecked = 0
 let citationsChecked = 0
 
-for (const rel of chapterFiles(base)) {
+for (const rel of corpus) {
   const text = readFileSync(join(base, rel), 'utf8')
   for (const sentence of sentences(text)) {
     const cites = extractCitations(sentence)
@@ -219,6 +234,8 @@ const hard = findings.filter((f) => f.kind === 'quote-not-in-source' || f.kind =
 const payload = {
   schema_version: SCHEMA_VERSION,
   base: base,
+  corpus_files: corpus.length,
+  notes_sources_indexed: notes.size,
   sentences_checked: sentencesChecked,
   citations_checked: citationsChecked,
   findings,

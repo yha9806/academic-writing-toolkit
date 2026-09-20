@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # --- constructions -----------------------------------------------------------
 # Each is a family of surface forms, not a single string. The corrective
@@ -121,10 +121,30 @@ def load(path: Path) -> Optional[str]:
     return None
 
 
-def collect(target: Path) -> List[Tuple[str, str]]:
+def pipeline_of(suffix: str) -> str:
+    """Which reading a suffix gets.
+
+    `.tex` and `.md` have their markup removed: float environments, tables,
+    captions, list bodies and citation commands all go. A PDF cannot be read
+    that way -- pdftotext returns what was printed, furniture included. On one
+    real manuscript the two readings of the SAME document differed by 40% in
+    word count, which is the denominator of every per-1k rate, and the
+    sentence-length lag-1 changed sign between them. A percentile computed
+    across the two is comparing two different readings, not two documents.
+    """
+    if suffix == ".pdf":
+        return "pdf-as-printed"
+    if suffix in {".tex", ".md"}:
+        return "markup-stripped"
+    return "plain-text"
+
+
+def collect(target: Path) -> List[Tuple[str, str, str]]:
+    """(display name, prose, suffix). The suffix travels with the text because
+    the pipeline that produced it is part of what the number means."""
     if target.is_file():
         t = load(target)
-        return [(target.name, t)] if t else []
+        return [(target.name, t, target.suffix.lower())] if t else []
     out = []
     for p in sorted(target.rglob("*")):
         if not p.is_file():
@@ -132,7 +152,7 @@ def collect(target: Path) -> List[Tuple[str, str]]:
         if p.suffix.lower() in TEXT_SUFFIXES or p.suffix.lower() == ".pdf":
             t = load(p)
             if t and len(t.split()) >= 400:
-                out.append((str(p.relative_to(target)), t))
+                out.append((str(p.relative_to(target)), t, p.suffix.lower()))
     return out
 
 
@@ -341,7 +361,8 @@ def main() -> int:
     if not docs:
         sys.stderr.write("error: no readable prose found in --target\n")
         return 2
-    text = " ".join(t for _, t in docs)
+    text = " ".join(t for _, t, _ in docs)
+    target_pipelines = sorted({pipeline_of(sfx) for _, _, sfx in docs})
     mine = measure(text)
 
     base_rows: List[Dict[str, Optional[float]]] = []
@@ -349,6 +370,8 @@ def main() -> int:
     excluded: List[str] = []
     suspect: List[Dict[str, object]] = []
     target_grams = ngram_hashes(text)
+    too_short: List[Dict] = []
+    base_pipelines: Dict[str, int] = {}
     if args.baseline:
         bdir = Path(args.baseline)
         if not bdir.is_dir():
@@ -363,14 +386,26 @@ def main() -> int:
             t = load(p)
             if t is None:
                 skipped.append(p.name)
-            elif len(t.split()) >= 1500:
-                base_rows.append(measure(t))
-                frac, shared = containment(target_grams, ngram_hashes(t))
-                share = 100.0 * frac
-                if share > args.overlap_threshold and shared >= MIN_SHARED_NGRAMS:
-                    suspect.append({"file": p.name,
-                                    "target_4gram_share_pct": round(share, 3),
-                                    "shared_4grams": shared})
+                continue
+            words = len(t.split())
+            if words < 1500:
+                # A document also leaves the baseline by being too short to
+                # measure, and that exit had no name. `baseline_skipped` held
+                # only the unreadable ones, so a corpus of 179 files reported
+                # 129 documents and nothing said where the rest went. The same
+                # silence cost a test run its diagnosis: a fixture at 1470
+                # words dropped out and the failure looked unrelated.
+                too_short.append({"file": p.name, "words": words})
+                continue
+            base_rows.append(measure(t))
+            base_pipelines[pipeline_of(p.suffix.lower())] = (
+                base_pipelines.get(pipeline_of(p.suffix.lower()), 0) + 1)
+            frac, shared = containment(target_grams, ngram_hashes(t))
+            share = 100.0 * frac
+            if share > args.overlap_threshold and shared >= MIN_SHARED_NGRAMS:
+                suspect.append({"file": p.name,
+                                "target_4gram_share_pct": round(share, 3),
+                                "shared_4grams": shared})
 
     # The method's precondition is that the baseline holds none of the author's
     # own work. It used to live in prose, and `baseline_excluded: []` meant both
@@ -390,6 +425,11 @@ def main() -> int:
               "target_words": mine["words"], "baseline_documents": len(base_rows),
               "baseline_sufficient": len(base_rows) >= args.min_baseline,
               "baseline_skipped": skipped,
+              "baseline_too_short": too_short,
+              "target_pipeline": target_pipelines,
+              "baseline_pipeline_mix": base_pipelines,
+              "pipeline_mismatch": bool(base_pipelines)
+                                   and set(target_pipelines) != set(base_pipelines),
               "exclude_patterns": list(args.exclude),
               "baseline_excluded": excluded,
               "baseline_suspect": suspect,
@@ -415,11 +455,28 @@ def main() -> int:
                 outliers.append(key)
         report["metrics"][key] = entry
 
-    # Per-section evenness needs no baseline at all.
-    if target.is_file() and target.suffix.lower() in {".tex", ".md"}:
+    # Per-section evenness needs no baseline at all, which makes it the one
+    # measurement here that is never blocked -- and the one whose absence used
+    # to look like nothing. The key was simply missing when the target was a
+    # directory, so a run that never computed it and a run with nothing to say
+    # produced the same report. It now always appears, with its reason.
+    if not (target.is_file() and target.suffix.lower() in {".tex", ".md"}):
+        report["per_section_cv"] = None
+        report["per_section_note"] = (
+            "NOT COMPUTED: per-section rates need a single .tex or .md target and "
+            "--target is {}. This metric needs no baseline and is the one that shows "
+            "whether the device runs evenly across sections, so its absence is a hole "
+            "in the reading, not a clean result.".format(
+                "a directory" if target.is_dir() else "a " + (target.suffix or "file")))
+    else:
         raw = target.read_text(encoding="utf-8", errors="replace")
         secs = sections(text, target.suffix.lower(), raw)
-        if len(secs) >= 3:
+        if len(secs) < 3:
+            report["per_section_cv"] = None
+            report["per_section_note"] = (
+                "NOT COMPUTED: {} section(s) were found in {}; three are needed for a "
+                "cross-section spread.".format(len(secs), target.name))
+        else:
             rates = {}
             for name, body in secs.items():
                 w = len(body.split())
@@ -431,6 +488,40 @@ def main() -> int:
                 "A low cross-section CV means the device runs at the same rate in the "
                 "dutiful sections as in the discussion. That evenness is the signature; "
                 "the fix is to redistribute, not merely to reduce.")
+    # When the target is read one way and the baseline another, every
+    # percentile above compares two readings, not two documents. The tool
+    # cannot remove the asymmetry -- a published PDF has no source to strip --
+    # but it does not have to warn about it in prose either. When the target's
+    # own build sits beside it, the same metrics are measured through the
+    # baseline's pipeline as well, so the cost of the mismatch is a number in
+    # this report rather than a caution the reader is asked to remember.
+    report["pipeline_cross_check"] = None
+    if report["pipeline_mismatch"]:
+        note = ("target and baseline are read through different pipelines "
+                "({} vs {}); percentiles compare two readings of a document, not "
+                "two documents".format(", ".join(target_pipelines),
+                                       ", ".join(sorted(base_pipelines))))
+        twin = target.with_suffix(".pdf") if target.is_file() else None
+        if twin is not None and twin != target and twin.exists():
+            twin_text = load(twin)
+            if twin_text:
+                twin_m = measure(twin_text)
+                report["pipeline_cross_check"] = {
+                    "as_read": target.name,
+                    "as_baseline_would_read": twin.name,
+                    "metrics": {k: {"as_read": mine.get(k),
+                                    "as_baseline_would_read": twin_m.get(k)}
+                                for k, _ in KEY_ORDER},
+                    "words": {"as_read": mine["words"],
+                              "as_baseline_would_read": twin_m["words"]},
+                }
+                note += ("; measured on this document, the two readings are in "
+                         "pipeline_cross_check")
+        else:
+            note += ("; no built .pdf was found next to --target, so the size of "
+                     "the difference on THIS document is not measured here")
+        report["pipeline_note"] = note
+
     report["outliers"] = outliers
 
     if contaminated:

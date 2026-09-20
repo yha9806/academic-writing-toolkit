@@ -87,6 +87,13 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    ```
 
    (needs the guards built once: `npm --prefix guards install && npm --prefix guards run build`.)
+   It reads `chapters/**/*.md` and reading notes under
+   `literature/reading_notes/`, and **exits 2 with `FIDELITY_CORPUS_ABSENT`
+   when that corpus is not there** rather than returning an empty finding
+   list. A LaTeX-only source tree has no corpus it can read: record category
+   F as **NOT MEASURED** for such a project and say so in the report. An
+   empty `findings` list is only a result when `corpus_files` and
+   `sentences_checked` say something was read.
    Report `quote-not-in-source` and `page-mismatch` as **High** — a quoted
    span that is not verbatim in the source's notes or PDF, or a page that the
    source contradicts — and `notes-missing` as **Medium**. `low-overlap` is
@@ -115,6 +122,20 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    out of range". Exclude the file, or pass `--allow-overlap` if the overlap
    is intended; the waiver restores the percentiles but still reports
    `preconditions_checked: false`, because a waiver is not a met precondition.
+
+   Two further fields have to be read before the percentiles mean anything.
+   `baseline_too_short` names every document that loaded but fell under the
+   1500-word floor, so `baseline_documents` plus the skipped, too-short and
+   excluded lists account for every candidate in the directory; a count that
+   does not close means the corpus is not what you think it is.
+   `pipeline_mismatch` is true when the target is read as stripped markup and
+   the baseline as printed PDF, which is what the documented invocation above
+   does: a percentile then compares two readings, not two documents. When the
+   target's own build sits beside it the tool measures both readings and puts
+   them in `pipeline_cross_check`. On one real manuscript the word count --
+   the denominator of every per-1k rate -- differed by 40% between them and
+   sentence-length lag-1 changed sign, so quote the cross-check rather than
+   treating the percentiles as exact.
 
    Report the distributions under **Measurements**, never as issues: this is
    Advisory by nature. Out-of-range is the hard signal, a percentile is a
