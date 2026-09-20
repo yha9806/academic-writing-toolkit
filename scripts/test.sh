@@ -3738,8 +3738,17 @@ test_T169() {
     printf 'The pool was rescored after the second pass (Smith, 2019).\n' \
         > "$tmp/real/chapters/ch1.md"
     out=$(node .claude/skills/audit/scripts/audit-citation-fidelity.mjs \
-            --base-dir "$tmp/empty" --json 2>/dev/null)
+            --base-dir "$tmp/empty" --json 2>"$tmp/stderr")
     rc=$?
+    # Exit 2 alone is not the signal. The audit also exits 2 when guards/dist
+    # is not built, and on CI -- where make test ran before the guards were
+    # built -- that read as the intended failure until json.load met an empty
+    # string. The payload has to say nothing_checked itself; a run that
+    # produced no payload is reported with its reason, not as either verdict.
+    if ! printf '%s' "$out" | python3 -c "import json, sys; json.load(sys.stdin)" 2>/dev/null; then
+        printf '  T169: the audit produced no payload (rc=%s): %s\n' "$rc" "$(head -c 200 "$tmp/stderr")"
+        rm -rf "$tmp"; return 1
+    fi
     [[ "$rc" -eq 2 ]] || { rm -rf "$tmp"; return 1; }
     echo "$out" | python3 -c "
 import json, sys
