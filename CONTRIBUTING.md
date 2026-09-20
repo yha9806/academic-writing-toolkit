@@ -21,10 +21,13 @@ separately and never merged into the word "done".
 | **E2** | the author ran one real chapter cycle through it |
 | **E3** | evidence from someone who is not us |
 
-Today the enforcement layer is E0. A three-source E1 pilot exists and its
-result was negative under one small local model. E2 has not been run. The
-README says so, and it must keep saying so: a tool aimed at people writing
-theses has no business implying an efficacy it has not measured.
+The dsh enforcement layer reached E0; its three-source E1 pilot was negative
+under one small local model; E2 was never run. It was retired from `main` on
+2026-09-20 with that record stated as it was
+(`docs/specs/2026-09-20-retire-dsh-line-design.md`). The audits that remain
+are E0. A tool aimed at people writing theses has no business implying an
+efficacy it has not measured, so the README keeps saying which class each
+claim is in.
 
 Concretely: `tested`, `committed`, `reviewed`, `merged` and `released` are five
 different statements. Do not write one when you mean another. If a check was
@@ -32,10 +35,10 @@ blocked or skipped, say which and why.
 
 ## Verify on an environment that is not yours
 
-**The rule:** any claim about installing, launching or first-run behaviour must
-be reproduced on a machine state that has never run this toolkit — a fresh
-clone, a fresh `$DSH_HOME`, and where relevant a deleted `harness/node_modules`.
-State in the pull request which environment you verified on.
+**The rule:** any claim about installing or first-run behaviour must be
+reproduced on a machine state that has never run this toolkit — a fresh
+clone, no prepared `.venv`, no cached dependencies. State in the pull request
+which environment you verified on.
 
 **Why:** `awt run` and `awt web` shipped in #42 as "the supported way to start
 the app" and could not start on any clean machine. They worked for the author
@@ -139,15 +142,11 @@ approving it is not implementing it.
 
 ```bash
 make setup                       # git config, generated configs, export backend, doctor
-npm ci --prefix guards && npm run build --prefix guards
-npm test --prefix guards         # kernel, testkit against the pinned harness, scaffold
-make test                        # the regression suite, live surfaces
-make test-all                    # plus validators of bundles retired under archive/skills/
-npm ci --prefix e2e
-node e2e/run-e2e.mjs             # live denial table against the real launcher
-node e2e/run-credential-probe.mjs
-node e2e/run-skill-scope-probe.mjs
-node e1/run-e1.mjs               # offline instrument check
+make test                        # the regression suite, live surfaces, plus the Node tests
+make test-all                    # the same plus validators of bundles retired under archive/skills/
+node --test scripts/test-native-setup.mjs   # a real fresh venv and link repair
+python3 scripts/test-codex-skills.py        # the user-scope installer
+python3 scripts/check-fails-closed.py       # every check exits non-zero on an empty target
 ```
 
 All of these are keyless. Anything that needs a provider key is not a gate.
@@ -170,11 +169,11 @@ does not prove a fresh clone can run the suite.
 For an installation or first-run change, add the clean-machine walk:
 
 ```bash
-rm -rf harness/node_modules
-DSH=$(mktemp -d); WS=$(mktemp -d)/thesis
-node scaffold/awt.mjs install-profile "$DSH"
+git clone https://github.com/yha9806/academic-writing-toolkit.git "$(mktemp -d)/awt" && cd "$_"
+node scripts/setup.mjs && node scripts/setup.mjs doctor
+WS=$(mktemp -d)/thesis
 node scaffold/awt.mjs init "$WS"
-DSH_HOME="$DSH" node scaffold/awt.mjs run "$WS" "…"
+python3 scripts/install-codex-skills.py --dest "$(mktemp -d)/skills" --install-deps
 ```
 
 ## Where the work is

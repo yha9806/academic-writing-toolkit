@@ -1,7 +1,7 @@
 ---
 name: map
 description: Show literature-to-chapter coverage and the writing progress dashboard — which sources support which chapters, and word counts against targets.
-allowed-tools: Read, Glob, Grep, Edit, Write, Bash(node *), Bash(npm --prefix guards *)
+allowed-tools: Read, Glob, Grep, Edit, Write, Bash(node *)
 ---
 
 # /map — Literature-Thesis Mapping Skill
@@ -77,5 +77,5 @@ If the user says "save" or "export mapping", write the matrix to `literature/map
 2. **No emoji** in output.
 3. **No hardcoded chapter count.** Detect chapters dynamically from the `chapters/` directory.
 4. **Source names** use the format `{Author} ({Year})` for readability.
-5. **Connection types** are derived from the `Connection Type` column in notes files. If a notes file lacks the table or fails the contract lint (`npm --prefix guards run lint:notes -- {file}` when `guards/` is present), list it under "Unparseable notes files" instead of inferring cells — a broken file must surface as an error, never as a guessed mapping.
+5. **Connection types** are derived from the `Connection Type` column in notes files. If a notes file lacks the table or fails the contract lint (`notes-lint.mjs`, the command `/note` names in its step 7), list it under "Unparseable notes files" instead of inferring cells — a broken file must surface as an error, never as a guessed mapping.
 6. **Word counts** come from the bundled counter, never from model estimation. It counts whitespace-delimited words, including Markdown tokens, as the former `wc -w` instruction did; continuous Chinese text is not counted character by character.

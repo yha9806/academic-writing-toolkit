@@ -29,23 +29,24 @@
 // source's own vocabulary passes every check here. Catching that still
 // requires reading the source; tests/citation-fidelity pin this limit.
 //
-// Graders are shared with the E1 instrument (e1/graders.mjs) so the audit
-// and the instrument measure the same thing; citation extraction and notes
-// parsing are the guards' own (guards/dist), so the audit and the
-// enforcement agree on what a citation and a notes file are.
+// The graders, the citation extractor and the notes parser ship beside this
+// file (quote-fidelity.mjs, citations.mjs, pdf-pages.mjs) and the notes lint
+// is /note's own (../../note/scripts/notes-lint.mjs), so the audit and the
+// contract agree on what a citation and a notes file are. Until 2026-09-20
+// these came from the dsh guards package and the E1 instrument, both retired;
+// see docs/specs/2026-09-20-retire-dsh-line-design.md.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve, relative } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { labelPdfPages } from '../../../../profiles/awt-headless/pdf-pages.mjs'
-import { extractQuotedSpans, gradeQuoteFidelity, normalizeForMatch, pagesFromLabeledText } from '../../../../e1/graders.mjs'
+import { labelPdfPages } from './pdf-pages.mjs'
+import { extractQuotedSpans, gradeQuoteFidelity, normalizeForMatch, pagesFromLabeledText } from './quote-fidelity.mjs'
+import { extractCitations, parseNotesSource } from './citations.mjs'
+import { lintNotes, hasErrors } from '../../note/scripts/notes-lint.mjs'
 
 // This file lives inside the skill that calls it, so both surfaces name one
 // path. Node resolves modules through the real path, so a workspace reaching
 // it through .agents/skills still finds the toolkit's own trees below.
-const PRODUCT_ROOT = resolve(import.meta.dirname, '..', '..', '..', '..')
-const GUARDS_DIST = join(PRODUCT_ROOT, 'guards', 'dist')
 const SCHEMA_VERSION = 1
 
 const args = process.argv.slice(2)
@@ -59,13 +60,6 @@ function die(code, message, remedy) {
   if (remedy) console.error(`  remedy: ${remedy}`)
   process.exit(2)
 }
-
-if (!existsSync(join(GUARDS_DIST, 'decisions.js'))) {
-  die('FIDELITY_GUARDS_UNBUILT', 'guards/dist is missing; this audit reuses the guards\' citation extractor and notes parser', 'npm --prefix guards install && npm --prefix guards run build')
-}
-const { extractCitations } = await import(pathToFileURL(join(GUARDS_DIST, 'decisions.js')).href)
-const { parseNotesSource } = await import(pathToFileURL(join(GUARDS_DIST, 'projections.js')).href)
-const { lintNotes, hasErrors } = await import(pathToFileURL(join(GUARDS_DIST, 'notes-lint.js')).href)
 
 // --- corpus ----------------------------------------------------------------------
 

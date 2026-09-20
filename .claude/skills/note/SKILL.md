@@ -112,4 +112,4 @@ correction. Do not silently rewrite the original note text.
 4. **Status transitions** are explicit: only change status when the user requests it or after `/integrate` completes.
 5. **No hardcoded paths.** Use the project's `literature/reading_notes/` directory relative to the project root.
 6. **One file per text.** Each book, article, or paper gets exactly one notes file.
-7. **Lint conformance.** The deterministic contract check is `npm --prefix guards run lint:notes -- {file}` (when `guards/` is present). A file that fails the lint is invisible to `/integrate` and `/map` — fix it rather than working around it.
+7. **Lint conformance.** The deterministic contract check is `node .claude/skills/note/scripts/notes-lint.mjs {file}` (exit 0 conforming, 1 with error-severity issues, 2 with no file). A file that fails the lint is invisible to `/integrate` and `/map` — fix it rather than working around it.

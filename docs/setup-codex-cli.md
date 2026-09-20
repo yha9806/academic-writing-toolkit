@@ -1,7 +1,7 @@
 # Setup: Codex skills
 
-AWT provides nine Advisory skills for local Codex use. Installing them does
-not enable the deterministic enforcement supplied by the separate dsh app.
+AWT provides eight skills for local Codex use. They are advisory: the host
+does not enforce what they say.
 
 ## Skills in a checkout or linked workspace
 
@@ -27,7 +27,6 @@ terminal or Windows PowerShell; substitute `python3` if needed:
 ```bash
 git clone https://github.com/yha9806/academic-writing-toolkit.git
 cd academic-writing-toolkit
-npm ci --prefix guards
 python scripts/install-codex-skills.py --install-deps
 ```
 
@@ -45,10 +44,9 @@ You do not have to copy your manuscript into the AWT repository.
 `--install-deps` creates a private environment under the destination's sibling
 `.skills-awt/runtimes/`. Pip downloads the dependencies listed in
 `scripts/codex-skills-requirements.txt`; subsequent runs reuse that environment.
-Your existing Python environments are not modified. The npm step installs
-the repository's locked build dependencies, and the installer compiles the
-audit modules afresh using the local TypeScript compiler. It does not install
-or launch dsh and never needs a model API key.
+Your existing Python environments are not modified. The Node helpers ship
+as plain modules inside their skills; nothing is compiled, and no model API
+key is needed.
 
 For PDF reading and PDF-based audits, also install Poppler so `pdftotext` is
 on PATH. The installer verifies reference checks, citation detection,
@@ -61,7 +59,6 @@ From the clean AWT tool checkout:
 
 ```bash
 git pull --ff-only
-npm ci --prefix guards
 python scripts/install-codex-skills.py --install-deps
 python scripts/install-codex-skills.py --verify
 ```

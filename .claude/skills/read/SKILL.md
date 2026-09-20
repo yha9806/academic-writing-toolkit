@@ -16,7 +16,7 @@ This skill activates on: `read`, `next page`, `continue`, `skip to p.N`, `read p
 
 ## PDF limits
 
-Both are **enforced** in the dsh app and **advisory** as a plain Agent Skill.
+Both are advisory: the host does not enforce them, so say when you cross one.
 Say which one you are in rather than asserting either.
 
 - **Maximum 15 pages per invocation.** In the app a wider range is denied
@@ -34,11 +34,9 @@ Say which one you are in rather than asserting either.
 ## Workflow
 
 1. **Identify the PDF.** If the user provides a path, use it directly. If the user names an author or title, search the project's `literature/` directory using Glob to locate the file.
-2. **Read the specified page(s).** In the dsh app call the `read_pdf` tool —
-   `file_path`, `first_page`, `last_page` — which is the surface the page
-   guards decide on. As a plain Agent Skill, use the host's own file reader
-   with whatever page selection it offers. Default to the next unread page if
-   the user says "next page" or "continue".
+2. **Read the specified page(s).** Use the host's own file reader with
+   whatever page selection it offers. Default to the next unread page if the
+   user says "next page" or "continue".
 3. **Display structured output** following the format below.
 4. **Wait for user instruction.** Do not proceed to the next page, take notes, or search for related material unless explicitly asked.
 

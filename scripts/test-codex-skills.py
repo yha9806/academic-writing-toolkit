@@ -22,7 +22,7 @@ SPEC.loader.exec_module(installer)
 class InstallerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        installer.build_guards(installer.SOURCE)
+        installer.check_node()
         installer.check_runtime(sys.executable)
 
     def setUp(self):
@@ -34,9 +34,9 @@ class InstallerTests(unittest.TestCase):
         self.python = Path(sys.executable).absolute()
 
     def install(self, replace=False, smoke=False):
-        # Compilation is exercised once in setUpClass. Transaction tests
+        # The Node preflight is exercised once in setUpClass. Transaction tests
         # isolate disk behavior; separate tests run every real installed helper.
-        with patch.object(installer, "build_guards"), patch.object(installer, "smoke", wraps=installer.smoke if smoke else None):
+        with patch.object(installer, "check_node"), patch.object(installer, "smoke", wraps=installer.smoke if smoke else None):
             return installer.install(installer.SOURCE, self.dest, self.python, replace)
 
     def test_fresh_install_runs_bundled_helpers_from_unrelated_directory(self):
@@ -183,7 +183,7 @@ class InstallerTests(unittest.TestCase):
     def test_failed_build_and_missing_runtime_leave_existing_skills_intact(self):
         installer.write_text(self.dest / "audit/SKILL.md", "Keep old content")
         before = installer.snapshot(self.dest)
-        for function in ("build_guards", "check_runtime"):
+        for function in ("check_node", "check_runtime"):
             with self.subTest(function=function), patch.object(installer, function, side_effect=installer.InstallError("preflight failed")):
                 with self.assertRaisesRegex(installer.InstallError, "preflight failed"):
                     installer.install(installer.SOURCE, self.dest, self.python, True)
@@ -192,17 +192,15 @@ class InstallerTests(unittest.TestCase):
     def test_failed_staged_helper_check_leaves_existing_skills_intact(self):
         installer.write_text(self.dest / "audit/SKILL.md", "Keep old content")
         before = installer.snapshot(self.dest)
-        with patch.object(installer, "build_guards"), patch.object(installer, "smoke", side_effect=installer.InstallError("helper failed")):
+        with patch.object(installer, "check_node"), patch.object(installer, "smoke", side_effect=installer.InstallError("helper failed")):
             with self.assertRaisesRegex(installer.InstallError, "helper failed"):
                 installer.install(installer.SOURCE, self.dest, self.python, True)
         self.assertEqual(installer.snapshot(self.dest), before)
 
-    def test_node_preflight_reports_missing_executable_and_build_dependencies(self):
+    def test_node_preflight_reports_missing_executable(self):
         with patch.object(installer.shutil, "which", return_value=None):
             with self.assertRaisesRegex(installer.InstallError, "Node.js"):
-                installer.build_guards(installer.SOURCE)
-        with self.assertRaisesRegex(installer.InstallError, "npm ci"):
-            installer.build_guards(self.root)
+                installer.check_node()
 
     def test_dry_run_writes_nothing_even_with_install_deps(self):
         before = sorted(self.root.iterdir())

@@ -137,7 +137,6 @@ the scope in other words; `technique` passed both.
    node .claude/skills/audit/scripts/audit-citation-fidelity.mjs --base-dir . --json
    ```
 
-   (needs the guards built once: `npm --prefix guards install && npm --prefix guards run build`.)
    Exit 2 with `nothing_checked: true` means the audit found no citation under
    `chapters/**/*.md` — report it as **not audited**, never as clean. For a LaTeX
    manuscript, `not_covered` counts the `\cite` commands, distinct keys and

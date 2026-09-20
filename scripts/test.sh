@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (180 automated tests, labelled T2-T189: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (181 automated tests, labelled T2-T190: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -546,7 +546,7 @@ test_T43() {
     grep -q "/audit" "$REPO_ROOT/README.md" || return 1
     grep -q "/export" "$REPO_ROOT/README.md" || return 1
     grep -q "local agent skill" "$REPO_ROOT/README.md" || return 1
-    grep -q "guards test" "$REPO_ROOT/README.md" || return 1
+    grep -q "test-catalogue.mjs" "$REPO_ROOT/README.md" || return 1
     grep -q ".claude/skills/verify-refs/scripts/verify-refs.py --bib" "$REPO_ROOT/README.md" || return 1
     grep -q -- "--metadata-dir" "$REPO_ROOT/README.md" || return 1
     ! grep -q "room for explicit online checks" "$REPO_ROOT/README.md" || return 1
@@ -759,7 +759,6 @@ test_T61() {
     [[ -f "$use_cases/audit-thesis-citations.md" ]] || return 1
     [[ -f "$use_cases/verify-references-before-submission.md" ]] || return 1
     [[ -f "$use_cases/prepare-release-governance-packet.md" ]] || return 1
-    [[ -f "$use_cases/choose-product-surface.md" ]] || return 1
 
     grep -q "agent-native" "$REPO_ROOT/README.md" || return 1
     grep -q "local-first" "$REPO_ROOT/README.md" || return 1
@@ -792,7 +791,6 @@ files = [
     root / "docs/use-cases/audit-thesis-citations.md",
     root / "docs/use-cases/verify-references-before-submission.md",
     root / "docs/use-cases/prepare-release-governance-packet.md",
-    root / "docs/use-cases/choose-product-surface.md",
     root / "examples/demo-project/README.md",
 ]
 pattern = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
@@ -3140,12 +3138,11 @@ for name in sys.argv[2:]:
     assert len(rows) == len(expected) and set(rows) == expected, '{}: advertised skills drifted from canonical catalogue'.format(name)
 PY
 
-    # The README pins the v0.1 surface truth: the two-mode vocabulary,
-    # the dsh app as the enforced surface, and the pointer to the last
-    # release that carried the retired surfaces.
-    grep -q "AWT dsh app" "$REPO_ROOT/README.md" || return 1
-    grep -q "Advisory" "$REPO_ROOT/README.md" || return 1
-    grep -q "Enforced" "$REPO_ROOT/README.md" || return 1
+    # The README pins where each product line ended: the dsh distribution at
+    # its last tag with the decision record that retired it, and the previous
+    # product at the last release that carried its surfaces.
+    grep -q "v0.6.0-rc.2" "$REPO_ROOT/README.md" || return 1
+    grep -q "docs/specs/2026-09-20-retire-dsh-line-design.md" "$REPO_ROOT/README.md" || return 1
     grep -q "v0.5.0" "$REPO_ROOT/README.md" || return 1
 }
 test_T137() {
@@ -3475,7 +3472,8 @@ words = {w: i for i, w in enumerate("zero one two three four five six seven eigh
 num = r"(\d+|" + "|".join(words) + r")"
 pats = [re.compile(r"\b" + num + r"[- ]skill\b", re.I),
         re.compile(r"\b(?:the|all|these|its|those|same)\s+" + num + r"\s+skills\b", re.I),
-        re.compile(r"\b" + num + r"\s+academic[- ]writing[- ]skills\b", re.I)]
+        re.compile(r"\b" + num + r"\s+academic[- ]writing[- ]skills\b", re.I),
+        re.compile(r"\b" + num + r"\s+advisory\s+skills\b", re.I)]
 skip = {"specs", "research", "product"}
 files = [root / "README.md"] + sorted(p for p in (root / "docs").rglob("*.md")
                                       if not skip & set(p.relative_to(root / "docs").parts))
@@ -3494,6 +3492,42 @@ PY
 )
     rc=$?
     [ "$rc" = "0" ] || { echo "$out"; return 1; }
+}
+
+# --- T190: the README's project-structure block names only paths that exist -
+
+_readme_structure_paths() {
+    # Prints every path the README's structure block names, one per line,
+    # nested entries joined to their parent. Arguments: README path.
+    python3 - "$1" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+block = re.search(r"## Project structure\n+```text\n(.*?)```", text, re.S)
+if not block:
+    sys.exit("no project-structure block found")
+parent = ""
+for line in block.group(1).splitlines()[1:]:
+    m = re.match(r"^(?P<indent>[│ ]*)(?:├──|└──) (?P<path>\S+)", line)
+    if not m:
+        continue
+    path = m.group("path")
+    if m.group("indent"):
+        path = parent + path
+    else:
+        parent = path if path.endswith("/") else ""
+    print(path)
+PY
+}
+
+test_T190() {
+    # After the dsh distribution was retired, the block that draws the
+    # repository still named seven directories that were gone. Nothing read
+    # that block against the disk; this does, and it is derived, so it holds
+    # for the next removal too.
+    local missing
+    missing=$(_readme_structure_paths "$REPO_ROOT/README.md" | while read -r p; do [ -e "$REPO_ROOT/$p" ] || echo "$p"; done)
+    [ -z "$missing" ] || { echo "the README names paths that do not exist:"; echo "$missing" | sed 's/^/  /'; return 1; }
+    [ "$(_readme_structure_paths "$REPO_ROOT/README.md" | wc -l | tr -d ' ')" -ge 8 ] || { echo "fewer than 8 paths parsed; the parser lost the block"; return 1; }
 }
 
 run_test "T2  symlink corruption + repair"        test_T2
@@ -4013,11 +4047,11 @@ test_T169() {
     out=$(node .claude/skills/audit/scripts/audit-citation-fidelity.mjs \
             --base-dir "$tmp/empty" --json 2>"$tmp/stderr")
     rc=$?
-    # Exit 2 alone is not the signal. The audit also exits 2 when guards/dist
-    # is not built, and on CI -- where make test ran before the guards were
-    # built -- that read as the intended failure until json.load met an empty
-    # string. The payload has to say nothing_checked itself; a run that
-    # produced no payload is reported with its reason, not as either verdict.
+    # Exit 2 alone is not the signal. The audit once also exited 2 when a
+    # dependency it imported was not built, and on CI that read as the
+    # intended failure until json.load met an empty string. The payload has
+    # to say nothing_checked itself; a run that produced no payload is
+    # reported with its reason, not as either verdict.
     if ! printf '%s' "$out" | python3 -c "import json, sys; json.load(sys.stdin)" 2>/dev/null; then
         printf '  T169: the audit produced no payload (rc=%s): %s\n' "$rc" "$(head -c 200 "$tmp/stderr")"
         rm -rf "$tmp"; return 1
@@ -5054,6 +5088,7 @@ run_test "T186 public-content audit: the count is the files read, none skipped f
 run_test "T187 public-content audit: the real tree's count clears an independent floor" test_T187
 run_test "T188 the scripts/ audits fail closed on an empty base-dir" test_T188
 run_test "T189 every numbered mention of the skill catalogue matches the skills on disk" test_T189
+run_test "T190 every path the README's structure block names exists on disk" test_T190
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

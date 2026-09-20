@@ -65,6 +65,9 @@ CHECKS = {
         lambda s, empty: ["node", str(s), "--base-dir", str(empty)],
     "verify-refs/verify-refs.py":
         lambda s, empty: ["python3", str(s), "--bib", str(empty / "empty.bib")],
+    # No file to lint: nothing linted is not a pass (exit 2).
+    "note/notes-lint.mjs":
+        lambda s, empty: ["node", str(s)],
     "scripts/audit-citations.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty), "--json"],
     "scripts/audit-british-english.py":
@@ -77,6 +80,9 @@ CHECKS = {
 
 NOT_CHECKS = {
     "export/convert_to_docx.py": "converter: Markdown to .docx, makes no pass/fail claim",
+    "audit/citations.mjs": "library: citation extraction and notes-source parsing used by the fidelity audit; no claim of its own",
+    "audit/quote-fidelity.mjs": "library: quote graders (pure functions) used by the fidelity audit; no claim of its own",
+    "audit/pdf-pages.mjs": "library: page labelling of pdftotext output used by the fidelity audit; no claim of its own",
     "audit/build-venue-baseline.py": "corpus builder: fetches a venue's papers from arXiv and writes a manifest; makes no pass/fail claim about a manuscript, and its own corpus floor exits 2 (T176)",
 }
 
