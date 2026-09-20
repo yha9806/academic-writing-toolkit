@@ -1,7 +1,7 @@
 ---
 name: review
 description: Review a manuscript or chapter as an external reviewer, or run an own-work self-review in a fresh-context clean room, producing anchored findings and a recommendation.
-allowed-tools: Read, Glob, Grep, Agent
+allowed-tools: Read, Glob, Grep, Agent, Bash
 ---
 
 # /review — Manuscript Review
@@ -24,17 +24,40 @@ sources, say so — that is itself a finding.
 
 ## Findings format
 
-Every finding is anchored (section/paragraph or quoted span) and typed:
+Write findings to a TSV the author can check, not prose they must take on
+trust. A declaration of what was read, then one row per finding:
 
-| # | Type | Anchor | Finding | Severity |
-|---|------|--------|---------|----------|
+```
+# reviewed: chapters/ch2_background.md, chapters/ch3_conceptual_framework.md
+location	source	problem
+chapters/ch2_background.md:142	literature/reading_notes/Foo_NOTES.md	The sentence attributes a claim the note does not contain.
+```
 
-Types: `claim-exceeds-evidence` | `gap-contribution-mismatch` | `method` |
-`structure` | `clarity` | `citation`. Split findings three ways: defects that
-block the recommendation, improvements that would strengthen it, and
-questions the author must answer. Consult `references/argument-checklist.md`
-for the interrogation checklist and examiner-attack pre-mortem when the
-review targets argument quality.
+- **location** is `file:line`, never a section name or a quoted span. A section
+  name cannot be told apart from a plausible one; a line number resolves or it
+  does not.
+- **source** is the archived original or evidence file the finding rests on, or
+  `-` when the finding is about the text itself (structure, clarity, an
+  internal contradiction).
+- **problem** is one sentence. Type and severity go in that sentence if they
+  matter; a separate taxonomy column was never read.
+
+**Run the checker before handing the report over:**
+
+```
+python3 .claude/skills/review/scripts/audit-review-findings.py \
+  --base-dir <manuscript> --findings <findings.tsv>
+```
+
+It resolves every anchor, rejects a finding about a file the review never
+declared it read, and exits 2 when the report does not say what it read — a
+review with no declaration cannot be told apart from one that examined nothing.
+It does **not** judge whether a finding is right. Split the rows three ways in
+the accompanying note: defects that block the recommendation, improvements that
+would strengthen it, and questions the author must answer. Consult
+`references/argument-checklist.md` (repository root) for the interrogation
+checklist and examiner-attack pre-mortem when the review targets argument
+quality.
 
 ## Recommendation vocabulary
 
@@ -51,6 +74,8 @@ that is not available as submitted; or convert this review into a rewrite —
 ## Constraints
 
 1. Never rewrite or patch the manuscript; output findings only.
-2. No emoji. British English.
-3. Own-work mode without a subagent available: state plainly that the review
+2. Every finding resolves: run the checker and report its exit code alongside
+   the findings. An unresolved anchor is withdrawn, not explained.
+3. No emoji. British English.
+4. Own-work mode without a subagent available: state plainly that the review
    is NOT clean-room and label the output accordingly.

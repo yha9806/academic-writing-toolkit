@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (132 automated tests, labelled T2-T138: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (170 automated tests, labelled T2-T177: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -36,12 +36,37 @@ cd "$REPO_ROOT"
 PASSES=0
 FAIL_LIST=()
 
+# A green suite total says how many tests ran, not what they cover. 59 of these
+# exercise validators for bundles retired under archive/skills/, which is a
+# deliberate choice (README: "history; validators still tested") but makes a
+# single "all N passed" read as coverage of the live toolkit. The runner sorts
+# each test by whether its body reaches into archive/skills/, and the summary
+# reports both numbers, so the total cannot stand in for the live one.
+RETIRED_PASSES=0
+LIVE_PASSES=0
+
+_test_surface() {
+    local body
+    body=$(declare -f "$1" 2>/dev/null)
+    case "$body" in
+        *"archive/skills/"*) printf 'retired' ;;
+        *) printf 'live' ;;
+    esac
+}
+
 run_test() {
     local name="$1"
     local fn="$2"
+    local surface
+    surface=$(_test_surface "$fn")
     if "$fn"; then
         pass "$name"
         PASSES=$((PASSES+1))
+        if [[ "$surface" == "retired" ]]; then
+            RETIRED_PASSES=$((RETIRED_PASSES+1))
+        else
+            LIVE_PASSES=$((LIVE_PASSES+1))
+        fi
     else
         fail "$name"
         FAIL_LIST+=("$name")
@@ -3498,8 +3523,23 @@ d = pathlib.Path(sys.argv[1])
 calm = "The pool holds one relevant image for every query in this evaluation. " * 150
 loud = "The pool holds one image; the query is text; the model is frozen. " * 150
 (d / "target.txt").write_text(calm, encoding="utf-8")
-for i in range(6):
-    (d / "base" / ("paper%d.txt" % i)).write_text(calm, encoding="utf-8")
+# Each baseline paper is semicolon-free like the target but worded differently.
+# They used to be verbatim copies of the target, which was convenient until the
+# baseline scan started reading a verbatim copy as exactly what it is: a draft
+# of the target sitting in its own baseline. The distribution this test needs
+# survives the rewording; the contamination does not.
+papers = [
+    "Sediment cores from the northern shelf preserve annual laminations of winter runoff. ",
+    "The compiler rewrites every loop whose bounds are known before the build begins. ",
+    "Participants rated fourteen photographs and then described what they had noticed. ",
+    "Orbital decay is dominated by atmospheric drag below six hundred kilometres. ",
+    "Enzyme activity fell above forty degrees and did not recover on later cooling. ",
+    "Rainfall totals were logged hourly at nine stations across the upper catchment. ",
+]
+for i, body in enumerate(papers):
+    filled = body * 200
+    assert len(filled.split()) >= 1500, "fixture %d is too short" % i
+    (d / "base" / ("paper%d.txt" % i)).write_text(filled, encoding="utf-8")
 (d / "base" / "ours2025.txt").write_text(loud, encoding="utf-8")
 PYEOF
     out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
@@ -3558,6 +3598,505 @@ PYEOF
     [[ "$plain" -eq "$pre" ]]
 }
 
+test_T139() {
+    # The precondition the method states in prose -- the baseline holds none of
+    # the author's own work -- used to be enforced by the caller remembering to
+    # pass --exclude, and `baseline_excluded: []` read the same whether it had
+    # been checked or never considered. A baseline carrying a draft of the
+    # target must now withhold percentiles and name the file.
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+# The target needs a few hundred DISTINCT 4-grams, because the scan requires an
+# absolute count as well as a share -- a share alone flags any text opening
+# with the same stock phrase. One sentence repeated yields barely a dozen.
+# Numbering the sentences does not help either: the n-gram tokeniser is
+# [a-z']+, so digits are dropped and every numbered sentence collapses onto
+# the same 4-grams. A varying WORD is what makes them distinct.
+import itertools
+_tokens = ["".join(c) for c in itertools.product("abcdefgh", repeat=3)]
+target = "".join(
+    "The %s stage scored the candidate pool and recorded the rank of the item. " % tok
+    for tok in _tokens[:220])
+(d / "target.txt").write_text(target, encoding="utf-8")
+(d / "base" / "self_draft.txt").write_text(
+    target + "One further remark closes the draft. ", encoding="utf-8")
+others = [
+    "Sediment cores from the northern shelf preserve annual laminations that record winter runoff. Each layer is counted twice and its thickness measured against a reference scale. ",
+    "The compiler rewrites every loop whose bounds are known at build time and emits a specialised body. Register pressure is measured after each pass and reported per function. ",
+    "Participants rated fourteen photographs on a seven point scale and then described what they noticed. Ratings were collected before any discussion took place. ",
+    "Orbital decay is dominated by atmospheric drag below six hundred kilometres. The residual acceleration is fitted over successive arcs and subtracted. ",
+    "Enzyme activity fell sharply above forty degrees and did not recover on cooling. Duplicate assays were run on separate days with fresh substrate. ",
+]
+for i, body in enumerate(others):
+    # 1500 words is the audit's own floor for admitting a baseline document.
+    # At 70 repeats the shortest of these fell under it, the baseline dropped
+    # to four, and the test failed for a reason that had nothing to do with
+    # what it asserts. The fixture now checks its own precondition.
+    filled = body * 90
+    assert len(filled.split()) >= 1500, "fixture %d is too short" % i
+    (d / "base" / ("other%d.txt" % i)).write_text(filled, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" --json 2>/dev/null)
+    rc=$?
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['preconditions_checked'] is False, 'precondition should not read as met'
+assert d['overlap_waived'] is False, 'nothing was waived here'
+names = [s['file'] for s in d['baseline_suspect']]
+assert names == ['self_draft.txt'], 'expected only the draft flagged, got %r' % names
+assert 'percentile' not in d['metrics']['semicolon_per_1k'], 'percentiles must be withheld'
+assert d['outliers'] == [], 'no outliers without percentiles -- which is why rc must not be 0'
+" || { rm -rf "$tmp"; return 1; }
+    # 2, not 1: withheld percentiles produce no outliers, so a contaminated run
+    # would otherwise exit 0 and read as a pass.
+    [[ "$rc" -eq 2 ]] || { rm -rf "$tmp"; return 1; }
+
+    # Excluding it restores the measurement.
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" \
+            --exclude 'self_draft.txt' --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['preconditions_checked'] is True
+assert d['baseline_suspect'] == []
+assert d['exclude_patterns'] == ['self_draft.txt']
+assert 'percentile' in d['metrics']['semicolon_per_1k']
+"
+}
+
+test_T140() {
+    # --allow-overlap decides whether percentiles are withheld. It does not
+    # decide whether the precondition holds. Reporting preconditions_checked
+    # true because a waiver was passed would rebuild the ambiguous green light
+    # the scan exists to remove -- which the first draft of this feature did.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+# The target needs a few hundred DISTINCT 4-grams, because the scan requires an
+# absolute count as well as a share -- a share alone flags any text opening
+# with the same stock phrase. One sentence repeated yields barely a dozen.
+# Numbering the sentences does not help either: the n-gram tokeniser is
+# [a-z']+, so digits are dropped and every numbered sentence collapses onto
+# the same 4-grams. A varying WORD is what makes them distinct.
+import itertools
+_tokens = ["".join(c) for c in itertools.product("abcdefgh", repeat=3)]
+target = "".join(
+    "The %s stage scored the candidate pool and recorded the rank of the item. " % tok
+    for tok in _tokens[:220])
+(d / "target.txt").write_text(target, encoding="utf-8")
+(d / "base" / "self_draft.txt").write_text(target, encoding="utf-8")
+others = [
+    "Sediment cores from the northern shelf preserve annual laminations that record winter runoff. Each layer is counted twice and its thickness measured against a reference scale. ",
+    "The compiler rewrites every loop whose bounds are known at build time and emits a specialised body. Register pressure is measured after each pass and reported per function. ",
+    "Participants rated fourteen photographs on a seven point scale and then described what they noticed. Ratings were collected before any discussion took place. ",
+    "Orbital decay is dominated by atmospheric drag below six hundred kilometres. The residual acceleration is fitted over successive arcs and subtracted. ",
+    "Enzyme activity fell sharply above forty degrees and did not recover on cooling. Duplicate assays were run on separate days with fresh substrate. ",
+]
+for i, body in enumerate(others):
+    # 1500 words is the audit's own floor for admitting a baseline document.
+    # At 70 repeats the shortest of these fell under it, the baseline dropped
+    # to four, and the test failed for a reason that had nothing to do with
+    # what it asserts. The fixture now checks its own precondition.
+    filled = body * 90
+    assert len(filled.split()) >= 1500, "fixture %d is too short" % i
+    (d / "base" / ("other%d.txt" % i)).write_text(filled, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" --allow-overlap --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert 'percentile' in d['metrics']['semicolon_per_1k'], 'the waiver should restore percentiles'
+assert d['overlap_waived'] is True, 'the waiver should be recorded'
+assert d['preconditions_checked'] is False, 'a waiver is not a met precondition'
+assert len(d['baseline_suspect']) == 1, 'the suspect stays visible in the report'
+"
+}
+
+test_T169() {
+    # Checking nothing is not a pass. On a tree without chapters/**/*.md the
+    # fidelity audit used to return `findings: []` with exit 0 -- byte-identical
+    # to a clean pass over a corpus it had fully read. It now exits 2 with
+    # nothing_checked: true and says what it did not read; and when a corpus
+    # exists, the denominators that say how much was read are in the payload.
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/empty/sections" "$tmp/real/chapters"
+    printf 'Rescored after the second pass \\citep{smith2019}.\n' > "$tmp/empty/sections/s1.tex"
+    printf 'The pool was rescored after the second pass (Smith, 2019).\n' \
+        > "$tmp/real/chapters/ch1.md"
+    out=$(node .claude/skills/audit/scripts/audit-citation-fidelity.mjs \
+            --base-dir "$tmp/empty" --json 2>"$tmp/stderr")
+    rc=$?
+    # Exit 2 alone is not the signal. The audit also exits 2 when guards/dist
+    # is not built, and on CI -- where make test ran before the guards were
+    # built -- that read as the intended failure until json.load met an empty
+    # string. The payload has to say nothing_checked itself; a run that
+    # produced no payload is reported with its reason, not as either verdict.
+    if ! printf '%s' "$out" | python3 -c "import json, sys; json.load(sys.stdin)" 2>/dev/null; then
+        printf '  T169: the audit produced no payload (rc=%s): %s\n' "$rc" "$(head -c 200 "$tmp/stderr")"
+        rm -rf "$tmp"; return 1
+    fi
+    [[ "$rc" -eq 2 ]] || { rm -rf "$tmp"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['nothing_checked'] is True
+assert d['sentences_checked'] == 0 and d['citations_checked'] == 0
+nc = d['not_covered']
+assert nc['latex_cite_commands'] == 1, nc
+assert nc['latex_distinct_cite_keys'] == 1, nc
+assert nc['latex_files_top'] and nc['latex_files_top'][0][1] == 1, nc
+" || { rm -rf "$tmp"; return 1; }
+    out=$(node .claude/skills/audit/scripts/audit-citation-fidelity.mjs \
+            --base-dir "$tmp/real" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['nothing_checked'] is False
+assert d['corpus_files'] == 1, d.get('corpus_files')
+assert d['sentences_checked'] == 1, d.get('sentences_checked')
+assert 'notes_sources_indexed' in d, 'the notes denominator must be visible too'
+"
+}
+
+test_T170() {
+    # Every baseline candidate has to leave a trace. `baseline_skipped` held
+    # only the unreadable ones, so a document that loaded fine and fell under
+    # the 1500-word floor vanished with no record: a corpus of 179 files
+    # reported 129 documents and nothing in the report accounted for the rest.
+    # The same silence once cost a test run its diagnosis.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+_tokens = ["".join(c) for c in itertools.product("abcdefgh", repeat=3)]
+(d / "target.txt").write_text("".join(
+    "The %s stage scored the candidate pool and recorded the rank of the item. " % tok
+    for tok in _tokens[:220]), encoding="utf-8")
+bodies = [
+    "Sediment cores from the northern shelf preserve annual laminations that record winter runoff. Each layer is counted twice against a reference scale. ",
+    "The compiler rewrites every loop whose bounds are known at build time and emits a specialised body. Register pressure is measured after each pass. ",
+    "Participants rated fourteen photographs on a seven point scale and then described what they noticed. Ratings were collected before any discussion. ",
+    "Orbital decay is dominated by atmospheric drag below six hundred kilometres. The residual acceleration is fitted over successive arcs and subtracted. ",
+    "Enzyme activity fell sharply above forty degrees and did not recover on cooling. Duplicate assays were run on separate days with fresh substrate. ",
+]
+for i, body in enumerate(bodies):
+    filled = body * 90
+    assert len(filled.split()) >= 1500, "fixture %d is too short" % i
+    (d / "base" / ("other%d.txt" % i)).write_text(filled, encoding="utf-8")
+# One admitted document short of the floor, deliberately.
+runt = bodies[0] * 4
+assert len(runt.split()) < 1500, "the runt must be under the floor"
+(d / "base" / "runt.txt").write_text(runt, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+short = {x['file'] for x in d['baseline_too_short']}
+assert short == {'runt.txt'}, 'the under-length document must be named, got %r' % short
+assert d['baseline_documents'] == 5, d['baseline_documents']
+# The point of the field is that the arithmetic closes inside the report.
+seen = (d['baseline_documents'] + len(d['baseline_skipped'])
+        + len(d['baseline_too_short']) + len(d['baseline_excluded']))
+assert seen == 6, 'candidates must be fully accounted for, got %d' % seen
+# Same pipeline on both sides here, so nothing to declare.
+assert d['pipeline_mismatch'] is False, d.get('baseline_pipeline_mix')
+"
+}
+
+test_T171() {
+    # Per-section evenness needs no baseline, which makes it the measurement
+    # that is never blocked -- and its key was simply absent when the target was
+    # a directory. A run that never computed it and a run with nothing to say
+    # produced the same report, so a whole-corpus reading silently lost the one
+    # metric that shows whether a device runs evenly across sections.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/dir"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+body = ("The reviewers agreed on the coding frame rather than on the labels. "
+        "Each pass was timed and the disagreements were logged for later reading. ") * 60
+(d / "dir" / "a.txt").write_text(body, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/dir" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert 'per_section_cv' in d, 'the key must be present even when not computed'
+assert d['per_section_cv'] is None, d['per_section_cv']
+note = d.get('per_section_note', '')
+assert 'NOT COMPUTED' in note, note
+assert 'directory' in note, 'the note must say WHY, not just that it is missing'
+"
+}
+
+test_T172() {
+    # A real \keywords{} block wraps across source lines. The term then carried
+    # a newline, matched nothing but its own declaration -- which sits in the
+    # preamble, where no citation ever is -- and a term used dozens of times, often
+    # beside a citation, was reported as unsourced. A keyword genuinely absent
+    # from the body is a different finding and has to say so.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/doc"
+    cat > "$tmp/doc/main.tex" <<'TEXEOF'
+\documentclass{article}
+\title{A Study of Label Variation}
+\keywords{label
+variation, ghost concept}
+\begin{document}
+Label variation is the central problem here \citep{alpha2020}.
+We return to label variation in the discussion \citep{beta2021}.
+\end{document}
+TEXEOF
+    cat > "$tmp/doc/references.bib" <<'BIBEOF'
+@article{alpha2020, author = {Alpha, A.}, title = {One}, year = {2020}}
+@article{beta2021, author = {Beta, B.}, title = {Two}, year = {2021}}
+BIBEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py \
+            --base-dir "$tmp/doc" --bib "$tmp/doc/references.bib" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+kw = [i['detail'] for i in d['issues'] if i['kind'] == 'unsourced-keyword']
+joined = ' | '.join(kw)
+assert not any('label' in k and 'absent' not in k for k in kw), \
+    'a wrapped keyword used beside citations must not be flagged: %s' % joined
+ghost = [k for k in kw if 'ghost concept' in k]
+assert ghost, 'a keyword never used in the body must still be reported: %s' % joined
+assert 'absent from body' in ghost[0], \
+    'and it must say it was never used, not that it lacks a source: %s' % ghost[0]
+"
+}
+
+test_T173() {
+    # natbib puts the locator in an optional argument. Requiring "{" straight
+    # after the command made \citep[pp.~12--14]{key} invisible, so the
+    # paragraph counted as uncited and a method reported WITH its source was
+    # filed as uncited-method. The more precisely a manuscript cites, the less
+    # the checker saw.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/doc"
+    cat > "$tmp/doc/main.tex" <<'TEXEOF'
+\documentclass{article}
+\begin{document}
+The reported Krippendorff's alpha rose after the second pass, and the
+intervals are not given \citep[pp.~12--14]{smith2019}.
+\end{document}
+TEXEOF
+    printf '@article{smith2019, author = {Smith, A.}, title = {One}, year = {2019}}\n' \
+        > "$tmp/doc/references.bib"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py \
+            --base-dir "$tmp/doc" --bib "$tmp/doc/references.bib" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+kinds = [i['kind'] for i in d['issues']]
+assert 'uncited-method' not in kinds, \
+    'a bracketed locator is still a citation: %r' % d['issues']
+assert 'dangling-entry' not in kinds, 'and the key still counts as cited'
+"
+}
+
+test_T174() {
+    # The bare word "novelty" is not a novelty claim. It names procedures, and
+    # on one manuscript it appeared inside sentences that REFUSE the claim --
+    # a sentence that explicitly refused the claim was reported as High. The
+    # explicit frames carry their own negation and must keep firing.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/doc"
+    cat > "$tmp/doc/main.tex" <<'TEXEOF'
+\documentclass{article}
+\begin{document}
+The novelty-detection stage returned ten records and is described below.
+
+A null result is not a sign of novelty, and is not read as one.
+
+To our knowledge no earlier study has reported this effect at scale.
+\end{document}
+TEXEOF
+    printf '@article{x2020, author = {Ex, E.}, title = {X}, year = {2020}}\n' \
+        > "$tmp/doc/references.bib"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py \
+            --base-dir "$tmp/doc" --bib "$tmp/doc/references.bib" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+nov = [i['detail'] for i in d['issues'] if i['kind'] == 'bare-novelty']
+assert len(nov) == 1, 'exactly the unhedged claim should fire, got %r' % nov
+assert 'knowledge' in nov[0], nov[0]
+"
+}
+
+test_T175() {
+    # Every candidate has to leave a trace, and membership is the registrar's
+    # word rather than the author's. arXiv's journal_ref is free text -- one
+    # real record reads "Just accpeted by ACM Computing Surveys 2026" -- so a
+    # record whose DOI resolves to a different journal must be rejected BY NAME,
+    # not quietly dropped into a corpus that looks complete.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" 2>/dev/null <<'PYEOF'
+import importlib.util, json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "vb", ".claude/skills/audit/scripts/build-venue-baseline.py")
+vb = importlib.util.module_from_spec(spec); spec.loader.exec_module(vb)
+
+# Twenty-two in-window records: twenty good, one in another ACM journal, one
+# with nothing but the author's own journal_ref.
+recs = [{"arxiv_id": "24%02d.00001v1" % i, "title": "T%d" % i, "year": 2023,
+         "primary_category": "cs.LG", "journal_ref": "ACM Computing Surveys",
+         "doi": "10.1145/%d" % (3000000 + i)} for i in range(20)]
+recs.append({"arxiv_id": "2401.99998v1", "title": "Wrong journal", "year": 2023,
+             "primary_category": "cs.LG", "journal_ref": "ACM Computing Surveys",
+             "doi": "10.1145/9999999"})
+recs.append({"arxiv_id": "2401.99997v1", "title": "No doi", "year": 2023,
+             "primary_category": "cs.LG",
+             "journal_ref": "Just accpeted by ACM Computing Surveys 2026", "doi": None})
+recs.append({"arxiv_id": "1901.00001v1", "title": "Too old", "year": 2019,
+             "primary_category": "cs.LG", "journal_ref": "ACM Computing Surveys",
+             "doi": "10.1145/1"})
+
+vb.query_arxiv = lambda venue, delay: list(recs)
+vb.container_title = lambda doi, delay: (
+    "ACM Transactions on Graphics" if doi == "10.1145/9999999" else "ACM Computing Surveys")
+sys.argv = ["vb", "--venue", "ACM Computing Surveys", "--from-year", "2021",
+            "--dry-run", "--manifest", str(d / "m.json")]
+rc = 0
+try:
+    vb.main()
+except SystemExit as e:
+    rc = e.code or 0
+m = json.loads((d / "m.json").read_text())
+assert rc == 0, "a corpus of twenty should succeed, rc=%s" % rc
+assert m["admitted"] == 20, m["admitted"]
+# Count the records, do not read the tool's own verdict on whether it counted
+# them. A first version of this test asserted accounting_closes, and hardcoding
+# that field to True left the test green -- the test was vouching for the
+# claim instead of checking the arithmetic.
+seen = [r["arxiv_id"] for r in m["records"]]
+for group in m["rejected_records"].values():
+    seen += [r["arxiv_id"] for r in group]
+assert len(set(seen)) == len(seen), "a record appears in two dispositions"
+assert len(seen) == 23, "every candidate must appear exactly once, got %d" % len(seen)
+assert m["candidates"] == 23, m["candidates"]
+assert m["accounting_closes"] is True, "dispositions must sum to the candidates"
+assert m["rejected"]["container_title_mismatch"] == 1, m["rejected"]
+assert m["rejected"]["no_doi"] == 1, m["rejected"]
+assert m["rejected"]["out_of_window"] == 1, m["rejected"]
+named = [r["arxiv_id"] for r in m["rejected_records"]["container_title_mismatch"]]
+assert named == ["2401.99998v1"], "the mismatch must be named, got %r" % named
+assert {r["container_title"] for r in m["records"]} == {"ACM Computing Surveys"}
+assert all(r["venue_verified"] for r in m["records"])
+# The frame itself has to be in the record, not in someone's memory.
+for k in ("query", "from_year", "api", "retrieved", "verification", "stage"):
+    assert m.get(k), "manifest must record %s" % k
+PYEOF
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 0 ]]
+}
+
+test_T176() {
+    # A corpus under the method's own twenty-document floor is not a small
+    # corpus; it is not a corpus. Returning it with exit 0 is how a short
+    # baseline gets quoted as a published range.
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    out=$(python3 - "$tmp" 2>&1 <<'PYEOF'
+import importlib.util, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "vb", ".claude/skills/audit/scripts/build-venue-baseline.py")
+vb = importlib.util.module_from_spec(spec); spec.loader.exec_module(vb)
+recs = [{"arxiv_id": "24%02d.1v1" % i, "title": "T", "year": 2023,
+         "primary_category": "cs.LG", "journal_ref": "V", "doi": "10.1145/%d" % i}
+        for i in range(19)]
+vb.query_arxiv = lambda venue, delay: list(recs)
+vb.container_title = lambda doi, delay: "ACM Computing Surveys"
+sys.argv = ["vb", "--venue", "ACM Computing Surveys", "--dry-run",
+            "--manifest", str(d / "m.json")]
+try:
+    vb.main(); print("RC=0")
+except SystemExit as e:
+    print("RC=%s" % (e.code or 0))
+PYEOF
+)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 0 ]] || return 1
+    grep -q "RC=2" <<<"$out" || return 1
+    grep -q "VENUE_CORPUS_TOO_SMALL" <<<"$out" || return 1
+    # The remedy has to offer the honest alternative, not only a wider window.
+    grep -q "say so rather than measuring anyway" <<<"$out" || return 1
+}
+
+test_T177() {
+    # --dry-run answers what the frame would be. It must not touch the network
+    # for PDFs or leave a corpus directory behind that a later run would treat
+    # as already downloaded.
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" 2>/dev/null <<'PYEOF'
+import importlib.util, json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "vb", ".claude/skills/audit/scripts/build-venue-baseline.py")
+vb = importlib.util.module_from_spec(spec); spec.loader.exec_module(vb)
+recs = [{"arxiv_id": "24%02d.1v1" % i, "title": "T", "year": 2023,
+         "primary_category": "cs.LG", "journal_ref": "V", "doi": "10.1145/%d" % i}
+        for i in range(21)]
+vb.query_arxiv = lambda venue, delay: list(recs)
+vb.container_title = lambda doi, delay: "ACM Computing Surveys"
+def no_network(*a, **k):
+    raise AssertionError("--dry-run must not fetch a PDF")
+vb.fetch = no_network
+sys.argv = ["vb", "--venue", "ACM Computing Surveys", "--dry-run",
+            "--out", str(d / "corpus"), "--manifest", str(d / "m.json")]
+try:
+    vb.main()
+except SystemExit as e:
+    assert (e.code or 0) == 0, e.code
+m = json.loads((d / "m.json").read_text())
+assert m["dry_run"] is True
+assert m["downloaded_now"] == 0, m["downloaded_now"]
+assert not (d / "corpus").exists(), "--dry-run must not create the corpus directory"
+assert not any("file" in r for r in m["records"]), "no record may claim a file"
+PYEOF
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 0 ]]
+}
+
 run_test "T127 prose fingerprint separates even from bunched use" test_T127
 run_test "T128 prose fingerprint withholds percentiles on a thin baseline" test_T128
 run_test "T129 claim positioning flags advertised terms with no source" test_T129
@@ -3569,9 +4108,673 @@ run_test "T134 a LaTeX preamble is not prose" test_T134
 run_test "T135 author-control scaffold is conservative and repeat-safe" test_T135
 run_test "T136 author-control strict checker enforces approval state" test_T136
 run_test "T137 cross-skill author-control gates remain present" test_T137
+# --- T142-T146: claim ledger for LaTeX manuscripts ---------------------------
+# The gap: the citation fidelity audit reads chapters/**/*.md; a LaTeX
+# manuscript's claims about its sources were checked by nothing. Each row of a
+# claim ledger binds a manuscript sentence to a verbatim snippet in an archived
+# source, and the audit checks the binding in both directions.
+ledger_fixture() {
+    # $1 = dir. Two content-asserting citing sentences (one ledgered, one not)
+    # and one credit-only citation.
+    mkdir -p "$1/sections" "$1/evidence"
+    cat > "$1/sections/02_related.tex" <<'EOF'
+\section{Related work}
+Buckley et al. show that small pools bias the judgments toward documents with topic words~\cite{buckley2007}.
+Voorhees notes that an absolute score is not meaningful in isolation~\cite{voorhees2002}.
+We control the false discovery rate with the Benjamini--Hochberg procedure~\cite{bh1995}.
+EOF
+    cat > "$1/evidence/buckley2007.txt" <<'EOF'
+This paper shows that the judgment sets produced by traditional pooling when the pools are
+too small can be biased in that they favor relevant documents that contain some of the topic
+title words.
+EOF
+    printf 'claim\tcite_key\tsnippet\tsource_file\tlevel\n' > "$1/ledger.tsv"
+    printf 'Buckley et al. show that small pools bias the judgments toward documents with topic words\tbuckley2007\tcan be biased in that they favor relevant documents that contain some of the topic title words\tevidence/buckley2007.txt\tfulltext\n' >> "$1/ledger.tsv"
+}
+
+test_T147() {
+    # Citing sentences but an empty ledger: nothing was verified, so this is
+    # not a pass either — the coverage list alone must not read as clean.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    printf 'claim\tcite_key\tsnippet\tsource_file\tlevel\n' > "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['citing_sentences'] == 3 and d['ledger_rows'] == 0, d
+assert d['nothing_checked'] is True, d
+" || return 1
+    [ "$status" = "2" ] || { echo "expected exit 2, got $status"; return 1; }
+}
+
+test_T142() {
+    # A snippet that is not verbatim in the archived source is a hard finding.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    sed -i.bak 's/can be biased in that they favor/are always biased because they favour/' "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    local status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'snippet-not-in-source' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T143() {
+    # A ledger row whose claim is no longer in the manuscript is a hard finding:
+    # the sentence was edited and the binding went stale.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    sed -i.bak 's/Buckley et al. show that small pools bias the judgments toward documents with topic words~/Buckley et al. show that pooling is unreliable~/' "$tmp/sections/02_related.tex"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'claim-not-in-manuscript' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T144() {
+    # Coverage: a citing sentence that asserts something about its source and
+    # has no ledger row is reported; a credit-only citation is not a finding.
+    # The ledgered row prompts about a qualifier the claim drops.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert d['citing_sentences'] == 3, d['citing_sentences']
+assert d['ledger_rows'] == 1, d['ledger_rows']
+assert 'unledgered-assertion' in kinds, kinds
+assert 'voorhees2002' in [f['detail'] for f in d['findings'] if f['kind']=='unledgered-assertion'][0]
+assert 'unledgered-credit' not in [f['kind'] for f in d['findings'] if not f.get('prompt')], kinds
+assert any(f['kind']=='qualifier-dropped' and f.get('prompt') for f in d['findings']), kinds
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T145() {
+    # Checking nothing is not a pass.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/sections"
+    printf '\\section{Empty}\nNo citations here.\n' > "$tmp/sections/01.tex"
+    printf 'claim\tcite_key\tsnippet\tsource_file\tlevel\n' > "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['nothing_checked'] is True, d
+" || return 1
+    [ "$status" = "2" ] || { echo "expected exit 2, got $status"; return 1; }
+}
+
+test_T146() {
+    # A negative claim about a source needs the full text, never an abstract.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+Buckley et al. did not test pooled judgments on image retrieval~\cite{buckley2007}.
+EOF
+    printf 'Buckley et al. did not test pooled judgments on image retrieval\tbuckley2007\tcan be biased in that they favor relevant documents\tevidence/buckley2007.txt\tabstract-only\n' >> "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" --ledger "$tmp/ledger.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'negative-claim-without-fulltext' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+# --- Commit gate ------------------------------------------------------------
+# Every one of the six wrong citations found in a real manuscript was introduced by
+# a commit whose stated purpose was something else (a rewrite, a positioning
+# pass, a page-count compression, a change of venue), and the structural check
+# that ran at the time was green. The gate narrows the audit to what THIS change
+# added, so it can sit on the commit rather than on the submission.
+gate_fixture() {
+    # $1 = dir. A git repo whose HEAD holds one ledgered assertion and one
+    # credit. The caller then edits the working tree and gates against HEAD.
+    ledger_fixture "$1"
+    git -C "$1" init -q 2>/dev/null
+    git -C "$1" config user.email t@example.com
+    git -C "$1" config user.name Test
+    git -C "$1" add -A 2>/dev/null
+    git -C "$1" commit -qm base 2>/dev/null
+}
+
+test_T148() {
+    # A newly added sentence that asserts something about its source, with no
+    # ledger row, is a hard finding in gate mode.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+Chun et al. report that the standard test set under-counts correct matches~\cite{chun2022}.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'new-assertion-unledgered' in kinds, kinds
+assert d['gate']['new_citing_sentences'] == 1, d.get('gate')
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T149() {
+    # Sentences that did not change are not the gate's business, however many
+    # unledgered assertions the manuscript already carries.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    printf '\n%% a comment, no new citation\n' >> "$tmp/sections/02_related.tex"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['gate']['new_citing_sentences'] == 0, d.get('gate')
+assert d['hard_finding_count'] == 0, d['findings']
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T150() {
+    # A method credit passes the gate only when the author has listed that key.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    printf 'bh1995\nclopper1934\n' > "$tmp/credits.txt"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+We report Clopper--Pearson intervals throughout~\cite{clopper1934}.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --credits "$tmp/credits.txt" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['hard_finding_count'] == 0, d['findings']
+assert d['gate']['new_citing_sentences'] == 1, d.get('gate')
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T151() {
+    # The Lakens shape: a key already cited elsewhere in the manuscript, dropped
+    # into a new sentence about a different procedure. Being present already is
+    # not an account of the new use.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+A family-level permutation test rejects the null here~\cite{bh1995}.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'new-citation-unaccounted' in kinds or 'new-assertion-unledgered' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T152() {
+    # Gating against a ref where the file did not exist makes every citing
+    # sentence new; an empty ledger then cannot be a pass.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp"
+    git -C "$tmp" init -q 2>/dev/null
+    git -C "$tmp" config user.email t@example.com
+    git -C "$tmp" config user.name Test
+    printf 'placeholder\n' > "$tmp/README"
+    git -C "$tmp" add -A 2>/dev/null
+    git -C "$tmp" commit -qm empty 2>/dev/null
+    ledger_fixture "$tmp"
+    printf 'claim\tcite_key\tsnippet\tsource_file\tlevel\n' > "$tmp/ledger.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['gate']['new_citing_sentences'] == 3, d.get('gate')
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T153() {
+    # The Lakens shape, with the key allowlisted. A credit is accepted for a
+    # named procedure; the same key attached to a different procedure is not
+    # accounted for by that entry.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gate_fixture "$tmp"
+    printf 'bh1995equivalence = equivalence bounds\n' > "$tmp/credits.txt"
+    cat >> "$tmp/sections/02_related.tex" <<'EOF'
+A family-level permutation test rejects the null here~\cite{bh1995equivalence}.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --gate-since HEAD --credits "$tmp/credits.txt" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'credit-outside-its-procedure' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+# --- Fails closed ----------------------------------------------------------
+# A check that examines nothing and exits 0 is worse than no check: the green
+# result is read as "looked and found nothing wrong". Three of these shipped.
+test_T154() {
+    # An empty bibliography verifies no reference. That is not a pass.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    : > "$tmp/empty.bib"
+    out=$(python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/empty.bib" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['entries'] == 0, d
+assert d['nothing_checked'] is True, d
+" || return 1
+    [ "$status" = "2" ] || { echo "expected exit 2, got $status"; return 1; }
+}
+
+test_T155() {
+    # --allow-empty is the way to say an empty bibliography is expected here.
+    local tmp status
+    tmp=$(mktemp -d) || return 1
+    : > "$tmp/empty.bib"
+    python3 .claude/skills/verify-refs/scripts/verify-refs.py --bib "$tmp/empty.bib" --allow-empty >/dev/null 2>&1
+    status=$?
+    rm -rf "$tmp"
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T156() {
+    # An argument the script does not recognise must stop it. count-words took
+    # an unknown positional, counted a different directory and exited 0.
+    local status
+    node .claude/skills/map/scripts/count-words.mjs --zzz-not-a-real-flag >/dev/null 2>&1
+    status=$?
+    [ "$status" != "0" ] || { echo "expected non-zero for an unknown flag, got 0"; return 1; }
+    node .claude/skills/map/scripts/count-words.mjs /tmp >/dev/null 2>&1
+    status=$?
+    [ "$status" != "0" ] || { echo "expected non-zero for an unknown positional, got 0"; return 1; }
+}
+
+test_T157() {
+    # The property itself, kept green: every check fails closed on an empty
+    # target, and every script under a skill is registered as a check or not.
+    local out status
+    out=$(python3 scripts/check-fails-closed.py --json 2>&1)
+    status=$?
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['problem_count'] == 0, d['problems']
+assert d['checks_run'] >= 6, d
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+# --- Review findings --------------------------------------------------------
+# /review produced "anchored findings" that nothing verified: the anchor was a
+# section name or a quoted span, and an author acting on the report had no way
+# to tell a real location from a plausible one. The anchor is now file:line, the
+# source path is named, and a script resolves both.
+review_fixture() {
+    # $1 = dir. Two reviewed chapters and a source the findings can name.
+    mkdir -p "$1/chapters" "$1/evidence"
+    printf 'line one\nline two\nline three\n' > "$1/chapters/ch2.md"
+    printf 'alpha\nbeta\n' > "$1/chapters/ch3.md"
+    printf 'the archived passage\n' > "$1/evidence/source.txt"
+    {
+        printf '# reviewed: chapters/ch2.md, chapters/ch3.md\n'
+        printf 'location\tsource\tproblem\n'
+        printf 'chapters/ch2.md:2\tevidence/source.txt\tThe sentence says more than the passage it rests on.\n'
+    } > "$1/findings.tsv"
+}
+
+test_T158() {
+    # An anchor past the end of the file is the failure this replaces: a
+    # location that reads as precise and resolves to nothing.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    printf 'chapters/ch3.md:99\t-\tThe paragraph repeats the previous one.\n' >> "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'anchor-line-out-of-range' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T159() {
+    # No declaration of what was reviewed: zero findings then means nothing,
+    # and must not read as a clean review.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    printf 'location\tsource\tproblem\n' > "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['nothing_checked'] is True, d
+assert d['reviewed_files'] == 0, d
+" || return 1
+    [ "$status" = "2" ] || { echo "expected exit 2, got $status"; return 1; }
+}
+
+test_T160() {
+    # A review that examined files and found nothing IS a pass. That is the
+    # distinction the declaration buys.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    {
+        printf '# reviewed: chapters/ch2.md, chapters/ch3.md\n'
+        printf 'location\tsource\tproblem\n'
+    } > "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['reviewed_files'] == 2 and d['finding_rows'] == 0, d
+assert d['nothing_checked'] is False, d
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T161() {
+    # A finding about a file the review never declared it read.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    printf 'line\n' > "$tmp/chapters/ch9.md"
+    printf 'chapters/ch9.md:1\t-\tThis chapter was never opened.\n' >> "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'finding-outside-reviewed-set' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T162() {
+    # The source a finding rests on must be on disk, or the finding rests on
+    # the reviewer's memory.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    printf 'chapters/ch3.md:1\tevidence/not-there.txt\tThe claim is not in the source.\n' >> "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'source-missing' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+# --- Number ledger ----------------------------------------------------------
+# The manuscript already guards numbers one way: a frequency table of numeric
+# tokens taken before and after a prose pass, which answers "did this pass move
+# a number". It cannot answer "is this number the artifact's", nor "does the
+# sentence carry the scope the number is only true within". Both have failed on
+# real work: a ratio true of 15 cells written as if it were true of all of them,
+# and a pooled figure quoted alone against the manuscript's own warning.
+number_fixture() {
+    # $1 = dir. One reported number, its artifact, and a scope word.
+    mkdir -p "$1/sections" "$1/results"
+    cat > "$1/sections/06_results.tex" <<'EOF'
+\section{Results}
+The pooled share is $63.5\%$ across all four conditions.
+The top-1 rate falls from $30.2$ to $2.5$ times chance.
+EOF
+    printf 'condition,share\npooled,0.635\nk1,0.210\n' > "$1/results/variance.csv"
+    printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$1/numbers.tsv"
+    printf '63.5\t0.635\tpooled\tresults/variance.csv\tpooled,0.635\n' >> "$1/numbers.tsv"
+}
+
+test_T163() {
+    # The locator must be verbatim in the artifact, or the number rests on
+    # nothing that can be re-read.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    printf '30.2\t30.2\t-\tresults/variance.csv\tcells,30.2\n' >> "$tmp/numbers.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'locator-not-in-artifact' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T164() {
+    # A sentence that reports the number without the scope it is only true
+    # within. This is the failure the frequency table cannot see.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    cat > "$tmp/sections/06_results.tex" <<'EOF'
+\section{Results}
+The share is $63.5\%$ across all four conditions.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'scope-missing' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T165() {
+    # The ledgered number is no longer in the manuscript: the binding is stale.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    cat > "$tmp/sections/06_results.tex" <<'EOF'
+\section{Results}
+The pooled variance share is $91.9\%$ across all five conditions.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'number-not-in-manuscript' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T166() {
+    # A locator that does not itself carry the number: the row looks bound and
+    # binds nothing.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$tmp/numbers.tsv"
+    printf '63.5\t0.635\tpooled\tresults/variance.csv\tcondition,share\n' >> "$tmp/numbers.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'value-not-in-locator' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T167() {
+    # A clean ledger passes, and reports how many reported numbers carry no row.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['hard_finding_count'] == 0, d['findings']
+assert d['ledger_rows'] == 1 and d['nothing_checked'] is False, d
+assert any(f['kind'] == 'unledgered-number' for f in d['findings']), [f['kind'] for f in d['findings']]
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T168() {
+    # The two columns exist because the figure writes 0.635 and the prose prints
+    # 63.5%. A pair that is neither equal nor that relation is a finding, and
+    # the relation is recorded rather than inferred.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$tmp/numbers.tsv"
+    printf '63.5\t0.210\tpooled\tresults/variance.csv\tk1,0.210\n' >> "$tmp/numbers.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'printed-artifact-mismatch' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
+run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
+run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
+run_test "T144 claim ledger: coverage of citing sentences and the qualifier prompt" test_T144
+run_test "T145 claim ledger: checking nothing is not a pass" test_T145
+run_test "T146 claim ledger: a negative claim needs the full text" test_T146
+run_test "T147 claim ledger: citing sentences with an empty ledger is not a pass" test_T147
+run_test "T148 commit gate: a new assertion with no ledger row" test_T148
+run_test "T149 commit gate: unchanged sentences are not this change's business" test_T149
+run_test "T150 commit gate: a credit passes only when the key is listed" test_T150
+run_test "T151 commit gate: an existing key used in a new sentence is unaccounted" test_T151
+run_test "T152 commit gate: gating against a ref without the file" test_T152
+run_test "T153 commit gate: a credit does not cover a different procedure" test_T153
+run_test "T154 verify-refs: an empty bibliography is not a pass" test_T154
+run_test "T155 verify-refs: --allow-empty says the emptiness is expected" test_T155
+run_test "T156 count-words: an unrecognised argument stops it" test_T156
+run_test "T157 every check fails closed and every script is registered" test_T157
+run_test "T158 review findings: an anchor past the end of the file" test_T158
+run_test "T159 review findings: no declaration of what was reviewed" test_T159
+run_test "T160 review findings: files read and nothing found is a pass" test_T160
+run_test "T161 review findings: a finding about a file never declared read" test_T161
+run_test "T162 review findings: the named source must be on disk" test_T162
+run_test "T163 number ledger: the locator must be verbatim in the artifact" test_T163
+run_test "T164 number ledger: a number reported without its scope" test_T164
+run_test "T165 number ledger: the number is no longer in the manuscript" test_T165
+run_test "T166 number ledger: a locator that does not carry the artifact value" test_T166
+run_test "T167 number ledger: a clean ledger passes and lists what it misses" test_T167
+run_test "T168 number ledger: printed and artifact values that do not relate" test_T168
+run_test "T139 a baseline holding a draft of the target withholds percentiles" test_T139
+run_test "T140 the overlap waiver restores percentiles without asserting the precondition" test_T140
+run_test "T169 the fidelity audit says what it did not read, and how much it did" test_T169
+run_test "T170 every baseline candidate is accounted for in the report" test_T170
+run_test "T171 per-section metrics report their absence instead of vanishing" test_T171
+run_test "T172 a wrapped keyword is one term, and an unused one says so" test_T172
+run_test "T173 a bracketed natbib locator is still a citation" test_T173
+run_test "T174 a refused novelty claim is not a novelty claim" test_T174
+run_test "T175 the venue frame is recorded and the registrar decides membership" test_T175
+run_test "T176 a corpus under the floor fails closed" test_T176
+run_test "T177 --dry-run builds the frame and fetches nothing" test_T177
 
 header ""
+printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \
+    "$LIVE_PASSES" "$RETIRED_PASSES"
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
     pass "all $PASSES tests passed."
     exit 0

@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Sentence-level citation fidelity audit (P4 item 4).
 //
-//   node scripts/audit-citation-fidelity.mjs [--base-dir <workspace>] [--json]
+//   node scripts/audit-citation-fidelity.mjs [--base-dir <workspace>] [--json] [--allow-empty]
+//
+// Exit: 1 on a hard finding; 2 when nothing was checked (no citation found in
+// chapters/**/*.md), unless --allow-empty — checking nothing is not a pass.
 //
 // The gap this closes: every existing gate asks whether a source was read,
 // verified, or cited — none asks whether the CITING SENTENCE matches the
@@ -33,7 +36,7 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { join, resolve } from 'node:path'
+import { join, resolve, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { labelPdfPages } from '../../../../profiles/awt-headless/pdf-pages.mjs'
 import { extractQuotedSpans, gradeQuoteFidelity, normalizeForMatch, pagesFromLabeledText } from '../../../../e1/graders.mjs'
@@ -47,6 +50,7 @@ const SCHEMA_VERSION = 1
 
 const args = process.argv.slice(2)
 const emitJson = args.includes('--json')
+const allowEmpty = args.includes('--allow-empty')
 const baseArg = args.includes('--base-dir') ? args[args.indexOf('--base-dir') + 1] : '.'
 const base = resolve(baseArg)
 
@@ -156,11 +160,14 @@ function contentWords(text) {
 // --- audit -----------------------------------------------------------------------
 
 const notes = notesIndex(base)
+
+const corpus = chapterFiles(base)
+
 const findings = []
 let sentencesChecked = 0
 let citationsChecked = 0
 
-for (const rel of chapterFiles(base)) {
+for (const rel of corpus) {
   const text = readFileSync(join(base, rel), 'utf8')
   for (const sentence of sentences(text)) {
     const cites = extractCitations(sentence)
@@ -216,13 +223,51 @@ for (const rel of chapterFiles(base)) {
 }
 
 const hard = findings.filter((f) => f.kind === 'quote-not-in-source' || f.kind === 'page-mismatch')
+
+// Checking nothing is not a pass. The corpus is chapters/**/*.md; a manuscript
+// kept elsewhere (a LaTeX paper's sections/*.tex with \cite) yields zero
+// citations here, which must not read as a clean audit.
+function latexCites(root) {
+  // Counts run over every .tex under --base-dir. Pointed at a repository that
+  // also holds archived copies of the manuscript, the command count came out
+  // fifteen times the manuscript's own; the distinct-key count and the
+  // per-file list exist so that inflation is visible in the payload itself.
+  let n = 0
+  const keys = new Set()
+  const perFile = []
+  const walk = (dir, depth) => {
+    if (depth > 6 || !existsSync(dir)) return
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name.startsWith('.') || e.name === 'node_modules') continue
+      const p = join(dir, e.name)
+      if (e.isDirectory()) walk(p, depth + 1)
+      else if (e.name.endsWith('.tex')) {
+        let k = 0
+        for (const m of readFileSync(p, 'utf8').matchAll(/\\[A-Za-z]*cite[A-Za-z]*\*?(?:\[[^\]]*\])*\{([^}]*)\}/g)) {
+          k += 1
+          for (const key of m[1].split(',')) { const t = key.trim(); if (t) keys.add(t) }
+        }
+        n += k
+        if (k > 0) perFile.push([relative(root, p), k])
+      }
+    }
+  }
+  walk(root, 0)
+  perFile.sort((a, b) => b[1] - a[1])
+  return { commands: n, files: perFile.length, keys: keys.size, top: perFile.slice(0, 10) }
+}
+const nothingChecked = citationsChecked === 0
 const payload = {
   schema_version: SCHEMA_VERSION,
   base: base,
+  corpus_files: corpus.length,
+  notes_sources_indexed: notes.size,
   sentences_checked: sentencesChecked,
   citations_checked: citationsChecked,
   findings,
   hard_finding_count: hard.length,
+  nothing_checked: nothingChecked,
+  ...(nothingChecked ? { not_covered: { reads: 'chapters/**/*.md (author-year citations) against literature/reading_notes/*_NOTES.md', ...(() => { const l = latexCites(base); return { latex_cite_commands: l.commands, latex_files_with_cites: l.files, latex_distinct_cite_keys: l.keys, latex_files_top: l.top } })() } } : {}),
   limits: {
     semantic_inversion: 'NOT detected: a sentence asserting the opposite of its source in the source\'s own words passes every check here; that still requires reading the source',
     low_overlap: 'experimental — no false-positive rate has been measured on real notes; it never fails the audit',
@@ -241,5 +286,8 @@ if (emitJson) {
     for (const f of group) console.log(`  ${f.source} — ${f.location}\n    ${f.detail}`)
   }
   console.log(`\nNot checked: whether a citing sentence says the OPPOSITE of its source. ${payload.limits.semantic_inversion}.`)
+  if (nothingChecked) {
+    console.log(`\nNOTHING CHECKED: no citation found under chapters/**/*.md.${payload.not_covered.latex_cite_commands > 0 ? ` ${payload.not_covered.latex_cite_commands} LaTeX \\cite command(s) (${payload.not_covered.latex_distinct_cite_keys} distinct key(s)) exist in ${payload.not_covered.latex_files_with_cites} .tex file(s) under --base-dir; this audit does not read them.` : ''} This is not a pass${allowEmpty ? ' (accepted by --allow-empty)' : ''}.`)
+  }
 }
-process.exit(hard.length > 0 ? 1 : 0)
+process.exit(hard.length > 0 ? 1 : nothingChecked && !allowEmpty ? 2 : 0)

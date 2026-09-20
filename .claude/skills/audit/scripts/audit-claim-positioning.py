@@ -49,15 +49,46 @@ METHODS = [
     "equivalence test", "TOST", "preregistration", "preregistered",
     "Shapiro", "Levene", "ANOVA", "mixed-effects", "Cronbach",
 ]
-NOVELTY = re.compile(
+# A claim frame asserts priority outright. The bare word does not: it appears
+# in method names, and -- twice on one manuscript -- inside a sentence that
+# REFUSES the claim. The frames
+# carry their own negation ("we are not aware of"), so the guard below applies
+# to the bare word only.
+NOVELTY_CLAIM = re.compile(
     r"\b(?:to our knowledge|to the best of our knowledge|we are not aware of|"
-    r"no prior work|first to (?:show|demonstrate|report|propose)|novel(?:ty)?\b)",
+    r"no prior work|first to (?:show|demonstrate|report|propose))",
     re.I,
 )
+# A hyphenated compound names a procedure or an object -- "novelty detection",
+# "novelty-seeking" -- and asserts nothing about priority.
+NOVELTY_WORD = re.compile(r"(?<!-)\bnovel(?:ty)?\b(?!-)", re.I)
+_NEGATOR = re.compile(r"\b(?:not|no|never|nor|without)\b[^.;]{0,60}$", re.I)
+
+
+def novelty_claim(text: str):
+    """The first unhedged novelty assertion in `text`, or None."""
+    m = NOVELTY_CLAIM.search(text)
+    if m:
+        return m
+    for m in NOVELTY_WORD.finditer(text):
+        if not _NEGATOR.search(text[: m.start()]):
+            return m
+    return None
+
+
 # The numeric form [12] belongs to rendered text. In LaTeX source it collides
 # with set and interval notation -- $K \in \{1,5,10\}$ matched it, and a
 # manuscript full of such notation looked fully cited when it cited nothing.
-CITE_TEX = re.compile(r"\\cite\w*\{[^}]*\}")
+# natbib takes the locator in an optional argument -- \citep[p. 12]{key},
+# \citep[pp.~12--14]{key} -- and requiring "{" straight after the command
+# made exactly those invisible. The more precisely a manuscript cites, the less
+# this saw: on one manuscript a handful of citations vanished and took a finding with them.
+# Written once: the same shape decides whether a paragraph is cited AND which
+# keys count as used, and it lived in two copies. Fixing one left the other,
+# which is how a cited key kept reading as a dangling bibliography entry.
+_CITE_OPT = r"(?:\[[^\]]*\])*"
+CITE_TEX = re.compile(r"\\cite\w*" + _CITE_OPT + r"\{[^}]*\}")
+CITE_KEYS = re.compile(r"\\cite\w*" + _CITE_OPT + r"\{([^}]*)\}")
 CITE_MD = re.compile(r"\[@[^\]]+\]|\[\d+(?:,\s*\d+)*\]")
 # Harvard author-year, the two shapes the AWT guards' extractor accepts (plus
 # an optional "et al."): parenthetical "(Smith, 2024, p. 12)" / "(Smith and
@@ -125,24 +156,32 @@ def cited_harvard(text: str) -> Set[Tuple[str, str]]:
 
 def cited_keys(text: str) -> Set[str]:
     keys = set()
-    for m in re.finditer(r"\\cite\w*\{([^}]*)\}", text):
+    for m in CITE_KEYS.finditer(text):
         keys |= {k.strip() for k in m.group(1).split(",") if k.strip()}
     return keys
 
 
 def declared_terms(text: str) -> List[str]:
-    """Terms the manuscript advertises: keywords, title, and contribution lines."""
+    """Terms the manuscript advertises: keywords, title, and contribution lines.
+
+    A real \\keywords{} block wraps across source lines, so a term arrives as
+    "label\nvariation" and then matches nothing in the body except the
+    declaration it came from -- which sits in the preamble, where there is no
+    citation to find. That reported a term used dozens of times, often beside a
+    citation, as unsourced."""
+    def norm(t: str) -> str:
+        return re.sub(r"\s+", " ", t).strip()
     terms: List[str] = []
     for m in re.finditer(r"\\keywords\{([^}]*)\}", text):
-        terms += [t.strip() for t in re.split(r"[,;]", m.group(1)) if t.strip()]
+        terms += [norm(t) for t in re.split(r"[,;]", m.group(1)) if norm(t)]
     # Markdown advertises terms with a "Keywords:" line (a thesis chapter has
     # no \keywords). Titles are not mined from Markdown headings: "Chapter 1"
     # is not a technical phrase.
     for m in re.finditer(r"(?im)^\**keywords\**\s*[:：]\s*(.+?)\s*$", text):
-        terms += [t.strip() for t in re.split(r"[,;]", m.group(1)) if t.strip()]
+        terms += [norm(t) for t in re.split(r"[,;]", m.group(1)) if norm(t)]
     for m in re.finditer(r"\\title\{([^}]*)\}", text):
         # only multi-word technical phrases from the title, not every word
-        terms += [p.strip(" .,:") for p in re.split(r"[:,]", m.group(1)) if len(p.split()) >= 2]
+        terms += [norm(p).strip(" .,:") for p in re.split(r"[:,]", m.group(1)) if len(p.split()) >= 2]
     return [t for t in terms if 1 <= len(t.split()) <= 5]
 
 
@@ -172,7 +211,15 @@ def audit(base: Path, tex_files: List[Path], bib: Path) -> List[dict]:
         issues.append({"kind": "dangling-entry", "location": str(bib.name), "detail": e["key"]})
 
     terms = declared_terms(whole)
-    body_low = whole.lower()
+    # A declared term always matches its own declaration, so the keyword block,
+    # the title and a Markdown "Keywords:" line are not body text for this
+    # check. Counting them made a keyword that appears nowhere else look like
+    # one used without a source -- a different finding with a different fix,
+    # and the declaration sits in the preamble where no citation ever is.
+    body = re.sub(r"\\keywords\{[^}]*\}", " ", whole)
+    body = re.sub(r"\\title\{[^}]*\}", " ", body)
+    body = re.sub(r"(?im)^\**keywords\**\s*[:\uff1a].*$", " ", body)
+    body_low = body.lower()
     for term in terms:
         tl = term.lower()
         if body_low.count(tl) == 0:
@@ -188,7 +235,7 @@ def audit(base: Path, tex_files: List[Path], bib: Path) -> List[dict]:
         # is there any citation within 400 characters of any mention?
         supported = False
         for m in re.finditer(re.escape(tl), body_low):
-            window = whole[max(0, m.start() - 400): m.end() + 400]
+            window = body[max(0, m.start() - 400): m.end() + 400]
             if CITE.search(window):
                 supported = True
                 break
@@ -206,8 +253,8 @@ def audit(base: Path, tex_files: List[Path], bib: Path) -> List[dict]:
                     continue
                 if re.search(r"\b" + re.escape(meth), para["text"], re.I):
                     first_use.setdefault(meth, loc)
-            if NOVELTY.search(para["text"]) and not has_cite:
-                m = NOVELTY.search(para["text"])
+            m = novelty_claim(para["text"])
+            if m and not has_cite:
                 issues.append({"kind": "bare-novelty", "location": loc,
                                "detail": para["text"][max(0, m.start() - 30): m.end() + 60]})
     for meth, loc in sorted(first_use.items()):

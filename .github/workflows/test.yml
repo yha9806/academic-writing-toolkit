@@ -92,7 +92,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pandoc
       - name: Configure git core.fileMode false (make doctor expects this)
         run: git config core.fileMode false
+      - name: Build guards first (the citation fidelity audit imports guards/dist, and T169 runs it)
+        run: npm --prefix guards ci && npm --prefix guards run build
       - run: make doctor
       - run: make test
       - name: Guards package tests (notes lint + catalogue truth tests)
-        run: npm --prefix guards ci && npm --prefix guards test
+        run: npm --prefix guards test
