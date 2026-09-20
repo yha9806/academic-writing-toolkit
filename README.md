@@ -13,8 +13,8 @@ Academic Writing Toolkit (AWT) is an open-source, local-first system for evidenc
 
 The core promise is simple: **agents may help operate the workflow; the author keeps control of claims, boundaries, approvals, and the exact artifact that ships.**
 
-> **Latest: [v0.6.0-rc.1](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.6.0-rc.1), a pre-release.**
-> It is the first tag of the v0.1 rebuild: AWT as a
+> **Latest: [v0.6.0-rc.2](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.6.0-rc.2), a pre-release.**
+> It is the second tag of the v0.1 rebuild: AWT as a
 > [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness)
 > distribution — a 9-skill catalogue plus deterministic guard plugins with
 > typed denials, session-log-derived governance, and harness-event approvals.
@@ -358,6 +358,11 @@ Edit `CLAUDE.md` for project-specific directories, page limits, British English 
 
 ## Release and distribution
 
+- [v0.6.0-rc.2](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.6.0-rc.2)
+  — pre-release; the audit scripts fail closed and are registered as such in
+  CI, a claim ledger and a number ledger, a venue-baseline builder, native
+  Windows setup. Same evidence state as rc.1: Gate A §7 verified on macOS
+  only (#56), no author chapter cycle yet (#35)
 - [v0.6.0-rc.1](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.6.0-rc.1)
   — pre-release, the first tag of the dsh-distribution architecture; verified
   against Gate A §7 on macOS and not yet on Windows (#56)
