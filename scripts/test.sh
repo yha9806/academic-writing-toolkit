@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (170 automated tests, labelled T2-T177: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (176 automated tests, labelled T2-T183: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3223,6 +3223,189 @@ header ""
 # Run those manually per spec §6 if desired; they document the contract but
 # aren't part of the automated harness.
 
+# --- Session scan -----------------------------------------------------------
+# Two sessions of the same agent changed what the other should do next without
+# either noticing: one swept the other's uncommitted edits into its commit from
+# the same working tree; one merged and deleted a branch the other still meant
+# to push. scripts/session-scan.py asks the questions that catch both, against
+# the remote as ls-remote reports it, and says what it could not check.
+
+_scan_git() { git -c user.name=t -c user.email=t@e -c init.defaultBranch=main "$@"; }
+
+_scan_fixture() {
+    # $1: root. remote.git (bare); A on main, pushed; B, a worktree on topic, pushed.
+    local root="$1"
+    _scan_git init -q --bare "$root/remote.git" || return 1
+    _scan_git init -q "$root/A" || return 1
+    ( cd "$root/A" && echo a > a && _scan_git add a && _scan_git commit -qm base \
+        && _scan_git remote add origin "$root/remote.git" && _scan_git push -qu origin main ) >/dev/null 2>&1 || return 1
+    ( cd "$root/A" && _scan_git worktree add -q "$root/B" -b topic ) >/dev/null 2>&1 || return 1
+    ( cd "$root/B" && echo b > b && _scan_git add b && _scan_git commit -qm topic1 \
+        && _scan_git push -qu origin topic ) >/dev/null 2>&1 || return 1
+}
+
+test_T178() {
+    # A scan that cannot see a remote has not scanned: exit 2, never 0.
+    local tmp status
+    tmp=$(mktemp -d) || return 1
+    python3 scripts/session-scan.py --repo "$tmp" >/dev/null 2>&1; status=$?
+    [ "$status" = "2" ] || { echo "not a repository: expected exit 2, got $status"; return 1; }
+    _scan_git init -q "$tmp/r" || return 1
+    python3 scripts/session-scan.py --repo "$tmp/r" >/dev/null 2>&1; status=$?
+    [ "$status" = "2" ] || { echo "no remote: expected exit 2, got $status"; return 1; }
+    _scan_git -C "$tmp/r" remote add origin "$tmp/nowhere.git"
+    python3 scripts/session-scan.py --repo "$tmp/r" >/dev/null 2>&1; status=$?
+    [ "$status" = "2" ] || { echo "unreachable remote: expected exit 2, got $status"; return 1; }
+    python3 scripts/session-scan.py --repo "$tmp/r" --zzz-not-a-real-flag >/dev/null 2>&1; status=$?
+    [ "$status" != "0" ] || { echo "unknown flag: expected non-zero, got 0"; return 1; }
+    rm -rf "$tmp"
+}
+
+test_T179() {
+    # Incident: another session merged topic into main, pushed, and deleted the
+    # remote branch. The session still on topic learns that from the remote,
+    # not from its tracking refs, which still show the branch.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    _scan_fixture "$tmp" || { echo "fixture failed"; return 1; }
+    ( cd "$tmp" && _scan_git clone -q remote.git C && cd C && _scan_git merge -q --no-ff origin/topic -m "merge topic" \
+        && _scan_git push -q origin main && _scan_git push -q origin --delete topic ) >/dev/null 2>&1 || { echo "other session failed"; return 1; }
+    out=$(python3 scripts/session-scan.py --repo "$tmp/B" --json 2>&1); status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'upstream-gone' in kinds, kinds
+assert 'stale-tracking-ref' in kinds, kinds
+assert 'foreign-commit-in-push-range' not in kinds, kinds   # the range is an estimate here, and says so
+assert any('estimate' in n for n in d['not_checked']), d['not_checked']
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T180() {
+    # A commit another worktree made enters this branch through a merge: a push
+    # would carry it. This worktree's own HEAD reflog is the witness.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    _scan_fixture "$tmp" || { echo "fixture failed"; return 1; }
+    ( cd "$tmp/A" && echo x > x && _scan_git add x && _scan_git commit -qm "x on main, unpushed" ) >/dev/null 2>&1 || return 1
+    ( cd "$tmp/B" && _scan_git merge -q main -m "merge main into topic" ) >/dev/null 2>&1 || return 1
+    out=$(python3 scripts/session-scan.py --repo "$tmp/B" --json 2>&1); status=$?
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+foreign=[f for f in d['findings'] if f['kind']=='foreign-commit-in-push-range']
+assert len(foreign)==1 and 'x on main' in foreign[0]['detail'], foreign
+assert len(d['push_range'])==2 and sum(c['here'] for c in d['push_range'])==1, d['push_range']
+" || { rm -rf "$tmp"; return 1; }
+    [ "$status" = "1" ] || { rm -rf "$tmp"; echo "expected exit 1, got $status"; return 1; }
+    # Control: in A the unpushed commit is A's own.
+    out=$(python3 scripts/session-scan.py --repo "$tmp/A" --json 2>&1); status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['hard_finding_count']==0, d['findings']
+assert len(d['push_range'])==1 and d['push_range'][0]['here'], d['push_range']
+" || return 1
+    [ "$status" = "0" ] || { echo "control: expected exit 0, got $status"; return 1; }
+}
+
+test_T181() {
+    # Incident: a file another session edited is staged as if it were this
+    # session's. Its mtime predates the session. Without a session start the
+    # scan cannot tell, and says so instead of passing.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    _scan_fixture "$tmp" || { echo "fixture failed"; return 1; }
+    ( cd "$tmp/A" && echo old > old.txt && touch -t 202601010100 old.txt && _scan_git add old.txt && echo new > new.txt ) || return 1
+    out=$(python3 scripts/session-scan.py --repo "$tmp/A" --since "2026-06-01 00:00" --json 2>&1); status=$?
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+staged=[f for f in d['findings'] if f['kind']=='staged-before-session']
+assert len(staged)==1 and staged[0]['detail'].startswith('old.txt'), d['findings']
+assert not [f for f in d['findings'] if f['kind']=='dirty-before-session'], d['findings']   # new.txt is fresh
+" || { rm -rf "$tmp"; return 1; }
+    [ "$status" = "1" ] || { rm -rf "$tmp"; echo "expected exit 1, got $status"; return 1; }
+    out=$(python3 scripts/session-scan.py --repo "$tmp/A" --json 2>&1); status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['hard_finding_count']==0, d['findings']
+assert any('session start unknown' in n for n in d['not_checked']), d['not_checked']
+" || return 1
+    [ "$status" = "0" ] || { echo "no start: expected exit 0, got $status"; return 1; }
+}
+
+test_T182() {
+    # The session start comes from the transcript's first user record, not the
+    # file's birth time; other transcripts that name this repository since then
+    # are counted, the scan's own is not, and a sibling path is not this one.
+    local tmp out status ago
+    tmp=$(mktemp -d) || return 1
+    _scan_fixture "$tmp" || { echo "fixture failed"; return 1; }
+    mkdir -p "$tmp/transcripts/proj" || return 1
+    ago=$(python3 -c "from datetime import datetime,timezone,timedelta;print((datetime.now(timezone.utc)-timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S.000Z'))")
+    printf '{"type":"summary"}\n{"type":"user","timestamp":"%s"}\n' "$ago" > "$tmp/transcripts/proj/own.jsonl"
+    printf '{"type":"user","timestamp":"%s"}\n{"type":"assistant","text":"cd %s && git commit"}\n' "$ago" "$tmp/A" > "$tmp/transcripts/proj/other.jsonl"
+    printf '{"type":"assistant","text":"cd %s-sibling && ls"}\n' "$tmp/A" > "$tmp/transcripts/proj/sibling.jsonl"
+    ( cd "$tmp/A" && echo old > old.txt && touch -t 202601010100 old.txt ) || return 1
+    out=$(python3 scripts/session-scan.py --repo "$tmp/A" --transcript "$tmp/transcripts/proj/own.jsonl" \
+        --transcripts-dir "$tmp/transcripts" --json 2>&1); status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+names=[t['path'].rsplit('/',1)[-1] for t in d['transcripts']]
+assert names==['other.jsonl'], names
+assert [f['kind'] for f in d['findings'] if f['kind']=='dirty-before-session']==['dirty-before-session'], d['findings']
+assert d['since'] is not None and d['hard_finding_count']==0, d
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T183() {
+    # A branch whose upstream is a different branch. The range is counted
+    # against the upstream, so the headline answers a question nobody asked;
+    # and under push.default=upstream a bare push sends these commits there.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    _scan_fixture "$tmp" || { echo "fixture failed"; return 1; }
+    ( cd "$tmp/B" && _scan_git branch --set-upstream-to=origin/main topic ) >/dev/null 2>&1 || return 1
+    # One commit after topic was pushed, so the two counts genuinely differ:
+    # 1 against origin/topic, 2 against origin/main, which is what the headline
+    # counts. A first version of this test asserted numbers taken from the real
+    # repository instead of derived from this fixture, and failed on both.
+    ( cd "$tmp/B" && echo b2 > b2 && _scan_git add b2 && _scan_git commit -qm topic2 ) >/dev/null 2>&1 || return 1
+    out=$(python3 scripts/session-scan.py --repo "$tmp/B" --json 2>&1); status=$?
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+m=[f for f in d['findings'] if f['kind']=='upstream-is-a-different-branch']
+assert len(m)==1 and not m[0]['hard'], d['findings']          # simple refuses: a prompt
+assert 'push.default=simple' in m[0]['detail'], m[0]['detail']
+assert d['same_name_ahead']=='1', d['same_name_ahead']         # what an explicit push carries
+assert len(d['push_range'])==2, d['push_range']                # what the headline counted
+" || { rm -rf "$tmp"; return 1; }
+    [ "$status" = "0" ] || { rm -rf "$tmp"; echo "expected exit 0, got $status"; return 1; }
+    # push.default=upstream sends them to the other branch: that is a hard finding.
+    ( cd "$tmp/B" && _scan_git config push.default upstream ) || { rm -rf "$tmp"; return 1; }
+    out=$(python3 scripts/session-scan.py --repo "$tmp/B" --json 2>&1); status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+m=[f for f in d['findings'] if f['kind']=='upstream-is-a-different-branch']
+assert len(m)==1 and m[0]['hard'], d['findings']
+assert 'SENDS' in m[0]['detail'], m[0]['detail']
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
 run_test "T2  symlink corruption + repair"        test_T2
 run_test "T3  sync drift detection + restore"     test_T3
 run_test "T4  CLAUDE.md edit propagates to both"  test_T4
@@ -4771,6 +4954,12 @@ run_test "T174 a refused novelty claim is not a novelty claim" test_T174
 run_test "T175 the venue frame is recorded and the registrar decides membership" test_T175
 run_test "T176 a corpus under the floor fails closed" test_T176
 run_test "T177 --dry-run builds the frame and fetches nothing" test_T177
+run_test "T178 session scan: no remote in sight is not a pass" test_T178
+run_test "T179 session scan: a branch another session merged and deleted" test_T179
+run_test "T180 session scan: a foreign commit in the push range" test_T180
+run_test "T181 session scan: a staged file older than the session" test_T181
+run_test "T182 session scan: the transcript's first user record is the start" test_T182
+run_test "T183 session scan: an upstream that is a different branch" test_T183
 
 header ""
 printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \

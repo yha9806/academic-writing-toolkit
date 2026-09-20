@@ -302,7 +302,20 @@ python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target chapter
 python3 .claude/skills/audit/scripts/audit-claim-positioning.py --base-dir . --json
 node .claude/skills/audit/scripts/audit-citation-fidelity.mjs --base-dir . --json   # needs guards built once
 python3 scripts/audit-public-content.py --base-dir .
+python3 scripts/check-fails-closed.py           # every check exits non-zero on an empty target
+python3 scripts/session-scan.py --repo . --transcript <this session's transcript>   # before staging, committing or planning a push
 ```
+
+`session-scan.py` exists because two sessions of the same agent, working on
+the same repositories one evening, each changed what the other should do next
+without either noticing: one committed from a shared checkout and swept in the
+other's uncommitted edits; one merged and deleted a branch the other still meant
+to push. The scan reads the remote as `ls-remote` reports it, not as the
+tracking refs remember it, tells commits made in this worktree from commits
+made elsewhere, flags a staged file older than the session, and lists the
+other worktrees and the other sessions' transcripts that name this repository.
+It exits 2 when it cannot see a remote, because a scan that could not scan is
+not a pass.
 
 Reference verification is offline by default:
 
