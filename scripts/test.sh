@@ -3738,7 +3738,7 @@ assert 'negative-claim-without-fulltext' in kinds, kinds
 }
 
 # --- Commit gate ------------------------------------------------------------
-# Every one of the six wrong citations in the TriCH manuscript was introduced by
+# Every one of the six wrong citations found in a real manuscript was introduced by
 # a commit whose stated purpose was something else (a rewrite, a positioning
 # pass, a page-count compression, a change of venue), and the structural check
 # that ran at the time was green. The gate narrows the audit to what THIS change
@@ -4083,12 +4083,12 @@ number_fixture() {
     mkdir -p "$1/sections" "$1/results"
     cat > "$1/sections/06_results.tex" <<'EOF'
 \section{Results}
-The pooled variance share is $89.8\%$ across all five conditions.
-Recall@1 falls from $48.4$ to $1.6$ times chance.
+The pooled share is $63.5\%$ across all four conditions.
+The top-1 rate falls from $30.2$ to $2.5$ times chance.
 EOF
-    printf 'condition,share\npooled,0.898\nk1,0.442\n' > "$1/results/variance.csv"
+    printf 'condition,share\npooled,0.635\nk1,0.210\n' > "$1/results/variance.csv"
     printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$1/numbers.tsv"
-    printf '89.8\t0.898\tpooled\tresults/variance.csv\tpooled,0.898\n' >> "$1/numbers.tsv"
+    printf '63.5\t0.635\tpooled\tresults/variance.csv\tpooled,0.635\n' >> "$1/numbers.tsv"
 }
 
 test_T163() {
@@ -4097,7 +4097,7 @@ test_T163() {
     local tmp out status
     tmp=$(mktemp -d) || return 1
     number_fixture "$tmp"
-    printf '48.4\t48.4\t-\tresults/variance.csv\tcells,48.4\n' >> "$tmp/numbers.tsv"
+    printf '30.2\t30.2\t-\tresults/variance.csv\tcells,30.2\n' >> "$tmp/numbers.tsv"
     out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
           --ledger "$tmp/numbers.tsv" --json 2>&1)
     status=$?
@@ -4119,7 +4119,7 @@ test_T164() {
     number_fixture "$tmp"
     cat > "$tmp/sections/06_results.tex" <<'EOF'
 \section{Results}
-The variance share is $89.8\%$ across all five conditions.
+The share is $63.5\%$ across all four conditions.
 EOF
     out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
           --ledger "$tmp/numbers.tsv" --json 2>&1)
@@ -4163,7 +4163,7 @@ test_T166() {
     tmp=$(mktemp -d) || return 1
     number_fixture "$tmp"
     printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$tmp/numbers.tsv"
-    printf '89.8\t0.898\tpooled\tresults/variance.csv\tcondition,share\n' >> "$tmp/numbers.tsv"
+    printf '63.5\t0.635\tpooled\tresults/variance.csv\tcondition,share\n' >> "$tmp/numbers.tsv"
     out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
           --ledger "$tmp/numbers.tsv" --json 2>&1)
     status=$?
@@ -4197,14 +4197,14 @@ assert any(f['kind'] == 'unledgered-number' for f in d['findings']), [f['kind'] 
 }
 
 test_T168() {
-    # The two columns exist because the figure writes 0.898 and the prose prints
-    # 89.8%. A pair that is neither equal nor that relation is a finding, and
+    # The two columns exist because the figure writes 0.635 and the prose prints
+    # 63.5%. A pair that is neither equal nor that relation is a finding, and
     # the relation is recorded rather than inferred.
     local tmp out status
     tmp=$(mktemp -d) || return 1
     number_fixture "$tmp"
     printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$tmp/numbers.tsv"
-    printf '89.8\t0.442\tpooled\tresults/variance.csv\tk1,0.442\n' >> "$tmp/numbers.tsv"
+    printf '63.5\t0.210\tpooled\tresults/variance.csv\tk1,0.210\n' >> "$tmp/numbers.tsv"
     out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
           --ledger "$tmp/numbers.tsv" --json 2>&1)
     status=$?

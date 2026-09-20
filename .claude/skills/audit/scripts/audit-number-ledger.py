@@ -18,11 +18,11 @@ wrong:
 A row binds one reported number to one artifact:
 
     printed<TAB>in_artifact<TAB>scope<TAB>artifact<TAB>locator
-    89.8<TAB>0.898<TAB>pooled<TAB>figures/fig.tex<TAB>explained variance 0.898
+    63.5<TAB>0.635<TAB>pooled<TAB>figures/fig.tex<TAB>explained variance 0.635
 
 `printed` is the value as the prose prints it; `in_artifact` is the value as the
 file writes it. They are two columns because on a real manuscript they differ:
-the figure carries `0.898` and the text prints `89.8\%`. A version with one
+the figure carries `0.635` and the text prints `63.5\%`. A version with one
 column reported that as a broken binding. Converting silently would have been
 worse — the conversion is recorded and shown, never inferred. `scope` is the
 qualifier every sentence reporting the number must carry, or `-`. `locator` is
@@ -42,8 +42,8 @@ the verbatim string in the artifact, so the binding can be re-read.
                              so this is a coverage list, not a finding.
 
 `scope` is matched literally, and that is its limit. On the real manuscript,
-`zero-semantics` flagged two sentences that carry the scope in other words ("a
-retriever with no knowledge of brush technique"); `technique` passed both. Pick
+the first scope token tried flagged two sentences that carry the scope in
+other words; a token those sentences actually contain passed both. Pick
 a token the correct sentences actually contain, or the column produces noise
 rather than a guard. A scope of `-` switches the check off for that row.
 
@@ -221,7 +221,11 @@ def main(argv=None):
     if a.json:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
+        unledgered = payload["unledgered_count"]
+        covered = len(rows) + unledgered
         print(f"number ledger: {len(rows)} row(s) against {len(prose)} sentence(s) under {base}")
+        print(f"coverage: {len(rows)} of {covered} reported number(s) carry a row; "
+              f"{unledgered} do not, and nothing here checks them")
         for kind in ["locator-not-in-artifact", "value-not-in-locator", "printed-artifact-mismatch",
                      "number-not-in-manuscript", "artifact-missing", "scope-missing", "unledgered-number"]:
             group = [f for f in findings if f["kind"] == kind]

@@ -297,7 +297,9 @@ def main(argv=None):
     if a.json:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
+        unledgered = sum(1 for f in findings if f["kind"] == "unledgered-assertion")
         print(f"claim ledger: {len(rows)} row(s) against {len(sentences)} citing sentence(s) under {base}")
+        print(f"coverage: {unledgered} asserting sentence(s) carry no row, and nothing here checks them")
         if gate:
             print(f"gate: {gate['new_citing_sentences']} citing sentence(s) new since {gate['since']}"
                   f"; {len(gate['credits'])} key(s) accepted as credits")

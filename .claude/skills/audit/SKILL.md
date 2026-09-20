@@ -93,14 +93,14 @@ python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir . --ledge
 
 A row binds one printed value to the file it came from:
 `printed`, `in_artifact`, `scope`, `artifact`, `locator`. Two value columns
-because they differ in practice — a figure writing `0.898` against prose
-printing `89.8\%` — and the relation is recorded, never inferred. Report
+because they differ in practice — a figure writing `0.635` against prose
+printing `63.5\%` — and the relation is recorded, never inferred. Report
 `locator-not-in-artifact`, `value-not-in-locator`, `printed-artifact-mismatch`,
 `number-not-in-manuscript` and `scope-missing` as **Critical**;
 `unledgered-number` is a coverage list, not a finding. An empty ledger exits 2.
 
 `scope` is matched literally: pick a token the correct sentences contain, or
-`-`. On the real manuscript `zero-semantics` flagged two sentences that carry
+`-`. On a real manuscript the first token tried flagged two sentences that carry
 the scope in other words; `technique` passed both.
 
 **G. Claim ledger — does a LaTeX manuscript's claim match its archived source?**
