@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (176 automated tests, labelled T2-T183: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (175 automated tests, labelled T2-T184: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3339,6 +3339,24 @@ assert 'SENDS' in m[0]['detail'], m[0]['detail']
     [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
 }
 
+test_T184() {
+    # The header says how many tests this file runs. Nothing counted it, and
+    # retiring a skill removed two without touching the line: it claimed 176
+    # where 174 ran. A number in this toolkit's own documentation that nothing
+    # checks is the same shape as a check that examines nothing.
+    local head claimed actual highest last
+    head=$(sed -n '2p' "$REPO_ROOT/scripts/test.sh")
+    claimed=$(printf '%s' "$head" | sed -n 's/.*(\([0-9]\{1,\}\) automated tests.*/\1/p')
+    actual=$(grep -c '^run_test ' "$REPO_ROOT/scripts/test.sh")
+    [ -n "$claimed" ] || { echo "the header does not state a test count"; return 1; }
+    [ "$claimed" = "$actual" ] || { echo "header claims $claimed tests, $actual run_test lines"; return 1; }
+    # and the range it names ends at the highest test actually registered
+    highest=$(printf '%s' "$head" | sed -n 's/.*labelled T2-T\([0-9]\{1,\}\):.*/\1/p')
+    last=$(grep -oE '^run_test "T[0-9]+' "$REPO_ROOT/scripts/test.sh" | grep -oE '[0-9]+' | sort -n | tail -1)
+    [ -n "$highest" ] || { echo "the header does not state a range"; return 1; }
+    [ "$highest" = "$last" ] || { echo "header says the range ends at T$highest, highest registered is T$last"; return 1; }
+}
+
 run_test "T2  symlink corruption + repair"        test_T2
 run_test "T3  sync drift detection + restore"     test_T3
 run_test "T4  CLAUDE.md edit propagates to both"  test_T4
@@ -4891,6 +4909,7 @@ run_test "T180 session scan: a foreign commit in the push range" test_T180
 run_test "T181 session scan: a staged file older than the session" test_T181
 run_test "T182 session scan: the transcript's first user record is the start" test_T182
 run_test "T183 session scan: an upstream that is a different branch" test_T183
+run_test "T184 the suite header counts the tests this file runs" test_T184
 
 header ""
 printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \
