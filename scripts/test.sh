@@ -36,12 +36,37 @@ cd "$REPO_ROOT"
 PASSES=0
 FAIL_LIST=()
 
+# A green suite total says how many tests ran, not what they cover. 59 of these
+# exercise validators for bundles retired under archive/skills/, which is a
+# deliberate choice (README: "history; validators still tested") but makes a
+# single "all N passed" read as coverage of the live toolkit. The runner sorts
+# each test by whether its body reaches into archive/skills/, and the summary
+# reports both numbers, so the total cannot stand in for the live one.
+RETIRED_PASSES=0
+LIVE_PASSES=0
+
+_test_surface() {
+    local body
+    body=$(declare -f "$1" 2>/dev/null)
+    case "$body" in
+        *"archive/skills/"*) printf 'retired' ;;
+        *) printf 'live' ;;
+    esac
+}
+
 run_test() {
     local name="$1"
     local fn="$2"
+    local surface
+    surface=$(_test_surface "$fn")
     if "$fn"; then
         pass "$name"
         PASSES=$((PASSES+1))
+        if [[ "$surface" == "retired" ]]; then
+            RETIRED_PASSES=$((RETIRED_PASSES+1))
+        else
+            LIVE_PASSES=$((LIVE_PASSES+1))
+        fi
     else
         fail "$name"
         FAIL_LIST+=("$name")
@@ -3945,6 +3970,8 @@ run_test "T157 every check fails closed and every script is registered" test_T15
 
 
 header ""
+printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \
+    "$LIVE_PASSES" "$RETIRED_PASSES"
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
     pass "all $PASSES tests passed."
     exit 0
