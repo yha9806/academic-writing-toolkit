@@ -95,6 +95,7 @@ jobs:
       - name: Build guards first (the citation fidelity audit imports guards/dist, and T169 runs it)
         run: npm --prefix guards ci && npm --prefix guards run build
       - run: make doctor
-      - run: make test
+      - name: Regression suite, including validators of bundles retired under archive/skills/
+        run: make test-all
       - name: Guards package tests (notes lint + catalogue truth tests)
         run: npm --prefix guards test
