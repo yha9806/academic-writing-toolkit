@@ -147,6 +147,25 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    sentence-length lag-1 changed sign, so quote the cross-check rather than
    treating the percentiles as exact.
 
+   **Two baselines, and a percentile that does not name its own is not a
+   result.** The corpus above is the project's bibliography: it answers whether
+   the prose sits inside the literature the manuscript argues with. Build the
+   other one before drafting, not at polish time:
+
+   ```
+   python3 .claude/skills/audit/scripts/build-venue-baseline.py --venue "<journal>" --from-year 2021 --out <corpus-dir> --manifest <repo>/venue_manifest.json
+   ```
+
+   It admits a record only when its DOI resolves to the venue's registered
+   `container-title`, writes every candidate's disposition so the manifest's
+   arithmetic closes, and exits 2 with `VENUE_CORPUS_TOO_SMALL` rather than
+   returning a short corpus that reads like a complete one. Run the fingerprint
+   a second time against it, with `--target` pointing at the manuscript's built
+   **PDF** — against a venue corpus both sides go through the same extraction,
+   which is the one case where `pipeline_mismatch` can be false. Read it once,
+   to answer whether the manuscript reads like the venue's genre. Do not edit
+   to move a venue percentile; the stop rule is unchanged.
+
    Report the distributions under **Measurements**, never as issues: this is
    Advisory by nature. Out-of-range is the hard signal, a percentile is a
    soft one, and clustering matters more than count. Always report

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (140 automated tests, labelled T2-T140 and T169-T174: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (143 automated tests, labelled T2-T140 and T169-T177: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3923,6 +3923,147 @@ assert 'knowledge' in nov[0], nov[0]
 "
 }
 
+test_T175() {
+    # Every candidate has to leave a trace, and membership is the registrar's
+    # word rather than the author's. arXiv's journal_ref is free text -- one
+    # real record reads "Just accpeted by ACM Computing Surveys 2026" -- so a
+    # record whose DOI resolves to a different journal must be rejected BY NAME,
+    # not quietly dropped into a corpus that looks complete.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" 2>/dev/null <<'PYEOF'
+import importlib.util, json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "vb", ".claude/skills/audit/scripts/build-venue-baseline.py")
+vb = importlib.util.module_from_spec(spec); spec.loader.exec_module(vb)
+
+# Twenty-two in-window records: twenty good, one in another ACM journal, one
+# with nothing but the author's own journal_ref.
+recs = [{"arxiv_id": "24%02d.00001v1" % i, "title": "T%d" % i, "year": 2023,
+         "primary_category": "cs.LG", "journal_ref": "ACM Computing Surveys",
+         "doi": "10.1145/%d" % (3000000 + i)} for i in range(20)]
+recs.append({"arxiv_id": "2401.99998v1", "title": "Wrong journal", "year": 2023,
+             "primary_category": "cs.LG", "journal_ref": "ACM Computing Surveys",
+             "doi": "10.1145/9999999"})
+recs.append({"arxiv_id": "2401.99997v1", "title": "No doi", "year": 2023,
+             "primary_category": "cs.LG",
+             "journal_ref": "Just accpeted by ACM Computing Surveys 2026", "doi": None})
+recs.append({"arxiv_id": "1901.00001v1", "title": "Too old", "year": 2019,
+             "primary_category": "cs.LG", "journal_ref": "ACM Computing Surveys",
+             "doi": "10.1145/1"})
+
+vb.query_arxiv = lambda venue, delay: list(recs)
+vb.container_title = lambda doi, delay: (
+    "ACM Transactions on Graphics" if doi == "10.1145/9999999" else "ACM Computing Surveys")
+sys.argv = ["vb", "--venue", "ACM Computing Surveys", "--from-year", "2021",
+            "--dry-run", "--manifest", str(d / "m.json")]
+rc = 0
+try:
+    vb.main()
+except SystemExit as e:
+    rc = e.code or 0
+m = json.loads((d / "m.json").read_text())
+assert rc == 0, "a corpus of twenty should succeed, rc=%s" % rc
+assert m["admitted"] == 20, m["admitted"]
+# Count the records, do not read the tool's own verdict on whether it counted
+# them. A first version of this test asserted accounting_closes, and hardcoding
+# that field to True left the test green -- the test was vouching for the
+# claim instead of checking the arithmetic.
+seen = [r["arxiv_id"] for r in m["records"]]
+for group in m["rejected_records"].values():
+    seen += [r["arxiv_id"] for r in group]
+assert len(set(seen)) == len(seen), "a record appears in two dispositions"
+assert len(seen) == 23, "every candidate must appear exactly once, got %d" % len(seen)
+assert m["candidates"] == 23, m["candidates"]
+assert m["accounting_closes"] is True, "dispositions must sum to the candidates"
+assert m["rejected"]["container_title_mismatch"] == 1, m["rejected"]
+assert m["rejected"]["no_doi"] == 1, m["rejected"]
+assert m["rejected"]["out_of_window"] == 1, m["rejected"]
+named = [r["arxiv_id"] for r in m["rejected_records"]["container_title_mismatch"]]
+assert named == ["2401.99998v1"], "the mismatch must be named, got %r" % named
+assert {r["container_title"] for r in m["records"]} == {"ACM Computing Surveys"}
+assert all(r["venue_verified"] for r in m["records"])
+# The frame itself has to be in the record, not in someone's memory.
+for k in ("query", "from_year", "api", "retrieved", "verification", "stage"):
+    assert m.get(k), "manifest must record %s" % k
+PYEOF
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 0 ]]
+}
+
+test_T176() {
+    # A corpus under the method's own twenty-document floor is not a small
+    # corpus; it is not a corpus. Returning it with exit 0 is how a short
+    # baseline gets quoted as a published range.
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    out=$(python3 - "$tmp" 2>&1 <<'PYEOF'
+import importlib.util, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "vb", ".claude/skills/audit/scripts/build-venue-baseline.py")
+vb = importlib.util.module_from_spec(spec); spec.loader.exec_module(vb)
+recs = [{"arxiv_id": "24%02d.1v1" % i, "title": "T", "year": 2023,
+         "primary_category": "cs.LG", "journal_ref": "V", "doi": "10.1145/%d" % i}
+        for i in range(19)]
+vb.query_arxiv = lambda venue, delay: list(recs)
+vb.container_title = lambda doi, delay: "ACM Computing Surveys"
+sys.argv = ["vb", "--venue", "ACM Computing Surveys", "--dry-run",
+            "--manifest", str(d / "m.json")]
+try:
+    vb.main(); print("RC=0")
+except SystemExit as e:
+    print("RC=%s" % (e.code or 0))
+PYEOF
+)
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 0 ]] || return 1
+    grep -q "RC=2" <<<"$out" || return 1
+    grep -q "VENUE_CORPUS_TOO_SMALL" <<<"$out" || return 1
+    # The remedy has to offer the honest alternative, not only a wider window.
+    grep -q "say so rather than measuring anyway" <<<"$out" || return 1
+}
+
+test_T177() {
+    # --dry-run answers what the frame would be. It must not touch the network
+    # for PDFs or leave a corpus directory behind that a later run would treat
+    # as already downloaded.
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" 2>/dev/null <<'PYEOF'
+import importlib.util, json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "vb", ".claude/skills/audit/scripts/build-venue-baseline.py")
+vb = importlib.util.module_from_spec(spec); spec.loader.exec_module(vb)
+recs = [{"arxiv_id": "24%02d.1v1" % i, "title": "T", "year": 2023,
+         "primary_category": "cs.LG", "journal_ref": "V", "doi": "10.1145/%d" % i}
+        for i in range(21)]
+vb.query_arxiv = lambda venue, delay: list(recs)
+vb.container_title = lambda doi, delay: "ACM Computing Surveys"
+def no_network(*a, **k):
+    raise AssertionError("--dry-run must not fetch a PDF")
+vb.fetch = no_network
+sys.argv = ["vb", "--venue", "ACM Computing Surveys", "--dry-run",
+            "--out", str(d / "corpus"), "--manifest", str(d / "m.json")]
+try:
+    vb.main()
+except SystemExit as e:
+    assert (e.code or 0) == 0, e.code
+m = json.loads((d / "m.json").read_text())
+assert m["dry_run"] is True
+assert m["downloaded_now"] == 0, m["downloaded_now"]
+assert not (d / "corpus").exists(), "--dry-run must not create the corpus directory"
+assert not any("file" in r for r in m["records"]), "no record may claim a file"
+PYEOF
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 0 ]]
+}
+
 run_test "T127 prose fingerprint separates even from bunched use" test_T127
 run_test "T128 prose fingerprint withholds percentiles on a thin baseline" test_T128
 run_test "T129 claim positioning flags advertised terms with no source" test_T129
@@ -3943,6 +4084,9 @@ run_test "T171 per-section metrics report their absence instead of vanishing" te
 run_test "T172 a wrapped keyword is one term, and an unused one says so" test_T172
 run_test "T173 a bracketed natbib locator is still a citation" test_T173
 run_test "T174 a refused novelty claim is not a novelty claim" test_T174
+run_test "T175 the venue frame is recorded and the registrar decides membership" test_T175
+run_test "T176 a corpus under the floor fails closed" test_T176
+run_test "T177 --dry-run builds the frame and fetches nothing" test_T177
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
