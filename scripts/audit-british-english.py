@@ -34,14 +34,21 @@ REPLACEMENTS: Dict[str, str] = {
 }
 
 
+ROOTS = ("chapters", "literature/reading_notes")
+
+
 def markdown_files(base_dir: Path) -> Iterable[Path]:
-    roots = [base_dir / "chapters", base_dir / "literature" / "reading_notes"]
-    for root in roots:
+    for item in ROOTS:
+        root = base_dir / item
         if not root.exists():
             continue
         for path in sorted(root.rglob("*.md")):
             if path.is_file():
                 yield path
+
+
+def roots_present(base_dir: Path) -> List[str]:
+    return [item for item in ROOTS if (base_dir / item).is_dir()]
 
 
 def replacement_for(word: str) -> str:
@@ -91,24 +98,43 @@ def main() -> int:
         return 2
 
     files = list(markdown_files(base_dir))
+    # A run that read no Markdown is not a clean run. This used to exit 0 with
+    # `issue_count: 0` for a base-dir with no chapters/ and no notes, the same
+    # line as a manuscript with nothing to fix (found 2026-09-20).
+    present = roots_present(base_dir)
+    coverage = {
+        "files_scanned": len(files),
+        "roots_present": present,
+        "roots_missing": [r for r in ROOTS if r not in present],
+        "nothing_checked": not files,
+    }
     if args.fix:
         changed = [str(p.relative_to(base_dir)) for p in files if fix_file(p)]
-        payload = {"schema_version": 1, "changed": changed}
+        payload = {"schema_version": 2, "changed": changed}
+        payload.update(coverage)
         if args.emit_json:
             print(json.dumps(payload, indent=2))
         else:
-            print("changed files: {}".format(len(changed)))
+            print("changed files: {} (of {} read)".format(len(changed), len(files)))
+        if not files:
+            sys.stderr.write("nothing checked: no Markdown under {} in {}\n".format(" or ".join(ROOTS), base_dir))
+            return 2
         return 0
 
     issues: List[dict] = []
     for path in files:
         issues.extend(audit_file(path, base_dir))
-    payload = {"schema_version": 1, "issues": issues, "issue_count": len(issues)}
+    payload = {"schema_version": 2, "issues": issues, "issue_count": len(issues)}
+    payload.update(coverage)
     if args.emit_json:
         print(json.dumps(payload, indent=2))
     else:
         for issue in issues:
             print("{location}: {current} -> {replacement}".format(**issue))
+        print("scanned {} file(s); {} issue(s)".format(len(files), len(issues)))
+    if not files:
+        sys.stderr.write("nothing checked: no Markdown under {} in {}\n".format(" or ".join(ROOTS), base_dir))
+        return 2
     return 1 if issues else 0
 
 

@@ -20,12 +20,14 @@ converter, so every script under `.claude/skills/*/scripts/` must be listed in
 CHECKS or in NOT_CHECKS with a reason. A script in neither is an error, which is
 what keeps this list from rotting as the toolkit grows.
 
-Scope: skill scripts only. The checks under `scripts/` (this one;
-`session-scan.py`, whose empty targets are a directory that is not a
-repository and a repository with no remote; and `audit-public-content.py`,
-whose empty target is a base-dir with none of the public surfaces under it)
-carry the same property in their own tests (T157, T178, T185) rather than in
-this registry.
+Scope: every script under `.claude/skills/*/scripts/`, and every
+`scripts/audit-*.py`. The three project audits under `scripts/` (citations,
+British English, paragraph logic) were outside the first version of this
+registry and all three exited 0 on an empty base-dir, the same shape this file
+exists to catch; found 2026-09-20, four days after the registry was written.
+`session-scan.py` (empty targets: a directory that is not a repository, a
+repository with no remote) and this script carry the property in their own
+tests (T178, T157) rather than here.
 
 Exit: 0 when every check failed closed and every script is accounted for, 1
 otherwise.
@@ -39,6 +41,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = ROOT / ".claude" / "skills"
+SCRIPTS = ROOT / "scripts"
 
 # Each entry builds the argv for running that check against an empty target.
 # EMPTY is a directory with no manuscript, no bibliography and no notes.
@@ -62,6 +65,14 @@ CHECKS = {
         lambda s, empty: ["node", str(s), "--base-dir", str(empty)],
     "verify-refs/verify-refs.py":
         lambda s, empty: ["python3", str(s), "--bib", str(empty / "empty.bib")],
+    "scripts/audit-citations.py":
+        lambda s, empty: ["python3", str(s), "--base-dir", str(empty), "--json"],
+    "scripts/audit-british-english.py":
+        lambda s, empty: ["python3", str(s), "--base-dir", str(empty), "--json"],
+    "scripts/audit-logic.py":
+        lambda s, empty: ["python3", str(s), "--base-dir", str(empty), "--json"],
+    "scripts/audit-public-content.py":
+        lambda s, empty: ["python3", str(s), "--base-dir", str(empty), "--json"],
 }
 
 NOT_CHECKS = {
@@ -76,6 +87,8 @@ def discovered():
         if path.suffix not in {".py", ".mjs"} or "__pycache__" in path.parts:
             continue
         out[f"{path.parent.parent.name}/{path.name}"] = path
+    for path in sorted(SCRIPTS.glob("audit-*.py")):
+        out[f"scripts/{path.name}"] = path
     return out
 
 

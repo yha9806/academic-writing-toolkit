@@ -20,7 +20,7 @@ guard deliberately does not do.
 
 ## Agent Skills (Advisory)
 
-Use this when you want the same 9-skill catalogue inside Claude Code,
+Use this when you want the same eight-skill catalogue inside Claude Code,
 Codex, Gemini CLI, or any Agent-Skills-compatible host, without the
 enforcement layer. The skills are the identical files (`.claude/skills/`,
 linked at `.agents/skills/`); the constraints they describe are advisory
