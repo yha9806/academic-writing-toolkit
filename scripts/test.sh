@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (137 automated tests, labelled T2-T140 and T169-T171: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T169-T171 audits that name what they did not read) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (140 automated tests, labelled T2-T140 and T169-T174: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3820,6 +3820,109 @@ assert 'directory' in note, 'the note must say WHY, not just that it is missing'
 "
 }
 
+test_T172() {
+    # A real \keywords{} block wraps across source lines. The term then carried
+    # a newline, matched nothing but its own declaration -- which sits in the
+    # preamble, where no citation ever is -- and a term used dozens of times, often
+    # beside a citation, was reported as unsourced. A keyword genuinely absent
+    # from the body is a different finding and has to say so.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/doc"
+    cat > "$tmp/doc/main.tex" <<'TEXEOF'
+\documentclass{article}
+\title{A Study of Label Variation}
+\keywords{label
+variation, ghost concept}
+\begin{document}
+Label variation is the central problem here \citep{alpha2020}.
+We return to label variation in the discussion \citep{beta2021}.
+\end{document}
+TEXEOF
+    cat > "$tmp/doc/references.bib" <<'BIBEOF'
+@article{alpha2020, author = {Alpha, A.}, title = {One}, year = {2020}}
+@article{beta2021, author = {Beta, B.}, title = {Two}, year = {2021}}
+BIBEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py \
+            --base-dir "$tmp/doc" --bib "$tmp/doc/references.bib" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+kw = [i['detail'] for i in d['issues'] if i['kind'] == 'unsourced-keyword']
+joined = ' | '.join(kw)
+assert not any('label' in k and 'absent' not in k for k in kw), \
+    'a wrapped keyword used beside citations must not be flagged: %s' % joined
+ghost = [k for k in kw if 'ghost concept' in k]
+assert ghost, 'a keyword never used in the body must still be reported: %s' % joined
+assert 'absent from body' in ghost[0], \
+    'and it must say it was never used, not that it lacks a source: %s' % ghost[0]
+"
+}
+
+test_T173() {
+    # natbib puts the locator in an optional argument. Requiring "{" straight
+    # after the command made \citep[pp.~12--14]{key} invisible, so the
+    # paragraph counted as uncited and a method reported WITH its source was
+    # filed as uncited-method. The more precisely a manuscript cites, the less
+    # the checker saw.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/doc"
+    cat > "$tmp/doc/main.tex" <<'TEXEOF'
+\documentclass{article}
+\begin{document}
+The reported Krippendorff's alpha rose after the second pass, and the
+intervals are not given \citep[pp.~12--14]{smith2019}.
+\end{document}
+TEXEOF
+    printf '@article{smith2019, author = {Smith, A.}, title = {One}, year = {2019}}\n' \
+        > "$tmp/doc/references.bib"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py \
+            --base-dir "$tmp/doc" --bib "$tmp/doc/references.bib" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+kinds = [i['kind'] for i in d['issues']]
+assert 'uncited-method' not in kinds, \
+    'a bracketed locator is still a citation: %r' % d['issues']
+assert 'dangling-entry' not in kinds, 'and the key still counts as cited'
+"
+}
+
+test_T174() {
+    # The bare word "novelty" is not a novelty claim. It names procedures, and
+    # on one manuscript it appeared inside sentences that REFUSE the claim --
+    # a sentence that explicitly refused the claim was reported as High. The
+    # explicit frames carry their own negation and must keep firing.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/doc"
+    cat > "$tmp/doc/main.tex" <<'TEXEOF'
+\documentclass{article}
+\begin{document}
+The novelty-detection stage returned ten records and is described below.
+
+A null result is not a sign of novelty, and is not read as one.
+
+To our knowledge no earlier study has reported this effect at scale.
+\end{document}
+TEXEOF
+    printf '@article{x2020, author = {Ex, E.}, title = {X}, year = {2020}}\n' \
+        > "$tmp/doc/references.bib"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py \
+            --base-dir "$tmp/doc" --bib "$tmp/doc/references.bib" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+nov = [i['detail'] for i in d['issues'] if i['kind'] == 'bare-novelty']
+assert len(nov) == 1, 'exactly the unhedged claim should fire, got %r' % nov
+assert 'knowledge' in nov[0], nov[0]
+"
+}
+
 run_test "T127 prose fingerprint separates even from bunched use" test_T127
 run_test "T128 prose fingerprint withholds percentiles on a thin baseline" test_T128
 run_test "T129 claim positioning flags advertised terms with no source" test_T129
@@ -3837,6 +3940,9 @@ run_test "T140 the overlap waiver restores percentiles without asserting the pre
 run_test "T169 the fidelity audit fails closed when its corpus is absent" test_T169
 run_test "T170 every baseline candidate is accounted for in the report" test_T170
 run_test "T171 per-section metrics report their absence instead of vanishing" test_T171
+run_test "T172 a wrapped keyword is one term, and an unused one says so" test_T172
+run_test "T173 a bracketed natbib locator is still a citation" test_T173
+run_test "T174 a refused novelty claim is not a novelty claim" test_T174
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

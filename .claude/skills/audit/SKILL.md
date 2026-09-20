@@ -67,9 +67,19 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    issue it returns: `unsourced-keyword` and `bare-novelty` as **High** — a
    field's vocabulary in use without its literature, or a novelty claim in a
    paragraph that shows no search — `uncited-method` and `dangling-entry` as
-   **Medium**. The tool checks that a source is *present* near a claim, never
-   that it is the right one, and it cannot tell whether a citing sentence
-   says what its source says; do not present its silence as either.
+   **Medium**.
+
+   Measured precision, one manuscript, 2026-09-20: the checker returned 11
+   issues and 9 were false, all from three mechanisms now fixed — a
+   `\keywords{}` block wrapped across source lines so a term matched only its
+   own declaration; the bare word "novelty" inside the manuscript's own method
+   name, and inside two sentences that *refuse* the claim; and a natbib
+   optional argument (`\citep[p.~12]{key}`) that made the citation invisible,
+   so a method cited in its own sentence was reported as uncited. After the
+   fixes it returns the 2 that reading had already confirmed. That is n=1 and
+   not a rate — but it is the reason to read every issue against the source
+   before writing it into a report at High, exactly as category D's disabled
+   tiers required.
 
    For a requested claim-scope or contribution review, consult
    `references/argument-licence/argument-level-lock.md`. Separate the field
