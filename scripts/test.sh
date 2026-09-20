@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (178 automated tests, labelled T2-T187: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (180 automated tests, labelled T2-T189: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -541,7 +541,8 @@ test_T43() {
     grep -q -- "--metadata-dir" "$REPO_ROOT/README.md" || return 1
     ! grep -q "room for explicit online checks" "$REPO_ROOT/README.md" || return 1
     ! grep -R -q "docs/superpowers" "$REPO_ROOT/README.md" "$REPO_ROOT/docs" "$REPO_ROOT/.claude/skills" || return 1
-    ! grep -R -q "8 academic writing skills" "$REPO_ROOT/docs" || return 1
+    # "8 academic writing skills" was the stale count once and was banned here;
+    # eight is the count now, and T189 derives it from disk instead.
 }
 
 test_T44() {
@@ -3429,6 +3430,62 @@ PY
     [ "$rc" = "0" ] || return 1
 }
 
+# --- T188-T189: the scripts/ audits fail closed; the docs' skill count is derived
+
+test_T188() {
+    # The three project audits under scripts/ were outside the fails-closed
+    # registry and exited 0 with `issue_count: 0` on a base-dir with no
+    # chapters and no notes: the same line as a clean manuscript. A run that
+    # read nothing is not a clean run.
+    local tmp s rc out
+    tmp=$(mktemp -d) || return 1
+    for s in audit-citations.py audit-british-english.py audit-logic.py; do
+        out=$(python3 "$REPO_ROOT/scripts/$s" --base-dir "$tmp" --json 2>&1)
+        rc=$?
+        [ "$rc" = "2" ] || { rm -rf "$tmp"; echo "$s: expected exit 2 on an empty base-dir, got $rc"; return 1; }
+        grep -q "nothing checked" <<<"$out" || { rm -rf "$tmp"; echo "$s: exit 2 without saying nothing was checked"; return 1; }
+    done
+    rm -rf "$tmp"
+}
+
+test_T189() {
+    # The docs say how many skills ship, and nothing derived that number:
+    # after one skill was retired, "nine" and "9 skills" were fixed by hand in
+    # five places and "9-skill" survived in four more. The count is read from
+    # disk here, and every numbered mention of the catalogue in the live docs
+    # (dated records under docs/specs, docs/research and docs/product excepted)
+    # has to match it.
+    local n out rc
+    n=$(find "$REPO_ROOT/.claude/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+    [ "$n" -ge 5 ] || { echo "only $n skill directories; below that this check proves nothing"; return 1; }
+    out=$(python3 - "$REPO_ROOT" "$n" <<'PY'
+import re, sys, pathlib
+root, n = pathlib.Path(sys.argv[1]), int(sys.argv[2])
+words = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve".split())}
+num = r"(\d+|" + "|".join(words) + r")"
+pats = [re.compile(r"\b" + num + r"[- ]skill\b", re.I),
+        re.compile(r"\b(?:the|all|these|its|those|same)\s+" + num + r"\s+skills\b", re.I),
+        re.compile(r"\b" + num + r"\s+academic[- ]writing[- ]skills\b", re.I)]
+skip = {"specs", "research", "product"}
+files = [root / "README.md"] + sorted(p for p in (root / "docs").rglob("*.md")
+                                      if not skip & set(p.relative_to(root / "docs").parts))
+bad = []
+for f in files:
+    for i, line in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+        for pat in pats:
+            for m in pat.finditer(line):
+                tok = m.group(1).lower()
+                val = int(tok) if tok.isdigit() else words[tok]
+                if val != n:
+                    bad.append("%s:%d says %s, but %d skills ship" % (f.relative_to(root), i, tok, n))
+print("\n".join(bad))
+sys.exit(1 if bad else 0)
+PY
+)
+    rc=$?
+    [ "$rc" = "0" ] || { echo "$out"; return 1; }
+}
+
 run_test "T2  symlink corruption + repair"        test_T2
 run_test "T3  sync drift detection + restore"     test_T3
 run_test "T4  CLAUDE.md edit propagates to both"  test_T4
@@ -4985,6 +5042,8 @@ run_test "T184 the suite header counts the tests this file runs" test_T184
 run_test "T185 public-content audit: a base-dir with no public surface is not a pass" test_T185
 run_test "T186 public-content audit: the count is the files read, none skipped for encoding" test_T186
 run_test "T187 public-content audit: the real tree's count clears an independent floor" test_T187
+run_test "T188 the scripts/ audits fail closed on an empty base-dir" test_T188
+run_test "T189 every numbered mention of the skill catalogue matches the skills on disk" test_T189
 
 header ""
 printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \

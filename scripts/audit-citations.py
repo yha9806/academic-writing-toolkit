@@ -22,6 +22,10 @@ from typing import Dict, List, Optional, Set, Tuple
 EXIT_OK = 0
 EXIT_ISSUES = 1
 EXIT_USAGE = 2
+# A run that matched no chapter and no notes file gives no verdict either
+# way, so it shares the usage code: neither may be read as a pass. Before
+# 2026-09-20 such a run printed an all-zero summary and exited 0.
+EXIT_NOTHING_CHECKED = 2
 
 RE_FLAGS = re.UNICODE
 
@@ -898,6 +902,7 @@ def emit(
     emit_json: bool,
     fixes: Optional[List[dict]] = None,
     changed: Optional[List[str]] = None,
+    coverage: Optional[dict] = None,
 ) -> None:
     summary = {
         "tier0_notes_lint": sum(1 for i in issues if i["tier"] == 0),
@@ -909,14 +914,17 @@ def emit(
         "tier3_format_violations": sum(1 for i in issues if i["tier"] == 3),
     }
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "style": style_key,
         "mode": mode,
+    }
+    payload.update(coverage or {})
+    payload.update({
         "summary": summary,
         "issues": issues,
         "fixes": fixes or [],
         "changed": changed or [],
-    }
+    })
     if emit_json:
         json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
         sys.stdout.write("\n")
@@ -924,6 +932,9 @@ def emit(
         sys.stdout.write("Citation audit\n")
         sys.stdout.write("  style: {}\n".format(style_key or "(unspecified)"))
         sys.stdout.write("  mode:  {}\n".format(mode or "(n/a)"))
+        if coverage:
+            sys.stdout.write("  read:  {} chapter file(s), {} notes file(s)\n".format(
+                coverage["chapters"], coverage["notes"]))
         for k, v in summary.items():
             sys.stdout.write("  {}: {}\n".format(k, v))
         if issues:
@@ -957,6 +968,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     chapters = discover_files(base_dir, args.chapters_glob)
     notes = discover_files(base_dir, args.notes_glob)
+    coverage = {
+        "files_scanned": len(chapters) + len(notes),
+        "chapters": len(chapters),
+        "notes": len(notes),
+        "nothing_checked": not chapters and not notes,
+    }
 
     issues: List[dict] = []
     mode = style_row["mode"] if style_row else None
@@ -1020,7 +1037,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.apply:
             changed = apply_safe_fixes(base_dir, fixes)
 
-    emit(issues, style_key, mode, args.emit_json, fixes=fixes, changed=changed)
+    emit(issues, style_key, mode, args.emit_json, fixes=fixes, changed=changed, coverage=coverage)
+    if coverage["nothing_checked"]:
+        sys.stderr.write("nothing checked: no file matched {!r} or {!r} under {}\n".format(
+            args.chapters_glob, args.notes_glob, base_dir))
+        return EXIT_NOTHING_CHECKED
     if args.apply and changed and len(fixes) == len(issues):
         return EXIT_OK
     return EXIT_ISSUES if issues else EXIT_OK

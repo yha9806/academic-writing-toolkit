@@ -79,15 +79,29 @@ def main() -> int:
     if not base_dir.is_dir():
         sys.stderr.write("error: --base-dir is not a directory\n")
         return 2
+    files = list(chapter_files(base_dir))
     issues: List[dict] = []
-    for path in chapter_files(base_dir):
+    for path in files:
         issues.extend(audit_file(path, base_dir))
-    payload = {"schema_version": 1, "issues": issues, "issue_count": len(issues)}
+    # A run that read no chapter is not a clean run: this used to exit 0 with
+    # `issue_count: 0` for a base-dir with no chapters/ at all (found 2026-09-20).
+    payload = {
+        "schema_version": 2,
+        "files_scanned": len(files),
+        "chapters_dir_present": (base_dir / "chapters").is_dir(),
+        "nothing_checked": not files,
+        "issues": issues,
+        "issue_count": len(issues),
+    }
     if args.emit_json:
         print(json.dumps(payload, indent=2))
     else:
         for issue in issues:
             print("{location}: {kind}: {message}".format(**issue))
+        print("scanned {} chapter file(s); {} issue(s)".format(len(files), len(issues)))
+    if not files:
+        sys.stderr.write("nothing checked: no chapters/*.md under {}\n".format(base_dir))
+        return 2
     return 1 if issues else 0
 
 
