@@ -4071,6 +4071,153 @@ assert 'source-missing' in kinds, kinds
     [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
 }
 
+# --- Number ledger ----------------------------------------------------------
+# The manuscript already guards numbers one way: a frequency table of numeric
+# tokens taken before and after a prose pass, which answers "did this pass move
+# a number". It cannot answer "is this number the artifact's", nor "does the
+# sentence carry the scope the number is only true within". Both have failed on
+# real work: a ratio true of 15 cells written as if it were true of all of them,
+# and a pooled figure quoted alone against the manuscript's own warning.
+number_fixture() {
+    # $1 = dir. One reported number, its artifact, and a scope word.
+    mkdir -p "$1/sections" "$1/results"
+    cat > "$1/sections/06_results.tex" <<'EOF'
+\section{Results}
+The pooled variance share is $89.8\%$ across all five conditions.
+Recall@1 falls from $48.4$ to $1.6$ times chance.
+EOF
+    printf 'condition,share\npooled,0.898\nk1,0.442\n' > "$1/results/variance.csv"
+    printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$1/numbers.tsv"
+    printf '89.8\t0.898\tpooled\tresults/variance.csv\tpooled,0.898\n' >> "$1/numbers.tsv"
+}
+
+test_T163() {
+    # The locator must be verbatim in the artifact, or the number rests on
+    # nothing that can be re-read.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    printf '48.4\t48.4\t-\tresults/variance.csv\tcells,48.4\n' >> "$tmp/numbers.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'locator-not-in-artifact' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T164() {
+    # A sentence that reports the number without the scope it is only true
+    # within. This is the failure the frequency table cannot see.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    cat > "$tmp/sections/06_results.tex" <<'EOF'
+\section{Results}
+The variance share is $89.8\%$ across all five conditions.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'scope-missing' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T165() {
+    # The ledgered number is no longer in the manuscript: the binding is stale.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    cat > "$tmp/sections/06_results.tex" <<'EOF'
+\section{Results}
+The pooled variance share is $91.9\%$ across all five conditions.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'number-not-in-manuscript' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T166() {
+    # A locator that does not itself carry the number: the row looks bound and
+    # binds nothing.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$tmp/numbers.tsv"
+    printf '89.8\t0.898\tpooled\tresults/variance.csv\tcondition,share\n' >> "$tmp/numbers.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'value-not-in-locator' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T167() {
+    # A clean ledger passes, and reports how many reported numbers carry no row.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['hard_finding_count'] == 0, d['findings']
+assert d['ledger_rows'] == 1 and d['nothing_checked'] is False, d
+assert any(f['kind'] == 'unledgered-number' for f in d['findings']), [f['kind'] for f in d['findings']]
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T168() {
+    # The two columns exist because the figure writes 0.898 and the prose prints
+    # 89.8%. A pair that is neither equal nor that relation is a finding, and
+    # the relation is recorded rather than inferred.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    printf 'printed\tin_artifact\tscope\tartifact\tlocator\n' > "$tmp/numbers.tsv"
+    printf '89.8\t0.442\tpooled\tresults/variance.csv\tk1,0.442\n' >> "$tmp/numbers.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'printed-artifact-mismatch' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -4093,6 +4240,12 @@ run_test "T159 review findings: no declaration of what was reviewed" test_T159
 run_test "T160 review findings: files read and nothing found is a pass" test_T160
 run_test "T161 review findings: a finding about a file never declared read" test_T161
 run_test "T162 review findings: the named source must be on disk" test_T162
+run_test "T163 number ledger: the locator must be verbatim in the artifact" test_T163
+run_test "T164 number ledger: a number reported without its scope" test_T164
+run_test "T165 number ledger: the number is no longer in the manuscript" test_T165
+run_test "T166 number ledger: a locator that does not carry the artifact value" test_T166
+run_test "T167 number ledger: a clean ledger passes and lists what it misses" test_T167
+run_test "T168 number ledger: printed and artifact values that do not relate" test_T168
 
 
 header ""

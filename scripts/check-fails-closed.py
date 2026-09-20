@@ -41,6 +41,9 @@ CHECKS = {
     "audit/audit-claim-ledger.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty),
                           "--ledger", str(empty / "ledger.tsv")],
+    "audit/audit-number-ledger.py":
+        lambda s, empty: ["python3", str(s), "--base-dir", str(empty),
+                          "--ledger", str(empty / "numbers.tsv")],
     "audit/audit-claim-positioning.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty)],
     "audit/audit-prose-fingerprint.py":
@@ -92,6 +95,7 @@ def main(argv=None):
         (empty / "empty.bib").write_text("", encoding="utf-8")
         (empty / "ledger.tsv").write_text("claim\tcite_key\tsnippet\tsource_file\tlevel\n", encoding="utf-8")
         (empty / "findings.tsv").write_text("location\tsource\tproblem\n", encoding="utf-8")
+        (empty / "numbers.tsv").write_text("number\tscope\tartifact\tlocator\n", encoding="utf-8")
         for name in sorted(set(CHECKS) & set(scripts)):
             argv_ = CHECKS[name](scripts[name], empty)
             run = subprocess.run(argv_, capture_output=True, text=True, cwd=ROOT)

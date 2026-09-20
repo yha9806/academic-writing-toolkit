@@ -31,10 +31,15 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
 
 2. **Check the following categories:**
 
-   **A. Numerical consistency**
+   **A. Numerical consistency** — read by the model, not checked by a script,
+   except for what audit H binds. The three bullets below are what to look for;
+   nothing verifies that you looked.
    - The same statistic (e.g., accuracy, sample size, p-value) cited in multiple chapters must have the same value.
    - Percentages in a distribution must sum to 100% (with tolerance of +/-1% for rounding).
    - Counts (e.g., "42 models") must match between chapters.
+
+   For numbers that matter, use audit H instead: it binds the printed value to
+   the artifact it came from, so the check survives the next edit.
 
    **B. Terminological consistency**
    - The same concept must use the same term throughout. Flag cases where synonyms are used inconsistently (e.g., "structured review" vs "systematic review" for the same concept).
@@ -80,7 +85,25 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    legacy packets can be interpreted with the schema and checks linked in
    `references/argument-licence/README.md`.
 
-   **G. Claim ledger — does a LaTeX manuscript's claim match its archived source?**
+   **H. Number ledger — is this the artifact's number, and is it scoped?**
+
+```
+python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir . --ledger numbers.tsv --json
+```
+
+A row binds one printed value to the file it came from:
+`printed`, `in_artifact`, `scope`, `artifact`, `locator`. Two value columns
+because they differ in practice — a figure writing `0.898` against prose
+printing `89.8\%` — and the relation is recorded, never inferred. Report
+`locator-not-in-artifact`, `value-not-in-locator`, `printed-artifact-mismatch`,
+`number-not-in-manuscript` and `scope-missing` as **Critical**;
+`unledgered-number` is a coverage list, not a finding. An empty ledger exits 2.
+
+`scope` is matched literally: pick a token the correct sentences contain, or
+`-`. On the real manuscript `zero-semantics` flagged two sentences that carry
+the scope in other words; `technique` passed both.
+
+**G. Claim ledger — does a LaTeX manuscript's claim match its archived source?**
 
    ```
    python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir . --ledger ledger.tsv --json
