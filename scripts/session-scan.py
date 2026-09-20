@@ -28,10 +28,15 @@ Hard findings (exit 1):
   staged-before-session         a staged file was last modified before this
                                 session began, so the change may be another
                                 session's
+  upstream-is-a-different-branch  the branch tracks another branch AND
+                                push.default would send its commits there
 
 Prompts (printed, exit 0):
 
   behind-remote           the remote branch has commits HEAD lacks
+  upstream-is-a-different-branch  the same mismatch where push.default
+                          refuses instead; the range above is counted
+                          against the upstream, not against this branch
   branch-not-on-remote    the branch exists only on this disk
   branch-on-other-remote  a second remote has the branch, and how far behind
   stale-tracking-ref      a remote-tracking ref names a branch the remote
@@ -258,6 +263,31 @@ def main(argv=None):
                                  "detail": "a push of %s would carry %s, which this worktree's reflog did not make" % (
                                      branch, c["desc"])})
 
+    # --- an upstream that is not the branch of the same name ---------------
+    # Found by running this scan before a real push: a branch whose upstream is
+    # origin/main reported its range against main, so the headline said twelve
+    # commits where `git push origin <branch>` carried one. Under git's default
+    # push.default=simple a bare push refuses outright; under upstream or
+    # tracking it does not, and the branch's commits land on the other branch.
+    same_name = None
+    if upstream and upstream != branch:
+        rc, out, _ = git(repo, "config", "--get", "push.default")
+        default = (out.strip() if rc == 0 and out.strip() else "simple")
+        sends = default in ("upstream", "tracking")
+        extra = ""
+        if branch in remote_heads and git(repo, "cat-file", "-e", remote_heads[branch] + "^{commit}")[0] == 0:
+            rc, n, _ = git(repo, "rev-list", "--count", "%s..HEAD" % remote_heads[branch])
+            same_name = n.strip() if rc == 0 else None
+            extra = "; `git push %s %s` would carry %s commit(s), not the %d counted above" % (
+                remote, branch, same_name, len(push_range))
+        elif not detached:
+            extra = "; %s/%s does not exist, so `git push %s %s` would create it" % (remote, branch, remote, branch)
+        findings.append({"kind": "upstream-is-a-different-branch", "hard": sends,
+                         "detail": "%s tracks %s/%s, a different branch. push.default=%s, so a bare `git push` %s%s" % (
+                             branch, remote, upstream, default,
+                             "SENDS THIS BRANCH'S COMMITS TO %s" % upstream if sends else "refuses (name mismatch)",
+                             extra)})
+
     # --- the same branch on the other remotes ------------------------------
     # A manuscript mirrored to an editor and to a host has two remotes, and
     # "not on the remote" must say which. Each other remote is asked too.
@@ -382,6 +412,7 @@ def main(argv=None):
         "since": fmt_ts(since) if since else None,
         "push_target": push_target,
         "push_range": push_range,
+        "same_name_ahead": same_name,
         "staged": staged, "unstaged": unstaged, "untracked": untracked,
         "other_worktrees": others,
         "transcripts": transcripts,
@@ -407,9 +438,10 @@ def main(argv=None):
                   len(others), ("%d transcript(s) since %s" % (len(transcripts), fmt_ts(since))) if since else "no session start"))
         for item in not_checked:
             print("NOT checked: %s" % item)
-        order = ["upstream-gone", "foreign-commit-in-push-range", "staged-before-session", "behind-remote",
-                 "branch-not-on-remote", "branch-on-other-remote", "stale-tracking-ref", "dirty-before-session",
-                 "foreign-commit-since", "other-worktree", "session-mentioning-repo"]
+        order = ["upstream-gone", "upstream-is-a-different-branch", "foreign-commit-in-push-range",
+                 "staged-before-session", "behind-remote", "branch-not-on-remote", "branch-on-other-remote",
+                 "stale-tracking-ref", "dirty-before-session", "foreign-commit-since", "other-worktree",
+                 "session-mentioning-repo"]
         for kind in order:
             group = [f for f in findings if f["kind"] == kind]
             if not group:

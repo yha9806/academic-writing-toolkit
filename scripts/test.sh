@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (175 automated tests, labelled T2-T182: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T182 session scan) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (176 automated tests, labelled T2-T183: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3368,6 +3368,44 @@ assert d['since'] is not None and d['hard_finding_count']==0, d
     [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
 }
 
+test_T183() {
+    # A branch whose upstream is a different branch. The range is counted
+    # against the upstream, so the headline answers a question nobody asked;
+    # and under push.default=upstream a bare push sends these commits there.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    _scan_fixture "$tmp" || { echo "fixture failed"; return 1; }
+    ( cd "$tmp/B" && _scan_git branch --set-upstream-to=origin/main topic ) >/dev/null 2>&1 || return 1
+    # One commit after topic was pushed, so the two counts genuinely differ:
+    # 1 against origin/topic, 2 against origin/main, which is what the headline
+    # counts. A first version of this test asserted numbers taken from the real
+    # repository instead of derived from this fixture, and failed on both.
+    ( cd "$tmp/B" && echo b2 > b2 && _scan_git add b2 && _scan_git commit -qm topic2 ) >/dev/null 2>&1 || return 1
+    out=$(python3 scripts/session-scan.py --repo "$tmp/B" --json 2>&1); status=$?
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+m=[f for f in d['findings'] if f['kind']=='upstream-is-a-different-branch']
+assert len(m)==1 and not m[0]['hard'], d['findings']          # simple refuses: a prompt
+assert 'push.default=simple' in m[0]['detail'], m[0]['detail']
+assert d['same_name_ahead']=='1', d['same_name_ahead']         # what an explicit push carries
+assert len(d['push_range'])==2, d['push_range']                # what the headline counted
+" || { rm -rf "$tmp"; return 1; }
+    [ "$status" = "0" ] || { rm -rf "$tmp"; echo "expected exit 0, got $status"; return 1; }
+    # push.default=upstream sends them to the other branch: that is a hard finding.
+    ( cd "$tmp/B" && _scan_git config push.default upstream ) || { rm -rf "$tmp"; return 1; }
+    out=$(python3 scripts/session-scan.py --repo "$tmp/B" --json 2>&1); status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+m=[f for f in d['findings'] if f['kind']=='upstream-is-a-different-branch']
+assert len(m)==1 and m[0]['hard'], d['findings']
+assert 'SENDS' in m[0]['detail'], m[0]['detail']
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
 run_test "T2  symlink corruption + repair"        test_T2
 run_test "T3  sync drift detection + restore"     test_T3
 run_test "T4  CLAUDE.md edit propagates to both"  test_T4
@@ -4921,6 +4959,7 @@ run_test "T179 session scan: a branch another session merged and deleted" test_T
 run_test "T180 session scan: a foreign commit in the push range" test_T180
 run_test "T181 session scan: a staged file older than the session" test_T181
 run_test "T182 session scan: the transcript's first user record is the start" test_T182
+run_test "T183 session scan: an upstream that is a different branch" test_T183
 
 header ""
 printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \
