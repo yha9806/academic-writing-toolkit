@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (175 automated tests, labelled T2-T184: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (178 automated tests, labelled T2-T187: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3357,6 +3357,78 @@ test_T184() {
     [ "$highest" = "$last" ] || { echo "header says the range ends at T$highest, highest registered is T$last"; return 1; }
 }
 
+# --- T185-T187: the public-content audit reports what it read ---------------
+
+test_T185() {
+    # A base-dir with none of the public surfaces under it used to print
+    # `issue_count: 0` and exit 0, the same line as a clean tree. A scan that
+    # read nothing is not a clean scan.
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    out=$(python3 "$REPO_ROOT/scripts/audit-public-content.py" --base-dir "$tmp" --json 2>&1)
+    rc=$?
+    rm -rf "$tmp"
+    [ "$rc" = "2" ] || { echo "expected exit 2 on an empty base-dir, got $rc"; return 1; }
+    grep -q "nothing checked" <<<"$out" || return 1
+}
+
+test_T186() {
+    # The count is the number of files read, and no file is skipped for its
+    # encoding: a Latin-1 file with a residue on its second line is reported,
+    # at that line. The old reader decoded as UTF-8 and skipped it silently.
+    local tmp rc tok
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/docs/sub" "$tmp/docs/__pycache__" "$tmp/scripts"
+    printf 'hello\n' > "$tmp/README.md"
+    printf 'a\n' > "$tmp/docs/a.md"
+    printf 'b\n' > "$tmp/docs/sub/b.md"
+    printf 'x\n' > "$tmp/scripts/x.py"
+    printf 'cached\n' > "$tmp/docs/__pycache__/c.pyc"
+    tok=$(printf '%s%s' 'Judge' '++')   # joined at run time so this file does not match itself
+    printf 'caf\xe9\nsee %s here\n' "$tok" > "$tmp/docs/l1.md"
+    python3 "$REPO_ROOT/scripts/audit-public-content.py" --base-dir "$tmp" --json > "$tmp/out.json" 2>/dev/null
+    rc=$?
+    [ "$rc" = "1" ] || { rm -rf "$tmp"; echo "expected exit 1 with a planted residue, got $rc"; return 1; }
+    python3 - "$tmp/out.json" "$tok" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+tok = sys.argv[2]
+assert d["files_scanned"] == 5, d["files_scanned"]
+assert d["roots_present"] == ["README.md", "docs", "scripts"], d["roots_present"]
+assert "CLAUDE.md" in d["roots_missing"], d["roots_missing"]
+assert d["nothing_checked"] is False, d
+assert d["issue_count"] == 1, d["issues"]
+issue = d["issues"][0]
+assert issue["location"] == "docs/l1.md:2", issue
+assert issue["token"] == tok, issue
+PY
+    rc=$?
+    rm -rf "$tmp"
+    [ "$rc" = "0" ] || return 1
+}
+
+test_T187() {
+    # On the real tree the count is compared with something counted
+    # independently: at least every SKILL.md and every script under scripts/.
+    # The two roots the audit exists for must be among those present.
+    local tmp floor rc
+    tmp=$(mktemp) || return 1
+    python3 "$REPO_ROOT/scripts/audit-public-content.py" --base-dir "$REPO_ROOT" --json > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
+    floor=$(( $(find "$REPO_ROOT/.claude/skills" -name SKILL.md | wc -l) + $(find "$REPO_ROOT/scripts" -maxdepth 1 -name '*.py' | wc -l) ))
+    python3 - "$tmp" "$floor" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+floor = int(sys.argv[2])
+assert floor >= 10, floor
+assert d["files_scanned"] >= floor, (d["files_scanned"], floor)
+for root in (".claude/skills", "scripts"):
+    assert root in d["roots_present"], d["roots_present"]
+PY
+    rc=$?
+    rm -f "$tmp"
+    [ "$rc" = "0" ] || return 1
+}
+
 run_test "T2  symlink corruption + repair"        test_T2
 run_test "T3  sync drift detection + restore"     test_T3
 run_test "T4  CLAUDE.md edit propagates to both"  test_T4
@@ -4910,6 +4982,9 @@ run_test "T181 session scan: a staged file older than the session" test_T181
 run_test "T182 session scan: the transcript's first user record is the start" test_T182
 run_test "T183 session scan: an upstream that is a different branch" test_T183
 run_test "T184 the suite header counts the tests this file runs" test_T184
+run_test "T185 public-content audit: a base-dir with no public surface is not a pass" test_T185
+run_test "T186 public-content audit: the count is the files read, none skipped for encoding" test_T186
+run_test "T187 public-content audit: the real tree's count clears an independent floor" test_T187
 
 header ""
 printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \

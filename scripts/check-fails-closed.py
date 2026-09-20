@@ -20,10 +20,12 @@ converter, so every script under `.claude/skills/*/scripts/` must be listed in
 CHECKS or in NOT_CHECKS with a reason. A script in neither is an error, which is
 what keeps this list from rotting as the toolkit grows.
 
-Scope: skill scripts only. The checks under `scripts/` (this one, and
+Scope: skill scripts only. The checks under `scripts/` (this one;
 `session-scan.py`, whose empty targets are a directory that is not a
-repository and a repository with no remote) carry the same property in their
-own tests (T157, T178) rather than in this registry.
+repository and a repository with no remote; and `audit-public-content.py`,
+whose empty target is a base-dir with none of the public surfaces under it)
+carry the same property in their own tests (T157, T178, T185) rather than in
+this registry.
 
 Exit: 0 when every check failed closed and every script is accounted for, 1
 otherwise.
