@@ -47,6 +47,9 @@ CHECKS = {
         lambda s, empty: ["python3", str(s), "--target", str(empty)],
     "edit-contract/check-author-control.py":
         lambda s, empty: ["python3", str(s), str(empty)],
+    "review/audit-review-findings.py":
+        lambda s, empty: ["python3", str(s), "--base-dir", str(empty),
+                          "--findings", str(empty / "findings.tsv")],
     "map/count-words.mjs":
         lambda s, empty: ["node", str(s), "--base-dir", str(empty)],
     "verify-refs/verify-refs.py":
@@ -88,6 +91,7 @@ def main(argv=None):
         empty = Path(tmp)
         (empty / "empty.bib").write_text("", encoding="utf-8")
         (empty / "ledger.tsv").write_text("claim\tcite_key\tsnippet\tsource_file\tlevel\n", encoding="utf-8")
+        (empty / "findings.tsv").write_text("location\tsource\tproblem\n", encoding="utf-8")
         for name in sorted(set(CHECKS) & set(scripts)):
             argv_ = CHECKS[name](scripts[name], empty)
             run = subprocess.run(argv_, capture_output=True, text=True, cwd=ROOT)

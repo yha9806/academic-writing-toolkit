@@ -3950,6 +3950,127 @@ assert d['checks_run'] >= 6, d
     [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
 }
 
+# --- Review findings --------------------------------------------------------
+# /review produced "anchored findings" that nothing verified: the anchor was a
+# section name or a quoted span, and an author acting on the report had no way
+# to tell a real location from a plausible one. The anchor is now file:line, the
+# source path is named, and a script resolves both.
+review_fixture() {
+    # $1 = dir. Two reviewed chapters and a source the findings can name.
+    mkdir -p "$1/chapters" "$1/evidence"
+    printf 'line one\nline two\nline three\n' > "$1/chapters/ch2.md"
+    printf 'alpha\nbeta\n' > "$1/chapters/ch3.md"
+    printf 'the archived passage\n' > "$1/evidence/source.txt"
+    {
+        printf '# reviewed: chapters/ch2.md, chapters/ch3.md\n'
+        printf 'location\tsource\tproblem\n'
+        printf 'chapters/ch2.md:2\tevidence/source.txt\tThe sentence says more than the passage it rests on.\n'
+    } > "$1/findings.tsv"
+}
+
+test_T158() {
+    # An anchor past the end of the file is the failure this replaces: a
+    # location that reads as precise and resolves to nothing.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    printf 'chapters/ch3.md:99\t-\tThe paragraph repeats the previous one.\n' >> "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'anchor-line-out-of-range' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T159() {
+    # No declaration of what was reviewed: zero findings then means nothing,
+    # and must not read as a clean review.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    printf 'location\tsource\tproblem\n' > "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['nothing_checked'] is True, d
+assert d['reviewed_files'] == 0, d
+" || return 1
+    [ "$status" = "2" ] || { echo "expected exit 2, got $status"; return 1; }
+}
+
+test_T160() {
+    # A review that examined files and found nothing IS a pass. That is the
+    # distinction the declaration buys.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    {
+        printf '# reviewed: chapters/ch2.md, chapters/ch3.md\n'
+        printf 'location\tsource\tproblem\n'
+    } > "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['reviewed_files'] == 2 and d['finding_rows'] == 0, d
+assert d['nothing_checked'] is False, d
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T161() {
+    # A finding about a file the review never declared it read.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    printf 'line\n' > "$tmp/chapters/ch9.md"
+    printf 'chapters/ch9.md:1\t-\tThis chapter was never opened.\n' >> "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'finding-outside-reviewed-set' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T162() {
+    # The source a finding rests on must be on disk, or the finding rests on
+    # the reviewer's memory.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    review_fixture "$tmp"
+    printf 'chapters/ch3.md:1\tevidence/not-there.txt\tThe claim is not in the source.\n' >> "$tmp/findings.tsv"
+    out=$(python3 .claude/skills/review/scripts/audit-review-findings.py --base-dir "$tmp" \
+          --findings "$tmp/findings.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'source-missing' in kinds, kinds
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -3967,6 +4088,11 @@ run_test "T154 verify-refs: an empty bibliography is not a pass" test_T154
 run_test "T155 verify-refs: --allow-empty says the emptiness is expected" test_T155
 run_test "T156 count-words: an unrecognised argument stops it" test_T156
 run_test "T157 every check fails closed and every script is registered" test_T157
+run_test "T158 review findings: an anchor past the end of the file" test_T158
+run_test "T159 review findings: no declaration of what was reviewed" test_T159
+run_test "T160 review findings: files read and nothing found is a pass" test_T160
+run_test "T161 review findings: a finding about a file never declared read" test_T161
+run_test "T162 review findings: the named source must be on disk" test_T162
 
 
 header ""
