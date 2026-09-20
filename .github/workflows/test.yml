@@ -14,10 +14,11 @@ permissions:
   contents: read
 
 jobs:
-  # Two jobs, not one: they cover different things. windows-runtime is the only
-  # leg that runs the guards suite and the live probes on Windows, and it has
-  # already found three defects the Linux legs structurally cannot see.
-  # global-skills exercises the installer's own matrix.
+  # Three jobs, not one: they cover different things. windows-runtime runs the
+  # native setup and the Node tests on Windows, where they have already found
+  # defects the Linux legs structurally cannot see (junctions, path spelling).
+  # global-skills exercises the installer's own matrix. test is the Linux
+  # regression suite.
   windows-runtime:
     runs-on: windows-latest
     steps:
@@ -34,13 +35,8 @@ jobs:
         run: |
           node scripts/setup.mjs doctor
           git diff --exit-code
-      - run: npm ci --prefix guards
-      - run: npm test --prefix guards
-      - run: npm ci --prefix e2e
-      - run: node e2e/run-e2e.mjs
-      - run: node e2e/run-credential-probe.mjs
-      - run: node e2e/run-skill-scope-probe.mjs
-      - run: node e1/run-e1.mjs
+      - name: Catalogue truth, the notes contract, the fidelity audit and the workspace scaffold
+        run: node --test scripts/test-catalogue.mjs scripts/test-notes-lint.mjs scripts/test-citation-fidelity.mjs scripts/test-scaffold.mjs
   global-skills:
     name: Global skills (${{ matrix.os }}, Python ${{ matrix.python }})
     strategy:
@@ -64,7 +60,6 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Test native clean setup and safe link repair on every platform
         run: node --test scripts/test-native-setup.mjs
-      - run: npm ci --prefix guards
       - run: python -m pip install -r scripts/codex-skills-requirements.txt
       - name: Test isolated installs, updates, collisions, rollback and real helpers
         run: python scripts/test-codex-skills.py
@@ -92,10 +87,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pandoc
       - name: Configure git core.fileMode false (make doctor expects this)
         run: git config core.fileMode false
-      - name: Build guards first (the citation fidelity audit imports guards/dist, and T169 runs it)
-        run: npm --prefix guards ci && npm --prefix guards run build
       - run: make doctor
       - name: Regression suite, including validators of bundles retired under archive/skills/
         run: make test-all
-      - name: Guards package tests (notes lint + catalogue truth tests)
-        run: npm --prefix guards test
+      - name: Catalogue truth, the notes contract, the fidelity audit and the workspace scaffold
+        run: node --test scripts/test-catalogue.mjs scripts/test-notes-lint.mjs scripts/test-citation-fidelity.mjs scripts/test-scaffold.mjs

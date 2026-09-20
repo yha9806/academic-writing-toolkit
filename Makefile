@@ -35,6 +35,8 @@ repair:  ## Apply idempotent fixes for issues doctor flags
 
 test:  ## Run the regression suite on live surfaces
 	@bash scripts/test.sh
+	@node --test scripts/test-catalogue.mjs scripts/test-notes-lint.mjs scripts/test-citation-fidelity.mjs scripts/test-scaffold.mjs
 
 test-all:  ## The suite plus validators of bundles retired under archive/skills/
 	@AWT_TEST_RETIRED=1 bash scripts/test.sh
+	@node --test scripts/test-catalogue.mjs scripts/test-notes-lint.mjs scripts/test-citation-fidelity.mjs scripts/test-scaffold.mjs

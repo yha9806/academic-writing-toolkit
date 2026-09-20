@@ -2,7 +2,7 @@
 """Install/update the nine advisory skills from this checkout into user scope.
 
 No network is used unless --install-deps is requested (pip in a private venv).
-Install the locked Node build dependencies first: npm ci --prefix guards.
+Node.js 22.12+ is needed for the Node helpers; nothing is built.
 """
 from __future__ import annotations
 
@@ -30,9 +30,10 @@ OWNER = "yha9806/academic-writing-toolkit"
 # it, and `export` borrows one of `audit`'s. Naming the full path means a moved
 # script is a missing-file error at install time rather than a silent no-op.
 HELPERS = {
-    # This skill's helper is already inside its own folder; still rewrite the
-    # command for user-scope installs instead of retaining a checkout path.
+    # These skills' helpers are already inside their own folders; still rewrite
+    # the commands for user-scope installs instead of retaining a checkout path.
     "map": (),
+    "note": (),
     "audit": (
         ".claude/skills/audit/scripts/audit-claim-positioning.py",
         ".claude/skills/audit/scripts/audit-citation-fidelity.mjs",
@@ -47,30 +48,6 @@ HELPERS = {
 # nothing is indistinguishable from one that worked.
 HELPER_COMMAND = re.compile(r"\b(python3?|node) (\.claude/skills/[\w.-]+/scripts/([\w.-]+))")
 LEFTOVER_COMMAND = re.compile(r"\b(python3?|node)\s+(?:\.claude/skills/|scripts/)")
-
-
-BUNDLED_IMPORT = re.compile(r"(['\"])\.\./\.\./\.\./\.\./")
-
-
-def rebase_bundled_imports(text, filename):
-    """Point a copied helper's own imports at the copies bundled beside it.
-
-    `audit-citation-fidelity.mjs` reaches the graders and the guards through
-    four levels of `../` because it lives four levels below the repository
-    root. Installed, it sits one level below its skill, and the installer
-    bundles those dependencies there. Left alone it resolved outside the
-    installation entirely, which the staged smoke test caught only because it
-    runs the real file.
-    """
-    out, count = BUNDLED_IMPORT.subn(r"\1../", text)
-    # The same four levels appear as a path join for the product root.
-    out, roots = re.subn(r"resolve\(import\.meta\.dirname, '\.\.', '\.\.', '\.\.', '\.\.'\)",
-                         "resolve(import.meta.dirname, '..')", out)
-    if "../../../../" in out or "'..', '..', '..', '..'" in out:
-        raise InstallError("Helper {}: a toolkit-relative path was not rebased for the installed layout".format(filename))
-    if count + roots == 0 and "graders.mjs" in text:
-        raise InstallError("Helper {}: expected toolkit-relative paths to rebase, found none".format(filename))
-    return out
 
 
 def rewrite_helper_commands(text, name):
@@ -242,19 +219,14 @@ def private_runtime(source, state):
     return python
 
 
-def build_guards(source):
+def check_node():
+    """The .mjs helpers need Node.js 22.12+ (import.meta.dirname); nothing is built."""
     node = shutil.which("node")
     if not node:
-        raise InstallError("Node.js 22.12+ is required. Install Node, then run npm ci --prefix guards.")
+        raise InstallError("Node.js 22.12+ is required for the Node helpers. Install Node, then retry.")
     version = json.loads(run([node, "-p", "JSON.stringify(process.versions.node.split('.').map(Number))"]))
     if not (version[0] == 22 and version[1] >= 12 or version[0] >= 24):
-        raise InstallError("Use Node.js ^22.12 or >=24, as declared by guards/package.json.")
-    compiler = source / "guards/node_modules/typescript/bin/tsc"
-    if not compiler.is_file():
-        raise InstallError("Build dependencies are missing. Run npm ci --prefix guards, then retry.")
-    # Fresh compilation prevents a stale dist from being labelled with a
-    # new source commit. Direct Node invocation also works on Windows.
-    run([node, compiler, "-p", source / "guards/tsconfig.json"], cwd=source)
+        raise InstallError("Use Node.js ^22.12 or >=24 for the Node helpers.")
 
 
 def prepare(source, stage, dest, python):
@@ -275,21 +247,8 @@ def prepare(source, stage, dest, python):
             filename = Path(helper).name
             target = folder / "scripts" / filename
             copy_resource(source / helper, target)
-            if filename.endswith(".mjs"):
-                write_text(target, rebase_bundled_imports(target.read_text(encoding="utf-8"), filename))
-        if name == "audit":
-            for rel in ("e1/graders.mjs", "guards/package.json"):
-                copy_resource(source / rel, folder / rel)
-            for module in ("decisions", "projections", "notes-lint", "vocabulary"):
-                rel = "guards/dist/{}.js".format(module)
-                copy_resource(source / rel, folder / rel)
-            # This dependency is added by the independent Windows/E1 PR.
-            if (source / "profiles/awt-headless/pdf-pages.mjs").is_file():
-                copy_resource(source / "profiles/awt-headless/pdf-pages.mjs", folder / "profiles/awt-headless/pdf-pages.mjs")
         if name in HELPERS:
             text = rewrite_helper_commands(text, name)
-            text = text.replace("(needs the guards built once: `npm --prefix guards install && npm --prefix guards run build`.)",
-                                "(the installer has bundled the compiled audit dependencies.)")
             index = text.index("\n## ")
             text = text[:index] + (
                 "\n## Installed helper paths\n\n"
@@ -303,7 +262,7 @@ def prepare(source, stage, dest, python):
                        "# Installed helper runtime\n\nPython (`{python}`): `" + str(python) + "`\n\n" +
                        "Node.js and `pdftotext` (Poppler) are resolved from PATH. Install\n"
                        "Poppler before PDF reading or PDF-based audits. The bundled checks\n"
-                       "are Advisory; they do not enforce the AWT dsh app's guards.\n")
+                       "are advisory; the host does not enforce what they report.\n")
         # Preserve local UI metadata/assets; the original whole skill is
         # also retained in the backup. Never silently relax invocation policy.
         for rel in ("agents", "assets"):
@@ -434,7 +393,7 @@ def install(source, dest, python, replace_existing=False):
             if not owned and not replace_existing:
                 raise InstallError("{} exists outside this installer's unchanged files. Inspect it, then use --replace-existing to back it up and replace it.".format(dest / name))
         check_runtime(python)
-        build_guards(source)
+        check_node()
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
         transaction = state / "transactions" / stamp
         plain_path(transaction)
