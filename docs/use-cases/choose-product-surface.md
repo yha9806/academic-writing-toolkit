@@ -11,7 +11,6 @@ state.
 Use this for the full thesis workflow with enforcement. `awt init` creates
 the workspace, `awt install-profile` installs the `awt-headless` profile,
 and every daily-loop constraint — notes-before-chapters, quote integrity,
-page budgets, edit-contract scope, 3-strike escalation — is a typed guard
 denial or an explicit author approval recorded as immutable harness events.
 Profile boot itself refuses a directory that is not an AWT workspace.
 

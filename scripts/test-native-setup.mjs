@@ -23,8 +23,15 @@ test('native clean setup, doctor and repair preserve source and reject wrong lin
     for (const name of ['scripts', 'templates', '.claude/skills', 'CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.gitignore']) {
       cpSync(join(SOURCE, name), join(root, name), { recursive: true, filter: (p) => !p.includes('__pycache__') })
     }
-    const skills = readdirSync(join(root, '.claude', 'skills'))
-    assert.equal(skills.length, 9)
+    // This guards that the fixture copied every skill across. It was written
+    // as `assert.equal(skills.length, 9)`, a number nobody derived: retiring
+    // one skill turned it red on three platforms, and a search for that
+    // skill's name could not find it. Compare with the source instead, and
+    // keep a floor so a source tree with no skills cannot satisfy both sides.
+    const shipped = readdirSync(join(SOURCE, '.claude', 'skills')).sort()
+    const skills = readdirSync(join(root, '.claude', 'skills')).sort()
+    assert.ok(shipped.length >= 5, `the source ships ${shipped.length} skills; below that this fixture verifies nothing`)
+    assert.deepEqual(skills, shipped)
     mkdirSync(join(root, '.agents', 'skills'), { recursive: true })
     for (const name of skills) writeFileSync(join(root, '.agents', 'skills', name), `../../.claude/skills/${name}`)
     passed(run('git', ['init', '--quiet'], root))

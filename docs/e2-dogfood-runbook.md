@@ -35,7 +35,7 @@ exported per session — `DEEPSEEK_API_KEY` (cost route, default model) or
 `ANTHROPIC_API_KEY` (prose route). Keys live in your shell environment
 only; profile files carry `apiKeyEnv` references, never values.
 
-On Windows, `awt init` creates directory junctions for the nine skills and
+On Windows, `awt init` creates directory junctions for the eight skills and
 on-demand `references/`, and a hard link for `CLAUDE.md`/`AGENTS.md`; it
 does not require Developer Mode. Put a working Poppler `pdftotext.exe`
 directory on PATH in the launching shell. A MiKTeX first-run error is an
@@ -56,7 +56,6 @@ The overlay contains model identifiers only; the selected provider key
 still comes from its `apiKeyEnv` reference. Keep the default DeepSeek
 route when no model change is intended.
 
-## The cycle (§11: read → note → integrate → edit-contract → review → audit → export)
 
 Run every step from inside the workspace so the guards see it:
 
@@ -72,7 +71,6 @@ node scaffold/awt.mjs run ~/thesis "<task>"
    following the template. A chapter write that cites a source without a
    lint-conforming notes file will be denied (`NOTES_MISSING`) — that is
    the product working, not a bug.
-3. **integrate / edit-contract** — write the edit contract into
    `contracts/` (through the app, so the revision fold sees it), then draft
    the chapter section within its `May change:` scope.
 4. **review / audit** — run the review and audit skills over the draft.

@@ -30,7 +30,7 @@ If `make doctor` reports anything red, run `make repair` to fix what it can.
 
 Ask Claude: "What skills are available?"
 
-You should see the nine canonical skills listed in [the skills guide](skills/README.md), including `/review` and `/edit-contract`.
+You should see the eight canonical skills listed in [the skills guide](skills/README.md), including `/review` and `/audit`.
 
 ## Available Skills
 
@@ -42,7 +42,6 @@ You should see the nine canonical skills listed in [the skills guide](skills/REA
 | `/review` | External manuscript review or own-work clean-room review |
 | `/integrate` | Weave reading notes into chapter drafts |
 | `/audit` | Pre-submission consistency check |
-| `/edit-contract` | Define a bounded edit scope and record revision attempts |
 | `/verify-refs` | Check BibTeX records and metadata |
 | `/export` | Export chapters to Word (.docx) and ZIP |
 
@@ -70,7 +69,6 @@ The [global installer](setup-codex-cli.md) packages those resources for Codex.
 /review                      # Review the submitted manuscript
 /integrate                            # Weave notes into chapters
 /audit                                # Pre-submission consistency check
-/edit-contract                   # Define the edit scope
 /verify-refs references.bib           # Check BibTeX records
 /export chapters en-only             # Export chapters to Word
 ```

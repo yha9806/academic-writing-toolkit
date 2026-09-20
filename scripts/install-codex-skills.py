@@ -23,7 +23,7 @@ import uuid
 import zipfile
 
 SOURCE = Path(__file__).resolve().parents[1]
-NAMES = ("audit", "edit-contract", "export", "integrate", "map", "note", "read", "review", "verify-refs")
+NAMES = ("audit", "export", "integrate", "map", "note", "read", "review", "verify-refs")
 FORMAT = 1
 OWNER = "yha9806/academic-writing-toolkit"
 # Source paths, not bare names: each script now lives in the skill that calls
@@ -37,10 +37,6 @@ HELPERS = {
         ".claude/skills/audit/scripts/audit-claim-positioning.py",
         ".claude/skills/audit/scripts/audit-citation-fidelity.mjs",
         ".claude/skills/audit/scripts/audit-prose-fingerprint.py",
-    ),
-    "edit-contract": (
-        ".claude/skills/edit-contract/scripts/scaffold-author-control.py",
-        ".claude/skills/edit-contract/scripts/check-author-control.py",
     ),
     "export": (".claude/skills/audit/scripts/audit-claim-positioning.py",),
     "verify-refs": (".claude/skills/verify-refs/scripts/verify-refs.py",),
@@ -348,8 +344,6 @@ def smoke(skills, python):
         refs = json.loads(run([python, "-I", skills / "verify-refs/scripts/verify-refs.py", "--bib", root / "references.bib", "--json"], expected=1))
         if refs["issue_count"] < 1 or refs["online_sources"]:
             raise InstallError("Installed offline reference checker did not detect the fixture")
-        run([python, "-I", skills / "edit-contract/scripts/scaffold-author-control.py", root, "--json"])
-        run([python, "-I", skills / "edit-contract/scripts/check-author-control.py", root, "--strict", "--json"], expected=1)
         write_text(root / "chapters/ch01.md", "# Fixture\n\nAWT portable skill installation fixture.\n")
         counts = json.loads(run(["node", skills / "map/scripts/count-words.mjs", "--base-dir", root, "--json"]))
         if counts["total"] != 7 or len(counts["chapters"]) != 1:

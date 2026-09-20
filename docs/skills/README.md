@@ -9,7 +9,7 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 ## Pipeline
 
 ```text
-/read -> /note -> /map -> /integrate -> /edit-contract -> /review -> /audit -> /verify-refs -> /export
+/read -> /note -> /map -> /integrate -> /review -> /audit -> /verify-refs -> /export
 ```
 
 The catalogue was triaged from 20 skills to 9 on 2026-08-16
@@ -23,7 +23,6 @@ On-demand reference documents: `references/argument-checklist.md`,
 | Skill | Guide |
 |-------|-------|
 | `/review` | (guide pending; see the SKILL.md) |
-| `/edit-contract` | (guide pending; see the SKILL.md) |
 | `/read` | [01-read.md](01-read.md) |
 | `/note` | [02-note.md](02-note.md) |
 | `/map` | [04-map.md](04-map.md) |

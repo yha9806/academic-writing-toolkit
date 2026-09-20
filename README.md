@@ -163,7 +163,7 @@ clone the repo, run `node scripts/setup.mjs`, and point Codex at it, or let
 Git's flattened link files intact and adds ignored `awt-local-*` directory
 junctions to the same canonical skills.
 
-To use the nine skills across your local Codex projects, install them in
+To use the eight skills across your local Codex projects, install them in
 user scope from a source checkout (Python 3.9+, Node.js ^22.12 or >=24):
 
 ```bash
@@ -236,7 +236,7 @@ and the lost-in-conversation comparison fixture were retired with their
 skills; they remain inspectable under [`archive/skills/`](archive/skills/)
 and [`examples/`](examples/) but are no longer presented as evaluations.
 
-## 9 composable skills
+## 8 composable skills
 
 The catalogue was triaged from 20 skills to 9 plus 3 reference documents on
 2026-08-16 after an adversarial efficacy review (every skill had to beat the
@@ -247,7 +247,7 @@ for the per-skill verdicts; retired skills live under [`archive/skills/`](archiv
 | Lane | Skills | What the lane produces |
 |---|---|---|
 | **Read and ground** | `/read`, `/note`, `/map` | page-anchored notes with an evidence-status firewall, coverage matrix, progress dashboard |
-| **Write without losing control** | `/integrate`, `/edit-contract` | approved integration plans, spine cards, bounded edit scopes, 3-strike escalation |
+| **Write without losing control** | `/integrate` | approved integration plans, spine cards, bounded edit scopes, 3-strike escalation |
 | **Review and ship** | `/review`, `/audit`, `/verify-refs`, `/export` | anchored review findings, consistency reports, BibTeX checks, Word/ZIP exports |
 
 The [`/review` instructions](.claude/skills/review/SKILL.md) distinguish external
