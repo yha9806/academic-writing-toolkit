@@ -62,6 +62,7 @@ CHECKS = {
 NOT_CHECKS = {
     "edit-contract/scaffold-author-control.py": "generator: writes files, makes no pass/fail claim",
     "export/convert_to_docx.py": "converter: Markdown to .docx, makes no pass/fail claim",
+    "audit/build-venue-baseline.py": "corpus builder: fetches a venue's papers from arXiv and writes a manifest; makes no pass/fail claim about a manuscript, and its own corpus floor exits 2 (T176)",
 }
 
 

@@ -15,7 +15,9 @@ re-measure everything.
 | Condition | Check |
 | --- | --- |
 | The baseline corpus is the manuscript's **own** reference PDFs, twenty or more | count them |
-| The baseline contains **none of the author's own papers** | name pattern → `--exclude` |
+| A **venue** baseline exists as well, built before drafting | `build-venue-baseline.py --venue "<journal>" --from-year <yyyy>`; the two corpora answer different questions and a percentile must always name which one it came from |
+| The baseline contains **none of the author's own papers** | the tool scans for it; a suspected draft or copy withholds all percentiles and exits 2. Remove it with `--exclude`, or waive with `--allow-overlap`, which still reports `preconditions_checked: false` |
+| Target and baseline are read through **comparable pipelines** | the tool reports `pipeline_mismatch`; `.tex` is stripped of floats, tables, captions and citation commands and a baseline PDF is not, so the same document reads 40% shorter on one side. When the built PDF is beside the target the tool measures both and fills `pipeline_cross_check` — read it before quoting a percentile |
 | The working tree is clean and the pre-polish commit is written down | `git status` empty; note the hash |
 | A compile/health baseline was recorded once before touching anything | run the project's checks, keep the numbers |
 | No other session is editing the same tree | check file mtimes; never treat an early copy as the current state |
@@ -23,6 +25,26 @@ re-measure everything.
 Why the author's own papers must be excluded: a baseline that includes them
 uses the author as the ruler that measures the author. In one real case the
 extreme values on two metrics both came from the author's own earlier paper.
+
+Why a venue baseline as well, and why before drafting rather than at polish
+time. The bibliography baseline answers whether the prose sits inside the
+literature the manuscript is in conversation with. It does not answer whether
+the prose reads like what the target journal prints, and the two can be far
+apart: a corpus of 178 sources assembled for a journal submission was measured
+and contained **no article that journal had ever published**, so seven rounds
+of "inside the published range" had meant "inside the range of the papers we
+cite" without anyone saying so. Knowing the venue's distribution is useful
+while the draft is being written and nearly useless as a last check, which is
+why it belongs here in step 0 and not in the polishing loop.
+
+The venue corpus is built from arXiv records whose DOI resolves to the venue's
+registered container-title — the registrar's word, not the author's, because
+`journal_ref` is free text and one real record reads "Just accpeted by ACM
+Computing Surveys 2026". It holds authors' accepted manuscripts rather than
+the publisher's copyedited pages, so it answers "like other people's
+submissions to this journal", not "like a printed page". Against this corpus
+alone there is an apples-to-apples reading available: point `--target` at the
+manuscript's own built PDF, and both sides go through the same extraction.
 
 ## 1. Positioning before style — the order is not negotiable
 

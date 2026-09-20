@@ -72,9 +72,19 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    issue it returns: `unsourced-keyword` and `bare-novelty` as **High** — a
    field's vocabulary in use without its literature, or a novelty claim in a
    paragraph that shows no search — `uncited-method` and `dangling-entry` as
-   **Medium**. The tool checks that a source is *present* near a claim, never
-   that it is the right one, and it cannot tell whether a citing sentence
-   says what its source says; do not present its silence as either.
+   **Medium**.
+
+   Measured precision, one manuscript, 2026-09-20: the checker returned 11
+   issues and 9 were false, all from three mechanisms now fixed — a
+   `\keywords{}` block wrapped across source lines so a term matched only its
+   own declaration; the bare word "novelty" inside the manuscript's own method
+   name, and inside two sentences that *refuse* the claim; and a natbib
+   optional argument (`\citep[p.~12]{key}`) that made the citation invisible,
+   so a method cited in its own sentence was reported as uncited. After the
+   fixes it returns the 2 that reading had already confirmed. That is n=1 and
+   not a rate — but it is the reason to read every issue against the source
+   before writing it into a report at High, exactly as category D's disabled
+   tiers required.
 
    For a requested claim-scope or contribution review, consult
    `references/argument-licence/argument-level-lock.md`. Separate the field
@@ -130,8 +140,13 @@ the scope in other words; `technique` passed both.
    (needs the guards built once: `npm --prefix guards install && npm --prefix guards run build`.)
    Exit 2 with `nothing_checked: true` means the audit found no citation under
    `chapters/**/*.md` — report it as **not audited**, never as clean. For a LaTeX
-   manuscript, `not_covered.latex_cite_commands` counts the `\cite` commands this
-   audit does not read. `--allow-empty` accepts an empty workspace on purpose.
+   manuscript, `not_covered` counts the `\cite` commands, distinct keys and
+   files this audit does not read — under the whole `--base-dir`, so point it
+   at the manuscript directory rather than at a repository that also holds
+   archived copies, or the count will be a multiple of the truth.
+   `--allow-empty` accepts an empty workspace on purpose. An empty `findings`
+   list is only a result when `corpus_files` and `sentences_checked` say
+   something was read.
    Report `quote-not-in-source` and `page-mismatch` as **High** — a quoted
    span that is not verbatim in the source's notes or PDF, or a page that the
    source contradicts — and `notes-missing` as **Medium**. `low-overlap` is
@@ -152,10 +167,54 @@ the scope in other words; `technique` passed both.
    python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude '<author-surname>*'
    ```
 
+   The tool now checks that precondition itself rather than trusting the
+   flag: it measures how much of the target's 4-gram vocabulary each baseline
+   document contains, and a document that looks like a draft or a copy of the
+   target is named in `baseline_suspect`. When one is found it **withholds
+   every percentile and exits 2** — not 1, which means "measured, something is
+   out of range". Exclude the file, or pass `--allow-overlap` if the overlap
+   is intended; the waiver restores the percentiles but still reports
+   `preconditions_checked: false`, because a waiver is not a met precondition.
+
+   Two further fields have to be read before the percentiles mean anything.
+   `baseline_too_short` names every document that loaded but fell under the
+   1500-word floor, so `baseline_documents` plus the skipped, too-short and
+   excluded lists account for every candidate in the directory; a count that
+   does not close means the corpus is not what you think it is.
+   `pipeline_mismatch` is true when the target is read as stripped markup and
+   the baseline as printed PDF, which is what the documented invocation above
+   does: a percentile then compares two readings, not two documents. When the
+   target's own build sits beside it the tool measures both readings and puts
+   them in `pipeline_cross_check`. On one real manuscript the word count --
+   the denominator of every per-1k rate -- differed by 40% between them and
+   sentence-length lag-1 changed sign, so quote the cross-check rather than
+   treating the percentiles as exact.
+
+   **Two baselines, and a percentile that does not name its own is not a
+   result.** The corpus above is the project's bibliography: it answers whether
+   the prose sits inside the literature the manuscript argues with. Build the
+   other one before drafting, not at polish time:
+
+   ```
+   python3 .claude/skills/audit/scripts/build-venue-baseline.py --venue "<journal>" --from-year 2021 --out <corpus-dir> --manifest <repo>/venue_manifest.json
+   ```
+
+   It admits a record only when its DOI resolves to the venue's registered
+   `container-title`, writes every candidate's disposition so the manifest's
+   arithmetic closes, and exits 2 with `VENUE_CORPUS_TOO_SMALL` rather than
+   returning a short corpus that reads like a complete one. Run the fingerprint
+   a second time against it, with `--target` pointing at the manuscript's built
+   **PDF** — against a venue corpus both sides go through the same extraction,
+   which is the one case where `pipeline_mismatch` can be false. Read it once,
+   to answer whether the manuscript reads like the venue's genre. Do not edit
+   to move a venue percentile; the stop rule is unchanged.
+
    Report the distributions under **Measurements**, never as issues: this is
    Advisory by nature. Out-of-range is the hard signal, a percentile is a
-   soft one, and clustering matters more than count. Method and stop rules:
-   `references/prose-polish-method.md`.
+   soft one, and clustering matters more than count. Always report
+   `preconditions_checked` beside them: `outliers: []` on an unverified
+   baseline says nothing, and reading it as a pass is the failure this scan
+   was added for. Method and stop rules: `references/prose-polish-method.md`.
 
 3. **Output the audit report** using the format below.
 
