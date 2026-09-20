@@ -532,7 +532,6 @@ test_T43() {
     grep -q "/note" "$REPO_ROOT/README.md" || return 1
     grep -q "/map" "$REPO_ROOT/README.md" || return 1
     grep -q "/integrate" "$REPO_ROOT/README.md" || return 1
-    grep -q "/edit-contract" "$REPO_ROOT/README.md" || return 1
     grep -q "/review" "$REPO_ROOT/README.md" || return 1
     grep -q "/audit" "$REPO_ROOT/README.md" || return 1
     grep -q "/export" "$REPO_ROOT/README.md" || return 1
@@ -3138,72 +3137,6 @@ PY
     grep -q "Enforced" "$REPO_ROOT/README.md" || return 1
     grep -q "v0.5.0" "$REPO_ROOT/README.md" || return 1
 }
-
-test_T135() {
-    local tmp before after second control_file
-    tmp=$(mktemp -d) || return 1
-    python3 .claude/skills/edit-contract/scripts/scaffold-author-control.py "$tmp" --json >/dev/null || {
-        rm -rf "$tmp"
-        return 1
-    }
-    for control_file in 00_AUTHOR_INTENT.md 01_EVIDENCE_AND_CLAIMS.md 02_REVISION_LOG.md; do
-        [[ -f "$tmp/$control_file" ]] || {
-            rm -rf "$tmp"
-            return 1
-        }
-    done
-    python3 .claude/skills/edit-contract/scripts/check-author-control.py "$tmp" --json >/dev/null || {
-        rm -rf "$tmp"
-        return 1
-    }
-    before=$(sha256sum "$tmp"/*.md | sort)
-    second=$(python3 .claude/skills/edit-contract/scripts/scaffold-author-control.py "$tmp" --json 2>&1)
-    [[ $? -eq 1 ]] || {
-        rm -rf "$tmp"
-        return 1
-    }
-    after=$(sha256sum "$tmp"/*.md | sort)
-    rm -rf "$tmp"
-    [[ "$before" == "$after" ]] && echo "$second" | grep -q "refusing to overwrite"
-}
-
-test_T136() {
-    local tmp out rc file
-    tmp=$(mktemp -d) || return 1
-    python3 .claude/skills/edit-contract/scripts/scaffold-author-control.py "$tmp" >/dev/null || {
-        rm -rf "$tmp"
-        return 1
-    }
-    for file in "$tmp"/*.md; do
-        sed -i.bak 's/AUTHOR_REVIEW_REQUIRED/author-approved-value/g' "$file"
-        rm -f "$file.bak"
-    done
-    for file in "$tmp/00_AUTHOR_INTENT.md" "$tmp/01_EVIDENCE_AND_CLAIMS.md"; do
-        sed -i.bak 's/Status: draft/Status: active/; s/Human approved: false/Human approved: true/' "$file"
-        rm -f "$file.bak"
-    done
-    sed -i.bak \
-        -e 's#Scope: local_patch / section_restructure / full_reframe#Scope: local_patch#' \
-        -e 's/Author pre-edit decision: pending/Author pre-edit decision: approved/' \
-        -e 's/Research spine changed: author-approved-value/Research spine changed: no/' \
-        -e 's#Reader-comprehension gate: not_required / not_run / passed / failed#Reader-comprehension gate: not_run#' \
-        -e 's#Argument-function audit: not_required / not_run / passed / failed#Argument-function audit: not_run#' \
-        -e 's#Author post-edit decision: pending / accept / partial_accept / revise / rollback#Author post-edit decision: pending#' \
-        "$tmp/02_REVISION_LOG.md"
-    rm -f "$tmp/02_REVISION_LOG.md.bak"
-    python3 .claude/skills/edit-contract/scripts/check-author-control.py "$tmp" --strict --json >/dev/null || {
-        rm -rf "$tmp"
-        return 1
-    }
-    sed -i.bak 's/Author pre-edit decision: approved/Author pre-edit decision: pending/' "$tmp/02_REVISION_LOG.md"
-    rm -f "$tmp/02_REVISION_LOG.md.bak"
-    out=$(python3 .claude/skills/edit-contract/scripts/check-author-control.py "$tmp" --strict --json 2>&1)
-    rc=$?
-    rm -rf "$tmp"
-    [[ "$rc" -eq 1 ]] || return 1
-    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(i['kind'] == 'invalid-revision-value' for i in d['issues'])"
-}
-
 test_T137() {
     grep -q "old-versus-proposed" archive/skills/thesis-control/SKILL.md || return 1
     grep -q "old-versus-proposed" archive/skills/manuscript-reframe/SKILL.md || return 1
@@ -4288,8 +4221,6 @@ run_test "T131 lag-1 does not join sentences across a dropped span" test_T131
 run_test "T132 --exclude removes a document from the baseline corpus" test_T132
 run_test "T133 an inline citation fragment is not a sentence" test_T133
 run_test "T134 a LaTeX preamble is not prose" test_T134
-run_test "T135 author-control scaffold is conservative and repeat-safe" test_T135
-run_test "T136 author-control strict checker enforces approval state" test_T136
 run_test "T137 cross-skill author-control gates remain present" test_T137
 # --- T142-T146: claim ledger for LaTeX manuscripts ---------------------------
 # The gap: the citation fidelity audit reads chapters/**/*.md; a LaTeX

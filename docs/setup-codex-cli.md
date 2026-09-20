@@ -151,7 +151,6 @@ explicit-only invocation policy.
 | note | Record structured reading notes |
 | map | Show literature coverage and writing progress |
 | integrate | Integrate reading notes into chapter drafts |
-| edit-contract | Set a bounded edit scope and record revision attempts |
 | review | External review or an own-work review in a fresh-context clean room |
 | audit | Consistency, claim-positioning and citation-fidelity checks |
 | verify-refs | Offline BibTeX checks; online metadata checks only when requested |

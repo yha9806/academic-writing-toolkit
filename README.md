@@ -247,7 +247,7 @@ for the per-skill verdicts; retired skills live under [`archive/skills/`](archiv
 | Lane | Skills | What the lane produces |
 |---|---|---|
 | **Read and ground** | `/read`, `/note`, `/map` | page-anchored notes with an evidence-status firewall, coverage matrix, progress dashboard |
-| **Write without losing control** | `/integrate`, `/edit-contract` | approved integration plans, spine cards, bounded edit scopes, 3-strike escalation |
+| **Write without losing control** | `/integrate` | approved integration plans, spine cards, bounded edit scopes, 3-strike escalation |
 | **Review and ship** | `/review`, `/audit`, `/verify-refs`, `/export` | anchored review findings, consistency reports, BibTeX checks, Word/ZIP exports |
 
 The [`/review` instructions](.claude/skills/review/SKILL.md) distinguish external

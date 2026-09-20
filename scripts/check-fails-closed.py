@@ -53,8 +53,6 @@ CHECKS = {
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty)],
     "audit/audit-prose-fingerprint.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty)],
-    "edit-contract/check-author-control.py":
-        lambda s, empty: ["python3", str(s), str(empty)],
     "review/audit-review-findings.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty),
                           "--findings", str(empty / "findings.tsv")],
@@ -65,7 +63,6 @@ CHECKS = {
 }
 
 NOT_CHECKS = {
-    "edit-contract/scaffold-author-control.py": "generator: writes files, makes no pass/fail claim",
     "export/convert_to_docx.py": "converter: Markdown to .docx, makes no pass/fail claim",
     "audit/build-venue-baseline.py": "corpus builder: fetches a venue's papers from arXiv and writes a manifest; makes no pass/fail claim about a manuscript, and its own corpus floor exits 2 (T176)",
 }
