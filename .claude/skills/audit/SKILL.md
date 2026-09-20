@@ -107,10 +107,21 @@ This skill activates on: `audit`, `consistency check`, `check numbers`, `/audit`
    python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude '<author-surname>*'
    ```
 
+   The tool now checks that precondition itself rather than trusting the
+   flag: it measures how much of the target's 4-gram vocabulary each baseline
+   document contains, and a document that looks like a draft or a copy of the
+   target is named in `baseline_suspect`. When one is found it **withholds
+   every percentile and exits 2** — not 1, which means "measured, something is
+   out of range". Exclude the file, or pass `--allow-overlap` if the overlap
+   is intended; the waiver restores the percentiles but still reports
+   `preconditions_checked: false`, because a waiver is not a met precondition.
+
    Report the distributions under **Measurements**, never as issues: this is
    Advisory by nature. Out-of-range is the hard signal, a percentile is a
-   soft one, and clustering matters more than count. Method and stop rules:
-   `references/prose-polish-method.md`.
+   soft one, and clustering matters more than count. Always report
+   `preconditions_checked` beside them: `outliers: []` on an unverified
+   baseline says nothing, and reading it as a pass is the failure this scan
+   was added for. Method and stop rules: `references/prose-polish-method.md`.
 
 3. **Output the audit report** using the format below.
 

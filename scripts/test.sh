@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (132 automated tests, labelled T2-T138: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (134 automated tests, labelled T2-T140: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T135-T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition) for academic-writing-toolkit.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3498,8 +3498,23 @@ d = pathlib.Path(sys.argv[1])
 calm = "The pool holds one relevant image for every query in this evaluation. " * 150
 loud = "The pool holds one image; the query is text; the model is frozen. " * 150
 (d / "target.txt").write_text(calm, encoding="utf-8")
-for i in range(6):
-    (d / "base" / ("paper%d.txt" % i)).write_text(calm, encoding="utf-8")
+# Each baseline paper is semicolon-free like the target but worded differently.
+# They used to be verbatim copies of the target, which was convenient until the
+# baseline scan started reading a verbatim copy as exactly what it is: a draft
+# of the target sitting in its own baseline. The distribution this test needs
+# survives the rewording; the contamination does not.
+papers = [
+    "Sediment cores from the northern shelf preserve annual laminations of winter runoff. ",
+    "The compiler rewrites every loop whose bounds are known before the build begins. ",
+    "Participants rated fourteen photographs and then described what they had noticed. ",
+    "Orbital decay is dominated by atmospheric drag below six hundred kilometres. ",
+    "Enzyme activity fell above forty degrees and did not recover on later cooling. ",
+    "Rainfall totals were logged hourly at nine stations across the upper catchment. ",
+]
+for i, body in enumerate(papers):
+    filled = body * 200
+    assert len(filled.split()) >= 1500, "fixture %d is too short" % i
+    (d / "base" / ("paper%d.txt" % i)).write_text(filled, encoding="utf-8")
 (d / "base" / "ours2025.txt").write_text(loud, encoding="utf-8")
 PYEOF
     out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/target.txt" \
@@ -3558,6 +3573,133 @@ PYEOF
     [[ "$plain" -eq "$pre" ]]
 }
 
+test_T139() {
+    # The precondition the method states in prose -- the baseline holds none of
+    # the author's own work -- used to be enforced by the caller remembering to
+    # pass --exclude, and `baseline_excluded: []` read the same whether it had
+    # been checked or never considered. A baseline carrying a draft of the
+    # target must now withhold percentiles and name the file.
+    local tmp out rc
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+# The target needs a few hundred DISTINCT 4-grams, because the scan requires an
+# absolute count as well as a share -- a share alone flags any text opening
+# with the same stock phrase. One sentence repeated yields barely a dozen.
+# Numbering the sentences does not help either: the n-gram tokeniser is
+# [a-z']+, so digits are dropped and every numbered sentence collapses onto
+# the same 4-grams. A varying WORD is what makes them distinct.
+import itertools
+_tokens = ["".join(c) for c in itertools.product("abcdefgh", repeat=3)]
+target = "".join(
+    "The %s stage scored the candidate pool and recorded the rank of the item. " % tok
+    for tok in _tokens[:220])
+(d / "target.txt").write_text(target, encoding="utf-8")
+(d / "base" / "self_draft.txt").write_text(
+    target + "One further remark closes the draft. ", encoding="utf-8")
+others = [
+    "Sediment cores from the northern shelf preserve annual laminations that record winter runoff. Each layer is counted twice and its thickness measured against a reference scale. ",
+    "The compiler rewrites every loop whose bounds are known at build time and emits a specialised body. Register pressure is measured after each pass and reported per function. ",
+    "Participants rated fourteen photographs on a seven point scale and then described what they noticed. Ratings were collected before any discussion took place. ",
+    "Orbital decay is dominated by atmospheric drag below six hundred kilometres. The residual acceleration is fitted over successive arcs and subtracted. ",
+    "Enzyme activity fell sharply above forty degrees and did not recover on cooling. Duplicate assays were run on separate days with fresh substrate. ",
+]
+for i, body in enumerate(others):
+    # 1500 words is the audit's own floor for admitting a baseline document.
+    # At 70 repeats the shortest of these fell under it, the baseline dropped
+    # to four, and the test failed for a reason that had nothing to do with
+    # what it asserts. The fixture now checks its own precondition.
+    filled = body * 90
+    assert len(filled.split()) >= 1500, "fixture %d is too short" % i
+    (d / "base" / ("other%d.txt" % i)).write_text(filled, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" --json 2>/dev/null)
+    rc=$?
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['preconditions_checked'] is False, 'precondition should not read as met'
+assert d['overlap_waived'] is False, 'nothing was waived here'
+names = [s['file'] for s in d['baseline_suspect']]
+assert names == ['self_draft.txt'], 'expected only the draft flagged, got %r' % names
+assert 'percentile' not in d['metrics']['semicolon_per_1k'], 'percentiles must be withheld'
+assert d['outliers'] == [], 'no outliers without percentiles -- which is why rc must not be 0'
+" || { rm -rf "$tmp"; return 1; }
+    # 2, not 1: withheld percentiles produce no outliers, so a contaminated run
+    # would otherwise exit 0 and read as a pass.
+    [[ "$rc" -eq 2 ]] || { rm -rf "$tmp"; return 1; }
+
+    # Excluding it restores the measurement.
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" \
+            --exclude 'self_draft.txt' --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['preconditions_checked'] is True
+assert d['baseline_suspect'] == []
+assert d['exclude_patterns'] == ['self_draft.txt']
+assert 'percentile' in d['metrics']['semicolon_per_1k']
+"
+}
+
+test_T140() {
+    # --allow-overlap decides whether percentiles are withheld. It does not
+    # decide whether the precondition holds. Reporting preconditions_checked
+    # true because a waiver was passed would rebuild the ambiguous green light
+    # the scan exists to remove -- which the first draft of this feature did.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+# The target needs a few hundred DISTINCT 4-grams, because the scan requires an
+# absolute count as well as a share -- a share alone flags any text opening
+# with the same stock phrase. One sentence repeated yields barely a dozen.
+# Numbering the sentences does not help either: the n-gram tokeniser is
+# [a-z']+, so digits are dropped and every numbered sentence collapses onto
+# the same 4-grams. A varying WORD is what makes them distinct.
+import itertools
+_tokens = ["".join(c) for c in itertools.product("abcdefgh", repeat=3)]
+target = "".join(
+    "The %s stage scored the candidate pool and recorded the rank of the item. " % tok
+    for tok in _tokens[:220])
+(d / "target.txt").write_text(target, encoding="utf-8")
+(d / "base" / "self_draft.txt").write_text(target, encoding="utf-8")
+others = [
+    "Sediment cores from the northern shelf preserve annual laminations that record winter runoff. Each layer is counted twice and its thickness measured against a reference scale. ",
+    "The compiler rewrites every loop whose bounds are known at build time and emits a specialised body. Register pressure is measured after each pass and reported per function. ",
+    "Participants rated fourteen photographs on a seven point scale and then described what they noticed. Ratings were collected before any discussion took place. ",
+    "Orbital decay is dominated by atmospheric drag below six hundred kilometres. The residual acceleration is fitted over successive arcs and subtracted. ",
+    "Enzyme activity fell sharply above forty degrees and did not recover on cooling. Duplicate assays were run on separate days with fresh substrate. ",
+]
+for i, body in enumerate(others):
+    # 1500 words is the audit's own floor for admitting a baseline document.
+    # At 70 repeats the shortest of these fell under it, the baseline dropped
+    # to four, and the test failed for a reason that had nothing to do with
+    # what it asserts. The fixture now checks its own precondition.
+    filled = body * 90
+    assert len(filled.split()) >= 1500, "fixture %d is too short" % i
+    (d / "base" / ("other%d.txt" % i)).write_text(filled, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" --allow-overlap --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert 'percentile' in d['metrics']['semicolon_per_1k'], 'the waiver should restore percentiles'
+assert d['overlap_waived'] is True, 'the waiver should be recorded'
+assert d['preconditions_checked'] is False, 'a waiver is not a met precondition'
+assert len(d['baseline_suspect']) == 1, 'the suspect stays visible in the report'
+"
+}
+
 run_test "T127 prose fingerprint separates even from bunched use" test_T127
 run_test "T128 prose fingerprint withholds percentiles on a thin baseline" test_T128
 run_test "T129 claim positioning flags advertised terms with no source" test_T129
@@ -3570,6 +3712,8 @@ run_test "T135 author-control scaffold is conservative and repeat-safe" test_T13
 run_test "T136 author-control strict checker enforces approval state" test_T136
 run_test "T137 cross-skill author-control gates remain present" test_T137
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
+run_test "T139 a baseline holding a draft of the target withholds percentiles" test_T139
+run_test "T140 the overlap waiver restores percentiles without asserting the precondition" test_T140
 
 header ""
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then

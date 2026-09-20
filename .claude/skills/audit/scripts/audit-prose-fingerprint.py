@@ -219,6 +219,33 @@ def repeat_ngram_rate(text: str, n: int = 4) -> float:
     return 1000.0 * repeated / (len(words) - n + 1)
 
 
+def ngram_hashes(text: str, n: int = 4) -> set:
+    """Hashed word n-grams, for asking how much of one text sits inside another.
+
+    Hashes rather than the tuples: a 131-document baseline carries a few million
+    n-grams, and the only thing asked of them here is set intersection.
+    """
+    words = re.findall(r"[a-z']+", text.lower())
+    return {hash(tuple(words[i:i + n])) for i in range(len(words) - n + 1)}
+
+
+# A share alone is not enough. A document whose prose is highly repetitive has
+# few distinct n-grams, so a single shared stock phrase can be a large fraction
+# of them -- a synthetic fixture of one sentence repeated 150 times shares 8% of
+# its 4-grams with any text that opens the same way. A real earlier draft shares
+# thousands of distinct n-grams with its successor. The absolute count is what
+# separates those two, so both conditions must hold.
+MIN_SHARED_NGRAMS = 100
+
+
+def containment(target: set, other: set) -> tuple:
+    """Share of the target's n-grams also in the other document, and how many."""
+    if not target:
+        return 0.0, 0
+    shared = len(target & other)
+    return shared / len(target), shared
+
+
 def measure(text: str) -> Dict[str, Optional[float]]:
     total = len(text.split())
     out: Dict[str, Optional[float]] = {"words": total}
@@ -296,6 +323,13 @@ def main() -> int:
                          "it is usually they who set the extreme")
     ap.add_argument("--min-baseline", type=int, default=5,
                     help="refuse to report percentiles below this many baseline documents")
+    ap.add_argument("--overlap-threshold", type=float, default=1.0, metavar="PCT",
+                    help="a baseline document sharing more than this percentage of "
+                         "the target's 4-grams is reported as a suspected draft or "
+                         "copy of the target itself (default: 1.0)")
+    ap.add_argument("--allow-overlap", action="store_true",
+                    help="report percentiles even when that scan finds one. Use only "
+                         "when the overlap is intended and you can say why")
     ap.add_argument("--json", action="store_true", dest="emit_json")
     args = ap.parse_args()
 
@@ -313,6 +347,8 @@ def main() -> int:
     base_rows: List[Dict[str, Optional[float]]] = []
     skipped: List[str] = []
     excluded: List[str] = []
+    suspect: List[Dict[str, object]] = []
+    target_grams = ngram_hashes(text)
     if args.baseline:
         bdir = Path(args.baseline)
         if not bdir.is_dir():
@@ -329,12 +365,38 @@ def main() -> int:
                 skipped.append(p.name)
             elif len(t.split()) >= 1500:
                 base_rows.append(measure(t))
+                frac, shared = containment(target_grams, ngram_hashes(t))
+                share = 100.0 * frac
+                if share > args.overlap_threshold and shared >= MIN_SHARED_NGRAMS:
+                    suspect.append({"file": p.name,
+                                    "target_4gram_share_pct": round(share, 3),
+                                    "shared_4grams": shared})
 
-    enough = len(base_rows) >= args.min_baseline
+    # The method's precondition is that the baseline holds none of the author's
+    # own work. It used to live in prose, and `baseline_excluded: []` meant both
+    # "checked, nothing to exclude" and "never checked". The scan above tells
+    # them apart, and a percentile is an assertion about a baseline, so an
+    # unverified baseline yields no percentile.
+    # Two different questions, and the first draft of this conflated them:
+    # whether the precondition HOLDS, and whether percentiles are withheld.
+    # --allow-overlap answers the second, never the first. Reporting
+    # preconditions_checked: true because someone passed a waiver would rebuild
+    # the ambiguous green light this scan exists to remove.
+    preconditions_ok = not suspect
+    waived = bool(suspect) and args.allow_overlap
+    contaminated = bool(suspect) and not args.allow_overlap
+    enough = len(base_rows) >= args.min_baseline and not contaminated
     report = {"schema_version": SCHEMA_VERSION, "target": str(target),
               "target_words": mine["words"], "baseline_documents": len(base_rows),
-              "baseline_sufficient": enough, "baseline_skipped": skipped,
-              "baseline_excluded": excluded, "metrics": {}}
+              "baseline_sufficient": len(base_rows) >= args.min_baseline,
+              "baseline_skipped": skipped,
+              "exclude_patterns": list(args.exclude),
+              "baseline_excluded": excluded,
+              "baseline_suspect": suspect,
+              "overlap_threshold_pct": args.overlap_threshold,
+              "preconditions_checked": preconditions_ok,
+              "overlap_waived": waived,
+              "metrics": {}}
 
     outliers = []
     for key, _ in KEY_ORDER:
@@ -371,6 +433,17 @@ def main() -> int:
                 "the fix is to redistribute, not merely to reduce.")
     report["outliers"] = outliers
 
+    if contaminated:
+        sys.stderr.write(
+            "error: the baseline contains {} document(s) that share more than "
+            "{:.2f}% of the target's 4-grams, which is what a draft or a copy of "
+            "the target looks like:\n".format(len(suspect), args.overlap_threshold))
+        for s in suspect:
+            sys.stderr.write("  {}  {}%\n".format(s["file"], s["target_4gram_share_pct"]))
+        sys.stderr.write(
+            "  Percentiles are withheld. Exclude them with --exclude, or pass "
+            "--allow-overlap if the overlap is intended.\n")
+
     if args.emit_json:
         print(json.dumps(report, indent=2))
     else:
@@ -384,6 +457,11 @@ def main() -> int:
         head = "{:<26}{:>10}".format("metric", "target")
         if enough:
             head += "{:>10}{:>18}{:>8}".format("median", "range", "pct")
+        if suspect:
+            print("  suspected drafts/copies of the target in the baseline: {}".format(
+                ", ".join("{} ({}%)".format(s["file"], s["target_4gram_share_pct"])
+                          for s in suspect)))
+            print()
         print(head)
         for key, label in KEY_ORDER:
             e = report["metrics"][key]
@@ -409,6 +487,12 @@ def main() -> int:
               "number\nrather than to fix a sentence produces a different artefact, "
               "not a better one.")
 
+    # 2, not 1: 1 means "measured, and something is outside the range"; 2 means
+    # "not measured, because the baseline could not be trusted". Without the
+    # distinction a contaminated run returns 0, since withheld percentiles
+    # produce no outliers -- a failed precondition reading as success.
+    if contaminated:
+        return 2
     return 1 if outliers else 0
 
 
