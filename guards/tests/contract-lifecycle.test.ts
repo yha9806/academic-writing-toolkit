@@ -91,27 +91,10 @@ test('no active contract is still no scope restriction', () => {
   )
 })
 
-test('the shipped contract template does not leave a finished contract active', async () => {
-  // The template shipped three unchecked Attempt lines, so a contract stayed
-  // active after the work was done and shadowed the next one. Whatever the
-  // template ships, a contract written from it and then completed must be
-  // retireable by the author without guessing how.
-  const { parseContractSource } = await import(
-    pathToFileURL(join(PRODUCT_ROOT, 'guards', 'dist', 'projections.js')).href
-  )
-  const skill = await import('node:fs').then((fs) =>
-    fs.readFileSync(join(PRODUCT_ROOT, '.claude', 'skills', 'edit-contract', 'SKILL.md'), 'utf8'))
-  const template = /```markdown\n([\s\S]*?)```/.exec(skill)?.[1]
-  assert.ok(template, 'no contract template found in the skill')
-
-  const unchecked = [...template.matchAll(/^- \[ \] Attempt/gm)].length
-  assert.equal(unchecked, 1, `the template ships ${unchecked} pre-written attempts; a finished contract keeps every unticked one active`)
-  assert.equal(parseContractSource(template).active, true, 'a fresh contract must be active')
-  assert.equal(parseContractSource(template.replace('- [ ]', '- [x]')).active, false,
-    'ticking the attempt must retire the contract')
-  assert.match(skill, /retire|retiring/i, 'the skill must say how a contract is retired')
-})
-
+// Two tests here read `.claude/skills/edit-contract/SKILL.md` -- its shipped
+// contract template and its wording about scope lines and ticking an attempt.
+// That skill was retired, so they went with it. The contract lifecycle the
+// guard enforces is unchanged and still covered by the tests below.
 // --- scope lines the guard cannot read ---------------------------------------
 // Found by the Gate A §7 acceptance run, not by any unit test: the skill's
 // template invites prose in `- May change:` and the parser split on commas and
@@ -191,16 +174,4 @@ test('the template placeholder is not treated as prose the author wrote', async 
   )
   const parsed = parseContractSource('- May change: {files you may touch}\n- Must not change: {everything else}')
   assert.deepEqual(parsed.unreadableScope, [], 'an unfilled template must not read as a broken contract')
-})
-
-test('the skill tells the author that scope lines are paths, and what ticking an attempt does', () => {
-  const skill = readFileSync(join(PRODUCT_ROOT, '.claude', 'skills', 'edit-contract', 'SKILL.md'), 'utf8')
-  const template = /```markdown\n([\s\S]*?)```/.exec(skill)?.[1] ?? ''
-  const mayChange = /^- May change:\s*(.+)$/m.exec(template)?.[1] ?? ''
-  assert.doesNotMatch(mayChange, /sentence|section|paragraph/i,
-    'the template invites prose where the guard reads paths')
-  assert.match(skill, /comma-separated|path list|paths only/i,
-    'the skill must say the scope lines are paths')
-  assert.match(skill, /goal is (complete|done)|not after a single|only when the goal/i,
-    'the skill must say an attempt is ticked when the goal is done, not after one edit')
 })

@@ -35,7 +35,7 @@ exported per session — `DEEPSEEK_API_KEY` (cost route, default model) or
 `ANTHROPIC_API_KEY` (prose route). Keys live in your shell environment
 only; profile files carry `apiKeyEnv` references, never values.
 
-On Windows, `awt init` creates directory junctions for the nine skills and
+On Windows, `awt init` creates directory junctions for the eight skills and
 on-demand `references/`, and a hard link for `CLAUDE.md`/`AGENTS.md`; it
 does not require Developer Mode. Put a working Poppler `pdftotext.exe`
 directory on PATH in the launching shell. A MiKTeX first-run error is an

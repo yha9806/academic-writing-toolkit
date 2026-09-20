@@ -18,7 +18,6 @@ const EXCLUSIVE: Record<string, string> = {
   map: 'coverage',
   integrate: 'weave',
   review: 'review',
-  'edit-contract': 'contract',
   audit: 'consistency',
   'verify-refs': 'bibtex',
   export: 'docx',
@@ -35,7 +34,9 @@ function descriptions(): Record<string, string> {
   return out
 }
 
-test('catalogue contains exactly the 9 approved skills', () => {
+// The title carried the count, which went stale the first time a skill was
+// retired; the assertion below already says it better than a number can.
+test('catalogue contains exactly the approved skills, and nothing else', () => {
   assert.deepEqual(readdirSync(SKILLS).sort(), Object.keys(EXCLUSIVE).sort())
 })
 

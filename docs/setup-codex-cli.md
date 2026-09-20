@@ -67,7 +67,7 @@ python scripts/install-codex-skills.py --verify
 ```
 
 An unchanged installation keeps its existing skill files and receipt. An
-update stages and exercises all nine skills before replacing them, carries
+update stages and exercises all eight skills before replacing them, carries
 over the `agents/` and `assets/` folders a host has written into an installed
 skill, and backs up the previous folders. Other skill names are left alone.
 
@@ -90,7 +90,7 @@ replace locally edited AWT skills, inspect the listed collisions and run:
 python scripts/install-codex-skills.py --install-deps --replace-existing
 ```
 
-This option authorises replacement of the nine listed names, including an
+This option authorises replacement of the eight listed names, including an
 unrelated skill with one of those names. Their whole previous folders are
 saved first. Symlink/junction targets are refused even with this option.
 

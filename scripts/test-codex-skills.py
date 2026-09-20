@@ -209,7 +209,12 @@ class InstallerTests(unittest.TestCase):
         result = subprocess.run([sys.executable, str(installer.SOURCE / "scripts/install-codex-skills.py"),
                                  "--dest", str(self.dest), "--dry-run", "--install-deps"], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(json.loads(result.stdout)["skills"]), 9)
+        # Derived, not hardcoded: this was 9, and retiring one skill turned it
+        # red without the skill's name appearing anywhere near it. The floor
+        # keeps an empty source tree from satisfying both sides.
+        shipped = sorted(p.name for p in (installer.SOURCE / ".claude/skills").iterdir() if p.is_dir())
+        self.assertGreaterEqual(len(shipped), 5, shipped)
+        self.assertEqual(sorted(json.loads(result.stdout)["skills"]), shipped)
         self.assertEqual(sorted(self.root.iterdir()), before)
 
     def test_linked_or_junction_skill_is_refused_without_touching_target(self):

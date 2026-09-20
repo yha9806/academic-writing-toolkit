@@ -47,7 +47,12 @@ function manifest(root: string): string[] {
   return out.sort()
 }
 
-const SKILLS = ['audit', 'edit-contract', 'export', 'integrate', 'map', 'note', 'read', 'review', 'verify-refs']
+// Derived from what ships, not written out: as a literal it named a retired
+// skill and turned this red long after that skill was gone. Safe to derive
+// because descriptions.test.ts holds the approved catalogue and asserts the
+// tree equals it, so an unapproved skill is caught there, not hidden here.
+const SKILLS = readdirSync(resolve(import.meta.dirname, '..', '..', '.claude', 'skills')).sort()
+assert.ok(SKILLS.length >= 5, `only ${SKILLS.length} skills ship; below that this manifest proves nothing`)
 
 test('init scaffolds exactly the thesis-workspace manifest — no toolkit-dev files', () => {
   const ws = join(scratch(), 'thesis')
