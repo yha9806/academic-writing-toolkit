@@ -2,7 +2,7 @@
 # Run `make` (or `make help`) to see available targets.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup init sync doctor repair test
+.PHONY: help setup init sync doctor repair test test-all
 
 EDITOR ?= vi
 
@@ -33,5 +33,8 @@ doctor:  ## Run all read-only health checks (CI-suitable, exit 0/1)
 repair:  ## Apply idempotent fixes for issues doctor flags
 	@node scripts/setup.mjs repair
 
-test:  ## Run the existing public regression suite
+test:  ## Run the regression suite on live surfaces
 	@bash scripts/test.sh
+
+test-all:  ## The suite plus validators of bundles retired under archive/skills/
+	@AWT_TEST_RETIRED=1 bash scripts/test.sh

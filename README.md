@@ -291,7 +291,7 @@ make setup              # once per clone: configs, export backend, doctor
 npm --prefix guards install   # once per clone: guards/node_modules is not committed
 
 make doctor             # read-only environment and project health
-make test               # regression suite
+make test               # regression suite, live surfaces (make test-all adds retired bundles)
 
 npm --prefix guards test  # notes-contract lint + catalogue truth tests
 
@@ -355,7 +355,7 @@ my-writing-project/
 ├── e2e/                     live headless denial table + credential probe
 ├── validators/              harness-neutral Python validators
 ├── references/              on-demand reference documents
-├── archive/skills/          retired skill bundles (history; validators still tested)
+├── archive/skills/          retired skill bundles (history; validators run with make test-all)
 ├── chapters/                manuscript chapters (workspace demo)
 ├── literature/
 │   └── reading_notes/       one structured notes file per source

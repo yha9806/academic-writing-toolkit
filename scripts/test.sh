@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (180 automated tests, labelled T2-T189: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived) for academic-writing-toolkit.
+# scripts/test.sh — runs the regression test suite (180 automated tests, labelled T2-T189: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -36,14 +36,20 @@ cd "$REPO_ROOT"
 PASSES=0
 FAIL_LIST=()
 
-# A green suite total says how many tests ran, not what they cover. 59 of these
-# exercise validators for bundles retired under archive/skills/, which is a
-# deliberate choice (README: "history; validators still tested") but makes a
-# single "all N passed" read as coverage of the live toolkit. The runner sorts
-# each test by whether its body reaches into archive/skills/, and the summary
-# reports both numbers, so the total cannot stand in for the live one.
+# A green suite total says how many tests ran, not what they cover. A large
+# share of these exercise validators for bundles retired under archive/skills/,
+# kept on purpose (README: history; validators run with `make test-all`) but
+# easy to read as coverage of the live toolkit: "all N passed" was read that
+# way once by the person writing this, with the split line printed right
+# above it. The runner sorts each test by whether its body reaches into
+# archive/skills/. Retired tests run only when AWT_TEST_RETIRED=1 (CI sets it);
+# by default they stay registered and counted, and the summary says how many
+# did not run, so the headline number is the live one. (This comment once
+# said "59 of these"; nothing counted that either.)
 RETIRED_PASSES=0
 LIVE_PASSES=0
+RETIRED_SKIPPED=0
+RUN_RETIRED="${AWT_TEST_RETIRED:-0}"
 
 _test_surface() {
     local body
@@ -59,6 +65,10 @@ run_test() {
     local fn="$2"
     local surface
     surface=$(_test_surface "$fn")
+    if [[ "$surface" == "retired" && "$RUN_RETIRED" != "1" ]]; then
+        RETIRED_SKIPPED=$((RETIRED_SKIPPED+1))
+        return 0
+    fi
     if "$fn"; then
         pass "$name"
         PASSES=$((PASSES+1))
@@ -5046,10 +5056,15 @@ run_test "T188 the scripts/ audits fail closed on an empty base-dir" test_T188
 run_test "T189 every numbered mention of the skill catalogue matches the skills on disk" test_T189
 
 header ""
-printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \
-    "$LIVE_PASSES" "$RETIRED_PASSES"
+if [[ "$RUN_RETIRED" == "1" ]]; then
+    printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \
+        "$LIVE_PASSES" "$RETIRED_PASSES"
+else
+    printf "  %s on live surfaces; %s registered for bundles retired under archive/skills/ not run (AWT_TEST_RETIRED=1 or make test-all runs them)\n" \
+        "$LIVE_PASSES" "$RETIRED_SKIPPED"
+fi
 if [[ ${#FAIL_LIST[@]} -eq 0 ]]; then
-    pass "all $PASSES tests passed."
+    pass "all $PASSES tests that ran passed."
     exit 0
 else
     printf "\n\033[31m%d test(s) failed:\033[0m\n" "${#FAIL_LIST[@]}"

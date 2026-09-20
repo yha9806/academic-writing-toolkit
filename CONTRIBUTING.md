@@ -141,7 +141,8 @@ approving it is not implementing it.
 make setup                       # git config, generated configs, export backend, doctor
 npm ci --prefix guards && npm run build --prefix guards
 npm test --prefix guards         # kernel, testkit against the pinned harness, scaffold
-make test                        # the regression suite
+make test                        # the regression suite, live surfaces
+make test-all                    # plus validators of bundles retired under archive/skills/
 npm ci --prefix e2e
 node e2e/run-e2e.mjs             # live denial table against the real launcher
 node e2e/run-credential-probe.mjs
