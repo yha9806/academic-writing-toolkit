@@ -1,10 +1,10 @@
 # Retire the dsh distribution; keep the skills, the audits and the workspace scaffold
 
-- **Status:** draft. The direction (retire, do not freeze) was decided by the
-  author on 2026-09-20 after the evidence below was put to him; this text has
-  not been reviewed by him. Implementation is on `chore/retire-dsh-line`, and
-  the status moves to `implemented` when that branch is merged with every
-  acceptance criterion green, not before.
+- **Status:** implemented (merged as #71, `f7e7cc9`, 2026-09-21, with every
+  acceptance criterion below green at merge). The direction (retire, do not
+  freeze) was decided by the author on 2026-09-20 after the evidence below was
+  put to him; this text itself has not been reviewed by him. Not `verified`:
+  nobody has yet used the toolkit from `main` without the retired line.
 - **Scope:** the product's shape. No skill text changes meaning; no audit
   changes behaviour (criterion 1 below is byte equality on a real manuscript).
 
