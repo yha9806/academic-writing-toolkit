@@ -211,8 +211,21 @@ kinds of resident object.
   venue is an amendment. The genuinely new case is one record serving two
   targets at once, such as a paper and a grant proposal.
 - **Parallel sessions stay consistent by reading the same snapshots and the
-  same author log**, not by updating shared state. The only shared writes are
-  the log and git commits.
+  same author log**, not by updating shared state. This bullet first said the
+  only shared writes are the log and git commits. Two incidents on 2026-09-19
+  and 09-20 showed the list is longer, and that nothing here noticed either:
+  a session committing in a manuscript checkout swept in the edits another
+  session had left uncommitted in the same working tree (23:50); a session
+  merging a toolkit branch to main, pushing and deleting the remote branch
+  left the other session, in its own worktree, holding a push plan for a
+  branch that no longer existed (17:55). Both were caught by hand. So the
+  shared writes are the log, git commits, **the working tree of any shared
+  checkout, and the remote's branch list**. The rule that follows: one
+  worktree per session; before staging, committing or planning a push, run
+  `scripts/session-scan.py`, which reads the remote as `ls-remote` reports it
+  rather than as the tracking refs remember it, tells commits made in this
+  worktree from commits made elsewhere, flags a staged file older than the
+  session, and exits 2 when it cannot see a remote.
 - **Registration is per manuscript, not per session:** wherever the author
   discusses a manuscript, their words must reach that manuscript's log. In the
   pilot, a session that made most of the author-facing decisions was not
