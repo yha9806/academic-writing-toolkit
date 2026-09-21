@@ -245,6 +245,13 @@ def build(summary, *, now, problems=(), notices=()):
                  ("改了", sections(lc), "primary", 1),
                  ("读成", lc["reading"] or "没有写「读成」", "secondary", 2)]
         events.append((f"changed:{lc['id']}", "changed"))
+    elif summary.get("just_registered"):
+        # 候选 B：刚从刘海上拖进来登记好的稿件（分镜 ⑯ 右半）。下一轮常驻产出会把它换成「还没有改动」。
+        label, tone, center, rank, flagged = "登记好了", IDENTITY, "done", "event", False
+        tag, pill = f"{summary['sentences']} 句", str(summary["sentences"])
+        popup = [("谁说的", "拖放 · lintel", "secondary", 1),
+                 ("稿件", f"{summary['sentences']} 句 · {len(summary.get('section_names') or {})} 节 · {summary.get('ref') or summary['head']}", "primary", 2)]
+        events.append((f"changed:registered-{summary['head']}", "changed"))
     else:
         label, tone, center, rank, flagged = "还没有改动", IDENTITY, "idle", "none", False
         tag, pill = f"{summary['sentences']} 句", None

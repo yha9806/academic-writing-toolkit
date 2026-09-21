@@ -231,6 +231,22 @@ def cmd_lintel(a):
         _t.sleep(a.interval)
 
 
+def cmd_inbox(a):
+    """Register what the author dragged onto the notch (lintel wrote the drop files; it never runs us)."""
+    from . import inbox as IB
+    from . import lintel as LN
+    home = a.home or LN.lintel_home()
+    if not LN.registered(home, a.producer):
+        print(f"lintel 里没有登记来源 {a.producer}：不读收件", file=sys.stderr)
+        return 2
+    results = IB.process(home, a.workspaces, producer=a.producer, projects_dir=a.projects_dir)
+    for name, o in results:
+        print(f"{name}: " + (f"登记好了 {o['workspace']}（{o['sentences']} 句 · {o['sections']} 节 · {o['ref']}）" if o["ok"] else f"没收：{o['reason']}"))
+    if not results:
+        print("收件目录里没有新的拖放")
+    return 0 if all(o["ok"] for _, o in results) else 1
+
+
 def cmd_ack(a):
     from . import health as HL
     HL.ack(a.workspace)
@@ -288,6 +304,13 @@ def main(argv=None):
     k.set_defaults(fn=cmd_ack)
 
     from . import lintel as _LN
+    ib = sub.add_parser("inbox", help="register the folders the author dragged onto the lintel notch (候选 B)")
+    ib.add_argument("--workspaces", required=True, help="where new workspaces are created (<root>/<repo name>)")
+    ib.add_argument("--home", default=None)
+    ib.add_argument("--producer", default=_LN.PRODUCER)
+    ib.add_argument("--projects-dir", default=None, help="override the transcripts directory (tests)")
+    ib.set_defaults(fn=cmd_inbox)
+
     n = sub.add_parser("lintel", help="write activities for the lintel notch host")
     n.add_argument("workspace")
     n.add_argument("--once", action="store_true")

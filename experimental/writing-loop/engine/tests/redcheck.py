@@ -16,6 +16,10 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
+    ("B", "inbox.py", "if cand.exists() and cand not in seen:", "if False:",
+     "test_inbox.InboxTest.test_a_dropped_folder_becomes_a_workspace_with_its_tex_files"),
+    ("B", "inbox.py", 'if h == "Abstract":', 'if False:',
+     "test_inbox.InboxTest.test_section_rules_follow_the_headings_with_the_abstract_flat"),
     ("A", "history.py", 's["line"] = text.count("\\n", 0, m.start()) + 1', 's["line"] = 1',
      "test_history.LocateTest.test_sentences_carry_the_file_and_line_where_they_start"),
     ("A", "lintel.py", 'where = " · ".join(x for x in (sec, f"第 {r[\'par\']} 段" if r.get("par") else None, at) if x)', 'where = sec',
