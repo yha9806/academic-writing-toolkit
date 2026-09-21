@@ -30,6 +30,9 @@ PRODUCER = "awt-loop"
 HOME = "~/Library/Application Support/lintel"
 
 
+# build(coverage=...) not given: callers that know no workspace (tests, benches) add no coverage cell.
+NOT_GIVEN = object()
+
 def lintel_home():
     """lintel's directory, read at call time so tests (and other hosts) can point it elsewhere."""
     return os.environ.get("LOOP_LINTEL_HOME") or HOME
@@ -271,7 +274,7 @@ def _history(hist, names, touches=None):
     return out
 
 
-def _detail(summary, lc, bad, notices, overview=None):
+def _detail(summary, lc, bad, notices, overview=None, coverage=NOT_GIVEN):
     """The panel (分镜 ㉚): timeline with the untraced folded, a progress strip one cell per change set (the author 09-21:
     progress by change set), and three cells — 追到 / 拦下 / 缺依据. No chart: the host's chart is a duration histogram."""
     hist = summary.get("history") or []
@@ -313,10 +316,25 @@ def _detail(summary, lc, bad, notices, overview=None):
         # 有总览时数据条换成总览的五格（分镜 ㊾）：句 / 版 / 这一段改动集 / 缺依据 / 标题页待填。
         if overview.get("stats"):
             d["stats"] = overview["stats"]
+    if coverage is not NOT_GIVEN:
+        # 检查覆盖（spec 2026-09-21 D4）：不在当前稿上的检查有几项。没算过也要说，不能留空当作都查过了。
+        d["stats"] = list(d["stats"])[:7] + [_coverage_stat(coverage)]
     return d
 
 
-def build(summary, *, now, problems=(), notices=(), overview=None):
+
+def _coverage_stat(summary):
+    from . import coverage as V
+    if summary is None:
+        return {"label": "检查", "value": "没算过", "tone": "orange"}
+    try:
+        n = len(V.attention(summary)) + (1 if (summary.get("target") or {}).get("problems") else 0)
+    except (KeyError, TypeError, AttributeError):
+        return {"label": "检查", "value": "读不出", "tone": "orange"}
+    return {"label": "检查待办", "value": str(n), "tone": "orange" if n else None}
+
+
+def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_GIVEN):
     """从索引摘要（`index.summarize`）生成活动：一个稿件一个，永远只有一个。
     `problems` 是引擎自己的毛病；`notices` 是该知道但不是故障的事（被拦下的写入）。"""
     ws = summary["name"]
@@ -395,7 +413,7 @@ def build(summary, *, now, problems=(), notices=(), overview=None):
         # 2026-09-21: hover-to-turn pages was awkward once the card could scroll; the three sections stack and the card scrolls
         # (the host keeps its paging for producers that want it).
         "body": _body(lc),
-        "detail": _detail(summary, lc, bad, notices, overview),
+        "detail": _detail(summary, lc, bad, notices, overview, coverage),
         "events": [{"id": i, "type": t, "at": _iso(now)} for i, t in events],
     }
     if pill:

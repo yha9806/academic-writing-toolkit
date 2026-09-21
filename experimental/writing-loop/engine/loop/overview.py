@@ -438,6 +438,8 @@ def todo_block(cfg_ov, repo, ref, cache_dir, now, rep=None):
                           "tone": "white" if ready else "orange"})
         else:
             cells.append({"title": "投稿构建", "text": "读不出构建报告", "value": "读不出", "sub": f"{rpath}（{ref}）", "tone": "orange"})
+    from . import coverage as V
+    cells.append(V.todo_cell(V.load_summary(Path(cache_dir).parent)))  # 检查覆盖（spec 2026-09-21 D4）
     return {"title": "待办", "hint": "只对着清单算，不打总分", "cells": cells[:4]}
 
 
@@ -470,7 +472,9 @@ class Overview:
 
     def _files(self):
         d = Path(self.cfg["_ws"]) / "index"
-        return [d / "sentences.json", d / "changesets.json", d / "checks.json", d / "explanations.json"]
+        # The coverage summary changes without the index changing (a check ran); it is part of what the panel shows.
+        return [d / "sentences.json", d / "changesets.json", d / "checks.json", d / "explanations.json",
+                Path(self.cfg["_ws"]) / "cache" / "coverage" / "summary.json"]
 
     def credits_path(self):
         ov = self.cfg.get("overview") or {}

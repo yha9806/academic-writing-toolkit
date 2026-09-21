@@ -17,6 +17,14 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'overview.py', '                Path(self.cfg["_ws"]) / "cache" / "coverage" / "summary.json"]', ']',
+     'test_overview.TodoTest.test_the_last_todo_row_is_coverage_and_it_refreshes_when_a_check_runs'),
+    ("cov", 'overview.py', '    cells.append(V.todo_cell(V.load_summary(Path(cache_dir).parent)))', '    pass',
+     'test_overview.TodoTest.test_the_last_todo_row_is_coverage_and_it_refreshes_when_a_check_runs'),
+    ("cov", 'lintel.py', '        d["stats"] = list(d["stats"])[:7] + [_coverage_stat(coverage)]', '        pass',
+     'test_lintel.CoverageStatTest.test_checks_needing_attention_are_counted_and_none_is_quiet'),
+    ("cov", 'lintel.py', '        return {"label": "检查", "value": "没算过", "tone": "orange"}', '        return {"label": "检查待办", "value": "0"}',
+     'test_lintel.CoverageStatTest.test_a_workspace_never_computed_says_so_in_orange'),
     ("cov", 'skill:readers/scripts/tally-readers.py', 'c += all(x == "hit" for x in vals) and len(vals) >= 1', 'c += any(x == "hit" for x in vals)',
      'test_readers.ReadersTest.test_a_full_panel_is_recorded_as_the_current_reading_until_an_in_scope_edit'),
     ("cov", 'skill:readers/scripts/tally-readers.py', '    if len(readers) < min_readers:', '    if False:',

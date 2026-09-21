@@ -264,7 +264,9 @@ def cmd_lintel(a):
             except Exception as e:  # 总览算不出来是工具异常，照样交上去；卡片其余部分照写
                 HL.record_error(a.workspace, f"总览：{type(e).__name__}：{e}")
                 problems.append(f"总览：{type(e).__name__}：{e}")
-        acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov)
+        from . import coverage as V
+        acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov,
+                        coverage=V.load_summary(a.workspace))
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:

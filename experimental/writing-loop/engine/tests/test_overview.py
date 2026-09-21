@@ -182,6 +182,22 @@ class TodoTest(unittest.TestCase):
         self.assertEqual(cells[0]["value"], "没登记")
         self.assertNotIn("%", json.dumps(cells, ensure_ascii=False))
 
+    def test_the_last_todo_row_is_coverage_and_it_refreshes_when_a_check_runs(self):
+        with TempDir() as t:
+            cfg, _ = build_ws(t)
+            cells = O.build(cfg, T0 + 12 * DAY)["payload"]["todo"]["cells"]
+            self.assertEqual(cells[-1]["title"], "检查")
+            self.assertEqual(cells[-1]["value"], "没算过", "no summary is said, not left out")
+            ovw = O.Overview(cfg)
+            first = ovw.get(T0 + 12 * DAY)
+            cov = Path(cfg["_ws"]) / "cache" / "coverage"
+            cov.mkdir(parents=True, exist_ok=True)
+            (cov / "summary.json").write_text(json.dumps({"rows": [{"id": "a", "name": "甲", "status": "最新"}],
+                                                          "target": {}}), encoding="utf-8")
+            again = ovw.get(T0 + 12 * DAY)
+            self.assertIsNot(first, again, "a new coverage summary must rebuild the overview, not reuse it")
+            self.assertEqual(again["payload"]["todo"]["cells"][-1]["value"], "全部最新")
+
     def test_issues_that_cannot_be_asked_say_so_instead_of_zero(self):
         with TempDir() as t:
             cfg, _ = build_ws(t, issues={"remote": "origin"})   # the fixture repo has no GitHub remote

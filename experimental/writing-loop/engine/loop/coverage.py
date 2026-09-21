@@ -383,7 +383,7 @@ def reminder_line(summary, ws):
 def todo_cell(summary):
     """The overview's 还差什么 cell for coverage: counts, and the first names."""
     if summary is None:
-        return {"title": "检查", "text": "没算过", "sub": "loop coverage --run", "tone": "orange"}
+        return {"title": "检查", "text": "没算过", "value": "没算过", "sub": "loop coverage --run", "tone": "orange"}
     rows = attention(summary)
     c = {}
     for r in rows:

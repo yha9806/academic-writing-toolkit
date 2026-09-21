@@ -44,6 +44,33 @@ def only(acts):
     return acts[0]
 
 
+class CoverageStatTest(unittest.TestCase):
+    """The card's data strip says how many checks have not looked at the draft as it is now (spec 2026-09-21 D4)."""
+
+    def stat(self, act):
+        return [x for x in act["detail"]["stats"] if x["label"].startswith("检查")]
+
+    def test_no_coverage_given_adds_nothing(self):
+        self.assertEqual(self.stat(only(L.build(summary(), now=NOW))), [])
+
+    def test_a_workspace_never_computed_says_so_in_orange(self):
+        got = self.stat(only(L.build(summary(), now=NOW, coverage=None)))
+        self.assertEqual(got, [{"label": "检查", "value": "没算过", "tone": "orange"}])
+
+    def test_checks_needing_attention_are_counted_and_none_is_quiet(self):
+        rows = [{"id": "a", "name": "甲", "status": "过期"}, {"id": "b", "name": "乙", "status": "最新"},
+                {"id": "c", "name": "丙", "status": "不适用", "instead": None}]
+        got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
+        self.assertEqual(got, [{"label": "检查待办", "value": "2", "tone": "orange"}])
+        rows = [{"id": "b", "name": "乙", "status": "最新"}]
+        got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
+        self.assertEqual(got, [{"label": "检查待办", "value": "0"}], "no None reaches the host")
+
+    def test_a_summary_of_the_wrong_shape_is_not_read_as_clean(self):
+        got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": 5})))
+        self.assertEqual(got[0]["value"], "读不出")
+
+
 class OneActivityTest(unittest.TestCase):
     """设计研究 P1（作者 09-18 定稿）：一个稿件一个活动，两个位置各归一个来源，谁也挤不掉谁。"""
 
