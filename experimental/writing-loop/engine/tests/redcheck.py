@@ -17,6 +17,8 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'coverage.py', 'return [r for r in summary["rows"] if r["status"] == OK and r.get("verdict") == "findings"]', 'return []',
+     'test_coverage.ShownTest.test_the_reminder_names_what_is_not_current_and_is_silent_otherwise'),
     ("cov", 'overview.py', '                Path(self.cfg["_ws"]) / "cache" / "coverage" / "summary.json"]', ']',
      'test_overview.TodoTest.test_the_last_todo_row_is_coverage_and_it_refreshes_when_a_check_runs'),
     ("cov", 'overview.py', '    cells.append(V.todo_cell(V.load_summary(Path(cache_dir).parent)))', '    pass',
@@ -57,7 +59,7 @@ MUTATIONS = [
      'test_coverage.NeverGreenTest.test_no_index_means_nothing_is_up_to_date'),
     ("cov", 'coverage.py', '(r["status"] == FAILED and r.get("due"))', 'r["status"] == FAILED',
      'test_coverage.NeverGreenTest.test_a_failed_check_is_rerun_only_when_something_changed'),
-    ("cov", 'coverage.py', 'out += [r for r in summary["rows"] if r["status"] == NOT_APPLICABLE and not r.get("instead")]', 'out += []',
+    ("cov", 'coverage.py', 'return [r for r in summary["rows"] if r["status"] == NOT_APPLICABLE and not r.get("instead")]', 'return []',
      'test_coverage.NeverGreenTest.test_a_format_the_check_cannot_read'),
     ("cov", 'coverage.py', '    if not bits:\n        return None', '    if False:\n        return None',
      'test_coverage.ShownTest.test_the_reminder_names_what_is_not_current_and_is_silent_otherwise'),

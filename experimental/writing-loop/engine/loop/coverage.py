@@ -343,15 +343,33 @@ def load_summary(ws):
 # ---------------------------------------------------------------- the three places it is shown
 
 def attention(summary):
-    """The rows that are not green and are not a decision already written down (waived, or covered by another)."""
-    out = [r for r in summary["rows"] if r["status"] in ATTENTION]
-    out += [r for r in summary["rows"] if r["status"] == NOT_APPLICABLE and not r.get("instead")]
-    return out
+    """The rows this manuscript's work can act on: not current, never run, missing a prerequisite, failed."""
+    return [r for r in summary["rows"] if r["status"] in ATTENTION]
+
+
+def gaps(summary):
+    """Checks the toolkit has that cannot read this kind of draft, with nothing covering for them. A gap in the
+    toolkit, not a task for this turn: listed in the table and on the notch, kept out of the per-turn line so the
+    line does not become wallpaper the agent learns to skip."""
+    return [r for r in summary["rows"] if r["status"] == NOT_APPLICABLE and not r.get("instead")]
+
+
+def findings(summary):
+    """Checks that looked at the current draft and found something. Looking is not the same as acting on it."""
+    return [r for r in summary["rows"] if r["status"] == OK and r.get("verdict") == "findings"]
+
+
+def _short(text, limit=28):
+    """The first clause of a detail, never cut inside a word or a config key."""
+    first = re.split(r"[；;：:]", text or "", maxsplit=1)[0].strip()
+    return first if len(first) <= limit else first[: limit].rsplit(" ", 1)[0].rstrip("、，,") + "…"
 
 
 def _name(r):
-    extra = f"（{r['detail'][:24]}）" if r["status"] in (STALE, MISSING, FAILED) and r.get("detail") else ""
-    return r["name"] + extra
+    d = r.get("detail") or ""
+    if r["status"] == MISSING and d.startswith("配置里缺 "):
+        return f"{r['name']}（{d[len('配置里缺 '):]}）"
+    return r["name"] + (f"（{_short(d)}）" if r["status"] in (STALE, MISSING, FAILED) and d else "")
 
 
 def reminder_line(summary, ws):
@@ -365,9 +383,10 @@ def reminder_line(summary, ws):
         xs = [_name(r) for r in rows if r["status"] == status]
         if xs:
             bits.append(f"{status} " + "、".join(xs))
-    orphan = [r["name"] for r in rows if r["status"] == NOT_APPLICABLE]
-    if orphan:
-        bits.append("这种稿件没人查 " + "、".join(orphan))
+    found = findings(summary)
+    if found:
+        bits.append("有发现 " + "、".join(f"{r['name']}（{_short(r.get('result'))}）" for r in found[:3])
+                    + (f" 等 {len(found)} 项" if len(found) > 3 else ""))
     if t.get("problems"):
         bits.append("目标档案：" + "；".join(t["problems"]))
     if e.get("undisposed") or e.get("overdue"):
@@ -384,16 +403,17 @@ def todo_cell(summary):
     """The overview's 还差什么 cell for coverage: counts, and the first names."""
     if summary is None:
         return {"title": "检查", "text": "没算过", "value": "没算过", "sub": "loop coverage --run", "tone": "orange"}
-    rows = attention(summary)
+    rows, gap, found = attention(summary), gaps(summary), findings(summary)
     c = {}
     for r in rows:
         c[r["status"]] = c.get(r["status"], 0) + 1
+    tail = (f"；有发现 {len(found)} 项" if found else "") + (f"；另有 {len(gap)} 项 AWT 读不了这种稿件" if gap else "")
     if not rows and not (summary.get("target") or {}).get("problems"):
-        return {"title": "检查", "text": f"{len(summary['rows'])} 项都查过当前稿", "sub": "按改动自动判过期",
+        return {"title": "检查", "text": "都查过当前稿", "sub": ("按改动自动判过期" + tail)[:120],
                 "value": "全部最新", "tone": "white"}
     text = " · ".join(f"{k} {v}" for k, v in c.items())
     names = "、".join(r["name"] for r in rows[:3])
-    return {"title": "检查", "text": text[:64] or "目标档案有问题", "sub": names[:120], "value": text[:16],
+    return {"title": "检查", "text": text[:64] or "目标档案有问题", "sub": (names + tail)[:120], "value": text[:16],
             "tone": "orange"}
 
 
@@ -405,7 +425,7 @@ def table(summary, ws):
     w = max(len(r["name"]) for r in summary["rows"]) + 2
     for r in summary["rows"]:
         last = f" · 上次 {r['last_commit']}" if r.get("last_commit") else ""
-        res = f" · {r['result']}" if r.get("result") and r["status"] in (OK, STALE) else ""
+        res = f" · {r['result']}" if r.get("result") and r["status"] == STALE else ""
         lines.append(f"  {r['status']:<4} {r['name']:<{w}} {r.get('detail', '')}{last}{res}".rstrip())
     t = summary.get("target") or {}
     lines.append("目标档案：" + ("；".join(t["problems"]) if t.get("problems") else (t.get("line") or "—")))
@@ -414,6 +434,9 @@ def table(summary, ws):
         lines.append(f"原型：{e['total']} 个实验，未处置 {len(e['undisposed'])}，逾期 {len(e['overdue'])}，"
                      f"进行中 {len(e['in_progress'])}"
                      + (f"（{'、'.join(e['undisposed'] + e['overdue'])}）" if e['undisposed'] or e['overdue'] else ""))
+    gap = gaps(summary)
+    if gap:
+        lines.append("AWT 读不了这种稿件、也没有别的检查替它的（工具的缺口，不是这篇稿子的待办）：" + "、".join(r["name"] for r in gap))
     lines.append("不接进循环的检查（理由写在 catalogue.UNWIRED）：")
     for u in summary["unwired"]:
         lines.append(f"  {u['script']}：{u['reason']}")

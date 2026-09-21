@@ -176,11 +176,16 @@ class NeverGreenTest(unittest.TestCase):
                 r = status(V.compute(cfg, ws, do_run=True))
                 self.assertEqual(r["status"], V.NOT_APPLICABLE)
                 self.assertIn("没有别的检查替它", r["detail"])
-                self.assertEqual(len(V.attention(V.load_summary(ws))), 1, "an uncovered format needs attention")
+                s = V.load_summary(ws)
+                self.assertEqual(V.attention(s), [], "a toolkit gap is not a task for this turn")
+                self.assertEqual([r["id"] for r in V.gaps(s)], ["probe"], "but it is listed as a gap")
+                self.assertIn("AWT 读不了这种稿件", V.table(s, ws))
+                self.assertIsNone(V.reminder_line(s, ws), "and it stays out of the per-turn line")
             with Probe(probe_check(root, formats=("markdown",), instead={"latex": "claim-ledger"})):
                 s = V.compute(cfg, ws)
                 self.assertEqual(status(s)["status"], V.NOT_APPLICABLE)
                 self.assertEqual(V.attention(s), [], "a format covered by another check is a decision, not a gap")
+                self.assertEqual(V.gaps(s), [])
 
     def test_a_missing_prerequisite(self):
         with TempDir() as root:
@@ -265,9 +270,21 @@ class ShownTest(unittest.TestCase):
                 line = V.reminder_line(s, ws)
                 self.assertIn("从未运行 探针", line)
                 s = V.compute(cfg, ws, do_run=True)
-                self.assertIsNone(V.reminder_line(s, ws))
+                self.assertIsNone(V.reminder_line(s, ws), "a check that ran clean on the current draft is not repeated")
                 self.assertEqual(V.todo_cell(s)["tone"], "white")
+                (Path(root) / "code.txt").write_text("1", encoding="utf-8")
+                s = V.compute(cfg, ws, do_run=True, force=True)
+                self.assertIn("有发现 探针（1 条）", V.reminder_line(s, ws), "a check that found something is said")
+                self.assertIn("有发现 1 项", V.todo_cell(s)["sub"])
             self.assertIn("还没有算过", V.reminder_line(None, ws))
+
+    def test_the_line_never_cuts_a_config_key_or_a_word(self):
+        rows = [{"id": "n", "name": "数字台账", "status": V.MISSING, "detail": "配置里缺 inputs.number_ledger"},
+                {"id": "f", "name": "文风", "status": V.OK, "verdict": "findings",
+                 "result": "越界 3 项：contrast_per_1k, explanatory_colon_per_1k, sentence_length_lag1"}]
+        line = V.reminder_line({"head": "abc", "rows": rows, "target": {}}, "ws")
+        self.assertIn("数字台账（inputs.number_ledger）", line)
+        self.assertIn("文风（越界 3 项）", line)
 
     def test_the_todo_cell_counts_and_names(self):
         with TempDir() as root:

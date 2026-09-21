@@ -61,7 +61,8 @@ class CoverageStatTest(unittest.TestCase):
         rows = [{"id": "a", "name": "甲", "status": "过期"}, {"id": "b", "name": "乙", "status": "最新"},
                 {"id": "c", "name": "丙", "status": "不适用", "instead": None}]
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
-        self.assertEqual(got, [{"label": "检查待办", "value": "2", "tone": "orange"}])
+        self.assertEqual(got, [{"label": "检查待办", "value": "1", "tone": "orange"}],
+                         "the stale check counts; a check the toolkit cannot run on this draft is a gap, not a task")
         rows = [{"id": "b", "name": "乙", "status": "最新"}]
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
         self.assertEqual(got, [{"label": "检查待办", "value": "0"}], "no None reaches the host")
