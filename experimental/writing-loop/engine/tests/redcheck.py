@@ -227,6 +227,25 @@ MUTATIONS = [
      'test_explain.BuildTest.test_a_message_typed_mid_turn_does_not_take_the_turns_block'),
     ('rebind', 'transcripts.py', ' + [(s["git_branch"], str(s["cwd_prefix"])) for s in t.get("also", [])]', '',
      'test_hooks.AlsoSourceTest.test_an_also_source_is_read_but_the_hooks_do_not_act_on_it'),
+    # 总览（lintel 分镜 ㊸–㊽，作者 09-21）
+    ('overview', 'overview.py', 'if cur and v["time"] - cur[-1]["time"] >= gap_days * 86400:', 'if False:',
+     'test_overview.StagesTest.test_a_gap_of_three_days_or_more_starts_a_stage'),
+    ('overview', 'overview.py', '            if len(empty) >= gap_days:', '            if False:',
+     'test_overview.StagesTest.test_a_long_empty_run_folds_into_one_gap_bar'),
+    ('overview', 'overview.py', '    if not cur or action not in cur["actions"]:', '    if not cur:',
+     'test_overview.AlignmentTest.test_an_action_the_panel_did_not_offer_writes_nothing'),
+    ('overview', 'overview.py', '            args += ["--credits", str(cpath)]', '            pass',
+     'test_overview.AlignmentTest.test_marking_a_method_credit_takes_the_sentence_out_of_missing'),
+    ('overview', 'overview.py', 'cells.append({"title": "稿件仓 issue", "text": "取不到", "sub": "gh 没登录或断网，不写数"})',
+     'cells.append({"title": "稿件仓 issue", "text": "已关 0 / 共 0", "sub": ""})',
+     'test_overview.TodoTest.test_issues_that_cannot_be_asked_say_so_instead_of_zero'),
+    ('overview', 'inbox.py', '        if _kind(p) == "action":\n            continue', '        if False:\n            continue',
+     'test_overview.InboxActionTest.test_loop_inbox_does_not_refuse_an_action_as_a_bad_drop'),
+    ('overview', 'inbox.py', 'if not isinstance(d, dict) or d.get("kind") != "action" or d.get("activity") != activity:',
+     'if not isinstance(d, dict) or d.get("kind") != "action":',
+     'test_overview.InboxActionTest.test_actions_for_another_manuscript_are_left_alone'),
+    ('overview', 'lintel.py', '"rows": _rows(h, names) or None, "sections": secs([h["id"]])}', '"rows": _rows(h, names) or None}',
+     'test_overview.PanelTest.test_overview_rides_on_the_detail_and_history_rows_name_their_sections'),
 ]
 
 
@@ -235,6 +254,8 @@ def _run_test(engine_dir, test, extra_paths=()):
     # otherwise they would import the unmutated engine and never go red.
     paths = [str(engine_dir), str(engine_dir / "tests"), *map(str, extra_paths)]
     env = dict(os.environ, PYTHONPATH=os.pathsep.join(paths), AWT_LOOP_ENGINE=str(engine_dir))
+    # the copy has no repository root around it; the overview runs the toolkit's claim-ledger audit from the real one
+    env.setdefault("LOOP_CLAIM_AUDIT", str(ENGINE.parents[2] / ".claude/skills/audit/scripts/audit-claim-ledger.py"))
     r = subprocess.run([sys.executable, "-m", "unittest", test], cwd=engine_dir / "tests", env=env, capture_output=True)
     return r.returncode == 0
 

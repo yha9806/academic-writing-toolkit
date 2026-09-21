@@ -229,10 +229,21 @@ FOLD_MAX = 16
 FOLD_WORD = {"unmatched": "△ 对不上", "elsewhere": "别处"}
 
 
-def _history(hist, names):
+def _history(hist, names, touches=None):
     """The panel timeline (分镜 ㉚ ㊴): a traced change set is its own row (your words, the count as the badge, the commit
     as the dim trailing text, the sentence rows when opened); consecutive untraced ones of the same kind fold into one
-    row 「△ 对不上 ×k」 or 「别处 ×k」 that opens to one line per change set."""
+    row 「△ 对不上 ×k」 or 「别处 ×k」 that opens to one line per change set.
+    `touches` (change set id -> section prefixes, from the overview) lets the panel's second layer keep only the rows
+    that touched one section (分镜 ㊻)."""
+    touches = touches or {}
+
+    def secs(ids):
+        out_ = []
+        for i in ids:
+            for x in touches.get(i) or ():
+                if x not in out_:
+                    out_.append(x)
+        return out_ or None
     out = []
     i = 0
     while i < len(hist):
@@ -245,7 +256,7 @@ def _history(hist, names):
             lines = [{"label": "改到", "text": where, "tone": "white55"}] if (label and where) else []
             out.append({"id": h["id"], "tag": label or where or "改了", "badge": f"{h['n']} 句", "duration": h["id"][:7],
                         "at": _iso(h["time"]) if h["time"] else None, "expandable": True,
-                        "lines": lines, "rows": _rows(h, names) or None})
+                        "lines": lines, "rows": _rows(h, names) or None, "sections": secs([h["id"]])})
             i += 1
             continue
         kind_ = origin(h)
@@ -255,11 +266,12 @@ def _history(hist, names):
         out.append({"id": f"fold-{run[0]['id']}", "tag": f"{FOLD_WORD[kind_]} ×{len(run)}", "badge": f"{sum(r['n'] for r in run)} 句",
                     "at": _iso(run[0]["time"]) if run[0]["time"] else None, "expandable": True, "lines": [],
                     "rows": [{"label": r["id"][:7], "where": _clip(f"{r['n']} 句 · {_hm(r['time'])}", 256), "copy": r["id"],
-                              "new": _clip(detex(r.get("subject") or ""), 200) or "（没有提交信息）"} for r in run]})
+                              "new": _clip(detex(r.get("subject") or ""), 200) or "（没有提交信息）"} for r in run],
+                    "sections": secs([r["id"] for r in run])})
     return out
 
 
-def _detail(summary, lc, bad, notices):
+def _detail(summary, lc, bad, notices, overview=None):
     """The panel (分镜 ㉚): timeline with the untraced folded, a progress strip one cell per change set (the author 09-21:
     progress by change set), and three cells — 追到 / 拦下 / 缺依据. No chart: the host's chart is a duration histogram."""
     hist = summary.get("history") or []
@@ -271,10 +283,11 @@ def _detail(summary, lc, bad, notices):
         head = "没有改动"
     cell = {"traced": IDENTITY, "unmatched": UNMATCHED, "elsewhere": UNTRACED}
     kinds = [origin(h) for h in hist[:500]]
-    return {
+    history = _history(hist[:500], names, overview and overview.get("touches"))
+    d = {
         "listTitle": _clip(f"{summary['name']} · {head}", 64),
         "dot": IDENTITY,
-        "history": _history(hist[:500], names),
+        "history": history,
         "historyNote": _clip(f"有空再看：拦下 {len(notices)} 次 · 缺依据 {bad} 条", 64),
         # 进度按改动集（作者 09-21），三色：追到靛蓝、对不上橙、别处灰。
         "strip": {"title": "改动集 · 旧 → 新",
@@ -288,9 +301,19 @@ def _detail(summary, lc, bad, notices):
             {"label": "缺依据", "value": str(bad), "tone": "orange" if bad else None},
         ],
     }
+    if overview and overview.get("payload"):
+        # 点进去的第一层（分镜 ㊸）：总览；上面这张改动集列表退到第二层。最下一行 = 最近一轮，点它进第二层。
+        ov = dict(overview["payload"])
+        if history:
+            h = history[0]
+            where = next((l["text"] for l in h.get("lines") or [] if l["label"] == "改到"), None)
+            ov["latest"] = {"at": h.get("at"), "tag": h["tag"], "badge": (h.get("badge") or "").split(" ")[0] or None,
+                            "where": where, "more": f"这一段 {overview.get('stage_changesets', 0)} 个改动集"}
+        d["overview"] = ov
+    return d
 
 
-def build(summary, *, now, problems=(), notices=()):
+def build(summary, *, now, problems=(), notices=(), overview=None):
     """从索引摘要（`index.summarize`）生成活动：一个稿件一个，永远只有一个。
     `problems` 是引擎自己的毛病；`notices` 是该知道但不是故障的事（被拦下的写入）。"""
     ws = summary["name"]
@@ -369,7 +392,7 @@ def build(summary, *, now, problems=(), notices=()):
         # 2026-09-21: hover-to-turn pages was awkward once the card could scroll; the three sections stack and the card scrolls
         # (the host keeps its paging for producers that want it).
         "body": _body(lc),
-        "detail": _detail(summary, lc, bad, notices),
+        "detail": _detail(summary, lc, bad, notices, overview),
         "events": [{"id": i, "type": t, "at": _iso(now)} for i, t in events],
     }
     if pill:

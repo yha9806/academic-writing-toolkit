@@ -7,6 +7,10 @@ workspace (repo root, branch, the LaTeX main file and what it \\input s, one pro
 writes the "登记好了" activity, and moves the drop file to ``inbox/done/`` with the outcome beside it.
 
 Not here yet: asking which sections to watch (storyboard ⑯ choice card) and the answer path back; every heading is watched.
+
+The same inbox carries the panel's actions (overview ㊺, the author 2026-09-21: mark a sentence as a method credit):
+``{"schema": 1, "kind": "action", "activity": "loop-<name>", "action": <id>, ...}``. Those belong to the resident
+producer of that manuscript (`take_actions`), so `process` leaves them where they are.
 """
 import json
 import os
@@ -31,6 +35,39 @@ class Refused(Exception):
 def pending(home, producer=LN.PRODUCER):
     d = Path(os.path.expanduser(home)) / "producers" / producer / "inbox"
     return sorted(p for p in d.glob("*.json") if not p.name.startswith(".")) if d.is_dir() else []
+
+
+def _kind(p):
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d.get("kind") if isinstance(d, dict) else None
+
+
+def take_actions(home, activity, apply, *, producer=LN.PRODUCER):
+    """Apply every pending action addressed to `activity`: apply(action id) -> (ok, reason). Each file moves to
+    inbox/done/ with its outcome. Actions for other activities are left for their own producer."""
+    results = []
+    for p in pending(home, producer):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(d, dict) or d.get("kind") != "action" or d.get("activity") != activity:
+            continue
+        if d.get("schema") != 1 or not isinstance(d.get("action"), str):
+            ok, reason = False, "收件文件不是 lintel 的动作格式"
+        else:
+            ok, reason = apply(d["action"])
+        done = p.parent / "done"
+        done.mkdir(exist_ok=True)
+        moved = done / p.name
+        p.rename(moved)
+        moved.write_text(json.dumps({**d, "outcome": {"ok": ok, "reason": reason}}, ensure_ascii=False, indent=1) + "\n",
+                         encoding="utf-8")
+        results.append((p.name, ok, reason))
+    return results
 
 
 def read_drop(p):
@@ -112,6 +149,8 @@ def process(home, workspaces, *, producer=LN.PRODUCER, projects_dir=None, now=No
     """Handle every pending drop. Returns [(drop file name, outcome)]; each outcome is written beside the moved drop."""
     results = []
     for p in pending(home, producer):
+        if _kind(p) == "action":
+            continue   # the resident producer of that manuscript takes these
         try:
             drop = read_drop(p)
         except (ValueError, Refused) as e:

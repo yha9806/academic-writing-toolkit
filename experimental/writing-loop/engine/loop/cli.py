@@ -183,9 +183,12 @@ def cmd_lintel(a):
 
     from . import doctor
     from . import health as HL
+    from . import inbox as IB
     from . import index as X
     from . import lintel as LN
+    from . import overview as OV
     cfg = C.load(a.workspace)
+    ovw = OV.Overview(cfg)
     ws = Path(a.workspace)
     a.home = a.home or LN.lintel_home()
     pidfile = ws / "cache" / "lintel.pid"
@@ -217,7 +220,18 @@ def cmd_lintel(a):
         problems += [f"{item}：{msg}" for item, msg in HL.file_problems(a.workspace)]
         notices = [f"{item}：{msg}" for item, msg in HL.file_notices(a.workspace)]
         summary = summary or {**EMPTY_SUMMARY, "name": cfg["name"]}
-        acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices)
+        ov = None
+        if not problems:
+            try:
+                # 面板上点的「是方法署名」：只认这份稿子当前给出的动作（分镜 ㊺）。
+                for name, ok, why in IB.take_actions(a.home, LN.activity_id(cfg["name"]),
+                                                     lambda act: OV.apply_action(ovw, act, _t.time()), producer=a.producer):
+                    print(f"收件 {name}：{'记下' if ok else '没收'}（{why}）", flush=True)
+                ov = ovw.get(_t.time())
+            except Exception as e:  # 总览算不出来是工具异常，照样交上去；卡片其余部分照写
+                HL.record_error(a.workspace, f"总览：{type(e).__name__}：{e}")
+                problems.append(f"总览：{type(e).__name__}：{e}")
+        acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov)
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:
