@@ -28,6 +28,7 @@ You should see the eight canonical skills listed in [the skills guide](skills/RE
 | note | Record structured reading notes |
 | map | View literature coverage matrix |
 | review | External manuscript review or own-work clean-room review |
+| readers | Reader panel: what first-time readers carried away, against the author's intended points |
 | integrate | Weave reading notes into chapter drafts |
 | audit | Pre-submission consistency check |
 | verify-refs | Check BibTeX records and metadata |

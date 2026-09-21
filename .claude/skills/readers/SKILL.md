@@ -1,6 +1,6 @@
 ---
 name: readers
-description: Open a panel of instruction-bound amnesiac readers on part of a manuscript and report what they carried away, against the points the author wants them to carry. Use when the abstract or introduction changed, when the loop's coverage says the reader panel is stale, or when the author asks whether the contribution comes across.
+description: Open a reader panel. Instruction-bound amnesiac sub-agents read the abstract or introduction and report what they carried away, set against the author's intended points. Use when those sections change or the writing loop marks the panel stale.
 allowed-tools: Read, Glob, Grep, Bash, Agent
 ---
 

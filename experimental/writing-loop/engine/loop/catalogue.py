@@ -226,7 +226,7 @@ def wired_scripts():
     return {s for c in CHECKS for s in c["scripts"]}
 
 
-def wiring_problems(registered, skills, installed):
+def wiring_problems(registered, skills, installed, documented=None):
     """Problems with how the toolkit's checks and skills reach a manuscript. Empty list = nothing unaccounted for."""
     problems = []
     wired = wired_scripts()
@@ -241,6 +241,9 @@ def wiring_problems(registered, skills, installed):
             problems.append(f"{name}：UNWIRED 的理由太短（少于 {UNWIRED_REASON_MIN} 字），说清楚为什么它不是对稿件的检查")
     for s in sorted(set(skills) - set(installed) - set(SKILLS_NOT_INSTALLED)):
         problems.append(f"技能 {s}：在 .claude/skills/ 里，但 Codex 安装器不装它，也没在 SKILLS_NOT_INSTALLED 写理由")
+    if documented is not None:
+        for s in sorted(set(skills) - set(documented)):
+            problems.append(f"技能 {s}：装得上，但 docs/skills/README.md 的技能表里没有它，用户发现不了")
     for s in sorted(set(installed) - set(skills)):
         problems.append(f"技能 {s}：安装器要装，但 .claude/skills/ 里没有")
     for c in CHECKS:

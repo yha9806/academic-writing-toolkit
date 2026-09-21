@@ -28,14 +28,25 @@ def installer_names():
     return set(_load(ROOT / "scripts" / "install-codex-skills.py", "install_codex").NAMES)
 
 
+def documented_skills():
+    import re
+    text = (ROOT / "docs" / "skills" / "README.md").read_text(encoding="utf-8")
+    return set(re.findall(r"^\| `/([\w-]+)` \|", text, re.M))
+
+
 def skill_dirs():
     return {p.parent.name for p in (ROOT / ".claude" / "skills").glob("*/SKILL.md")}
 
 
 class WiringTest(unittest.TestCase):
     def test_every_registered_check_is_wired_or_declared_unwired(self):
-        problems = K.wiring_problems(registered_checks(), skill_dirs(), installer_names())
+        problems = K.wiring_problems(registered_checks(), skill_dirs(), installer_names(), documented_skills())
         self.assertEqual(problems, [], "\n".join(problems))
+
+    def test_the_invariant_sees_a_skill_nobody_can_find(self):
+        problems = K.wiring_problems(registered_checks(), skill_dirs(), installer_names(),
+                                     documented_skills() - {"readers"})
+        self.assertTrue(any("readers" in p and "docs/skills" in p for p in problems), problems)
 
     def test_the_invariant_sees_an_unwired_check(self):
         # The invariant itself must go red: a registry entry the catalogue has never heard of.

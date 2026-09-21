@@ -17,6 +17,8 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'catalogue.py', '        for s in sorted(set(skills) - set(documented)):', '        for s in []:',
+     'test_catalogue.WiringTest.test_the_invariant_sees_a_skill_nobody_can_find'),
     ("cov", 'coverage.py', 'return [r for r in summary["rows"] if r["status"] == OK and r.get("verdict") == "findings"]', 'return []',
      'test_coverage.ShownTest.test_the_reminder_names_what_is_not_current_and_is_silent_otherwise'),
     ("cov", 'overview.py', '                Path(self.cfg["_ws"]) / "cache" / "coverage" / "summary.json"]', ']',

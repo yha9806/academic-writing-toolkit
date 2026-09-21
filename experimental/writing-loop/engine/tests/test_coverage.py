@@ -281,10 +281,10 @@ class ShownTest(unittest.TestCase):
     def test_the_line_never_cuts_a_config_key_or_a_word(self):
         rows = [{"id": "n", "name": "数字台账", "status": V.MISSING, "detail": "配置里缺 inputs.number_ledger"},
                 {"id": "f", "name": "文风", "status": V.OK, "verdict": "findings",
-                 "result": "越界 3 项：contrast_per_1k, explanatory_colon_per_1k, sentence_length_lag1"}]
+                 "result": "越界 2 项：hedge_per_1k, semicolon_per_1k"}]
         line = V.reminder_line({"head": "abc", "rows": rows, "target": {}}, "ws")
         self.assertIn("数字台账（inputs.number_ledger）", line)
-        self.assertIn("文风（越界 3 项）", line)
+        self.assertIn("文风（越界 2 项）", line)
 
     def test_the_todo_cell_counts_and_names(self):
         with TempDir() as root:
