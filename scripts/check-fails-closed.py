@@ -56,6 +56,8 @@ CHECKS = {
                           "--ledger", str(empty / "numbers.tsv")],
     "audit/audit-claim-positioning.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty)],
+    "audit/audit-prose-structure.py":
+        lambda s, empty: ["python3", str(s), "--target", str(empty), "--baseline", str(empty)],
     "audit/audit-prose-fingerprint.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty)],
     # A reader panel's three steps: nothing to read, nothing to check, nothing to tally (exit 2 each).

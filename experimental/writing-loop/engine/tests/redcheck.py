@@ -17,6 +17,14 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'skill:audit/scripts/audit-prose-structure.py', '        out = v < vals[0] or v > vals[-1]', '        out = False',
+     'test_structure.StructureTest.test_sentences_that_open_with_a_condition_are_outside_a_plain_baseline'),
+    ("cov", 'skill:audit/scripts/audit-prose-structure.py', '            "opens_with_sub": sum(1 for s in sents if OPENER.match(s)) / len(sents),', '            "opens_with_sub": 0.0,',
+     'test_structure.StructureTest.test_sentences_that_open_with_a_condition_are_outside_a_plain_baseline'),
+    ("cov", 'skill:audit/scripts/audit-prose-structure.py', '    if len(rows) < a.min_baseline:', '    if False:',
+     'test_structure.StructureTest.test_nothing_to_measure_and_a_thin_baseline_exit_2'),
+    ("cov", 'skill:audit/scripts/audit-prose-structure.py', '    if tm is None:\n        die(', '    if tm is None and False:\n        die(',
+     'test_structure.StructureTest.test_nothing_to_measure_and_a_thin_baseline_exit_2'),
     ("cov", 'skill:readers/scripts/check-reader-output.py', '    if data.get("packet") != packet.get("packet_id"):', '    if False:',
      'test_readers.ReadersTest.test_an_output_for_another_packet_or_a_copy_is_not_a_reader'),
     ("cov", 'skill:readers/scripts/check-reader-output.py', '        return [f"identical to {seen[key]}"]', '        return []',

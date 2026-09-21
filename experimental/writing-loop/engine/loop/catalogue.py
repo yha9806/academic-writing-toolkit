@@ -165,6 +165,21 @@ CHECKS = [
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "all"}, "needs": ["inputs.literature"],
      "inputs": _none, "outside": _literature_outside, "argv": _fingerprint_bib_argv},
+    {"id": "structure-venue", "name": "句子结构·对照目标刊物", "kind": "script",
+     "scripts": ["audit/audit-prose-structure.py"],
+     "formats": ["latex", "markdown"], "instead": {},
+     "scope": {"kind": "all"}, "needs": ["target.venue_corpus.dir"],
+     "inputs": _none, "outside": _venue_outside,
+     "argv": lambda ctx: _py(ctx, "audit/audit-prose-structure.py") + [
+         "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "target.venue_corpus.dir")).expanduser()), "--json"]},
+    {"id": "structure-bibliography", "name": "句子结构·对照参考文献", "kind": "script",
+     "scripts": ["audit/audit-prose-structure.py"],
+     "formats": ["latex", "markdown"], "instead": {},
+     "scope": {"kind": "all"}, "needs": ["inputs.literature"],
+     "inputs": _none, "outside": _literature_outside,
+     "argv": lambda ctx: _py(ctx, "audit/audit-prose-structure.py") + [
+         "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "inputs.literature")).expanduser()), "--json"]
+         + [x for g in (get(ctx["cfg"], "inputs.literature_exclude") or []) for x in ("--exclude", g)]},
     {"id": "verify-refs", "name": "参考文献条目", "kind": "script", "scripts": ["verify-refs/verify-refs.py"],
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "none"}, "needs": ["inputs.bib"],
