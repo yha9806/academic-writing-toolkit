@@ -1,6 +1,6 @@
 # Setup: Codex skills
 
-AWT provides eight skills for local Codex use. They are advisory: the host
+AWT provides nine skills for local Codex use. They are advisory: the host
 does not enforce what they say.
 
 ## Skills in a checkout or linked workspace
@@ -87,7 +87,7 @@ replace locally edited AWT skills, inspect the listed collisions and run:
 python scripts/install-codex-skills.py --install-deps --replace-existing
 ```
 
-This option authorises replacement of the eight listed names, including an
+This option authorises replacement of the nine listed names, including an
 unrelated skill with one of those names. Their whole previous folders are
 saved first. Symlink/junction targets are refused even with this option.
 

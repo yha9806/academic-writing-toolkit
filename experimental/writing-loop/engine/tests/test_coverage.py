@@ -420,6 +420,37 @@ class GrillTest(unittest.TestCase):
                 self.assertIn("输入 also0 变了", status(V.compute(cfg, ws))["detail"])
 
 
+class ProjectCheckTest(unittest.TestCase):
+    """A manuscript's own checks: declared in the workspace, keyed on the whole tree, slow ones run only when named."""
+
+    def ws_with_check(self, root, code="0"):
+        repo, ws = setup(root, extra_commits=[({"tools/check.py": "import sys, pathlib\n"
+                                                "sys.exit(int(pathlib.Path('tools/code.txt').read_text()))\n",
+                                                "tools/code.txt": code}, "tools", 1_700_000_050)])
+        cfg = C.load(ws)
+        cfg["project_checks"] = [{"id": "build", "name": "构建", "argv": [sys.executable, "tools/check.py"]}]
+        return repo, ws, cfg
+
+    def test_a_slow_project_check_runs_only_when_named_and_any_change_in_the_tree_makes_it_stale(self):
+        with TempDir() as root:
+            repo, ws, cfg = self.ws_with_check(root)
+            s = V.compute(cfg, ws, do_run=True)
+            self.assertNotIn("build", s["ran"], "auto is false by default: update does not start a slow build")
+            self.assertEqual(status(s, "build")["status"], V.NEVER)
+            self.assertIn("--only build", status(s, "build")["detail"])
+            s = V.compute(cfg, ws, do_run=True, only={"build"})
+            self.assertEqual((s["ran"], status(s, "build")["status"]), (["build"], V.OK), "named, it runs alone")
+            commit(repo, {"tools/plot.txt": "new figure data"}, "fig", 1_700_000_100)
+            reindex(ws)
+            self.assertEqual(status(V.compute(cfg, ws), "build")["status"], V.STALE, "a figure is part of the build")
+
+    def test_a_project_check_that_exits_non_zero_is_a_failure(self):
+        with TempDir() as root:
+            repo, ws, cfg = self.ws_with_check(root, code="1")
+            s = V.compute(cfg, ws, do_run=True, only={"build"})
+            self.assertEqual(status(s, "build")["status"], V.FAILED)
+
+
 class ShownTest(unittest.TestCase):
     def test_the_reminder_names_what_is_not_current_and_is_silent_otherwise(self):
         with TempDir() as root:

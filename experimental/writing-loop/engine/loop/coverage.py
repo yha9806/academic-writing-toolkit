@@ -109,7 +109,7 @@ def in_sections(sec, prefixes):
 def _scope_sentences(check, cfg, sentences):
     kind = check["scope"]["kind"]
     fmt = draft_format(cfg)
-    if kind == "none":
+    if kind in ("none", "tree"):
         return []
     if kind == "all":
         return list(sentences)
@@ -141,6 +141,8 @@ def unindexed_of(check, cfg, head):
     a section with no rule). For a whole-text check, every draft file's blob; for a citation or number check, the
     draft's lines that carry a citation or a digit."""
     kind = check["scope"]["kind"]
+    if kind == "tree":
+        return {"tree": _git(cfg["repo"], "rev-parse", f"{head}^{{tree}}")}
     if kind == "all":
         return {f: _git(cfg["repo"], "rev-parse", f"{head}:{f}") for f in draft_files(cfg, head)}
     if kind in ("cite", "numbers"):
@@ -291,6 +293,12 @@ def interpret(check_id, code, stdout, stderr):
 
 def materialize(cfg, check, head, dest):
     """Archive the draft and the check's inputs at head into dest. Returns ({role: path}, error or None)."""
+    if check.get("project"):
+        tar = _git(cfg["repo"], "archive", head, binary=True)
+        if tar is None:
+            return None, "git archive 失败"
+        tarfile.open(fileobj=io.BytesIO(tar)).extractall(dest, filter="data")
+        return {}, None
     inputs = check_inputs(check, cfg)
     missing = [f"{role}={p}" for role, p in inputs.items() if _git(cfg["repo"], "cat-file", "-e", f"{head}:{p}") is None]
     if missing:
@@ -322,8 +330,14 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
         rec["argv"] = [a.replace(tmp, "<draft>") for a in argv]
         t0 = time.time()
         try:
-            r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True, timeout=timeout)
-            verdict, summary = interpret(check["id"], r.returncode, r.stdout, r.stderr)
+            r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True,
+                               timeout=check.get("timeout") or timeout)
+            if check.get("project"):
+                # A project's own script makes no JSON promise: pass or not, with its last line as the reason.
+                last = ((r.stdout or "") + (r.stderr or "")).strip().splitlines()[-1:] or ["（无输出）"]
+                verdict, summary = ("ok", "通过") if r.returncode == 0 else ("failed", f"退出码 {r.returncode}：{last[0][:160]}")
+            else:
+                verdict, summary = interpret(check["id"], r.returncode, r.stdout, r.stderr)
             rec.update({"exit": r.returncode, "verdict": verdict, "summary": summary})
             if r.stdout and r.stdout.lstrip().startswith("{"):
                 try:
@@ -331,7 +345,7 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
                 except ValueError:
                     pass
         except subprocess.TimeoutExpired:
-            rec.update({"exit": None, "verdict": "failed", "summary": f"超时（{timeout} 秒）"})
+            rec.update({"exit": None, "verdict": "failed", "summary": f"超时（{check.get('timeout') or timeout} 秒）"})
         except OSError as e:
             rec.update({"exit": None, "verdict": "failed", "summary": f"起不来：{e}"})
         rec["seconds"] = round(time.time() - t0, 2)
@@ -368,8 +382,13 @@ def row(check, cfg, ws, head, sentences, index_head=None):
     if sentences is None:
         return {**base, "status": NEVER, "detail": "索引还没建，说不出查过什么"}
     if rec is None:
-        return {**base, "status": NEVER, "detail": "由 loop update 自动跑" if check["kind"] == "script"
-                else f"按 {K.script_path(check['scripts'][0]).parent.parent / 'SKILL.md'} 开读者组"}
+        if check.get("project"):
+            detail = "由 loop update 自动跑" if check.get("auto") else f"项目检查，不自动跑：loop coverage <工作区> --run --only {check['id']}"
+        elif check["kind"] == "script":
+            detail = "由 loop update 自动跑"
+        else:
+            detail = f"按 {K.script_path(check['scripts'][0]).parent.parent / 'SKILL.md'} 开读者组"
+        return {**base, "status": NEVER, "detail": detail}
     new = snapshot(check, cfg, sentences, head)
     reasons, n = diff(rec.get("snapshot") or {}, new)
     if index_head and index_head != head:
@@ -396,15 +415,18 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     sentences, index_head = current_sentences(ws)
     head = _git(cfg["repo"], "rev-parse", "--verify", f"{cfg['ref']}^{{commit}}")
     ran = []
+    checks = K.all_checks(cfg)
     if do_run and sentences is not None and head:
-        for check in K.CHECKS:
+        for check in checks:
             if only and check["id"] not in only:
                 continue
+            if not check.get("auto", True) and not (only and check["id"] in only):
+                continue  # a slow project check runs only when named
             r = row(check, cfg, ws, head, sentences, index_head)
             if check["kind"] == "script" and (due(r) or (force and r["status"] in (OK, FAILED, STALE, NEVER))):
                 run(check, cfg, ws, head, sentences, now=now)
                 ran.append(check["id"])
-    rows = [row(c, cfg, ws, head, sentences, index_head) for c in K.CHECKS]
+    rows = [row(c, cfg, ws, head, sentences, index_head) for c in checks]
     counts = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1

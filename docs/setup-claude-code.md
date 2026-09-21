@@ -30,7 +30,7 @@ If `make doctor` reports anything red, run `make repair` to fix what it can.
 
 Ask Claude: "What skills are available?"
 
-You should see the eight canonical skills listed in [the skills guide](skills/README.md), including `/review` and `/audit`.
+You should see the nine canonical skills listed in [the skills guide](skills/README.md), including `/review` and `/audit`.
 
 ## Available Skills
 

@@ -17,6 +17,12 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'coverage.py', '            if not check.get("auto", True) and not (only and check["id"] in only):\n                continue', '            if False:\n                continue',
+     'test_coverage.ProjectCheckTest.test_a_slow_project_check_runs_only_when_named_and_any_change_in_the_tree_makes_it_stale'),
+    ("cov", 'coverage.py', '    if kind == "tree":\n        return {"tree":', '    if False:\n        return {"tree":',
+     'test_coverage.ProjectCheckTest.test_a_slow_project_check_runs_only_when_named_and_any_change_in_the_tree_makes_it_stale'),
+    ("cov", 'coverage.py', 'verdict, summary = ("ok", "通过") if r.returncode == 0 else ("failed",', 'verdict, summary = ("ok", "通过") if True else ("failed",',
+     'test_coverage.ProjectCheckTest.test_a_project_check_that_exits_non_zero_is_a_failure'),
     ("cov", 'targets.py', '        if kind == "已晋升" and not _promoted_target_exists(rest, roots):', '        if False:',
      'test_coverage.TargetTest.test_experiments_without_a_disposition_or_past_review_are_listed'),
     ("cov", 'targets.py', '    head = "\\n".join([ln for ln in text.splitlines() if ln.strip()][:HEAD_LINES])', '    head = text',
@@ -113,7 +119,7 @@ MUTATIONS = [
      'test_coverage.StalenessTest.test_a_changed_input_file_makes_it_stale'),
     ("cov", 'coverage.py', '    if rec.get("verdict") == "failed":', '    if False:',
      'test_coverage.NeverGreenTest.test_exit_2_is_a_failure'),
-    ("cov", 'coverage.py', 'r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True, timeout=timeout)', 'r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True)',
+    ("cov", 'coverage.py', '            r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True,\n                               timeout=check.get("timeout") or timeout)', '            r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True)',
      'test_coverage.NeverGreenTest.test_a_timeout_is_a_failure'),
     ("cov", 'coverage.py', '    except (OSError, ValueError):\n        return None, None', '    except (OSError, ValueError):\n        return [], None',
      'test_coverage.NeverGreenTest.test_no_index_means_nothing_is_up_to_date'),

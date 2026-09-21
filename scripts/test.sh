@@ -3471,7 +3471,9 @@ root, n = pathlib.Path(sys.argv[1]), int(sys.argv[2])
 words = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve".split())}
 num = r"(\d+|" + "|".join(words) + r")"
 pats = [re.compile(r"\b" + num + r"[- ]skill\b", re.I),
-        re.compile(r"\b(?:the|all|these|its|those|same)\s+" + num + r"\s+skills\b", re.I),
+        # one adjective may sit between the number and "skills" ("the eight canonical skills" slipped past this
+        # check until 2026-09-21), and "provides N skills" names the catalogue too
+        re.compile(r"\b(?:the|all|these|its|those|same|provides)\s+" + num + r"\s+(?:\w+\s+)?skills\b", re.I),
         re.compile(r"\b" + num + r"\s+academic[- ]writing[- ]skills\b", re.I),
         re.compile(r"\b" + num + r"\s+advisory\s+skills\b", re.I)]
 skip = {"specs", "research", "product"}

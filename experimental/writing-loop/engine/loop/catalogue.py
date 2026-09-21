@@ -26,7 +26,7 @@ from pathlib import Path
 # The toolkit checkout the scripts live in. A mutation run copies the engine elsewhere and points this back.
 ENGINE_ROOT = Path(os.environ.get("AWT_ROOT") or Path(__file__).resolve().parents[4])
 KINDS = ("script", "panel")
-SCOPES = ("all", "cite", "numbers", "sections", "none")
+SCOPES = ("all", "cite", "numbers", "sections", "none", "tree")
 UNWIRED_REASON_MIN = 20
 
 
@@ -264,6 +264,30 @@ NOT_CHECKS_ACK = {
 
 def by_id(cid):
     return next(c for c in CHECKS if c["id"] == cid)
+
+
+def project_checks(cfg):
+    """A manuscript's own checks (a submission build, a glyph check), declared in the workspace:
+
+        "project_checks": [{"id": "build", "name": "...", "argv": ["python3", "tools/build.py"],
+                            "auto": false, "timeout": 900}]
+
+    Each runs on the whole repository archived at HEAD and is stale whenever that tree changes. They make no JSON
+    promise, so exit 0 is a pass and anything else a failure. `auto: false` (the default) keeps a slow build out of
+    `loop update`: it is run by `loop coverage --run --only <id>`, and until then it shows as not current."""
+    out = []
+    for p in cfg.get("project_checks") or []:
+        argv = list(p["argv"])
+        out.append({"id": p["id"], "name": p.get("name") or p["id"], "kind": "script", "project": True,
+                    "auto": bool(p.get("auto", False)), "timeout": int(p.get("timeout", 900)), "scripts": [],
+                    "formats": ["latex", "markdown"], "instead": {}, "scope": {"kind": "tree"}, "needs": [],
+                    "inputs": _none, "outside": _no_outside, "argv": (lambda ctx, argv=argv: argv)})
+    return out
+
+
+def all_checks(cfg):
+    """The toolkit's checks and this workspace's own."""
+    return CHECKS + project_checks(cfg)
 
 
 def wired_scripts():

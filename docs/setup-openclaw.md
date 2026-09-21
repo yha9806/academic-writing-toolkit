@@ -18,7 +18,7 @@ Skills are loaded from `.agents/skills/` (symlinked to `.claude/skills/`).
 
 Ask OpenClaw: "What skills are available?"
 
-You should see the eight canonical skills listed in [the skills guide](skills/README.md), including `review` and `audit`.
+You should see the nine canonical skills listed in [the skills guide](skills/README.md), including `review` and `audit`.
 
 ## Available Skills
 
