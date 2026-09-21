@@ -9,6 +9,7 @@ import sys
 import unittest
 from pathlib import Path
 
+from loop import config as C
 from loop import health as HL
 
 from fixtures import TempDir, draft_md, git, make_repo, make_transcripts, workspace
@@ -80,6 +81,15 @@ class PromptTest(unittest.TestCase):
             git(repo, "checkout", "-q", "-b", "other")
             self.assertIsNone(LH.handle(prompt_payload(repo), regs))
             self.assertIsNone(LH.handle(prompt_payload(root), regs))
+            self.assertFalse((ws / "human" / "comments.jsonl").exists())
+
+    def test_a_shell_command_run_with_bang_is_not_recorded_as_the_authors_words(self):
+        """`!cmd` reaches UserPromptSubmit as <bash-input>…</bash-input><bash-stdout>…. The author typed it, but it is
+        a shell command and its output, not a comment on the draft, so it stays out of human/ (seen 2026-09-21)."""
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            out = LH.handle(prompt_payload(repo, prompt="<bash-input>chmod 600 f</bash-input><bash-stdout></bash-stdout>"), regs)
+            self.assertIn("〔循环〕", out["hookSpecificOutput"]["additionalContext"])
             self.assertFalse((ws / "human" / "comments.jsonl").exists())
 
     def test_system_envelopes_are_not_recorded_as_the_authors_words(self):
@@ -203,6 +213,22 @@ class TriggerTest(unittest.TestCase):
                              ("Bash", {"command": "ls -la"})]:
                 LH.handle(tool_payload("PostToolUse", repo, tool, ti), regs, spawn=spy)
             self.assertEqual(spy.calls, ["write:drafts/DRAFT-v2.md", "write:ev/claims.json", "git"])
+
+    def test_a_draft_made_of_several_files_is_matched_file_by_file(self):
+        """draft.glob may be a list: the files that together are the draft (a LaTeX main file and its sections),
+        as history.py reads it. A write to one of them asks for an update; a sibling file does not; nothing raises."""
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            cfg = C.load(ws)
+            cfg["draft"]["glob"] = ["main.tex", "sections/intro.tex"]
+            C.save(ws, cfg)
+            regs, _bad = LH.registry(str(Path(root) / "registry"))
+            spy = Spy()
+            for tool, ti in [("Edit", {"file_path": str(repo / "sections" / "intro.tex")}),
+                             ("Write", {"file_path": str(repo / "sections" / "notes.tex")}),
+                             ("Edit", {"file_path": "main.tex"})]:
+                LH.handle(tool_payload("PostToolUse", repo, tool, ti), regs, spawn=spy)
+            self.assertEqual(spy.calls, ["write:sections/intro.tex", "write:main.tex"])
 
     def test_stop_asks_for_an_update_only_in_a_registered_session(self):
         with TempDir() as root:

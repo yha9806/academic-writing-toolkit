@@ -263,8 +263,10 @@ READ_ONLY = {"cat", "head", "tail", "less", "more", "wc", "grep", "rg", "ls", "j
 
 # Said to the model, not by the author. Background-task notices, messages from another Claude session and the
 # like reach UserPromptSubmit as well (checked against real transcripts, 2026-09-17); none of them belongs in
-# human/. The same heads as the wishing-willow plugin's envelope rule.
+# human/. Started from the wishing-willow plugin's envelope rule; bash-input/-stdout/-stderr (a `!cmd` the author
+# runs: a shell command and its output, not words about the draft) added 2026-09-21.
 ENVELOPE = re.compile(r"\s*(?:<(?:task-notification|ci-monitor-event|system-reminder|command-name|command-message|"
+                      r"bash-input|bash-stdout|bash-stderr|"
                       r"local-command-stdout|cross-session-message)\b|\[SYSTEM NOTIFICATION)", re.I)
 
 
@@ -312,6 +314,12 @@ def on_pre_tool(payload, regs, now):
     return None
 
 
+def _is_draft(rel, glob):
+    """A string is a glob naming one file per version; a list names the files that together are the draft
+    (a LaTeX main file and its sections), matched file by file, as history.py reads it."""
+    return rel in glob if isinstance(glob, list) else fnmatch.fnmatch(rel, glob)
+
+
 def on_post_tool(payload, regs, now, spawn):
     ws, cfg = session_ws(payload, regs)
     if ws is None:
@@ -325,7 +333,7 @@ def on_post_tool(payload, regs, now, spawn):
         if t and top and _under(t, top):
             rel = os.path.relpath(_real(t), _real(top)).replace(os.sep, "/")
             led = cfg.get("ledger") or {}
-            if fnmatch.fnmatch(rel, cfg["draft"]["glob"]) or rel == led.get("path") or \
+            if _is_draft(rel, cfg["draft"]["glob"]) or rel == led.get("path") or \
                     (led.get("evidence_dir") and rel.startswith(led["evidence_dir"].rstrip("/") + "/")):
                 spawn(ws, f"write:{rel}")
     elif tool == "Bash" and GIT_RE.search(ti.get("command") or ""):

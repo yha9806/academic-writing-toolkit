@@ -130,7 +130,10 @@ def read(cfg, files=None, scan_cache=None):
                 msg = r.get("message") or {}
                 raw = _user_text(msg.get("content"))
                 if (r.get("origin") or {}).get("kind") == "human":
-                    add_human(r, raw, "prompt", None)
+                    if raw.lstrip().startswith("<bash-input>"):  # `!cmd`: a shell command and its output
+                        uncl["<bash-input>"] = uncl.get("<bash-input>", 0) + 1
+                    else:
+                        add_human(r, raw, "prompt", None)
                 elif not r.get("isMeta") and not r.get("isCompactSummary"):
                     kind = (r.get("origin") or {}).get("kind")
                     k = f"origin:{kind}" if kind else _unclassified_kind(raw)

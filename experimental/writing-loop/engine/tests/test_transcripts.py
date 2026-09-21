@@ -20,6 +20,7 @@ RECORDS = [
     {"type": "user", "timestamp": "2026-09-17T10:03:00.000Z", "origin": {"kind": "task-notification"}, "message": {"role": "user", "content": "<task-notification>done</task-notification>"}},
     {"type": "user", "timestamp": "2026-09-17T10:04:00.000Z", "message": {"role": "user", "content": "<local-command-stdout>ok</local-command-stdout>"}},
     human("2026-09-17T10:05:00.000Z", "<system-reminder>\ninjected\n</system-reminder>\n可以 继续吧"),
+    human("2026-09-17T10:05:30.000Z", "<bash-input>ls</bash-input><bash-stdout>a.tex</bash-stdout><bash-stderr></bash-stderr>"),
     human("2026-09-17T10:06:00.000Z", "a subagent prompt", isSidechain=True),
     human("2026-09-17T10:07:00.000Z", "a message on another branch", gitBranch="other"),
     {"type": "assistant", "timestamp": "2026-09-17T10:00:05.000Z", "message": {"id": "msg_1", "content": [{"type": "text", "text": "第一段"}]}},
@@ -53,10 +54,17 @@ class TranscriptReadTest(unittest.TestCase):
             self.assertEqual(h["text"], "可以 继续吧")
             self.assertGreater(h["stripped_chars"], 0)
 
+    def test_a_shell_command_run_with_bang_is_not_an_authors_message(self):
+        """`!cmd` in Claude Code is stored as a human-origin prompt that starts with <bash-input>. It is a command
+        and the shell's output, not words about the draft, so it is counted with the other non-author records."""
+        with TempDir() as root:
+            d = self.read(root)
+            self.assertFalse([h for h in d["human"] if "<bash-input>" in h["text"]])
+
     def test_non_author_records_are_counted_not_dropped(self):
         with TempDir() as root:
             d = self.read(root)
-            self.assertEqual(d["unclassified"], {"<local-command-stdout>": 1, "origin:task-notification": 1})
+            self.assertEqual(d["unclassified"], {"<bash-input>": 1, "<local-command-stdout>": 1, "origin:task-notification": 1})
             self.assertNotIn("a subagent prompt", [h["text"] for h in d["human"]])
             self.assertNotIn("a message on another branch", [h["text"] for h in d["human"]])
 

@@ -81,4 +81,4 @@ cd engine/tests && PYTHONPATH="..:." python3 -m unittest    # hermetic: throwawa
 python3 engine/tests/redcheck.py                             # every mutation must turn its named test red
 ```
 
-Both run in the main suite as T139–T141 (T140 covers 61 mutations, including the hooks). Regression tests against a real manuscript exist but are kept outside this public repository. They use the same runner through `redcheck.run(mutations=..., extra_paths=...)`.
+Both run in the main suite as T191–T193 (T192 runs every mutation listed in `redcheck.py`, including the hooks). Regression tests against a real manuscript exist but are kept outside this public repository. They use the same runner through `redcheck.run(mutations=..., extra_paths=...)`.
