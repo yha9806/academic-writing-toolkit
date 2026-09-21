@@ -144,6 +144,8 @@ class OneActivityTest(unittest.TestCase):
         self.assertEqual(d["history"][0]["lines"][0]["text"], "追不到你哪句话")
         self.assertIn("拦下 1 次", d["historyNote"])
         self.assertEqual(d["chart"]["legend"][0]["count"], 1)
+        # the host draws bars on a time axis; a sentence count is not a duration
+        self.assertEqual(d["chart"]["bars"], [])
 
     def test_labels_tags_and_pills_fit_the_notch(self):
         for s, problems in ((summary(), ()), (with_change(), ()), (with_change(traced=False), ()),

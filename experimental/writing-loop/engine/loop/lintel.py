@@ -179,10 +179,12 @@ def _detail(summary, lc, bad, notices):
             {"label": "拦下", "value": str(len(notices)), "tone": "orange" if notices else None},
             {"label": "缺依据", "value": str(bad), "tone": "orange" if bad else None},
         ],
+        # 图表的柱是时长（宿主画的是时间轴）。改动集没有时长可画，只给图例和一句话；
+        # 09-21 真屏上把句数当秒数画进了「1时 / 1分 / 1秒」的轴，是误用。
         "chart": {
             "title": "改动集",
             "headline": _clip(f"{len(hist)} 个改动集里 {traced} 个追到你的话", 64),
-            "bars": [{"seconds": float(h["n"]), "swatch": IDENTITY if h["traced"] else "orange"} for h in reversed(hist)][:500],
+            "bars": [],
             "legend": [{"name": "追到", "count": traced, "swatch": IDENTITY},
                        {"name": "追不到", "count": len(hist) - traced, "swatch": "orange"}],
         },
