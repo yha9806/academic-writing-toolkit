@@ -55,8 +55,12 @@ def revision(a):
 
 #: 作者 09-18 定的身份色是靛蓝；登记表里也是 indigo（09-21 之前这里写 deepBlue，面板圆点与括号成了两种蓝）。
 IDENTITY = "indigo"
-#: 进度条里无出处的格子；只染标记不染字（channel-separation §3）。
+#: 进度条里「别处」的格子（窗口里没有你的消息：别的会话或你自己提交的，只是历史）；只染标记不染字。
 UNTRACED = "white28"
+#: 进度条里「对不上」的格子（窗口里有你的消息，没一条对上：Claude 改了你没让改的）——橙 = 要你看。
+UNMATCHED = "orange"
+#: 展开第一页放几行逐词改动（分镜 ㊱，作者 09-21 定三行）。
+DIFF_ROWS = 3
 #: 09-18 之前的产出一个稿件写六张卡；同一目录里遇到就删（它们的事现在都在一个活动里）。
 LEGACY_IDS = ("draft", "reply", "ledger", "triggers", "guard", "tool")
 
@@ -145,25 +149,54 @@ def _hm(t):
 KIND_WORD = {"added": "新增", "removed": "删去", "edited": "改写", "split": "拆分", "merge": "合并"}
 
 
+def origin(lc):
+    """Where a change set came from: traced to your message; untraced with your messages in the window but none matched
+    (Claude changed what you did not ask: 对不上); or untraced with no message of yours in the window (someone else's
+    commit, or your own: 别处). The author 09-21: only the middle one is worth an alert."""
+    if lc["traced"]:
+        return "traced"
+    return "unmatched" if lc.get("messages_in_window", 0) else "elsewhere"
+
+
+def _reason(lc):
+    o = origin(lc)
+    if o == "traced":
+        return "追到你的话"
+    if o == "unmatched":
+        return f"窗口里 {lc.get('messages_in_window', 0)} 条消息都对不上"
+    return "窗口里没有你的消息"
+
+
+def _headline(lc):
+    o = origin(lc)
+    if o == "traced":
+        return _fit(lc["label"], LABEL_MAX) if lc.get("label") else "改了"
+    return "改动无出处" if o == "unmatched" else "别处改了"
+
+
 def _body(lc):
-    """The expanded card, one page per section that exists (分镜 ㉙): your words only if traced, the reading only if
-    Claude wrote one, then the rows. No page says 「追不到」 or 「没有写」— an absent thing is not drawn.
-    Rows are 「label  sentence」; the kind word only when it is not a plain edit."""
+    """The expanded card (分镜 ㊱ ㊲, the author 09-21): the first page answers why · where · how many — a headline
+    (Claude's label, or what kind of change this is), the reason, then at most three word-diff rows (the host draws only
+    the changed words); whole sentences stay in the panel. Then 你说 (only if traced) and Claude 读成 (only if written).
+    No page says 「追不到」 or 「没有写」— an absent thing is not drawn."""
     if not lc:
         return []
-    items = []
-    for r in lc["rows"][:ROWS_SHOWN]:
-        text = detex(r["new"] or r["old"])
+    tone = {"traced": "white", "unmatched": "orange", "elsewhere": "white55"}[origin(lc)]
+    items = [{"kind": "para", "tone": tone, "text": _headline(lc)},
+             {"kind": "para", "tone": "white55", "text": _reason(lc)}]
+    for r in lc["rows"][:DIFF_ROWS]:
         word = KIND_WORD.get(r["kind"], r["kind"]) if r["kind"] not in ("edited", "moved") else ""
-        items.append({"kind": "para", "tone": "white85", "text": f"{r['label']}{' ' + word if word else ''}  {_clip(text, 110)}"})
-    if lc["n"] > ROWS_SHOWN:
-        items.append({"kind": "para", "tone": "white55", "text": f"…还有 {lc['n'] - ROWS_SHOWN} 句，在面板里"})
-    pages = []
+        item = {"kind": "diff", "label": f"{r['label']}{' ' + word if word else ''}", "new": _clip(detex(r["new"] or ""), 20000)}
+        if r["old"]:
+            item["old"] = _clip(detex(r["old"]), 20000)
+        items.append(item)
+    if lc["n"] > DIFF_ROWS:
+        items.append({"kind": "para", "tone": "white55", "text": f"…还有 {lc['n'] - DIFF_ROWS} 句，在面板里"})
+    pages = [{"kind": "section", "title": "改了", "items": items}]
     if lc["traced"] and lc["verbatim"]:
         pages.append({"kind": "section", "title": "你说", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["verbatim"], 140)}]})
     if lc["reading"]:
         pages.append({"kind": "section", "title": "Claude 读成", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["reading"], 140)}]})
-    pages.append({"kind": "section", "title": "改了", "items": items})
     return pages
 
 
@@ -189,10 +222,13 @@ def _rows(h, names):
 FOLD_MAX = 16
 
 
+FOLD_WORD = {"unmatched": "△ 对不上", "elsewhere": "别处"}
+
+
 def _history(hist, names):
-    """The panel timeline (分镜 ㉚): a traced change set is its own row (your words, the count as the badge, the commit
-    as the dim trailing text, the sentence rows when opened); consecutive untraced ones fold into one row
-    「无出处 ×k · N 句」 that opens to one line per change set. Nothing says 「追不到你哪句话」 twice."""
+    """The panel timeline (分镜 ㉚ ㊴): a traced change set is its own row (your words, the count as the badge, the commit
+    as the dim trailing text, the sentence rows when opened); consecutive untraced ones of the same kind fold into one
+    row 「△ 对不上 ×k」 or 「别处 ×k」 that opens to one line per change set."""
     out = []
     i = 0
     while i < len(hist):
@@ -204,10 +240,11 @@ def _history(hist, names):
                         "rows": _rows(h, names) or None})
             i += 1
             continue
+        kind_ = origin(h)
         run = []
-        while i < len(hist) and not hist[i]["traced"] and len(run) < FOLD_MAX:
+        while i < len(hist) and not hist[i]["traced"] and origin(hist[i]) == kind_ and len(run) < FOLD_MAX:
             run.append(hist[i]); i += 1
-        out.append({"id": f"fold-{run[0]['id']}", "tag": f"无出处 ×{len(run)}", "badge": f"{sum(r['n'] for r in run)} 句",
+        out.append({"id": f"fold-{run[0]['id']}", "tag": f"{FOLD_WORD[kind_]} ×{len(run)}", "badge": f"{sum(r['n'] for r in run)} 句",
                     "at": _iso(run[0]["time"]) if run[0]["time"] else None, "expandable": True, "lines": [],
                     "rows": [{"label": r["id"][:7], "where": _clip(f"{r['n']} 句 · {_hm(r['time'])}", 256), "copy": r["id"],
                               "new": _clip(detex(r.get("subject") or ""), 200) or "（没有提交信息）"} for r in run]})
@@ -221,18 +258,22 @@ def _detail(summary, lc, bad, notices):
     names = summary.get("section_names") or {}
     traced = sum(1 for h in hist if h["traced"])
     if lc:
-        head = f"{lc['n']} 句 · " + ("已追到" if lc["traced"] else "无出处")
+        head = f"{lc['n']} 句 · " + {"traced": "已追到", "unmatched": "对不上", "elsewhere": "别处"}[origin(lc)]
     else:
         head = "没有改动"
+    cell = {"traced": IDENTITY, "unmatched": UNMATCHED, "elsewhere": UNTRACED}
+    kinds = [origin(h) for h in hist[:500]]
     return {
         "listTitle": _clip(f"{summary['name']} · {head}", 64),
         "dot": IDENTITY,
         "history": _history(hist[:500], names),
         "historyNote": _clip(f"有空再看：拦下 {len(notices)} 次 · 缺依据 {bad} 条", 64),
+        # 进度按改动集（作者 09-21），三色：追到靛蓝、对不上橙、别处灰。
         "strip": {"title": "改动集 · 旧 → 新",
-                  "cells": [IDENTITY if h["traced"] else UNTRACED for h in reversed(hist[:500])],
+                  "cells": [cell[k] for k in reversed(kinds)],
                   "legend": [{"name": "追到", "count": traced, "swatch": IDENTITY},
-                             {"name": "无出处", "count": len(hist) - traced, "swatch": UNTRACED}]},
+                             {"name": "对不上", "count": kinds.count("unmatched"), "swatch": UNMATCHED},
+                             {"name": "别处", "count": kinds.count("elsewhere"), "swatch": UNTRACED}]},
         "stats": [
             {"label": "追到", "value": f"{traced}/{len(hist)}"},
             {"label": "拦下", "value": str(len(notices)), "tone": "orange" if notices else None},
@@ -261,14 +302,18 @@ def build(summary, *, now, problems=(), notices=()):
         popup = [("谁说的", "工具", "secondary", 1), ("跑挂了", text, "warning", 2)]
         events.append((f"tool-broken:{_sha(text)}", "tool-broken"))
     elif lc and not lc["traced"]:
-        # Time Sensitive（P2）：改了，但不知道因为你哪句话。橙 = 要你看；胶囊保留 △（作者 09-21）。
-        # 弹出卡两行：改了哪几句，和为什么追不到——不写「追不到你哪句话」「没有写读成」这种否定句。
-        label, tone, center, rank, flagged = "改动无出处", "orange", "flagged", "event", True
-        count, tag, pill = n, f"{n} 句", f"{n} △"
-        k = lc.get("messages_in_window", 0)
-        popup = [("改了", sections(lc), "primary", 1),
-                 ("无出处", "窗口里没有你的消息" if not k else f"窗口里 {k} 条消息都对不上", "warning", 1)]
-        events.append((f"drift:{lc['id']}", "drift"))
+        if origin(lc) == "unmatched":
+            # Time Sensitive（P2）：窗口里有你的消息，没一条对上 = Claude 改了你没让改的。橙 = 要你看；胶囊保留 △（作者 09-21）。
+            label, tone, center, rank, flagged = "改动无出处", "orange", "flagged", "event", True
+            count, tag, pill = n, f"{n} 句", f"{n} △"
+            popup = [("改了", sections(lc), "primary", 1), ("无出处", _reason(lc), "warning", 1)]
+            events.append((f"drift:{lc['id']}", "drift"))
+        else:
+            # Active（P2）：窗口里没有你的消息 = 别的会话或你自己提交的，只是历史（分镜 ㊳，作者 09-21）。翼换字、不弹、灰。
+            label, tone, center, rank, flagged = "别处改了", "white55", "idle", "event", False
+            count, tag, pill = n, f"{n} 句", str(n)
+            popup = [("改了", sections(lc), "primary", 1), ("别处", _reason(lc), "secondary", 1)]
+            events.append((f"changed:{lc['id']}", "changed"))
     elif lc:
         # Active（P2）：右翼 = 为什么改（Claude 在解释块里写的 ≤6 字，没有就「改了」），小数字 = 几句。changed 不弹。
         label = _fit(lc["label"], LABEL_MAX) if lc.get("label") else "改了"

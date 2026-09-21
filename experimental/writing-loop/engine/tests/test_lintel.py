@@ -87,17 +87,27 @@ class OneActivityTest(unittest.TestCase):
         self.assertEqual(a["pill"]["title"], "15")
 
     def test_an_untraced_change_is_time_sensitive(self):
-        a = only(L.build(with_change(traced=False), now=NOW))
+        # 分镜 ㊳（作者 09-21）：窗口里有你的消息但没一条对上 = Claude 改了你没让改的 → Time Sensitive
+        s = with_change(traced=False); s["latest_changeset"]["messages_in_window"] = 3
+        a = only(L.build(s, now=NOW))
         self.assertEqual(a["label"]["text"], "改动无出处")
         self.assertTrue(a["flagged"])
         self.assertEqual(a["status"]["center"], "flagged")
         self.assertEqual([e["type"] for e in a["events"]], ["drift"])
-        # 弹出两行：改了哪几句、为什么追不到；没有「追不到你哪句话」「没有写读成」这种否定句（分镜 ㉗）
         self.assertEqual([p["label"] for p in a["popup"]], ["改了", "无出处"])
-        self.assertEqual(a["popup"][1]["text"], "窗口里没有你的消息")
+        self.assertEqual(a["popup"][1]["text"], "窗口里 3 条消息都对不上")
         self.assertEqual((a["label"]["count"], a["pill"]["title"]), (15, "15 △"))   # 胶囊保留 △（作者 09-21）
-        s = with_change(traced=False); s["latest_changeset"]["messages_in_window"] = 3
-        self.assertEqual(only(L.build(s, now=NOW))["popup"][1]["text"], "窗口里 3 条消息都对不上")
+
+    def test_a_change_with_no_message_of_yours_in_the_window_is_history_not_an_alert(self):
+        # 分镜 ㊳：窗口里没有你的消息 = 别的会话或你自己提交的；翼换字、不弹、灰、changed
+        a = only(L.build(with_change(traced=False), now=NOW))
+        self.assertEqual((a["label"]["text"], a["label"]["tone"], a["label"]["count"]), ("别处改了", "white55", 15))
+        self.assertFalse(a["flagged"])
+        self.assertEqual((a["rank"], a["status"]["center"]), ("event", "idle"))
+        self.assertEqual([e["type"] for e in a["events"]], ["changed"])
+        self.assertEqual([p["label"] for p in a["popup"]], ["改了", "别处"])
+        self.assertEqual(a["popup"][1]["text"], "窗口里没有你的消息")
+        self.assertEqual(a["pill"]["title"], "15")
 
     def test_a_fault_outranks_a_change(self):
         a = only(L.build(with_change(), now=NOW, problems=["索引：读不出"]))
@@ -123,25 +133,36 @@ class OneActivityTest(unittest.TestCase):
         self.assertEqual(a["body"], [])
 
     def test_expanded_card_shows_your_words_the_reading_and_the_rows(self):
-        a = only(L.build(with_change(n=15), now=NOW))
-        self.assertEqual([b["title"] for b in a["body"]], ["你说", "Claude 读成", "改了"])   # 页标题不带数（数在耳朵）
-        rows = a["body"][2]["items"]
-        self.assertEqual(len(rows), L.ROWS_SHOWN + 1)
-        self.assertIn(f"还有 {15 - L.ROWS_SHOWN} 句", rows[-1]["text"])
-        self.assertNotIn("badge", a["body"][2])
-        self.assertEqual(rows[0]["text"], "X0  new 0")                       # 改写不写「改写」
-        # 有几页画几页（分镜 ㉙）：无出处只有「改了」；没有读法就没有「Claude 读成」
+        # 分镜 ㊱（作者 09-21）：第一页 = 理由 · 原因 · 三行逐词；页序 改了 → 你说 → 读成；整句留面板
+        a = only(L.build(with_change(n=15, label="colSmol 说反"), now=NOW))
+        self.assertEqual([b["title"] for b in a["body"]], ["改了", "你说", "Claude 读成"])
+        items = a["body"][0]["items"]
+        self.assertEqual((items[0]["text"], items[0]["tone"]), ("colSmol 说反", "white"))
+        self.assertEqual(items[1]["text"], "追到你的话")
+        self.assertEqual([i["kind"] for i in items[2:2 + L.DIFF_ROWS]], ["diff"] * L.DIFF_ROWS)
+        self.assertEqual({k: items[2][k] for k in ("label", "old", "new")}, {"label": "X0", "old": "old 0", "new": "new 0"})   # 改写不写「改写」
+        self.assertIn(f"还有 {15 - L.DIFF_ROWS} 句", items[-1]["text"])
+        self.assertNotIn("badge", a["body"][0])
+        # 没有 Claude 标签时理由行是「改了」；有几页画几页（分镜 ㉙）
+        self.assertEqual(only(L.build(with_change(label=None), now=NOW))["body"][0]["items"][0]["text"], "改了")
         self.assertEqual([b["title"] for b in only(L.build(with_change(traced=False), now=NOW))["body"]], ["改了"])
-        self.assertEqual([b["title"] for b in only(L.build(with_change(reading=None), now=NOW))["body"]], ["你说", "改了"])
-        s = with_change(n=2); s["latest_changeset"]["rows"][1]["kind"] = "added"
-        self.assertEqual(only(L.build(s, now=NOW))["body"][2]["items"][1]["text"], "X1 新增  new 1")
+        self.assertEqual([b["title"] for b in only(L.build(with_change(reading=None), now=NOW))["body"]], ["改了", "你说"])
+        s = with_change(n=2); s["latest_changeset"]["rows"][1]["kind"] = "added"; s["latest_changeset"]["rows"][1]["old"] = ""
+        added = only(L.build(s, now=NOW))["body"][0]["items"][3]
+        self.assertEqual((added["label"], added["new"]), ("X1 新增", "new 1")); self.assertNotIn("old", added)
+        # 无出处两种的理由行
+        e = only(L.build(with_change(traced=False), now=NOW))["body"][0]["items"]
+        self.assertEqual((e[0]["text"], e[0]["tone"], e[1]["text"]), ("别处改了", "white55", "窗口里没有你的消息"))
+        s = with_change(traced=False); s["latest_changeset"]["messages_in_window"] = 2
+        u = only(L.build(s, now=NOW))["body"][0]["items"]
+        self.assertEqual((u[0]["text"], u[0]["tone"], u[1]["text"]), ("改动无出处", "orange", "窗口里 2 条消息都对不上"))
 
     def test_rows_are_shown_as_the_reader_sees_them_not_as_latex(self):
         self.assertEqual(L.detex("from $48.4\\times$ chance to $1.6\\times$, $1{,}632$ plates, $23.5\\%$"),
                          "from 48.4× chance to 1.6×, 1,632 plates, 23.5%")
         s = with_change(n=1)
         s["latest_changeset"]["rows"][0]["new"] = "Recall@10 is $17$ of $18$"
-        self.assertIn("Recall@10 is 17 of 18", L.build(s, now=NOW)[0]["body"][2]["items"][0]["text"])
+        self.assertEqual(L.build(s, now=NOW)[0]["body"][0]["items"][2]["new"], "Recall@10 is 17 of 18")
 
     def test_the_flip_row_names_the_activity_not_a_missing_tag(self):
         # 耳朵与翻页行的第二格是改到的节（短名来自登记表 draft.sections[].short），不是提交号（作者 09-21）
@@ -160,7 +181,7 @@ class OneActivityTest(unittest.TestCase):
         # 分镜 ㉚：无出处折成一行（点开才摊），追到的一行 = 你说 + 句数徽章 + 行尾提交号
         self.assertEqual([h["id"] for h in d["history"]], ["fold-b", "a"])
         fold, one = d["history"]
-        self.assertEqual((fold["tag"], fold["badge"], fold["lines"]), ("无出处 ×1", "2 句", []))
+        self.assertEqual((fold["tag"], fold["badge"], fold["lines"]), ("别处 ×1", "2 句", []))
         self.assertEqual([(r["label"], r["copy"]) for r in fold["rows"]], [("b", "b")])
         self.assertTrue(fold["rows"][0]["where"].startswith("2 句 · "))
         self.assertEqual((one["badge"], one["duration"], one["lines"][0]["text"]), ("15 句", "a", "改 §5.5"))
@@ -169,7 +190,7 @@ class OneActivityTest(unittest.TestCase):
         # 进度按改动集（作者 09-21）：一格一个，旧 → 新；图表卡没有了；数据条只剩三格
         self.assertNotIn("chart", d)
         self.assertEqual(d["strip"]["cells"], [L.IDENTITY, L.UNTRACED])
-        self.assertEqual([(k["name"], k["count"]) for k in d["strip"]["legend"]], [("追到", 1), ("无出处", 1)])
+        self.assertEqual([(k["name"], k["count"]) for k in d["strip"]["legend"]], [("追到", 1), ("对不上", 0), ("别处", 1)])
         self.assertEqual([c["label"] for c in d["stats"]], ["追到", "拦下", "缺依据"])
         self.assertEqual(d["listTitle"], "ws · 15 句 · 已追到")
 
@@ -178,9 +199,19 @@ class OneActivityTest(unittest.TestCase):
         s["history"] = [{"id": f"u{i:02d}", "time": NOW - i, "n": 1, "traced": False, "verbatim": None, "status": "none", "subject": f"s {i}"}
                         for i in range(20)]
         d = only(L.build(s, now=NOW))["detail"]
-        self.assertEqual([(h["tag"], len(h["rows"])) for h in d["history"]], [("无出处 ×16", 16), ("无出处 ×4", 4)])
+        self.assertEqual([(h["tag"], len(h["rows"])) for h in d["history"]], [("别处 ×16", 16), ("别处 ×4", 4)])
         self.assertEqual(d["history"][0]["rows"][0]["new"], "s 0")
         self.assertEqual(d["strip"]["cells"], [L.UNTRACED] * 20)
+
+    def test_unmatched_and_elsewhere_fold_separately_and_colour_the_strip_differently(self):
+        s = with_change()
+        mk = lambda i, k: {"id": f"c{i}", "time": NOW - i, "n": 1, "traced": False, "verbatim": None, "status": "none", "subject": "x", "messages_in_window": k}
+        s["history"] = [mk(0, 2), mk(1, 1), mk(2, 0), mk(3, 0), mk(4, 0), mk(5, 3)]   # newest first
+        d = only(L.build(s, now=NOW))["detail"]
+        self.assertEqual([(h["tag"], h["badge"]) for h in d["history"]], [("△ 对不上 ×2", "2 句"), ("别处 ×3", "3 句"), ("△ 对不上 ×1", "1 句")])
+        self.assertEqual(d["strip"]["cells"], [L.UNMATCHED, L.UNTRACED, L.UNTRACED, L.UNTRACED, L.UNMATCHED, L.UNMATCHED])   # 旧 → 新
+        self.assertEqual([(k["name"], k["count"]) for k in d["strip"]["legend"]], [("追到", 0), ("对不上", 3), ("别处", 3)])
+        self.assertEqual(d["listTitle"], "ws · 15 句 · 已追到")
 
     def test_identity_is_the_registry_indigo(self):
         self.assertEqual(L.IDENTITY, "indigo")
