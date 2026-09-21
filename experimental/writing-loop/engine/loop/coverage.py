@@ -182,6 +182,9 @@ def script_hash(check):
     """The check's scripts and everything beside them: a skill's scripts directory is hashed whole, because a
     script's behaviour lives in the libraries it imports from there too."""
     h = hashlib.sha1()
+    if check.get("project"):
+        # A project check's "script" is its definition in the workspace: a changed command is a different check.
+        h.update(json.dumps(check.get("definition"), sort_keys=True, ensure_ascii=False).encode())
     for s in check["scripts"]:
         p = K.script_path(s)
         files = [p] if (Path(s).is_absolute() or s.startswith("scripts/")) else \

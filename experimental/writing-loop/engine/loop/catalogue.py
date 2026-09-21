@@ -279,6 +279,7 @@ def project_checks(cfg):
     for p in cfg.get("project_checks") or []:
         argv = list(p["argv"])
         out.append({"id": p["id"], "name": p.get("name") or p["id"], "kind": "script", "project": True,
+                    "definition": dict(p),
                     "auto": bool(p.get("auto", False)), "timeout": int(p.get("timeout", 900)), "scripts": [],
                     "formats": ["latex", "markdown"], "instead": {}, "scope": {"kind": "tree"}, "needs": [],
                     "inputs": _none, "outside": _no_outside, "argv": (lambda ctx, argv=argv: argv)})

@@ -444,6 +444,16 @@ class ProjectCheckTest(unittest.TestCase):
             reindex(ws)
             self.assertEqual(status(V.compute(cfg, ws), "build")["status"], V.STALE, "a figure is part of the build")
 
+    def test_changing_a_project_checks_command_makes_its_old_result_stale(self):
+        with TempDir() as root:
+            repo, ws, cfg = self.ws_with_check(root, code="1")
+            V.compute(cfg, ws, do_run=True, only={"build"})
+            cfg["project_checks"][0]["argv"] = [sys.executable, "-c", "pass"]
+            r = status(V.compute(cfg, ws), "build")
+            self.assertTrue(r.get("due"), "a failed result under an old command must be re-run")
+            s = V.compute(cfg, ws, do_run=True, only={"build"})
+            self.assertEqual(status(s, "build")["status"], V.OK)
+
     def test_a_project_check_that_exits_non_zero_is_a_failure(self):
         with TempDir() as root:
             repo, ws, cfg = self.ws_with_check(root, code="1")
