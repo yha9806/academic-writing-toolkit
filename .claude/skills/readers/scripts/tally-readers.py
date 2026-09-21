@@ -36,6 +36,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 # AWT_LOOP_ENGINE: the engine copy a mutation run is testing; otherwise the one in this checkout.
 ENGINE = Path(os.environ.get("AWT_LOOP_ENGINE") or ROOT / "experimental" / "writing-loop" / "engine")
+# The panel the method was calibrated on: two personas x two models x two samples. --min-readers may raise it.
+MIN_PANEL = 8
+MIN_JUDGES = 2
 NAME = re.compile(r"^(?P<persona>[A-Za-z0-9]+)_(?P<model>[A-Za-z0-9.\-]+)_(?P<n>\d+)\.json$")
 HIT = {"✓": "hit", "hit": "hit", "△": "partial", "partial": "partial", "✗": "miss", "miss": "miss"}
 LIMITS = [
@@ -70,12 +73,12 @@ def load_panel(packet_path, outputs_dir):
         packet = json.loads(Path(packet_path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         die(f"packet unreadable: {e}")
-    readers, rejected = [], []
+    readers, rejected, seen = [], [], {}
     for f in sorted(Path(outputs_dir).glob("*.json")):
         m = NAME.match(f.name)
         try:
             data = chk.parse(f.read_text(encoding="utf-8"))
-            why = chk.problems(data, packet)
+            why = chk.problems(data, packet) + chk.duplicate_of(data, f.name, seen)
         except (OSError, ValueError) as e:
             data, why = None, [f"unreadable: {e}"]
         if not m:
@@ -115,12 +118,13 @@ def carried(judgments, readers):
             v = judgments.get((r, p))
             if not v:
                 continue
-            j += 1
             vals = list(v.values())
-            if len(vals) > 1:
-                pairs += 1
-                agree += len(set(vals)) == 1
-            c += all(x == "hit" for x in vals) and len(vals) >= 1
+            if len(vals) < MIN_JUDGES:
+                continue  # one judge's reading is not a judgment here; the pair counts as not judged
+            j += 1
+            pairs += 1
+            agree += len(set(vals)) == 1
+            c += all(x == "hit" for x in vals)
         out[p] = {"carried": c, "judged": j}
     return out, (agree / pairs if pairs else None)
 
@@ -174,7 +178,10 @@ def report(packet, readers, rejected, t, hits, agreement, shape, compare):
     if rejected:
         L += ["不合格、没计入的输出：", *[f"- {r['file']}：{'; '.join(r['problems'])}" for r in rejected], ""]
     L += ["## 记忆点（判定者判，不是机器判）"]
-    if hits is None:
+    if hits is not None and not any(v["judged"] for v in hits.values()):
+        hits = None
+        L.append(f"未判：每对「读者 × 记忆点」要 {MIN_JUDGES} 位判定者，给的判定不够。这里不报命中。")
+    elif hits is None:
         L.append("未判：没有给 --judgments。这里不报命中。")
     else:
         for p, v in hits.items():
@@ -211,7 +218,7 @@ def record(packet, readers, shape, hits):
     from loop import coverage as V  # noqa: E402
     if shape[0]:
         verdict, summary = "failed", "面板不全：" + "；".join(shape[0])
-    elif hits is None:
+    elif hits is None or not any(v["judged"] for v in hits.values()):
         verdict, summary = "findings", f"{len(readers)} 位读者；记忆点未判"
     else:
         verdict = "findings"
@@ -254,7 +261,7 @@ def main(argv=None):
             c = (chits or {}).get(p)
             if c and v["judged"] and c["judged"]:
                 compare[p] = {**c, "p": fisher_two_sided(v["carried"], v["judged"], c["carried"], c["judged"])}
-    shape = panel_shape(readers, a.min_readers)
+    shape = panel_shape(readers, max(a.min_readers, MIN_PANEL))
     text = report(packet, readers, rejected, t, hits, agreement, shape, compare)
     out = Path(a.packet).parent / "report.md"
     out.write_text(text, encoding="utf-8")

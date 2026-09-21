@@ -40,7 +40,9 @@ report.
 
 2. Open the readers as sub-agents: two personas (`prompt_R1.txt`, `prompt_R2.txt`) × two models (a small and a
    larger one) × two samples = eight. Give each sub-agent the prompt file's content verbatim and nothing else. Save
-   each reply unedited as `<dir>/outputs/<persona>_<model>_<n>.json`, e.g. `R1_haiku_1.json`.
+   each reply unedited as `<dir>/outputs/<persona>_<model>_<n>.json`, e.g. `R1_haiku_1.json`. Each reply carries
+   the packet id the prompt names; a reply for another packet, or a copy of another reply, is rejected. Rebuild the
+   packet into a new directory for a new version rather than over an old one.
 
 3. Check the outputs; an incomplete output is not a reading and is named, not repaired:
 
@@ -50,7 +52,8 @@ report.
 
 4. Judge the intent points. Two judges, independently: you, and a separate sub-agent given the readers' `remember`
    and directed answers with the reader names shuffled and the version not named. Each writes
-   `reader<TAB>point<TAB>judge<TAB>✓|△|✗` rows to `<dir>/judgments.tsv`. Judges who disagree count as not carried.
+   `reader<TAB>point<TAB>judge<TAB>✓|△|✗` rows to `<dir>/judgments.tsv`. A reader carries a point only when at
+   least two judges wrote ✓; judges who disagree count as not carried, and a pair with one judge is not judged.
 
 5. Tally, and record the run in the workspace:
 

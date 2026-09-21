@@ -57,8 +57,8 @@ After the last paragraph report:
 - "writing_got_in_way": anything about how it is written that got in your way (or "nothing")
 {directed_block}- "outside_knowledge": any knowledge you used that is not in the text (or "none"). Report this last.
 
-Output ONLY one JSON object with the keys paragraphs, remember, why_accept, closest_prior_work, reuse,
-writing_got_in_way{directed_keys}, outside_knowledge, where paragraphs is a list of
+Output ONLY one JSON object with the keys packet, paragraphs, remember, why_accept, closest_prior_work, reuse,
+writing_got_in_way{directed_keys}, outside_knowledge, where packet is exactly "{packet_id}" and paragraphs is a list of
 {{"p": 1, "believe": "...", "expect": "...", "reread": [], "guessed": []}}. No other text.
 
 MANUSCRIPT
@@ -243,13 +243,17 @@ def main(argv=None):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "manuscript.txt").write_text(manuscript + "\n", encoding="utf-8")
+    # The packet id travels through every reader's output, so an output written for another version of the text
+    # cannot be tallied against this one.
+    packet_id = sha(json.dumps([manuscript, questions, sorted(PERSONAS.items()), venue]))[:12]
     prompts = {}
     for pid, persona in PERSONAS.items():
         text = INSTRUCTIONS.format(persona=persona, venue=venue, directed_block=directed_block,
-                                   directed_keys=directed_keys, manuscript=manuscript)
+                                   directed_keys=directed_keys, manuscript=manuscript, packet_id=packet_id)
         (out / f"prompt_{pid}.txt").write_text(text, encoding="utf-8")
         prompts[pid] = {"file": f"prompt_{pid}.txt", "sha1": sha(text)}
-    packet = {"schema": 1, "created_at": dt.datetime.now(dt.timezone.utc).isoformat(), "source": source,
+    packet = {"schema": 1, "packet_id": packet_id, "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+              "source": source,
               "paragraphs": rendered, "questions": questions, "personas": PERSONAS, "prompts": prompts,
               "unknown_citation_keys": sorted(unknown), "snapshot": snap}
     (out / "packet.json").write_text(json.dumps(packet, ensure_ascii=False, indent=1), encoding="utf-8")

@@ -22,8 +22,9 @@ def script(name, *args):
     return subprocess.run([sys.executable, str(SCRIPTS / name), *map(str, args)], capture_output=True, text=True)
 
 
-def reader_output(packet, **drop):
-    out = {"paragraphs": [{"p": p["p"], "believe": "It audits bridges.", "expect": "Methods.", "reread": [],
+def reader_output(packet, who="R1_small_1", **drop):
+    out = {"packet": packet["packet_id"],
+           "paragraphs": [{"p": p["p"], "believe": f"It audits bridges ({who}).", "expect": "Methods.", "reread": [],
                            "guessed": ["gauge"]} for p in packet["paragraphs"]],
            "remember": ["bridges fail slowly", "inspections are rare", "gauges read 12"],
            "why_accept": "A cheap audit.", "closest_prior_work": "infrastructure surveys",
@@ -48,7 +49,7 @@ def panel(root, packet, bad=()):
             for n in (1, 2):
                 name = f"{persona}_{model}_{n}"
                 drop = {bad[name]: True} if name in bad else {}
-                (d / f"{name}.json").write_text(json.dumps(reader_output(packet, **drop)), encoding="utf-8")
+                (d / f"{name}.json").write_text(json.dumps(reader_output(packet, name, **drop)), encoding="utf-8")
     return d
 
 
@@ -163,6 +164,42 @@ class ReadersTest(unittest.TestCase):
             row = next(x for x in V.compute(C.load(ws), ws)["rows"] if x["id"] == "readers")
             self.assertEqual(row["status"], V.FAILED)
             self.assertIn("少于 8", row["detail"])
+
+    def test_an_output_for_another_packet_or_a_copy_is_not_a_reader(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            stale = reader_output({**packet, "packet_id": "0ld0ld0ld0ld"}, "R1_small_1")
+            (d / "R1_small_1.json").write_text(json.dumps(stale), encoding="utf-8")
+            (d / "R2_large_2.json").write_text((d / "R2_large_1.json").read_text(encoding="utf-8"), encoding="utf-8")
+            r = script("check-reader-output.py", "--packet", out / "packet.json", "--outputs", d)
+            self.assertIn("qualified 6 of 8", r.stdout)
+            self.assertIn("R1_small_1.json: written for packet", r.stdout)
+            self.assertIn("R2_large_2.json: identical to R2_large_1.json", r.stdout)
+
+    def test_the_eight_reader_floor_cannot_be_lowered_and_one_judge_is_not_a_judgment(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            card = Path(root) / "card.md"
+            card.write_text("M1\n", encoding="utf-8")
+            cfg["target"] = {"intent_card": str(card)}
+            C.save(ws, cfg)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            j = Path(root) / "j.tsv"
+            j.write_text("".join(f"{p}_{m}_{n}\tM1\tmain\t✓\n" for p in ("R1", "R2") for m in ("small", "large")
+                                 for n in (1, 2)), encoding="utf-8")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--judgments", j, "--json").stdout)
+            self.assertEqual(got["carried"]["M1"], {"carried": 0, "judged": 0}, "one judge is not a judgment")
+            self.assertIn("未判", (out / "report.md").read_text(encoding="utf-8"))
+            for f in list(d.glob("*_2.json")):
+                f.rename(f.with_suffix(".skipped"))
+            script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d, "--min-readers", "2")
+            row = next(x for x in V.compute(C.load(ws), ws)["rows"] if x["id"] == "readers")
+            self.assertEqual(row["status"], V.FAILED, "--min-readers cannot lower the calibrated floor")
 
     def test_nothing_qualified_to_tally_exits_2(self):
         with TempDir() as root:

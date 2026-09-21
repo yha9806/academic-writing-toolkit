@@ -39,6 +39,8 @@ def problems(data, packet):
     out = []
     if not isinstance(data, dict):
         return ["not a JSON object"]
+    if data.get("packet") != packet.get("packet_id"):
+        out.append(f"written for packet {data.get('packet')!r}, not this one ({packet.get('packet_id')!r})")
     paras = data.get("paragraphs")
     want = [p["p"] for p in packet["paragraphs"]]
     if not isinstance(paras, list):
@@ -70,6 +72,15 @@ def problems(data, packet):
     return out
 
 
+def duplicate_of(data, name, seen):
+    """An output identical to one already read is a copy, not another reader."""
+    key = json.dumps(data, sort_keys=True, ensure_ascii=False)
+    if key in seen:
+        return [f"identical to {seen[key]}"]
+    seen[key] = name
+    return []
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--packet", required=True)
@@ -91,11 +102,11 @@ def main(argv=None):
         files += sorted(Path(a.outputs).glob("*.json"))
     if not files:
         die("no reader output to check: nothing examined is not a pass")
-    rows = []
+    rows, seen = [], {}
     for f in files:
         try:
             data = parse(f.read_text(encoding="utf-8"))
-            why = problems(data, packet)
+            why = problems(data, packet) + duplicate_of(data, f.name, seen)
         except (OSError, ValueError) as e:
             why = [f"unreadable: {e}"]
         rows.append({"file": f.name, "qualified": not why, "problems": why})

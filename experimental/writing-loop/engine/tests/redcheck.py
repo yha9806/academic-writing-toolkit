@@ -17,6 +17,14 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'skill:readers/scripts/check-reader-output.py', '    if data.get("packet") != packet.get("packet_id"):', '    if False:',
+     'test_readers.ReadersTest.test_an_output_for_another_packet_or_a_copy_is_not_a_reader'),
+    ("cov", 'skill:readers/scripts/check-reader-output.py', '        return [f"identical to {seen[key]}"]', '        return []',
+     'test_readers.ReadersTest.test_an_output_for_another_packet_or_a_copy_is_not_a_reader'),
+    ("cov", 'skill:readers/scripts/tally-readers.py', '    shape = panel_shape(readers, max(a.min_readers, MIN_PANEL))', '    shape = panel_shape(readers, a.min_readers)',
+     'test_readers.ReadersTest.test_the_eight_reader_floor_cannot_be_lowered_and_one_judge_is_not_a_judgment'),
+    ("cov", 'skill:readers/scripts/tally-readers.py', '            if len(vals) < MIN_JUDGES:\n                continue', '            if False:\n                continue',
+     'test_readers.ReadersTest.test_the_eight_reader_floor_cannot_be_lowered_and_one_judge_is_not_a_judgment'),
     ("cov", 'coverage.py', '    got = H._draft_at(cfg, head)', '    got = sorted(n for n in (_git(cfg["repo"], "ls-tree", "-r", "--name-only", head) or "").splitlines() if fnmatch.fnmatch(n, cfg["draft"]["glob"]))',
      'test_coverage.GrillTest.test_a_glob_draft_is_checked_on_the_one_file_the_index_tracks'),
     ("cov", 'coverage.py', '    if kind == "all":\n        return {f: _git(', '    if False:\n        return {f: _git(',
@@ -63,7 +71,7 @@ MUTATIONS = [
      'test_lintel.CoverageStatTest.test_checks_needing_attention_are_counted_and_none_is_quiet'),
     ("cov", 'lintel.py', '        return [{"label": "检查", "value": "没算过", "tone": "orange"}]', '        return [{"label": "检查待办", "value": "0"}]',
      'test_lintel.CoverageStatTest.test_a_workspace_never_computed_says_so_in_orange'),
-    ("cov", 'skill:readers/scripts/tally-readers.py', 'c += all(x == "hit" for x in vals) and len(vals) >= 1', 'c += any(x == "hit" for x in vals)',
+    ("cov", 'skill:readers/scripts/tally-readers.py', '            c += all(x == "hit" for x in vals)', '            c += any(x == "hit" for x in vals)',
      'test_readers.ReadersTest.test_a_full_panel_is_recorded_as_the_current_reading_until_an_in_scope_edit'),
     ("cov", 'skill:readers/scripts/tally-readers.py', '    if len(readers) < min_readers:', '    if False:',
      'test_readers.ReadersTest.test_fewer_than_eight_readers_is_a_failure_even_with_both_personas_and_models'),
