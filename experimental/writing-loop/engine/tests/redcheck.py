@@ -236,7 +236,7 @@ MUTATIONS = [
      'test_overview.AlignmentTest.test_an_action_the_panel_did_not_offer_writes_nothing'),
     ('overview', 'overview.py', '            args += ["--credits", str(cpath)]', '            pass',
      'test_overview.AlignmentTest.test_marking_a_method_credit_takes_the_sentence_out_of_missing'),
-    ('overview', 'overview.py', 'cells.append({"title": "稿件仓 issue", "text": "取不到", "sub": "gh 没登录或断网，不写数"})',
+    ('overview', 'overview.py', 'cells.append({"title": "稿件仓 issue", "text": "取不到", "value": "取不到", "sub": "gh 没登录或断网，不写数"})',
      'cells.append({"title": "稿件仓 issue", "text": "已关 0 / 共 0", "sub": ""})',
      'test_overview.TodoTest.test_issues_that_cannot_be_asked_say_so_instead_of_zero'),
     ('overview', 'inbox.py', '        if _kind(p) == "action":\n            continue', '        if False:\n            continue',
