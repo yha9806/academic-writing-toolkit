@@ -118,8 +118,19 @@ class OneActivityTest(unittest.TestCase):
         self.assertEqual([b["title"] for b in a["body"]], ["你说", "Claude 读成", "改了 · 15 行"])
         rows = a["body"][2]["items"]
         self.assertEqual(len(rows), L.ROWS_SHOWN + 1)
-        self.assertIn("还有 3 行", rows[-1]["text"])
+        self.assertIn(f"还有 {15 - L.ROWS_SHOWN} 行", rows[-1]["text"])
         self.assertEqual(a["body"][2]["badge"], "X6.2、X7.2")
+
+    def test_rows_are_shown_as_the_reader_sees_them_not_as_latex(self):
+        self.assertEqual(L.detex("from $48.4\\times$ chance to $1.6\\times$, $1{,}632$ plates, $23.5\\%$"),
+                         "from 48.4× chance to 1.6×, 1,632 plates, 23.5%")
+        s = with_change(n=1)
+        s["latest_changeset"]["rows"][0]["new"] = "Recall@10 is $17$ of $18$"
+        self.assertIn("Recall@10 is 17 of 18", L.build(s, now=NOW)[0]["body"][2]["items"][0]["text"])
+
+    def test_the_flip_row_names_the_activity_not_a_missing_tag(self):
+        a = only(L.build(with_change(label="colSmol 说反"), now=NOW))
+        self.assertEqual(a["flip"], {"title": "colSmol 说反", "subtitle": "ws", "phase": "a066846"})
 
     def test_panel_lists_every_changeset_newest_first_with_the_passive_note(self):
         s = with_change()

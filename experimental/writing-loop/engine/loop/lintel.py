@@ -65,7 +65,8 @@ def activity_id(name):
     return f"loop-{slug}"[:128]
 #: 右翼放得下约 6 个汉字（lintel slots.md §1）；拉丁字母算半个，所以「colSmol 说反」正好是 6。
 LABEL_MAX = 6
-ROWS_SHOWN = 12
+#: 展开态总高 ≤470pt（slots.md §3）：三段加四行两行的句子刚好，多了看不到。
+ROWS_SHOWN = 4
 
 
 def width(text):
@@ -77,6 +78,15 @@ def _clip(text, n):
     """Cut to n code points, with an ellipsis. For the wing use `_fit`, which counts width."""
     text = (text or "").replace("\n", " ").strip()
     return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def detex(text):
+    """LaTeX as the reader would see it, for the card only; the index keeps the source."""
+    text = re.sub(r"\$([^$]*)\$", r"\1", text or "")
+    for a, b in (("\\times", "×"), ("{,}", ","), ("\\%", "%"), ("--", "–"), ("~", " "), ("{=}", "="), ("\\,", " ")):
+        text = text.replace(a, b)
+    text = re.sub(r"\\[A-Za-z]+\{([^}]*)\}", r"\1", text)
+    return re.sub(r"[{}]", "", text)
 
 
 def _fit(text, w):
@@ -123,7 +133,7 @@ def _body(lc):
         return []
     items = []
     for r in lc["rows"][:ROWS_SHOWN]:
-        text = r["new"] or r["old"]
+        text = detex(r["new"] or r["old"])
         items.append({"kind": "para", "tone": "white85",
                       "text": f"{r['label']} {KIND_WORD.get(r['kind'], r['kind'])}  {_clip(text, 110)}"})
     if lc["n"] > ROWS_SHOWN:
@@ -233,9 +243,12 @@ def build(summary, *, now, problems=(), notices=()):
         "updatedAt": _iso(now), "activityAt": _iso(now),
         "status": {"center": center, "lastWriteAt": _iso(now)},
         "label": {"text": label, "tone": tone},
-        "ears": {"leading": _clip(f"写作循环 · {ws}", 64), "phase": (lc["id"] if lc else summary["head"]),
+        # 左耳很窄：来源名宿主已经画了（识别字 / 登记名），这里只放稿件名。
+        "ears": {"leading": _clip(ws, 64), "phase": (lc["id"] if lc else summary["head"]),
                  "tag": {"text": tag, "tone": tone}},
         "popup": [{"label": l, "text": _clip(t, 20000), "tone": tn, "lines": ln} for l, t, tn, ln in popup],
+        # 另一件活动展开时，底部翻页行写的是这一件的 flip；没有它宿主写「还没有标签」。
+        "flip": {"title": label, "subtitle": _clip(ws, 64), "phase": (lc["id"] if lc else summary["head"])},
         "body": _body(lc),
         "detail": _detail(summary, lc, bad, notices),
         "events": [{"id": i, "type": t, "at": _iso(now)} for i, t in events],
