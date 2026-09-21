@@ -102,6 +102,22 @@ class PromptTest(unittest.TestCase):
                 V.reminder_line = saved
             self.assertIn("不能当作都查过了", ctx, "a failure computing the line must still reach the agent as text")
 
+    def test_a_history_source_session_sees_coverage_and_nothing_is_recorded(self):
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            other = Path(root) / "other"
+            other.mkdir()
+            git(other, "init", "-q", "-b", "old-branch")
+            git(other, "commit", "-q", "--allow-empty", "-m", "x")
+            cfg = C.load(ws)
+            cfg["transcripts"]["also"] = [{"git_branch": "old-branch", "cwd_prefix": str(other)}]
+            C.save(ws, cfg)
+            regs, _ = LH.registry(str(Path(root) / "registry"))
+            out = LH.handle(prompt_payload(other), regs)
+            self.assertIn("历史来源", out["hookSpecificOutput"]["additionalContext"])
+            self.assertIn("覆盖", out["hookSpecificOutput"]["additionalContext"])
+            self.assertFalse((ws / "human" / "comments.jsonl").exists(), "a history source is never written for")
+
     def test_the_documentations_field_name_is_a_visible_error_not_silence(self):
         """The docs once said user_prompt; the runtime sends prompt. A hook reading the wrong one must be seen."""
         with TempDir() as root:

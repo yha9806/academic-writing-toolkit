@@ -17,6 +17,8 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'hooks/loop_hook.py', '        hws, hcfg = history_ws(payload, regs)\n        if hws is None:\n            return None', '        hws, hcfg = None, None\n        if hws is None:\n            return None',
+     'test_hooks.PromptTest.test_a_history_source_session_sees_coverage_and_nothing_is_recorded'),
     ("cov", 'coverage.py', '            if not check.get("auto", True) and not (only and check["id"] in only):\n                continue', '            if False:\n                continue',
      'test_coverage.ProjectCheckTest.test_a_slow_project_check_runs_only_when_named_and_any_change_in_the_tree_makes_it_stale'),
     ("cov", 'coverage.py', '    if kind == "tree":\n        return {"tree":', '    if False:\n        return {"tree":',

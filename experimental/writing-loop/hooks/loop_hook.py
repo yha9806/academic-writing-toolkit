@@ -113,6 +113,22 @@ def session_ws(payload, regs):
     return None, None
 
 
+def history_ws(payload, regs):
+    """A workspace this session belongs to as a history source (transcripts.also): read-only for the hooks, which
+    write nothing for it, but the author working there should still see which checks are not current."""
+    cwd = payload.get("cwd")
+    if not isinstance(cwd, str):
+        return None, None
+    br = None
+    for ws, cfg in regs:
+        for s in cfg["transcripts"].get("also") or []:
+            if isinstance(s, dict) and s.get("cwd_prefix") and _under(cwd, s["cwd_prefix"]):
+                br = br or branch_of(cwd)
+                if br == s.get("git_branch"):
+                    return ws, cfg
+    return None, None
+
+
 def spawn_update(ws, reason):
     """Start `loop update` detached from this hook process; its output goes to cache/update.log."""
     (ws / "cache").mkdir(parents=True, exist_ok=True)
@@ -275,18 +291,30 @@ def reminder_text(ws, cfg):
     is now. The line is read from the summary `loop update` wrote; nothing is computed here, so the hook stays fast.
     An unreadable summary is said, not skipped: silence would read as "all checked"."""
     text = REMINDER.format(name=cfg["name"])
+    line = coverage_line(ws, cfg)
+    return text + ("\n" + line if line else "")
+
+
+def coverage_line(ws, cfg):
     try:
         from loop import coverage as V
         line = V.reminder_line(V.load_summary(ws, cfg), ws)
     except Exception as e:  # noqa: BLE001 -- any failure here must still reach the agent as text
         line = f"覆盖：摘要读不出（{type(e).__name__}），不能当作都查过了"
-    return text + ("\n" + line if line else "")
+    return line
 
 
 def on_prompt(payload, regs, now):
     ws, cfg = session_ws(payload, regs)
     if ws is None:
-        return None
+        hws, hcfg = history_ws(payload, regs)
+        if hws is None:
+            return None
+        line = coverage_line(hws, hcfg)
+        if not line:
+            return None
+        return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                       "additionalContext": f"稿件「{hcfg['name']}」（这个会话是它的历史来源，不记录原话）" + line}}
     prompt = payload.get("prompt")
     if not isinstance(prompt, str):
         HL.record_event(ws, "hook_error", "UserPromptSubmit 的载荷里没有字符串字段 prompt（运行时字段名变了？）", now=now)
