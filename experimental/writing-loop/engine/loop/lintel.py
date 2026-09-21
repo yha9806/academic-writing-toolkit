@@ -70,7 +70,7 @@ def activity_id(name):
     """`loop-<稿件名>`, with anything the host might not accept in a file name folded to `-`."""
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-") or "ws"
     return f"loop-{slug}"[:128]
-#: 右翼放得下约 6 个汉字（lintel slots.md §1）；拉丁字母算半个，所以「colSmol 说反」正好是 6。
+#: 右翼放得下约 6 个汉字（lintel slots.md §1）；拉丁字母算半个，所以「betaVal 说反」正好是 6。
 LABEL_MAX = 6
 #: 展开态总高 ≤470pt（slots.md §3）：三段加四行两行的句子刚好，多了看不到。
 # 展开态分页之后（候选 E）「改了」那一节独占一页，能放下更多行；470pt 里两行一句约放 8 句。
@@ -133,7 +133,7 @@ def sections(lc):
 
 
 def touched(lc, names):
-    """The sections a change set touched, as the short names from the registry (「摘要 · §5.5」), in order of first appearance.
+    """The sections a change set touched, as the short names from the registry (「摘要 · §3.2」), in order of first appearance.
     A row without a section prefix in the index falls back to the first letter of its label."""
     seen = []
     for r in lc.get("rows") or []:   # 面板的压缩历史项可能没有 rows
