@@ -21,12 +21,14 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-ENGINE = ROOT / "experimental" / "writing-loop" / "engine"
+# AWT_LOOP_ENGINE: the engine copy a mutation run is testing; otherwise the one in this checkout.
+ENGINE = Path(os.environ.get("AWT_LOOP_ENGINE") or ROOT / "experimental" / "writing-loop" / "engine")
 
 PERSONAS = {
     "R1": "a researcher in the manuscript's field whose first language is not English; you read English papers daily",

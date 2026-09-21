@@ -16,6 +16,73 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
+    # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'skill:readers/scripts/tally-readers.py', 'c += all(x == "hit" for x in vals) and len(vals) >= 1', 'c += any(x == "hit" for x in vals)',
+     'test_readers.ReadersTest.test_a_full_panel_is_recorded_as_the_current_reading_until_an_in_scope_edit'),
+    ("cov", 'skill:readers/scripts/tally-readers.py', '    if len(readers) < min_readers:', '    if False:',
+     'test_readers.ReadersTest.test_fewer_than_eight_readers_is_a_failure_even_with_both_personas_and_models'),
+    ("cov", 'skill:readers/scripts/tally-readers.py', '    if shape[0]:\n        verdict, summary = "failed"', '    if False:\n        verdict, summary = "failed"',
+     'test_readers.ReadersTest.test_a_small_panel_is_recorded_as_a_failure_not_a_reading'),
+    ("cov", 'skill:readers/scripts/tally-readers.py', '    if not readers:\n        die(', '    if False:\n        die(',
+     'test_readers.ReadersTest.test_nothing_qualified_to_tally_exits_2'),
+    ("cov", 'skill:readers/scripts/check-reader-output.py', 'TOP_TEXT = ("why_accept", "closest_prior_work", "reuse", "writing_got_in_way", "outside_knowledge")', 'TOP_TEXT = ("why_accept", "closest_prior_work", "reuse", "writing_got_in_way")',
+     'test_readers.ReadersTest.test_incomplete_outputs_are_named_and_not_counted'),
+    ("cov", 'skill:readers/scripts/check-reader-output.py', 'missing = [p for p in want if p not in seen]', 'missing = []',
+     'test_readers.ReadersTest.test_incomplete_outputs_are_named_and_not_counted'),
+    ("cov", 'skill:readers/scripts/build-reader-packet.py', 'parts.append(bib.get(k, k))', 'parts.append("cite")',
+     'test_readers.ReadersTest.test_the_packet_reads_the_named_sections_keeps_citations_and_records_the_version'),
+    ("cov", 'coverage.py', 'if fmt not in check["formats"]:', 'if False:',
+     'test_coverage.NeverGreenTest.test_a_format_the_check_cannot_read'),
+    ("cov", 'coverage.py', 'missing = [n for n in check["needs"] if K.get(cfg, n) is None]', 'missing = []',
+     'test_coverage.NeverGreenTest.test_a_missing_prerequisite'),
+    ("cov", 'coverage.py', 'edited = sum(1 for k in o.keys() & c.keys() if o[k] != c[k])', 'edited = 0',
+     'test_coverage.StalenessTest.test_an_edited_sentence_in_scope_makes_it_stale_and_one_outside_does_not'),
+    ("cov", 'coverage.py', '    if old.get("script") != new["script"]:', '    if False:',
+     'test_coverage.StalenessTest.test_a_changed_check_script_makes_it_stale'),
+    ("cov", 'coverage.py', '        if (old.get("inputs") or {}).get(role) != new["inputs"].get(role):', '        if False:',
+     'test_coverage.StalenessTest.test_a_changed_input_file_makes_it_stale'),
+    ("cov", 'coverage.py', '    if rec.get("verdict") == "failed":', '    if False:',
+     'test_coverage.NeverGreenTest.test_exit_2_is_a_failure'),
+    ("cov", 'coverage.py', 'r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True, timeout=timeout)', 'r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True)',
+     'test_coverage.NeverGreenTest.test_a_timeout_is_a_failure'),
+    ("cov", 'coverage.py', '    except (OSError, ValueError):\n        return None, None', '    except (OSError, ValueError):\n        return [], None',
+     'test_coverage.NeverGreenTest.test_no_index_means_nothing_is_up_to_date'),
+    ("cov", 'coverage.py', '(r["status"] == FAILED and r.get("due"))', 'r["status"] == FAILED',
+     'test_coverage.NeverGreenTest.test_a_failed_check_is_rerun_only_when_something_changed'),
+    ("cov", 'coverage.py', 'out += [r for r in summary["rows"] if r["status"] == NOT_APPLICABLE and not r.get("instead")]', 'out += []',
+     'test_coverage.NeverGreenTest.test_a_format_the_check_cannot_read'),
+    ("cov", 'coverage.py', '    if not bits:\n        return None', '    if False:\n        return None',
+     'test_coverage.ShownTest.test_the_reminder_names_what_is_not_current_and_is_silent_otherwise'),
+    ("cov", 'coverage.py', '    if missing:\n        return None, "配置的输入在 HEAD 上不存在：', '    if False:\n        return None, "配置的输入在 HEAD 上不存在：',
+     'test_coverage.NeverGreenTest.test_an_input_configured_but_absent_at_head_is_a_failure_not_a_pass'),
+    ("cov", 'coverage.py', 'reason = (cfg.get("waive") or {}).get(check["id"])', 'reason = None',
+     'test_coverage.NeverGreenTest.test_a_waiver_is_shown_with_its_reason'),
+    ("cov", 'cli.py', '        (Path(ws) / "cache" / "coverage" / "summary.json").unlink(missing_ok=True)', '        pass',
+     'test_coverage.UpdateTest.test_a_coverage_failure_during_update_leaves_no_old_summary_standing'),
+    ("cov", 'catalogue.py', 'for name in sorted(set(registered) - wired - set(UNWIRED)):', 'for name in []:',
+     'test_catalogue.WiringTest.test_the_invariant_sees_an_unwired_check'),
+    ("cov", 'catalogue.py', 'for s in sorted(set(skills) - set(installed) - set(SKILLS_NOT_INSTALLED)):', 'for s in []:',
+     'test_catalogue.WiringTest.test_the_invariant_sees_a_skill_that_is_not_installed'),
+    ("cov", 'catalogue.py', 'for name in sorted(wired - set(registered)):', 'for name in []:',
+     'test_catalogue.WiringTest.test_the_invariant_sees_a_catalogued_script_that_is_not_registered'),
+    ("cov", 'catalogue.py', 'if len((reason or "").strip()) < UNWIRED_REASON_MIN:', 'if False:',
+     'test_catalogue.WiringTest.test_an_unwired_reason_must_say_something'),
+    ("cov", 'targets.py', 'if _norm(m.get("venue")) != _norm(venue):', 'if False:',
+     'test_coverage.TargetTest.test_wrong_venue_small_corpus_and_missing_files_are_each_named'),
+    ("cov", 'targets.py', '" ".join(html.unescape(s or "").split()).casefold()', '" ".join((s or "").split()).casefold()',
+     'test_coverage.TargetTest.test_an_escaped_venue_name_matches_and_a_full_corpus_passes'),
+    ("cov", 'targets.py', 'elif dt.date.fromisoformat(dm.group(1)) < today:', 'elif False:',
+     'test_coverage.TargetTest.test_experiments_without_a_disposition_or_past_review_are_listed'),
+    ("cov", 'targets.py', 'if admitted < CORPUS_FLOOR:', 'if False:',
+     'test_coverage.TargetTest.test_wrong_venue_small_corpus_and_missing_files_are_each_named'),
+    ("cov", 'targets.py', 'gone = [f for f in files if not (d / f).is_file()]', 'gone = []',
+     'test_coverage.TargetTest.test_wrong_venue_small_corpus_and_missing_files_are_each_named'),
+    ("cov", 'doctor.py', '    for item, msg in TG.doctor_problems(cfg):', '    for item, msg in [("target", p) for p in TG.describe(cfg)["problems"]]:',
+     'test_doctor.DoctorTest.test_a_target_that_is_not_registered_is_a_fact_and_a_configured_path_that_does_not_resolve_is_a_problem'),
+    ("cov", 'hooks/loop_hook.py', '        line = V.reminder_line(V.load_summary(ws), ws)', '        line = None',
+     'test_hooks.PromptTest.test_the_reminder_carries_the_coverage_line_and_only_when_something_is_not_current'),
+    ("cov", 'hooks/loop_hook.py', '        line = f"覆盖：摘要读不出（{type(e).__name__}），不能当作都查过了"', '        line = None',
+     'test_hooks.PromptTest.test_the_reminder_carries_the_coverage_line_and_only_when_something_is_not_current'),
     ("B", "inbox.py", "if cand.exists() and cand not in seen:", "if False:",
      "test_inbox.InboxTest.test_a_dropped_folder_becomes_a_workspace_with_its_tex_files"),
     ("B", "inbox.py", 'if h == "Abstract":', 'if False:',
@@ -249,13 +316,15 @@ MUTATIONS = [
 ]
 
 
-def _run_test(engine_dir, test, extra_paths=()):
+def _run_test(engine_dir, test, extra_paths=(), env_extra=None):
     # AWT_LOOP_ENGINE tells out-of-tree tests (they locate the engine themselves) to use this copy,
     # otherwise they would import the unmutated engine and never go red.
     paths = [str(engine_dir), str(engine_dir / "tests"), *map(str, extra_paths)]
     env = dict(os.environ, PYTHONPATH=os.pathsep.join(paths), AWT_LOOP_ENGINE=str(engine_dir))
     # the copy has no repository root around it; the overview runs the toolkit's claim-ledger audit from the real one
     env.setdefault("LOOP_CLAIM_AUDIT", str(ENGINE.parents[2] / ".claude/skills/audit/scripts/audit-claim-ledger.py"))
+    env.setdefault("AWT_ROOT", str(ENGINE.parents[2]))  # the catalogue's scripts and registries are in the real checkout
+    env.update(env_extra or {})
     r = subprocess.run([sys.executable, "-m", "unittest", test], cwd=engine_dir / "tests", env=env, capture_output=True)
     return r.returncode == 0
 
@@ -289,13 +358,22 @@ def _mutate_and_run(st, fname, old, new, test, extra_paths, ignore):
         root = Path(t) / "writing-loop"
         shutil.copytree(ROOT, root, ignore=ignore)
         dst = root / "engine"
-        f = (root / fname) if "/" in fname else (dst / "loop" / fname)
+        env_extra = {}
+        if fname.startswith("skill:"):
+            # A skill's script lives outside writing-loop/: copy that skill, mutate the copy, point its tests at it.
+            skill, _, rel = fname[len("skill:"):].partition("/")
+            sk = Path(t) / "skill" / skill
+            shutil.copytree(ENGINE.parents[2] / ".claude" / "skills" / skill, sk, ignore=ignore)
+            f = sk / rel
+            env_extra[f"AWT_{skill.upper()}_DIR"] = str(sk / "scripts")
+        else:
+            f = (root / fname) if "/" in fname else (dst / "loop" / fname)
         src = f.read_text(encoding="utf-8")
         if src.count(old) != 1:
             print(f"[{st}] {fname}: 变异锚点出现 {src.count(old)} 次（应为 1），无法注入")
             return 1
         f.write_text(src.replace(old, new), encoding="utf-8")
-        red = not _run_test(dst, test, extra_paths)
+        red = not _run_test(dst, test, extra_paths, env_extra)
         print(f"[{st}] {'变红' if red else '没变红'}  {test}  ← {fname}: {old[:50]!r}")
         return 0 if red else 1
 

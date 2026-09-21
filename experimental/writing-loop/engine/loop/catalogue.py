@@ -19,10 +19,12 @@ Per check:
             part of what a run is keyed on.
   argv      function(ctx) -> argument list, run with cwd = the archived tree.
 """
+import os
 import sys
 from pathlib import Path
 
-ENGINE_ROOT = Path(__file__).resolve().parents[4]
+# The toolkit checkout the scripts live in. A mutation run copies the engine elsewhere and points this back.
+ENGINE_ROOT = Path(os.environ.get("AWT_ROOT") or Path(__file__).resolve().parents[4])
 KINDS = ("script", "panel")
 SCOPES = ("all", "cite", "numbers", "sections", "none")
 UNWIRED_REASON_MIN = 20

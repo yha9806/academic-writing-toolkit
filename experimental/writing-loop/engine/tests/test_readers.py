@@ -1,6 +1,7 @@
 """The readers skill: a packet built from the loop's index, outputs checked, a panel tallied and recorded as the
 readers check's run. Fixtures are synthetic: a made-up bridge survey, no real manuscript text."""
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -13,7 +14,8 @@ from loop import coverage as V
 from fixtures import TempDir, git
 from test_coverage import INTRO, commit, reindex, setup
 
-SCRIPTS = K.ENGINE_ROOT / ".claude" / "skills" / "readers" / "scripts"
+# AWT_READERS_DIR: the mutated copy a red check is testing; otherwise the skill in this checkout.
+SCRIPTS = Path(os.environ.get("AWT_READERS_DIR") or K.ENGINE_ROOT / ".claude" / "skills" / "readers" / "scripts")
 
 
 def script(name, *args):
@@ -144,6 +146,23 @@ class ReadersTest(unittest.TestCase):
             self.assertIn("面板不全", (out / "report.md").read_text(encoding="utf-8"))
             row = next(x for x in V.compute(C.load(ws), ws)["rows"] if x["id"] == "readers")
             self.assertEqual(row["status"], V.FAILED)
+
+    def test_fewer_than_eight_readers_is_a_failure_even_with_both_personas_and_models(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            card = Path(root) / "card.md"
+            card.write_text("M1\n", encoding="utf-8")
+            cfg["target"] = {"intent_card": str(card)}
+            C.save(ws, cfg)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            for f in list(d.glob("*_2.json")):
+                f.rename(f.with_suffix(".skipped"))
+            self.assertEqual(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d).returncode, 0)
+            row = next(x for x in V.compute(C.load(ws), ws)["rows"] if x["id"] == "readers")
+            self.assertEqual(row["status"], V.FAILED)
+            self.assertIn("少于 8", row["detail"])
 
     def test_nothing_qualified_to_tally_exits_2(self):
         with TempDir() as root:

@@ -84,6 +84,9 @@ class PromptTest(unittest.TestCase):
             (cov / "summary.json").write_text("{not json", encoding="utf-8")
             ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
             self.assertIn("覆盖", ctx, "a broken summary must not read as all checked")
+            (cov / "summary.json").write_text(json.dumps({"rows": 5}), encoding="utf-8")
+            ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("不能当作都查过了", ctx, "a summary of the wrong shape must not read as all checked")
 
     def test_the_documentations_field_name_is_a_visible_error_not_silence(self):
         """The docs once said user_prompt; the runtime sends prompt. A hook reading the wrong one must be seen."""

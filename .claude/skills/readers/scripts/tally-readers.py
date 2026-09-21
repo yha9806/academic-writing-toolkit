@@ -25,6 +25,7 @@ import argparse
 import datetime as dt
 import importlib.util
 import json
+import os
 import math
 import re
 import sys
@@ -33,7 +34,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
-ENGINE = ROOT / "experimental" / "writing-loop" / "engine"
+# AWT_LOOP_ENGINE: the engine copy a mutation run is testing; otherwise the one in this checkout.
+ENGINE = Path(os.environ.get("AWT_LOOP_ENGINE") or ROOT / "experimental" / "writing-loop" / "engine")
 NAME = re.compile(r"^(?P<persona>[A-Za-z0-9]+)_(?P<model>[A-Za-z0-9.\-]+)_(?P<n>\d+)\.json$")
 HIT = {"✓": "hit", "hit": "hit", "△": "partial", "partial": "partial", "✗": "miss", "miss": "miss"}
 LIMITS = [

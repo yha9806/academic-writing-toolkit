@@ -17,6 +17,16 @@ skill directory link back to the toolkit): `Scripts/python.exe` on Windows,
 Replace the example's `python3` with that executable. In PowerShell, prefix a
 quoted executable with `&`; keep commands on one line and quote file paths.
 
+## A manuscript registered with the writing loop
+
+Run `loop coverage <workspace> --run` first (`experimental/writing-loop/bin/loop`). It
+derives every check's inputs from the workspace (the tracked draft files at HEAD,
+the bibliography, the ledgers, the target venue's corpus) instead of the thesis
+defaults below, runs the ones the latest edits made due, and lists the checks
+that cannot run on this manuscript and why. Its table is the audit's coverage;
+report any check it shows as not current, missing a prerequisite, not applicable
+or failed, and never report a check it did not run as clean.
+
 ## Purpose
 
 Scan all thesis chapters for internal data consistency issues: contradictory numbers, inconsistent terminology, broken cross-references, and arithmetic errors. This is a pre-submission quality check.
@@ -157,10 +167,12 @@ the scope in other words; `technique` passed both.
    reading. Every finding here is a proxy; a finding is a reason to open the
    source, not a verdict.
 
-   **G. Prose fingerprint (measurement only; skip when no baseline exists)**
+   **G. Prose fingerprint (measurement only)**
 
-   Only when the project holds a baseline corpus of its *own* reference
-   PDFs (`literature/`, twenty or more, the author's own papers excluded):
+   With no baseline corpus, report G as **not audited** and say which corpus is
+   missing. Do not leave it out of the report: an absent section reads as a
+   pass. The bibliography baseline needs the project's *own* reference PDFs
+   (`literature/`, twenty or more, the author's own papers excluded):
 
    ```
    python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude '<author-surname>*'

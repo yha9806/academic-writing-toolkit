@@ -290,6 +290,27 @@ class ShownTest(unittest.TestCase):
                 self.assertIn(reason, text)
 
 
+class UpdateTest(unittest.TestCase):
+    def test_a_coverage_failure_during_update_leaves_no_old_summary_standing(self):
+        from loop import cli
+        from loop import health as HL
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root)):
+                cli._coverage_after_update(ws, cfg)
+                self.assertIsNotNone(V.load_summary(ws))
+                saved = V.compute
+                V.compute = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+                try:
+                    cli._coverage_after_update(ws, cfg)
+                finally:
+                    V.compute = saved
+                self.assertIsNone(V.load_summary(ws), "an old summary must not stand in for a failed one")
+                events = json.loads((Path(ws) / "health.json").read_text(encoding="utf-8"))["events"]
+                self.assertTrue(any(e["kind"] == "coverage_error" for e in events))
+
+
 class RealCheckTest(unittest.TestCase):
     def test_the_positioning_audit_runs_on_the_archived_draft(self):
         with TempDir() as root:
