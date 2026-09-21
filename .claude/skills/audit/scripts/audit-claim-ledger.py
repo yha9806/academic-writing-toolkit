@@ -43,7 +43,13 @@ can sit on the commit instead of on the submission.
 the six commits that introduced the wrong citations in a real manuscript, a
 key-only allowlist let an equivalence-testing paper through as the source of a
 permutation test, because the key was listed and the sentence read like a
-credit. A bare key (no `=`) restores that hole.
+credit. A bare key (no `=`) restores that hole. A key may be listed on
+several lines, one procedure each; any procedure the sentence names covers it.
+
+The full scan reads the same file: a citing sentence with no ledger row whose
+every key is covered is reported as `credited` and leaves the
+unledgered-assertion count, so a sentence the author has already accepted as a
+method credit stops reading as missing evidence.
 
 Historical check, 2026-09-20: over the four commits that introduced them, the
 gate flags all six wrong citations plus the dropped qualifier, as part of 34,
@@ -143,6 +149,28 @@ def sentences_at_ref(base, ref):
     return before
 
 
+def read_credits(path):
+    """key -> [procedure, ...] as the author accepted them; an empty procedure accepts any use."""
+    credits = {}
+    for line in Path(path).expanduser().read_text(encoding="utf-8").splitlines():
+        line = line.split("#")[0].strip()
+        if not line:
+            continue
+        key, _, procedure = line.partition("=")
+        credits.setdefault(key.strip(), []).append(norm(procedure))
+    return credits
+
+
+def uncovered(keys, sentence, credits):
+    """The keys of `sentence` that no accepted credit covers.
+
+    Match the procedure against the prose only. Key names carry the procedure's
+    own words (lakens2017equivalence), so leaving the \\cite in would let a key
+    vouch for itself."""
+    prose = norm(CITE.sub(" ", sentence))
+    return [k for k in keys if not any(p == "" or p in prose for p in credits.get(k, []))]
+
+
 def read_ledger(path):
     rows = []
     lines = [l.rstrip("\n") for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -174,7 +202,8 @@ def main(argv=None):
                     help="only citing sentences that are new since GITREF are hard findings")
     ap.add_argument("--credits", metavar="FILE",
                     help="method credits the author has accepted, one per line, as "
-                         "'key = the procedure it may be cited for'; a bare key accepts any use")
+                         "'key = the procedure it may be cited for'; a bare key accepts any use. "
+                         "Read by the full scan and by the commit gate")
     a = ap.parse_args(argv)
     base = Path(a.base_dir).expanduser().resolve()
     ledger_path = Path(a.ledger).expanduser().resolve()
@@ -185,6 +214,7 @@ def main(argv=None):
 
     sentences = citing_sentences(base)
     rows = read_ledger(ledger_path)
+    credits = read_credits(a.credits) if a.credits else {}
     findings, pairs = [], []
 
     for row in rows:
@@ -224,9 +254,13 @@ def main(argv=None):
     for f, s, keys in sentences:
         if any(c and c in norm(s) for c in ledgered):
             continue
+        if credits and not uncovered(keys, s, credits):
+            findings.append({"kind": "credited", "prompt": False, "location": f, "cite_key": ",".join(keys),
+                             "sentence": s, "detail": f"accepted as a method credit for {','.join(keys)}: {s[:90]}"})
+            continue
         kind = "unledgered-assertion" if REPORTING.search(s) else "unledgered-credit"
         findings.append({"kind": kind, "prompt": kind == "unledgered-credit", "location": f,
-                         "cite_key": ",".join(keys),
+                         "cite_key": ",".join(keys), "sentence": s,
                          "detail": f"{'asserts something about' if kind == 'unledgered-assertion' else 'credits'} {','.join(keys)} with no ledger row: {s[:90]}"})
 
     gate = None
@@ -235,31 +269,18 @@ def main(argv=None):
         # Run against the commit that introduced them, a key-only allowlist let
         # an equivalence-testing paper through as the source of a permutation
         # test: the key was listed, and the sentence read like a credit.
-        credits = {}
-        if a.credits:
-            for line in Path(a.credits).expanduser().read_text(encoding="utf-8").splitlines():
-                line = line.split("#")[0].strip()
-                if not line:
-                    continue
-                key, _, procedure = line.partition("=")
-                credits[key.strip()] = norm(procedure)
         before = sentences_at_ref(base, a.gate_since)
         added = [(f, s, k) for f, s, k in sentences if norm(s) not in before]
         for f, s, keys in added:
             if any(c and c in norm(s) for c in ledgered):
                 continue
-            # Match the procedure against the prose only. Key names carry the
-            # procedure's own words (lakens2017equivalence), so leaving the
-            # \cite in would let a key vouch for itself.
-            prose = norm(CITE.sub(" ", s))
-            off = [k for k in keys
-                   if k not in credits or (credits[k] and credits[k] not in prose)]
+            off = uncovered(keys, s, credits)
             if not off:
                 continue
             miscredited = [k for k in off if k in credits]
             if miscredited:
                 kind, why = "credit-outside-its-procedure", (
-                    "; ".join(f"{k} is accepted for \"{credits[k]}\", which this sentence does not mention"
+                    "; ".join(f"{k} is accepted for \"{' / '.join(credits[k])}\", which this sentence does not mention"
                               for k in miscredited))
             else:
                 kind = "new-assertion-unledgered" if REPORTING.search(s) else "new-citation-unaccounted"
@@ -286,6 +307,8 @@ def main(argv=None):
         "citing_sentences": len(sentences),
         "ledger_rows": len(rows),
         "gate": gate,
+        "credits_file": a.credits,
+        "credited_sentences": sum(1 for f in findings if f["kind"] == "credited"),
         "findings": findings,
         "hard_finding_count": len(hard),
         "nothing_checked": nothing,
@@ -306,7 +329,7 @@ def main(argv=None):
         for kind in ["new-assertion-unledgered", "new-citation-unaccounted", "credit-outside-its-procedure",
                      "snippet-not-in-source", "claim-not-in-manuscript", "key-not-in-claim-sentence",
                      "source-file-missing", "negative-claim-without-fulltext", "unledgered-assertion",
-                     "qualifier-dropped", "unledgered-credit"]:
+                     "qualifier-dropped", "unledgered-credit", "credited"]:
             group = [f for f in findings if f["kind"] == kind]
             if not group:
                 continue

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (184 automated tests, labelled T2-T193: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (186 automated tests, labelled T2-T195: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -4758,6 +4758,64 @@ assert 'credit-outside-its-procedure' in kinds, kinds
     [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
 }
 
+# --- T194-T195: method credits in the full scan -------------------------------
+# The credits file was read only in gate mode, so over a whole manuscript a
+# sentence the author had already accepted as a method credit ("we report
+# bootstrap intervals") stayed in the unledgered-assertion count forever,
+# and the count the author sees kept saying more was missing than was.
+test_T194() {
+    # An asserting sentence whose key is accepted for a procedure the sentence
+    # names is a credit, not a missing ledger row; the finding carries the
+    # whole sentence so a reader can act on it.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    printf 'voorhees2002 = absolute score\n' > "$tmp/credits.txt"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --credits "$tmp/credits.txt" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+by={f['kind']:f for f in d['findings']}
+assert 'unledgered-assertion' not in by, [f['kind'] for f in d['findings']]
+assert by['credited']['cite_key'] == 'voorhees2002', by.get('credited')
+assert 'absolute score is not meaningful' in by['credited']['sentence'], by['credited']
+assert 'Benjamini' in by['unledgered-credit']['sentence'], by['unledgered-credit']
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T195() {
+    # A key may be accepted for more than one procedure; any one the sentence
+    # names covers it. A procedure the sentence does not name covers nothing.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    ledger_fixture "$tmp"
+    printf 'voorhees2002 = absolute score\nvoorhees2002 = pooling depth\n' > "$tmp/credits.txt"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/ledger.tsv" --credits "$tmp/credits.txt" --json 2>&1)
+    status=$?
+    printf 'voorhees2002 = pooling depth\n' > "$tmp/credits.txt"
+    out2=$(python3 .claude/skills/audit/scripts/audit-claim-ledger.py --base-dir "$tmp" \
+           --ledger "$tmp/ledger.tsv" --credits "$tmp/credits.txt" --json 2>&1)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'credited' in kinds and 'unledgered-assertion' not in kinds, kinds
+" || return 1
+    echo "$out2" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+kinds=[f['kind'] for f in d['findings']]
+assert 'unledgered-assertion' in kinds and 'credited' not in kinds, kinds
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
 # --- Fails closed ----------------------------------------------------------
 # A check that examines nothing and exits 0 is worse than no check: the green
 # result is read as "looked and found nothing wrong". Three of these shipped.
@@ -5139,6 +5197,8 @@ run_test "T190 every path the README's structure block names exists on disk" tes
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192
 run_test "T193 experimental/ is audited and carries no home-directory paths" test_T193
+run_test "T194 claim ledger: an accepted method credit is not a missing row in the full scan" test_T194
+run_test "T195 claim ledger: a key may be credited for several procedures, only a named one covers" test_T195
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then
