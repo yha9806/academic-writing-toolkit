@@ -27,7 +27,9 @@ Python 3.8 stdlib only. Network: export.arxiv.org, doi.org, arxiv.org.
 """
 
 import argparse
+import html
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -97,6 +99,7 @@ def query_arxiv(venue: str, delay: float) -> List[Dict]:
                 "arxiv_id": (e.findtext(ATOM + "id") or "").rsplit("/", 1)[-1],
                 "title": norm(e.findtext(ATOM + "title")),
                 "year": int(pub[:4]) if pub[:4].isdigit() else None,
+                "published": pub or None,
                 "primary_category": (e.find(ARXIV + "primary_category").get("term")
                                      if e.find(ARXIV + "primary_category") is not None else None),
                 "journal_ref": norm(e.findtext(ARXIV + "journal_ref")),
@@ -106,6 +109,22 @@ def query_arxiv(venue: str, delay: float) -> List[Dict]:
             return out
         start += PAGE
         time.sleep(delay)
+
+
+def venue_phrasings(venue: str) -> List[str]:
+    """The venue as given, then with every free-standing "&" and "and" swapped.
+
+    journal_ref is typed by authors, and they spell a journal whose name holds
+    an ampersand both ways. The phrase search matches only the spelling it is
+    given, so one query returns part of the frame. "&" inside a word ("R&D") is
+    not a conjunction and is left alone.
+    """
+    out = [venue]
+    for alt in (re.sub(r"(?<=\s)&(?=\s)", "and", venue),
+                re.sub(r"(?<=\s)and(?=\s)", "&", venue, flags=re.IGNORECASE)):
+        if alt not in out:
+            out.append(alt)
+    return out
 
 
 def container_title(doi: str, delay: float) -> Optional[str]:
@@ -121,7 +140,9 @@ def container_title(doi: str, delay: float) -> Optional[str]:
     ct = d.get("container-title")
     if isinstance(ct, list):
         ct = ct[0] if ct else None
-    return norm(ct) if ct else None
+    # The registrar can send the title HTML-escaped: a journal named "X & Y"
+    # arrives as "X &amp; Y", and compared verbatim it is some other journal.
+    return norm(html.unescape(ct)) if ct else None
 
 
 def main() -> int:
@@ -151,10 +172,24 @@ def main() -> int:
             "name a directory for the PDFs, outside the repository")
 
     venue_key = args.venue.lower()
-    candidates = query_arxiv(args.venue, args.delay)
+    phrasings = venue_phrasings(args.venue)
+    candidates: List[Dict] = []
+    seen = set()
+    for i, phrase in enumerate(phrasings):
+        if i:
+            time.sleep(args.delay)
+        for c in query_arxiv(phrase, args.delay):
+            # A journal_ref found under both spellings is one candidate.
+            if c["arxiv_id"] not in seen:
+                seen.add(c["arxiv_id"])
+                candidates.append(c)
+    # Each query comes back newest first. Merged, keep that order, so --max
+    # still cuts the oldest rather than whichever spelling was queried second.
+    candidates.sort(key=lambda c: c.get("published") or "", reverse=True)
     if not candidates:
         die("VENUE_NO_CANDIDATES",
-            'no arXiv record carries a journal_ref naming "%s"' % args.venue,
+            "no arXiv record carries a journal_ref naming %s"
+            % " or ".join('"%s"' % p for p in phrasings),
             "check the venue string; the API matches it as a phrase")
 
     admitted: List[Dict] = []
@@ -221,11 +256,12 @@ def main() -> int:
         admitted = kept
 
     manifest = {
-        "schema_version": 1,
+        # 2: "query" is a list, one entry per phrasing queried (1 held a string).
+        "schema_version": 2,
         "venue": args.venue,
         "retrieved": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "api": API,
-        "query": 'jr:"%s"' % args.venue,
+        "query": ['jr:"%s"' % p for p in phrasings],
         "from_year": args.from_year,
         "verification": "arXiv journal_ref is author-supplied free text; a record "
                         "is admitted only when its DOI resolves to a registered "
