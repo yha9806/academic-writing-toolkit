@@ -182,9 +182,10 @@ def profile_block(cells, base_note):
     rem = sum(c["removed"] for c in cells)
     still = sum(1 for c in cells if c["changed"] == 0)
     marks = any(c["mark"] for c in cells)
-    return {"title": "这一段改了哪里 · 一格一节，宽 = 句数，高 = 改过的比例", "note": base_note[:64],
+    # 读法写在说明行里，不放标题：标题和右边的「相对 …」挤在一行，长了会被截（09-21 实拍）。
+    return {"title": "这一段改了哪里", "note": base_note[:64],
             "caption": (f"{total} 句里 {ch} 句改过或新加 · 删 {rem} 句 · {still} 节一句没动"
-                        + (" · 白点 = 这一段新开的节" if marks else ""))[:256],
+                        + (" · 白点 = 这一段新开的节" if marks else "") + " · 一格一节，宽 = 句数，高 = 改过的比例")[:256],
             "cells": [{k: c[k] for k in ("id", "label", "chapter", "weight", "value", "mark", "note")} for c in cells]}
 
 
