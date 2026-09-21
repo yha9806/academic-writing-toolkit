@@ -193,11 +193,14 @@ class TodoTest(unittest.TestCase):
             first = ovw.get(T0 + 12 * DAY)
             cov = Path(cfg["_ws"]) / "cache" / "coverage"
             cov.mkdir(parents=True, exist_ok=True)
-            head = subprocess.run(["git", "-C", str(cfg["repo"]), "rev-parse", cfg["ref"]], capture_output=True,
-                                  text=True).stdout.strip()
-            (cov / "summary.json").write_text(json.dumps({"schema": 1, "workspace": cfg["name"], "head": head,
-                                                          "rows": [{"id": "a", "name": "甲", "status": "最新"}],
-                                                          "target": {}}), encoding="utf-8")
+            from loop import catalogue as K
+            from loop import coverage as V
+            saved = list(K.CHECKS)
+            K.CHECKS[:] = [K.by_id("claim-positioning")]
+            self.addCleanup(lambda s=saved: K.CHECKS.__setitem__(slice(None), s))
+            s = V.compute(dict(cfg, genre="note"), cfg["_ws"])
+            s["rows"][0].update(status="最新", detail="")
+            (cov / "summary.json").write_text(json.dumps(s, ensure_ascii=False), encoding="utf-8")
             again = ovw.get(T0 + 12 * DAY)
             self.assertIsNot(first, again, "a new coverage summary must rebuild the overview, not reuse it")
             self.assertEqual(again["payload"]["todo"]["cells"][-1]["value"], "全部最新")

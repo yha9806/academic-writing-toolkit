@@ -172,7 +172,9 @@ class ReadersTest(unittest.TestCase):
             d = panel(root, packet)
             stale = reader_output({**packet, "packet_id": "0ld0ld0ld0ld"}, "R1_small_1")
             (d / "R1_small_1.json").write_text(json.dumps(stale), encoding="utf-8")
-            (d / "R2_large_2.json").write_text((d / "R2_large_1.json").read_text(encoding="utf-8"), encoding="utf-8")
+            copy = json.loads((d / "R2_large_1.json").read_text(encoding="utf-8"))
+            copy["why_accept"] = "  " + copy["why_accept"].upper() + "   "
+            (d / "R2_large_2.json").write_text(json.dumps(copy), encoding="utf-8")
             r = script("check-reader-output.py", "--packet", out / "packet.json", "--outputs", d)
             self.assertIn("qualified 6 of 8", r.stdout)
             self.assertIn("R1_small_1.json: written for packet", r.stdout)

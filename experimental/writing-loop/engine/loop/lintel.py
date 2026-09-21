@@ -337,6 +337,9 @@ def _coverage_stats(summary):
     out = [{"label": "检查待办", "value": str(n), "tone": "orange" if n else None}]
     if gap:
         out.append({"label": "AWT 读不了", "value": str(gap)})
+    wv = len(V.waived(summary))
+    if wv:
+        out.append({"label": "豁免", "value": str(wv)})
     return out
 
 

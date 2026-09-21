@@ -71,15 +71,21 @@ class PromptTest(unittest.TestCase):
             ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
             self.assertIn("覆盖：还没有算过", ctx, "no summary yet must be said, not left silent")
             cov = Path(ws) / "cache" / "coverage"
-            cov.mkdir(parents=True, exist_ok=True)
-            row = {"id": "x", "name": "读者组", "kind": "panel", "status": "过期", "detail": "句子改 3"}
-            head = git(repo, "rev-parse", "HEAD")
-            summary = {"schema": 1, "workspace": C.load(ws)["name"], "head": head, "rows": [row], "target": {},
-                       "experiments": None}
+            from loop import catalogue as K
+            from loop import coverage as V
+            saved = list(K.CHECKS)
+            K.CHECKS[:] = [dict(K.by_id("claim-positioning"), name="读者组")]
+            self.addCleanup(lambda s=saved: K.CHECKS.__setitem__(slice(None), s))
+            cfg = C.load(ws)
+            cfg["genre"] = "note"
+            C.save(ws, cfg)
+            summary = V.compute(C.load(ws), ws)
+            summary["rows"][0].update(status="过期", detail="句子改 3")
             (cov / "summary.json").write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
             ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
             self.assertIn("过期 读者组", ctx)
-            row["status"] = "最新"
+            summary["rows"][0].update(status="最新", detail="")
+            summary["experiments"] = None
             (cov / "summary.json").write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
             ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
             self.assertNotIn("覆盖", ctx)
@@ -117,6 +123,12 @@ class PromptTest(unittest.TestCase):
             self.assertIn("历史来源", out["hookSpecificOutput"]["additionalContext"])
             self.assertIn("覆盖", out["hookSpecificOutput"]["additionalContext"])
             self.assertFalse((ws / "human" / "comments.jsonl").exists(), "a history source is never written for")
+            cfg["transcripts"]["also"] = [{"cwd_prefix": str(Path(root) / "plain")}]
+            C.save(ws, cfg)
+            (Path(root) / "plain").mkdir()
+            regs, _ = LH.registry(str(Path(root) / "registry"))
+            self.assertIsNone(LH.handle(prompt_payload(Path(root) / "plain"), regs),
+                              "a history source with no branch matches nothing, not every folder that is not a repository")
 
     def test_the_documentations_field_name_is_a_visible_error_not_silence(self):
         """The docs once said user_prompt; the runtime sends prompt. A hook reading the wrong one must be seen."""

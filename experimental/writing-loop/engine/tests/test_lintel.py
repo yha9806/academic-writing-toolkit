@@ -74,6 +74,11 @@ class CoverageStatTest(unittest.TestCase):
             "rows": rows, "target": {}}))["detail"]["stats"]])
         self.assertEqual(got[0]["value"], "0")
 
+    def test_a_waiver_is_counted_on_the_card(self):
+        rows = [{"id": "b", "name": "乙", "status": "已豁免", "detail": "作者：不做"}]
+        stats = only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}}))["detail"]["stats"]
+        self.assertIn({"label": "豁免", "value": "1"}, stats)
+
     def test_a_summary_of_the_wrong_shape_is_not_read_as_clean(self):
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": 5})))
         self.assertEqual(got[0]["value"], "读不出")

@@ -64,18 +64,32 @@ def _ledger_inputs(cfg):
     return out
 
 
+def credits_path(cfg):
+    """Where the author's accepted method credits live: the ledger's own setting, as the overview reads it."""
+    led = get(cfg, "overview.ledger") or {}
+    if led.get("credits"):
+        return Path(led["credits"]).expanduser()
+    return Path(cfg["_ws"]) / "human" / "credits.txt" if cfg.get("_ws") else None
+
+
 def _ledger_argv(ctx):
     led = ctx["cfg"]["overview"]["ledger"]
     args = _py(ctx, "audit/audit-claim-ledger.py") + ["--base-dir", led["base_dir"], "--ledger", led["path"], "--json"]
-    credits = Path(ctx["ws"]) / "human" / "credits.txt"
-    if credits.is_file():
+    credits = credits_path(ctx["cfg"])
+    if credits and credits.is_file():
         args += ["--credits", str(credits)]
     return args
 
 
 def _credits_outside(cfg):
     """The author's accepted method credits change what the ledger audit reports."""
-    return [str(Path(cfg["_ws"]) / "human" / "credits.txt")] if cfg.get("_ws") else []
+    p = credits_path(cfg)
+    return [str(p)] if p else []
+
+
+def _literature_optional(cfg):
+    """Reading notes and source PDFs a Markdown citation check reads when the repository has them."""
+    return {"literature": get(cfg, "inputs.literature_dir") or "literature"}
 
 
 def _bib(cfg):
@@ -148,7 +162,7 @@ def _no_outside(cfg):
 CHECKS = [
     {"id": "claim-ledger", "name": "主张台账", "kind": "script", "scripts": ["audit/audit-claim-ledger.py"],
      "formats": ["latex"], "instead": {"markdown": "citation-fidelity"},
-     "scope": {"kind": "cite"}, "needs": ["overview.ledger"],
+     "scope": {"kind": "cite"}, "needs": ["overview.ledger"], "config_keys": ["overview.ledger"],
      "inputs": _ledger_inputs, "outside": _credits_outside, "argv": _ledger_argv},
     {"id": "claim-positioning", "name": "定位", "kind": "script", "scripts": ["audit/audit-claim-positioning.py"],
      "formats": ["latex", "markdown"], "instead": {},
@@ -163,24 +177,24 @@ CHECKS = [
     {"id": "fingerprint-venue", "name": "文风·对照目标刊物", "kind": "script",
      "scripts": ["audit/audit-prose-fingerprint.py"],
      "formats": ["latex", "markdown"], "instead": {},
-     "scope": {"kind": "all"}, "needs": ["target.venue_corpus.dir"],
+     "scope": {"kind": "all"}, "needs": ["target.venue_corpus.dir"], "config_keys": ["target.venue"],
      "inputs": _none, "outside": _venue_outside, "argv": _fingerprint_venue_argv},
     {"id": "fingerprint-bibliography", "name": "文风·对照参考文献", "kind": "script",
      "scripts": ["audit/audit-prose-fingerprint.py"],
      "formats": ["latex", "markdown"], "instead": {},
-     "scope": {"kind": "all"}, "needs": ["inputs.literature"],
+     "scope": {"kind": "all"}, "needs": ["inputs.literature"], "config_keys": ["inputs.literature_exclude"],
      "inputs": _none, "outside": _literature_outside, "argv": _fingerprint_bib_argv},
     {"id": "structure-venue", "name": "句子结构·对照目标刊物", "kind": "script",
      "scripts": ["audit/audit-prose-structure.py"],
      "formats": ["latex", "markdown"], "instead": {},
-     "scope": {"kind": "all"}, "needs": ["target.venue_corpus.dir"],
+     "scope": {"kind": "all"}, "needs": ["target.venue_corpus.dir"], "config_keys": ["target.venue"],
      "inputs": _none, "outside": _venue_outside,
      "argv": lambda ctx: _py(ctx, "audit/audit-prose-structure.py") + [
          "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "target.venue_corpus.dir")).expanduser()), "--json"]},
     {"id": "structure-bibliography", "name": "句子结构·对照参考文献", "kind": "script",
      "scripts": ["audit/audit-prose-structure.py"],
      "formats": ["latex", "markdown"], "instead": {},
-     "scope": {"kind": "all"}, "needs": ["inputs.literature"],
+     "scope": {"kind": "all"}, "needs": ["inputs.literature"], "config_keys": ["inputs.literature_exclude"],
      "inputs": _none, "outside": _literature_outside,
      "argv": lambda ctx: _py(ctx, "audit/audit-prose-structure.py") + [
          "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "inputs.literature")).expanduser()), "--json"]
@@ -196,12 +210,12 @@ CHECKS = [
      "inputs": _notes_inputs, "outside": _no_outside, "argv": _notes_argv},
     {"id": "citation-fidelity", "name": "引文忠实度", "kind": "script", "scripts": ["audit/audit-citation-fidelity.mjs"],
      "formats": ["markdown"], "instead": {"latex": "claim-ledger"},
-     "scope": {"kind": "cite"}, "needs": [],
+     "scope": {"kind": "cite"}, "needs": [], "optional": _literature_optional,
      "inputs": _none, "outside": _no_outside,
      "argv": lambda ctx: _node(ctx, "audit/audit-citation-fidelity.mjs") + ["--base-dir", ".", "--json"]},
     {"id": "citation-style", "name": "引文格式", "kind": "script", "scripts": ["scripts/audit-citations.py"],
      "formats": ["markdown"], "instead": {"latex": None},
-     "scope": {"kind": "cite"}, "needs": [],
+     "scope": {"kind": "cite"}, "needs": [], "optional": _literature_optional,
      "inputs": _none, "outside": _no_outside,
      "argv": lambda ctx: _py(ctx, "scripts/audit-citations.py") + ["--base-dir", ".", "--json"]},
     {"id": "british-english", "name": "英式拼写", "kind": "script", "scripts": ["scripts/audit-british-english.py"],
@@ -223,7 +237,7 @@ CHECKS = [
      "scripts": ["readers/build-reader-packet.py", "readers/check-reader-output.py", "readers/tally-readers.py"],
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "sections", "config": "target.readers.sections", "default": ["A", "I"]},
-     "needs": ["target.intent_card"],
+     "needs": ["target.intent_card"], "config_keys": ["target.readers.sections"],
      "inputs": _none, "outside": _intent_outside, "argv": None},
 ]
 

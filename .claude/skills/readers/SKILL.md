@@ -54,6 +54,8 @@ report.
    and directed answers with the reader names shuffled and the version not named. Each writes
    `reader<TAB>point<TAB>judge<TAB>✓|△|✗` rows to `<dir>/judgments.tsv`. A reader carries a point only when at
    least two judges wrote ✓; judges who disagree count as not carried, and a pair with one judge is not judged.
+   The tally cannot tell two judge names written by one hand: the second judge must be a separate sub-agent that
+   has not seen the first judge's rows.
 
 5. Tally, and record the run in the workspace:
 

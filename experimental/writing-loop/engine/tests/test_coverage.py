@@ -209,11 +209,15 @@ class NeverGreenTest(unittest.TestCase):
         with TempDir() as root:
             repo, ws = setup(root)
             cfg = C.load(ws)
-            cfg["waive"] = {"probe": "作者 09-21：这篇不做"}
+            cfg["waive"] = {"probe": "the agent wrote this"}
             with Probe(probe_check(root)):
                 s = V.compute(cfg, ws, do_run=True)
+                self.assertEqual(status(s)["status"], V.OK, "a waiver in config.json is not the author's and does nothing")
+                self.assertIn("config.json 里的豁免不生效", V.reminder_line(s, ws))
+                (Path(ws) / "human" / "waivers.json").write_text(json.dumps({"probe": "作者：这篇不做"}), encoding="utf-8")
+                s = V.compute(cfg, ws, do_run=True)
                 self.assertEqual(status(s)["status"], V.WAIVED)
-                self.assertEqual(s["ran"], [])
+                self.assertIn("已豁免 探针", V.reminder_line(s, ws), "a waiver is said every turn")
 
     def test_exit_2_is_a_failure(self):
         with TempDir() as root:
@@ -341,11 +345,12 @@ class GrillTest(unittest.TestCase):
             cfg = C.load(ws)
             with Probe(probe_check(root)):
                 s = V.compute(cfg, ws, do_run=True)
-            path = Path(ws) / "cache" / "coverage" / "summary.json"
-            for bad in ({**s, "schema": 99}, {**s, "workspace": "someone-else"}, {**s, "rows": []},
-                        {**s, "rows": [{"name": "x", "status": "fine"}]}):
-                path.write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
-                self.assertIsNone(V.load_summary(ws, cfg))
+                path = Path(ws) / "cache" / "coverage" / "summary.json"
+                self.assertIsNotNone(V.load_summary(ws, cfg), "the genuine summary is trusted")
+                for bad in ({**s, "schema": 99}, {**s, "workspace": "someone-else"}, {**s, "rows": []},
+                            {**s, "rows": [{"name": "x", "status": "fine"}]}):
+                    path.write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+                    self.assertIsNone(V.load_summary(ws, cfg), bad.get("schema"))
 
     def test_a_waiver_does_not_hide_a_failure_and_the_cell_never_says_all_current_with_one(self):
         with TempDir() as root:
@@ -354,7 +359,7 @@ class GrillTest(unittest.TestCase):
             (Path(root) / "code.txt").write_text("2", encoding="utf-8")
             with Probe(probe_check(root)):
                 V.compute(cfg, ws, do_run=True)
-                cfg["waive"] = {"probe": "不做"}
+                (Path(ws) / "human" / "waivers.json").write_text(json.dumps({"probe": "不做"}), encoding="utf-8")
                 self.assertEqual(status(V.compute(cfg, ws))["status"], V.FAILED)
             with Probe(probe_check(root, formats=("markdown",), instead={"latex": None})):
                 cell = V.todo_cell(V.compute(C.load(ws), ws))
@@ -399,13 +404,17 @@ class GrillTest(unittest.TestCase):
                 cfg["ref"] = "no-such-branch"
                 self.assertEqual(status(V.compute(cfg, ws))["status"], V.FAILED)
 
-    def test_a_config_change_makes_it_stale(self):
+    def test_a_config_key_the_check_reads_makes_it_stale_and_an_unrelated_one_does_not(self):
         with TempDir() as root:
             repo, ws = setup(root)
             cfg = C.load(ws)
-            with Probe(probe_check(root)):
+            chk = probe_check(root)
+            chk["config_keys"] = ["inputs.literature_exclude"]
+            with Probe(chk):
                 V.compute(cfg, ws, do_run=True)
-                cfg["inputs"] = {"literature_exclude": ["me*"]}
+                cfg["inputs"] = {"number_ledger": "numbers.tsv"}
+                self.assertEqual(status(V.compute(cfg, ws))["status"], V.OK, "an unrelated key must not cost a re-run")
+                cfg["inputs"]["literature_exclude"] = ["me*"]
                 self.assertIn("工作区配置改过", status(V.compute(cfg, ws))["detail"])
 
     def test_files_submitted_with_the_draft_are_read_and_watched(self):
@@ -459,6 +468,90 @@ class ProjectCheckTest(unittest.TestCase):
             repo, ws, cfg = self.ws_with_check(root, code="1")
             s = V.compute(cfg, ws, do_run=True, only={"build"})
             self.assertEqual(status(s, "build")["status"], V.FAILED)
+
+
+class Grill2Test(unittest.TestCase):
+    """Each problem the second review (2026-09-22) reproduced, kept as a test."""
+
+    def test_a_citation_check_reads_the_notes_and_a_run_that_read_none_fails(self):
+        with TempDir() as root:
+            repo, ws = setup(root, extra_commits=[({"literature/reading_notes/Smith_2020_NOTES.md": "notes\n"},
+                                                   "notes", 1_700_000_050)])
+            cfg = C.load(ws)
+            chk = probe_check(root, scope="none")
+            chk["optional"] = lambda c: {"literature": "literature"}
+            chk["argv"] = lambda ctx: [sys.executable, "-c", "import json,pathlib;print(json.dumps({'issues': "
+                                       "[str(p) for p in pathlib.Path('literature').rglob('*.md')]}))"]
+            with Probe(chk):
+                self.assertEqual(status(V.compute(cfg, ws, do_run=True))["result"], "1 条", "the notes were archived")
+                commit(repo, {"literature/reading_notes/Smith_2020_NOTES.md": "more notes\n"}, "n2", 1_700_000_100)
+                reindex(ws)
+                r = status(V.compute(cfg, ws))
+                self.assertEqual(r["status"], V.STALE, "a changed note makes it stale")
+                self.assertIn("输入 ?literature 变了", r["detail"])
+        self.assertEqual(V.interpret("citation-fidelity", 0, '{"citations_checked": 3, "notes_sources_indexed": 0}',
+                                     "")[0], "failed")
+
+    def test_a_markdown_citation_check_watches_the_whole_text(self):
+        with TempDir() as root:
+            repo = make_repo(root, [({"drafts/DRAFT-v1.md": "# D\n\n## Abstract\n\nPlain text here.\n"}, "v1", 1_700_000_000)])
+            ws = workspace(root, repo, "main")
+            reindex(ws)
+            cfg = C.load(ws)
+            with Probe(probe_check(root, scope="cite", formats=("markdown",))):
+                V.compute(cfg, ws, do_run=True)
+                commit(repo, {"drafts/DRAFT-v1.md": "# D\n\n## Abstract\n\nJones (2021) reports that it is plain.\n"},
+                       "v2", 1_700_000_100)
+                reindex(ws)
+                r = status(V.compute(cfg, ws))
+                self.assertEqual(r["status"], V.STALE)
+                self.assertGreaterEqual(r["changed"], 1, "the edited sentence itself is in scope")
+
+    def test_every_check_against_the_venue_corpus_validates_it(self):
+        cfg = {"repo": ".", "ref": "main", "genre": "journal", "_ws": "/nonexistent",
+               "target": {"venue": "J", "venue_corpus": {"manifest": "/nonexistent.json", "dir": "/tmp"}}}
+        self.assertTrue(TG.problems_for("structure-venue", cfg))
+        self.assertTrue(TG.problems_for("fingerprint-venue", cfg))
+
+    def test_a_summary_is_not_current_once_a_check_script_or_its_set_of_checks_changes(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            chk = probe_check(root)
+            with Probe(chk):
+                V.compute(cfg, ws, do_run=True)
+                self.assertFalse(V.load_summary(ws, cfg).get("stale_inputs"))
+                Path(chk["scripts"][0]).write_text(PROBE + "\n# changed\n", encoding="utf-8")
+                s = V.load_summary(ws, cfg)
+                self.assertTrue(s.get("stale_inputs"))
+                self.assertEqual(V.attention(s)[0]["id"], "_summary")
+            other = dict(probe_check(root), id="other")
+            with Probe(other):
+                K.CHECKS.append(chk)
+                self.assertIsNone(V.load_summary(ws, cfg), "a summary without a row for every check is not trusted")
+
+    def test_a_project_check_whose_script_lives_outside_the_repository_follows_that_script(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            ext = Path(root) / "outside.py"
+            ext.write_text("print('ok')\n", encoding="utf-8")
+            cfg = C.load(ws)
+            cfg["project_checks"] = [{"id": "ext", "argv": [sys.executable, str(ext)], "auto": True}]
+            V.compute(cfg, ws, do_run=True, only={"ext"})
+            ext.write_text("raise SystemExit(1)\n", encoding="utf-8")
+            self.assertEqual(status(V.compute(cfg, ws), "ext")["status"], V.STALE)
+
+    def test_a_symlink_out_of_the_repository_fails_one_check_not_the_summary(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            (repo / "refs.bib").symlink_to(Path(root) / "zotero.bib")
+            git(repo, "add", "refs.bib")
+            git(repo, "commit", "-q", "-m", "link")
+            cfg = C.load(ws)
+            with Probe(probe_check(root, scope="none", inputs=lambda c: {"bib": "refs.bib"})):
+                s = V.compute(cfg, ws, do_run=True)
+                self.assertEqual(status(s)["status"], V.FAILED)
+                self.assertIsNotNone(V.load_summary(ws), "the summary survives")
 
 
 class ShownTest(unittest.TestCase):
@@ -608,6 +701,12 @@ class TargetTest(unittest.TestCase):
             (e / "i").mkdir()
             (e / "i" / "README.md").write_text("# I\n\n处置：已晋升 → `.claude/skills/readers`（旁注提到 `other.py`）\n",
                                                encoding="utf-8")
+            for name, text in {"dot": "处置：已晋升 → `./`", "home": "处置：已晋升 → `~/`",
+                               "up": "处置：已晋升 → `experiments/..`",
+                               "self": "处置：已晋升 → `experiments/self`", "bare": "处置：退役",
+                               "fenced": "```\n处置：退役 — 这是一段示例\n```"}.items():
+                (e / name).mkdir()
+                (e / name / "README.md").write_text(f"# {name}\n\n{text}\n", encoding="utf-8")
             (e / "h").mkdir()
             (e / "h" / "README.md").write_text("# H\n\n处置：已晋升 → `no/such/place.py`\n", encoding="utf-8")
             (Path(root) / ".claude" / "skills" / "readers").mkdir(parents=True)
@@ -617,7 +716,11 @@ class TargetTest(unittest.TestCase):
                 got = TG.experiments({"experiments_dir": [str(e)]}, today=dt.date(2026, 9, 21))
             finally:
                 K.ENGINE_ROOT = saved
-            self.assertEqual(got["promoted_missing"], ["h"], "a promotion to a path that does not exist")
+            self.assertEqual(sorted(got["promoted_missing"]), ["dot", "h", "home", "self", "up"],
+                             "a promotion to nowhere, to a root or home, or to the experiment itself")
+            for name in ("bare", "fenced"):
+                self.assertIn(name, got["undisposed"], name)
+                got["undisposed"].remove(name)
             self.assertIn("g", got["undisposed"], "a disposition buried in the body is not one")
             got["undisposed"].remove("g")
             self.assertEqual(got["promoted"], ["a", "i"], "a note after the target is not a second target")

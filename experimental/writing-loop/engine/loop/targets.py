@@ -100,7 +100,9 @@ def intent_card_state(cfg):
 
 def problems_for(check_id, cfg):
     """Prerequisite problems beyond a missing config key, for the checks that have them."""
-    if check_id == "fingerprint-venue":
+    check = next((c for c in K.CHECKS if c["id"] == check_id), None)
+    if check and "target.venue_corpus.dir" in check["needs"]:
+        # Every check measured against the venue's corpus needs that corpus to be the venue's.
         return venue_corpus_problems(cfg) if K.get(cfg, "target.venue_corpus.dir") else []
     if check_id == "readers":
         state, path = intent_card_state(cfg)
@@ -133,14 +135,27 @@ HEAD_LINES = 8
 BACKTICKED = re.compile(r"`([^`\s]+)`")
 
 
-def _promoted_target_exists(rest, roots):
-    """Every path named in backticks after 已晋升 must exist under one of the roots: a promotion to a place that is
-    not there is not a promotion."""
+def _promoted_target_exists(rest, roots, dirs):
+    """Every path named in backticks after 已晋升 must exist strictly inside the toolkit or the experiments'
+    repository -- not a root, not the home directory, not an experiments directory or anything in one. A
+    promotion to a place that is not there, or to a place that proves nothing (`./`, `~/`, the experiment itself),
+    is not a promotion."""
     target = re.split(r"[；;（(]", rest, maxsplit=1)[0]   # the promotion target, not the notes after it
-    paths = [p for p in BACKTICKED.findall(target) if "/" in p or p.endswith((".py", ".mjs", ".md"))]
+    paths = [p for p in BACKTICKED.findall(target) if "/" in p.strip("/") or p.endswith((".py", ".mjs"))]
     if not paths:
         return False
-    return all(any((r / p.lstrip("/")).exists() for r in roots) or Path(p).expanduser().exists() for p in paths)
+    banned = [d.resolve() for d in dirs]
+
+    def ok(p):
+        for r in roots:
+            q = (r / p).resolve()
+            if not q.exists() or not str(q).startswith(str(r.resolve()) + "/"):
+                continue  # missing, or not strictly inside the root (the root itself, a parent, the home directory)
+            if any(q == b or str(q).startswith(str(b) + "/") for b in banned):
+                continue
+            return True
+        return False
+    return all(ok(p) for p in paths)
 
 
 def experiments(cfg, today=None):
@@ -157,11 +172,11 @@ def experiments(cfg, today=None):
             out["undisposed"].append(f"（目录不存在：{root}）")
             continue
         for exp in sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))):
-            _one(exp, out, today, roots)
+            _one(exp, out, today, roots, dirs)
     return out
 
 
-def _one(exp, out, today, roots):
+def _one(exp, out, today, roots, dirs):
     out["total"] += 1
     try:
         text = (exp / "README.md").read_text(encoding="utf-8")
@@ -169,6 +184,7 @@ def _one(exp, out, today, roots):
         out["undisposed"].append(exp.name)
         return
     # The disposition is a heading-level fact: it must sit just under the title, not anywhere in the body.
+    text = re.sub(r"(?ms)^```.*?^```", "", text)   # a disposition quoted in a code block is not one
     head = "\n".join([ln for ln in text.splitlines() if ln.strip()][:HEAD_LINES])
     m = DISPOSITION.search(head)
     if not m:
@@ -176,10 +192,12 @@ def _one(exp, out, today, roots):
         return
     if True:
         kind, rest = m.group(1), m.group(2)
-        if kind == "已晋升" and not _promoted_target_exists(rest, roots):
+        if kind == "已晋升" and not _promoted_target_exists(rest, roots, dirs):
             out["promoted_missing"].append(exp.name)
         elif kind == "已晋升":
             out["promoted"].append(exp.name)
+        elif kind == "退役" and len(re.sub(r"[\s—\-–:：◌]", "", rest)) < 6:
+            out["undisposed"].append(exp.name)  # retired, but not a word about why: not a disposition
         elif kind == "退役":
             out["retired"].append(exp.name)
         else:

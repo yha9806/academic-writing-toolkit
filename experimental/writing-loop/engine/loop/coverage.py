@@ -85,6 +85,24 @@ def check_inputs(check, cfg):
     return out
 
 
+def optional_inputs(check, cfg, head):
+    """{role: repo path} the check reads when the repository has them (reading notes beside Markdown chapters)."""
+    opt = check.get("optional")
+    if not opt:
+        return {}
+    return {r: p for r, p in opt(cfg).items() if _git(cfg["repo"], "cat-file", "-e", f"{head}:{p}") is not None}
+
+
+def waivers(ws):
+    """Waivers count only from the workspace's human/ folder, which the hooks refuse to let the agent write: a
+    decision not to run a check is the author's. A waiver in config.json is reported and ignored."""
+    try:
+        d = json.loads((Path(ws) / "human" / "waivers.json").read_text(encoding="utf-8"))
+        return {k: str(v) for k, v in d.items() if str(v).strip()} if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def current_sentences(ws):
     """The latest version's sentences from the index on disk, and the head it was built from. (None, None) if the
     index is not there: coverage then refuses to say anything is up to date."""
@@ -114,8 +132,11 @@ def _scope_sentences(check, cfg, sentences):
     if kind == "all":
         return list(sentences)
     if kind == "cite":
-        rx = CITE.get(fmt, CITE["markdown"])
-        return [s for s in sentences if rx.search(s["text"])]
+        if fmt != "latex":
+            # Markdown citations take many forms (author-year in and outside brackets, [@key]); the checks' own
+            # extractors find more than any one pattern here, so a Markdown citation check watches the whole text.
+            return list(sentences)
+        return [s for s in sentences if CITE["latex"].search(s["text"])]
     if kind == "numbers":
         return [s for s in sentences if DIGIT.search(s["text"])]
     if kind == "sections":
@@ -143,7 +164,7 @@ def unindexed_of(check, cfg, head):
     kind = check["scope"]["kind"]
     if kind == "tree":
         return {"tree": _git(cfg["repo"], "rev-parse", f"{head}^{{tree}}")}
-    if kind == "all":
+    if kind == "all" or (kind == "cite" and draft_format(cfg) != "latex"):
         return {f: _git(cfg["repo"], "rev-parse", f"{head}:{f}") for f in draft_files(cfg, head)}
     if kind in ("cite", "numbers"):
         rx = CITE.get(draft_format(cfg), CITE["markdown"]) if kind == "cite" else DIGIT
@@ -183,8 +204,13 @@ def script_hash(check):
     script's behaviour lives in the libraries it imports from there too."""
     h = hashlib.sha1()
     if check.get("project"):
-        # A project check's "script" is its definition in the workspace: a changed command is a different check.
+        # A project check's "script" is its definition in the workspace, and any file outside the repository its
+        # command names (a script kept elsewhere): a changed command or a changed outside script is a different check.
         h.update(json.dumps(check.get("definition"), sort_keys=True, ensure_ascii=False).encode())
+        for a in (check.get("definition") or {}).get("argv") or []:
+            q = Path(str(a)).expanduser()
+            if q.is_absolute() and q.is_file():
+                h.update(str(q).encode() + b"\0" + q.read_bytes())
     for s in check["scripts"]:
         p = K.script_path(s)
         files = [p] if (Path(s).is_absolute() or s.startswith("scripts/")) else \
@@ -195,16 +221,21 @@ def script_hash(check):
 
 
 def config_hash(check, cfg):
-    """The configuration a run depends on: its prerequisites, inputs, the target and the draft rule."""
-    keep = {k: cfg.get(k) for k in ("inputs", "target", "draft")}
-    keep["needs"] = {n: K.get(cfg, n) for n in check["needs"]}
-    keep["ledger"] = K.get(cfg, "overview.ledger")
+    """The configuration this check's run depends on, and nothing else: its prerequisites, the keys it declares it
+    reads, the paths of its inputs and the draft rule. An unrelated change must not make an expensive check (a paid
+    reader panel) stale."""
+    keep = {"needs": {n: K.get(cfg, n) for n in check["needs"]},
+            "keys": {n: K.get(cfg, n) for n in check.get("config_keys") or []},
+            "inputs": check_inputs(check, cfg),
+            "draft": {k: cfg["draft"].get(k) for k in ("glob", "format")}}
     return _sha(json.dumps(keep, sort_keys=True, ensure_ascii=False, default=str))
 
 
 def snapshot(check, cfg, sentences, head):
     """What a run of this check at head looks at. Two runs with equal snapshots would see the same thing."""
     inputs = {role: _git(cfg["repo"], "rev-parse", f"{head}:{path}") for role, path in check_inputs(check, cfg).items()}
+    for role, path in (check.get("optional") or (lambda c: {}))(cfg).items():
+        inputs[f"?{role}"] = _git(cfg["repo"], "rev-parse", f"{head}:{path}")
     return {"scope": scope_of(check, cfg, sentences),
             "order": order_of(check, cfg, sentences),
             "unindexed": unindexed_of(check, cfg, head),
@@ -272,6 +303,9 @@ def interpret(check_id, code, stdout, stderr):
         data = None
     if code == 2:
         return "failed", "没有查到任何对象或前提不满足（退出码 2）：" + (stderr.strip().splitlines() or [first])[-1][:160]
+    if isinstance(data, dict) and data.get("citations_checked") and data.get("notes_sources_indexed") == 0:
+        # Citations were checked against no reading notes at all: every quote went unverified.
+        return "failed", f"查了 {data['citations_checked']} 条引用，却一份阅读笔记都没读到"
     if code not in (0, 1):
         return "failed", f"退出码 {code}：" + ((stderr or "").strip().splitlines() or [first or "（无输出）"])[-1][:160]
     if not isinstance(data, dict):
@@ -300,19 +334,27 @@ def materialize(cfg, check, head, dest):
         tar = _git(cfg["repo"], "archive", head, binary=True)
         if tar is None:
             return None, "git archive 失败"
-        tarfile.open(fileobj=io.BytesIO(tar)).extractall(dest, filter="data")
-        return {}, None
+        return _extract(tar, dest, {})
     inputs = check_inputs(check, cfg)
     missing = [f"{role}={p}" for role, p in inputs.items() if _git(cfg["repo"], "cat-file", "-e", f"{head}:{p}") is None]
     if missing:
         return None, "配置的输入在 HEAD 上不存在：" + "，".join(missing)
-    paths = sorted(set(draft_files(cfg, head)) | set(inputs.values()))
+    paths = sorted(set(draft_files(cfg, head)) | set(inputs.values()) | set(optional_inputs(check, cfg, head).values()))
     if not paths:
         return None, "HEAD 上没有草稿文件"
     tar = _git(cfg["repo"], "archive", head, "--", *paths, binary=True)
     if tar is None:
         return None, "git archive 失败"
-    tarfile.open(fileobj=io.BytesIO(tar)).extractall(dest, filter="data")
+    return _extract(tar, dest, inputs)
+
+
+def _extract(tar, dest, inputs):
+    """Unpack an archive for one check. A member the safe filter refuses (a symlink out of the repository, say a
+    bibliography linked to a reference manager's export) fails this check with its name, never the whole summary."""
+    try:
+        tarfile.open(fileobj=io.BytesIO(tar)).extractall(dest, filter="data")
+    except (tarfile.TarError, OSError) as e:
+        return None, f"打包的稿件解不开（{type(e).__name__}：{str(e)[:120]}）；仓里若有指向仓外的链接，检查读不到它指的内容"
     return inputs, None
 
 
@@ -367,7 +409,7 @@ def row(check, cfg, ws, head, sentences, index_head=None):
                 "detail": (f"只读 {'/'.join(check['formats'])}；这里由 {instead} 覆盖" if instead
                            else f"只读 {'/'.join(check['formats'])}，这种稿件没有别的检查替它")}
     rec = load_run(ws, check["id"])
-    reason = (cfg.get("waive") or {}).get(check["id"])
+    reason = waivers(ws).get(check["id"])
     if reason:
         if rec is not None and rec.get("verdict") == "failed":
             # A waiver records a decision not to run a check; it does not turn a run that failed into a decision.
@@ -437,6 +479,8 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
                "index_head": index_head, "index_behind": bool(head and index_head and head != index_head),
                "computed_at": dt.datetime.fromtimestamp(now or time.time(), dt.timezone.utc).isoformat(),
                "format": draft_format(cfg), "rows": rows, "counts": counts, "ran": ran,
+               "fingerprint": fingerprint(cfg, ws),
+               "config_waivers_ignored": sorted((cfg.get("waive") or {}).keys()),
                "target": TG.describe(cfg),
                "experiments": TG.experiments(cfg),
                "unwired": [{"script": k, "reason": v} for k, v in sorted(K.UNWIRED.items())]}
@@ -451,6 +495,27 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
 STATUSES = (OK, STALE, NEVER, MISSING, NOT_APPLICABLE, WAIVED, FAILED)
 
 
+def _stat_sig(path):
+    p = Path(path)
+    if p.is_file():
+        st = p.stat()
+        return [st.st_size, st.st_mtime_ns]
+    if p.is_dir():
+        return _sha("\n".join(f"{q.relative_to(p)}\0{q.stat().st_size}\0{q.stat().st_mtime_ns}"
+                               for q in sorted(p.rglob("*")) if q.is_file()))
+    return None
+
+
+def fingerprint(cfg, ws):
+    """A cheap digest of everything besides HEAD that a summary's rows depend on: the checks and their scripts,
+    each check's configuration, the files read in place (by size and time, not content: this runs every turn),
+    and the author's waivers. A summary whose fingerprint no longer matches is not current."""
+    rows = [[c["id"], script_hash(c), config_hash(c, cfg), [_stat_sig(p) for p in c["outside"](cfg)]]
+            for c in K.all_checks(cfg)]
+    rows.append(["_waivers", sorted(waivers(ws).items())])
+    return _sha(json.dumps(rows, ensure_ascii=False, default=str))
+
+
 def load_summary(ws, cfg=None):
     """The summary on disk, or None when there is none or it cannot be trusted: another schema, another workspace,
     rows of the wrong shape or an unknown status. With cfg, a summary computed for an older HEAD is marked
@@ -461,8 +526,17 @@ def load_summary(ws, cfg=None):
         return None
     ok = (isinstance(s, dict) and s.get("schema") == SCHEMA and isinstance(s.get("rows"), list) and s["rows"]
           and all(isinstance(r, dict) and r.get("status") in STATUSES and r.get("name") for r in s["rows"]))
-    if not ok or (cfg and cfg.get("name") and s.get("workspace") not in (None, cfg["name"])):
+    if not ok or (cfg and s.get("workspace") != cfg.get("name", s.get("workspace"))):
         return None
+    if cfg and cfg.get("draft"):
+        # A full config: every check must have its row, and nothing a row depends on may have moved.
+        if {c["id"] for c in K.all_checks(cfg)} - {r.get("id") for r in s["rows"]}:
+            return None
+        try:
+            if fingerprint(cfg, ws) != s.get("fingerprint"):
+                s["stale_inputs"] = True
+        except Exception:  # noqa: BLE001 -- an unreadable input is itself a reason not to trust the summary
+            s["stale_inputs"] = True
     if cfg and cfg.get("repo") and cfg.get("ref"):
         now = _git(cfg["repo"], "rev-parse", "--verify", f"{cfg['ref']}^{{commit}}")
         if now != s.get("head"):
@@ -479,7 +553,12 @@ def attention(summary):
     if summary.get("stale_head"):
         out.append({"id": "_summary", "name": "覆盖摘要", "status": STALE,
                     "detail": f"算于 {(summary.get('head') or '?')[:7]}，HEAD 已到 {summary['stale_head'][:7]}"})
-    return out + [r for r in summary["rows"] if r["status"] in ATTENTION]
+    elif summary.get("stale_inputs"):
+        out.append({"id": "_summary", "name": "覆盖摘要", "status": STALE,
+                    "detail": "检查脚本、配置、外部文件或豁免在摘要之后变了"})
+    # Failures first: when the line is cut, what drops off is the least severe.
+    order = {FAILED: 0, STALE: 1, NEVER: 2, MISSING: 3}
+    return out + sorted((r for r in summary["rows"] if r["status"] in ATTENTION), key=lambda r: order[r["status"]])
 
 
 def gaps(summary):
@@ -518,7 +597,7 @@ def reminder_line(summary, ws):
     rows = attention(summary)
     t, e = summary.get("target") or {}, summary.get("experiments") or {}
     bits = []
-    for status in (STALE, NEVER, FAILED, MISSING):
+    for status in (FAILED, STALE, NEVER, MISSING):
         xs = [_name(r) for r in rows if r["status"] == status]
         if xs:
             bits.append(f"{status} " + "、".join(xs))
@@ -526,6 +605,12 @@ def reminder_line(summary, ws):
     if found:
         bits.append("有发现 " + "、".join(f"{r['name']}（{_short(r.get('result'))}）" for r in found[:3])
                     + (f" 等 {len(found)} 项" if len(found) > 3 else ""))
+    wv = waived(summary)
+    if wv:
+        bits.append("已豁免 " + "、".join(f"{r['name']}（{_short(r.get('detail'), 16)}）" for r in wv))
+    if summary.get("config_waivers_ignored"):
+        bits.append("config.json 里的豁免不生效（豁免只认 human/waivers.json）："
+                    + "、".join(summary["config_waivers_ignored"]))
     if t.get("problems"):
         bits.append("目标档案：" + "；".join(t["problems"]))
     pending = (e.get("undisposed") or []) + (e.get("overdue") or []) + (e.get("promoted_missing") or [])
@@ -553,10 +638,11 @@ def todo_cell(summary):
         if not gap and not wv:
             return {"title": "检查", "text": "都查过当前稿", "sub": ("按改动自动判过期" + tail)[:120],
                     "value": "全部最新", "tone": "white"}
-        # Everything that can run has looked at this draft, but not everything the toolkit has could: say which.
-        value = f"缺口 {len(gap)}" if gap else f"豁免 {len(wv)}"
-        return {"title": "检查", "text": "能跑的都查过当前稿", "sub": tail.lstrip("；")[:120], "value": value,
-                "tone": "white"}
+        # Everything that ran has looked at this draft, but not everything the toolkit has: say which, and never
+        # call a waived check "checked".
+        value = f"豁免 {len(wv)}" if wv else f"缺口 {len(gap)}"
+        text = "没豁免的都查过当前稿" if wv else "能跑的都查过当前稿"
+        return {"title": "检查", "text": text, "sub": tail.lstrip("；")[:120], "value": value, "tone": "white"}
     text = " · ".join(f"{k} {v}" for k, v in c.items()) or "目标档案有问题"
     names = "、".join(r["name"] for r in rows[:3])
     return {"title": "检查", "text": text[:64], "sub": (names + tail)[:120], "value": text[:16], "tone": "orange"}

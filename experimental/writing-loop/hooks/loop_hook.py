@@ -122,7 +122,7 @@ def history_ws(payload, regs):
     br = None
     for ws, cfg in regs:
         for s in cfg["transcripts"].get("also") or []:
-            if isinstance(s, dict) and s.get("cwd_prefix") and _under(cwd, s["cwd_prefix"]):
+            if isinstance(s, dict) and s.get("cwd_prefix") and s.get("git_branch") and _under(cwd, s["cwd_prefix"]):
                 br = br or branch_of(cwd)
                 if br == s.get("git_branch"):
                     return ws, cfg

@@ -72,9 +72,19 @@ def problems(data, packet):
     return out
 
 
+def _normal(x):
+    if isinstance(x, str):
+        return " ".join(x.split()).casefold()
+    if isinstance(x, list):
+        return [_normal(v) for v in x]
+    if isinstance(x, dict):
+        return {k: _normal(v) for k, v in x.items()}
+    return x
+
+
 def duplicate_of(data, name, seen):
-    """An output identical to one already read is a copy, not another reader."""
-    key = json.dumps(data, sort_keys=True, ensure_ascii=False)
+    """An output identical to one already read, up to spacing and case, is a copy, not another reader."""
+    key = json.dumps(_normal(data), sort_keys=True, ensure_ascii=False)
     if key in seen:
         return [f"identical to {seen[key]}"]
     seen[key] = name
