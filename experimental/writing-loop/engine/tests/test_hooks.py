@@ -65,6 +65,26 @@ class PromptTest(unittest.TestCase):
             self.assertIn("〔循环〕", ctx)
             self.assertEqual(out["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
 
+    def test_the_reminder_carries_the_coverage_line_and_only_when_something_is_not_current(self):
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("覆盖：还没有算过", ctx, "no summary yet must be said, not left silent")
+            cov = Path(ws) / "cache" / "coverage"
+            cov.mkdir(parents=True, exist_ok=True)
+            row = {"id": "x", "name": "读者组", "kind": "panel", "status": "过期", "detail": "句子改 3"}
+            summary = {"head": "abc1234def", "rows": [row], "target": {}, "experiments": None}
+            (cov / "summary.json").write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
+            ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("过期 读者组", ctx)
+            row["status"] = "最新"
+            (cov / "summary.json").write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
+            ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
+            self.assertNotIn("覆盖", ctx)
+            (cov / "summary.json").write_text("{not json", encoding="utf-8")
+            ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("覆盖", ctx, "a broken summary must not read as all checked")
+
     def test_the_documentations_field_name_is_a_visible_error_not_silence(self):
         """The docs once said user_prompt; the runtime sends prompt. A hook reading the wrong one must be seen."""
         with TempDir() as root:

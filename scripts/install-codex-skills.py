@@ -23,7 +23,7 @@ import uuid
 import zipfile
 
 SOURCE = Path(__file__).resolve().parents[1]
-NAMES = ("audit", "export", "integrate", "map", "note", "read", "review", "verify-refs")
+NAMES = ("audit", "export", "integrate", "map", "note", "read", "readers", "review", "verify-refs")
 FORMAT = 1
 OWNER = "yha9806/academic-writing-toolkit"
 # Source paths, not bare names: each script now lives in the skill that calls

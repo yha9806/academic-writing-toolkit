@@ -120,6 +120,7 @@ def cmd_update(a):
                     print(f"update 失败：{type(e).__name__}：{e}", file=sys.stderr)
                     return 1
                 HL.record_ok(ws, a.reason, time.time() - t0)
+                _coverage_after_update(ws, cfg)
                 if not dirty.exists():
                     break
         finally:
@@ -129,6 +130,38 @@ def cmd_update(a):
             break
     print(_summary_line(summary))
     return 0
+
+
+def _coverage_after_update(ws, cfg):
+    """Run the checks the new index made due. A failure here never fails the update, and never leaves an old summary
+    standing in for a new one: the summary is removed, so every surface says coverage was not computed."""
+    from . import coverage as V
+    from . import health as HL
+    try:
+        V.compute(cfg, ws, do_run=True)
+    except Exception as e:  # recorded, never swallowed
+        (Path(ws) / "cache" / "coverage" / "summary.json").unlink(missing_ok=True)
+        HL.record_event(ws, "coverage_error", f"{type(e).__name__}：{e}")
+        print(f"coverage 失败：{type(e).__name__}：{e}", file=sys.stderr)
+
+
+def cmd_coverage(a):
+    """Which checks have looked at the draft as it is now. Exit 0 only when nothing needs attention."""
+    from . import coverage as V
+    try:
+        cfg = C.load(a.workspace)
+    except (OSError, ValueError) as e:
+        print(f"coverage：读不出工作区配置：{e}", file=sys.stderr)
+        return 2
+    only = set(a.only.split(",")) if a.only else None
+    s = V.compute(cfg, a.workspace, do_run=a.run, only=only, force=a.force)
+    if a.json:
+        print(json.dumps(s, ensure_ascii=False, indent=1))
+    else:
+        print(V.table(s, a.workspace))
+        if s["ran"]:
+            print("这次跑了：" + "、".join(s["ran"]))
+    return 1 if (V.attention(s) or (s.get("target") or {}).get("problems")) else 0
 
 
 def cmd_health(a):
@@ -307,6 +340,14 @@ def main(argv=None):
     h.add_argument("workspace")
     h.add_argument("--quick", action="store_true", help="skip the full rebuild comparison")
     h.set_defaults(fn=cmd_health)
+
+    v = sub.add_parser("coverage", help="which checks have looked at the draft as it is now (exit 1 if any has not)")
+    v.add_argument("workspace")
+    v.add_argument("--run", action="store_true", help="run the script checks that are due before reporting")
+    v.add_argument("--force", action="store_true", help="with --run: run every runnable script check, due or not")
+    v.add_argument("--only", help="comma-separated check ids to run")
+    v.add_argument("--json", action="store_true")
+    v.set_defaults(fn=cmd_coverage)
 
     b = sub.add_parser("bench", help="time event -> updated index through the hook path (spec T15)")
     b.add_argument("--runs", type=int, default=10)

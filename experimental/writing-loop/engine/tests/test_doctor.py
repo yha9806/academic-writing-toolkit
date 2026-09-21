@@ -64,6 +64,21 @@ class DoctorTest(unittest.TestCase):
             problems, _ = doctor.run(ws)
             self.assertIn("transcripts.git_branch", [p[0] for p in problems])
 
+    def test_a_target_that_is_not_registered_is_a_fact_and_a_configured_path_that_does_not_resolve_is_a_problem(self):
+        from loop import doctor
+        with TempDir() as root:
+            ws = self.setup_ws(root)
+            problems, facts = doctor.run(ws)
+            self.assertEqual(problems, [], "no target registered is a coverage gap, not a broken tool")
+            self.assertTrue(any(item == "target" and "未登记" in msg for item, msg in facts), facts)
+            cfg = C.load(ws)
+            cfg["target"] = {"venue": "J", "venue_corpus": {"manifest": "nope.json", "dir": str(root / "nodir")},
+                             "intent_card": str(root / "card.md")}
+            C.save(ws, cfg)
+            items = [item for item, _ in doctor.run(ws)[0]]
+            self.assertEqual(sorted(items), ["target.intent_card", "target.venue_corpus.dir",
+                                             "target.venue_corpus.manifest"])
+
     def test_cli_exit_code(self):
         from loop.cli import main
         with TempDir() as root:

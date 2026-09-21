@@ -58,6 +58,13 @@ CHECKS = {
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty)],
     "audit/audit-prose-fingerprint.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty)],
+    # A reader panel's three steps: nothing to read, nothing to check, nothing to tally (exit 2 each).
+    "readers/build-reader-packet.py":
+        lambda s, empty: ["python3", str(s), "--text", str(empty / "empty.bib"), "--out", str(empty / "packet")],
+    "readers/check-reader-output.py":
+        lambda s, empty: ["python3", str(s), "--packet", str(empty / "packet.json"), "--outputs", str(empty)],
+    "readers/tally-readers.py":
+        lambda s, empty: ["python3", str(s), "--packet", str(empty / "packet.json"), "--outputs", str(empty)],
     "review/audit-review-findings.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty),
                           "--findings", str(empty / "findings.tsv")],

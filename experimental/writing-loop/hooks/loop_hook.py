@@ -270,6 +270,19 @@ ENVELOPE = re.compile(r"\s*(?:<(?:task-notification|ci-monitor-event|system-remi
                       r"local-command-stdout|cross-session-message)\b|\[SYSTEM NOTIFICATION)", re.I)
 
 
+def reminder_text(ws, cfg):
+    """The explanation block the author asked for, plus one line on which checks have not looked at the draft as it
+    is now. The line is read from the summary `loop update` wrote; nothing is computed here, so the hook stays fast.
+    An unreadable summary is said, not skipped: silence would read as "all checked"."""
+    text = REMINDER.format(name=cfg["name"])
+    try:
+        from loop import coverage as V
+        line = V.reminder_line(V.load_summary(ws), ws)
+    except Exception as e:  # noqa: BLE001 -- any failure here must still reach the agent as text
+        line = f"覆盖：摘要读不出（{type(e).__name__}），不能当作都查过了"
+    return text + ("\n" + line if line else "")
+
+
 def on_prompt(payload, regs, now):
     ws, cfg = session_ws(payload, regs)
     if ws is None:
@@ -279,7 +292,7 @@ def on_prompt(payload, regs, now):
         HL.record_event(ws, "hook_error", "UserPromptSubmit 的载荷里没有字符串字段 prompt（运行时字段名变了？）", now=now)
         return None
     reminder = {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                       "additionalContext": REMINDER.format(name=cfg["name"])}}
+                                       "additionalContext": reminder_text(ws, cfg)}}
     if ENVELOPE.match(prompt):
         return reminder  # the turn it starts can still edit the draft
     (ws / "human").mkdir(parents=True, exist_ok=True)

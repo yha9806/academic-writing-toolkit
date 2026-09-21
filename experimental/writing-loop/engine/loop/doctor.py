@@ -81,6 +81,10 @@ def run(ws):
             p = led.get(key)
             if p and not gitio.ls_tree(repo, head, p):
                 bad(f"ledger.{key}", f"在 {head[:7]} 上不存在：{p}")
+    from . import targets as TG
+    for item, msg in TG.doctor_problems(cfg):
+        bad(item, msg)
+    facts.append(("target", TG.describe(cfg)["line"]))
     files = transcript_files(cfg)
     if files is None:
         bad("transcripts.projects_dir", f"目录不存在：{cfg['transcripts']['projects_dir']}")

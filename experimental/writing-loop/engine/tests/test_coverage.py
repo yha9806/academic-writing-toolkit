@@ -1,0 +1,375 @@
+"""Coverage: a check's status follows the draft, and nothing that did not look at the current draft is green."""
+import datetime as dt
+import json
+import sys
+import unittest
+from pathlib import Path
+
+from loop import catalogue as K
+from loop import config as C
+from loop import coverage as V
+from loop import history as H
+from loop import targets as TG
+
+from fixtures import TempDir, git, make_repo, workspace
+
+MAIN = r"""\documentclass{article}
+\begin{document}
+\begin{abstract}
+We audit a bridge survey. Its gauges read 12 points.
+\end{abstract}
+\input{sections/01_intro}
+\end{document}
+"""
+INTRO = r"""\section{Introduction}\label{sec:intro}
+Bridges fail slowly~\cite{smith2020}. Nobody watches them.
+
+Inspections are rare.
+"""
+BIB = "@article{smith2020, title={Slow}, author={Smith, A.}, year={2020}, journal={J}}\n"
+RULES = [{"match": r"^Abstract$", "prefix": "A", "kind": "prose", "flat": True},
+         {"match": r"^Introduction$", "prefix": "I", "kind": "prose"}]
+
+# A throwaway check: prints how many sentences it can see and exits with the code written in CODE, or sleeps.
+PROBE = r"""
+import json, pathlib, sys, time
+code = pathlib.Path(sys.argv[1]).read_text().strip()
+if code == "sleep":
+    time.sleep(5)
+tex = "".join(p.read_text() for p in pathlib.Path(".").rglob("*.tex"))
+print(json.dumps({"issues": ["x"] * tex.count("~\\cite")}))
+sys.exit(int(code))
+"""
+
+
+def probe_check(root, scope="cite", formats=("latex",), needs=(), inputs=None, instead=None):
+    script = Path(root) / "probe.py"
+    script.write_text(PROBE, encoding="utf-8")
+    code = Path(root) / "code.txt"
+    if not code.exists():
+        code.write_text("0", encoding="utf-8")
+    return {"id": "probe", "name": "探针", "kind": "script", "scripts": [str(script)], "formats": list(formats),
+            "instead": instead or {}, "scope": {"kind": scope}, "needs": list(needs),
+            "inputs": inputs or (lambda cfg: {}), "outside": lambda cfg: [],
+            "argv": lambda ctx: [sys.executable, str(script), str(code)]}
+
+
+def setup(root, extra_commits=()):
+    commits = [({"main.tex": MAIN, "sections/01_intro.tex": INTRO, "references.bib": BIB}, "v1", 1_700_000_000)]
+    commits += list(extra_commits)
+    repo = make_repo(root, commits)
+    ws = workspace(root, repo, "main", glob=["main.tex", "sections/01_intro.tex"])
+    cfg = C.load(ws)
+    cfg["draft"]["format"] = "latex"
+    cfg["draft"]["sections"] = RULES
+    cfg["genre"] = "note"
+    C.save(ws, cfg)
+    reindex(ws)
+    return repo, ws
+
+
+def reindex(ws):
+    """What `loop update` leaves on disk, reduced to the one file coverage reads."""
+    cfg = C.load(ws)
+    vs = H.load_versions(cfg)
+    H.assign_ids(vs)
+    head = git(cfg["repo"], "rev-parse", "HEAD")
+    (Path(ws) / "index" / "sentences.json").write_text(json.dumps({"head": head, "versions": vs}), encoding="utf-8")
+
+
+def commit(repo, files, msg, t):
+    for path, txt in files.items():
+        (repo / path).write_text(txt, encoding="utf-8")
+        git(repo, "add", path)
+    d = f"@{t} +0000"
+    git(repo, "commit", "-q", "-m", msg, env={"GIT_AUTHOR_DATE": d, "GIT_COMMITTER_DATE": d})
+
+
+class Probe:
+    """Put a probe check in the catalogue for the duration of a test."""
+
+    def __init__(self, check):
+        self.check = check
+
+    def __enter__(self):
+        self.saved = list(K.CHECKS)
+        K.CHECKS[:] = [self.check]
+        return self.check
+
+    def __exit__(self, *exc):
+        K.CHECKS[:] = self.saved
+
+
+def status(summary, cid="probe"):
+    return next(r for r in summary["rows"] if r["id"] == cid)
+
+
+class StalenessTest(unittest.TestCase):
+    def test_never_run_then_run_then_up_to_date(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root)):
+                self.assertEqual(status(V.compute(cfg, ws))["status"], V.NEVER)
+                s = V.compute(cfg, ws, do_run=True)
+                self.assertEqual(s["ran"], ["probe"])
+                self.assertEqual(status(s)["status"], V.OK)
+                self.assertEqual(status(s)["result"], "1 条")
+                self.assertEqual(V.compute(cfg, ws, do_run=True)["ran"], [], "an up-to-date check is not re-run")
+
+    def test_an_edited_sentence_in_scope_makes_it_stale_and_one_outside_does_not(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root, scope="cite")):
+                V.compute(cfg, ws, do_run=True)
+                commit(repo, {"sections/01_intro.tex": INTRO.replace("Inspections are rare.", "Inspections are very rare.")},
+                       "outside scope", 1_700_000_100)
+                reindex(ws)
+                self.assertEqual(status(V.compute(cfg, ws))["status"], V.OK)
+                commit(repo, {"sections/01_intro.tex": INTRO.replace("fail slowly", "fail quietly")}, "in scope",
+                       1_700_000_200)
+                reindex(ws)
+                r = status(V.compute(cfg, ws))
+                self.assertEqual(r["status"], V.STALE)
+                self.assertEqual(r["changed"], 1)
+                self.assertIn("句子", r["detail"])
+
+    def test_the_sections_scope_follows_subsections_and_nothing_else(self):
+        self.assertTrue(V.in_sections("Wa", ["W"]))
+        self.assertTrue(V.in_sections("I", ["A", "I"]))
+        self.assertFalse(V.in_sections("X", ["R"]))
+        self.assertFalse(V.in_sections("Ia2", ["I"]))
+
+    def test_a_changed_input_file_makes_it_stale(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root, scope="none", inputs=lambda c: {"bib": "references.bib"})):
+                V.compute(cfg, ws, do_run=True)
+                commit(repo, {"references.bib": BIB + "@misc{x, title={X}, year={2021}}\n"}, "bib", 1_700_000_100)
+                r = status(V.compute(cfg, ws))
+                self.assertEqual(r["status"], V.STALE)
+                self.assertIn("输入 bib", r["detail"])
+
+    def test_a_changed_check_script_makes_it_stale(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            chk = probe_check(root)
+            with Probe(chk):
+                V.compute(cfg, ws, do_run=True)
+                Path(chk["scripts"][0]).write_text(PROBE + "\n# a new version\n", encoding="utf-8")
+                r = status(V.compute(cfg, ws))
+                self.assertEqual(r["status"], V.STALE)
+                self.assertIn("检查脚本本身改过", r["detail"])
+
+
+class NeverGreenTest(unittest.TestCase):
+    """Every way a check can fail to look at the draft is shown as itself, never as 最新."""
+
+    def test_a_format_the_check_cannot_read(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root, formats=("markdown",), instead={"latex": None})):
+                r = status(V.compute(cfg, ws, do_run=True))
+                self.assertEqual(r["status"], V.NOT_APPLICABLE)
+                self.assertIn("没有别的检查替它", r["detail"])
+                self.assertEqual(len(V.attention(V.load_summary(ws))), 1, "an uncovered format needs attention")
+            with Probe(probe_check(root, formats=("markdown",), instead={"latex": "claim-ledger"})):
+                s = V.compute(cfg, ws)
+                self.assertEqual(status(s)["status"], V.NOT_APPLICABLE)
+                self.assertEqual(V.attention(s), [], "a format covered by another check is a decision, not a gap")
+
+    def test_a_missing_prerequisite(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root, needs=("inputs.number_ledger",))):
+                r = status(V.compute(cfg, ws, do_run=True))
+                self.assertEqual(r["status"], V.MISSING)
+                self.assertIn("inputs.number_ledger", r["detail"])
+
+    def test_an_input_configured_but_absent_at_head_is_a_failure_not_a_pass(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root, scope="none", inputs=lambda c: {"bib": "nope.bib"})):
+                r = status(V.compute(cfg, ws, do_run=True))
+                self.assertEqual(r["status"], V.FAILED)
+                self.assertIn("nope.bib", r["detail"])
+
+    def test_a_waiver_is_shown_with_its_reason(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            cfg["waive"] = {"probe": "作者 09-21：这篇不做"}
+            with Probe(probe_check(root)):
+                s = V.compute(cfg, ws, do_run=True)
+                self.assertEqual(status(s)["status"], V.WAIVED)
+                self.assertEqual(s["ran"], [])
+
+    def test_exit_2_is_a_failure(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            chk = probe_check(root)
+            (Path(root) / "code.txt").write_text("2", encoding="utf-8")
+            with Probe(chk):
+                r = status(V.compute(cfg, ws, do_run=True))
+                self.assertEqual(r["status"], V.FAILED)
+                self.assertIn("退出码 2", r["detail"])
+
+    def test_a_timeout_is_a_failure(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            chk = probe_check(root)
+            (Path(root) / "code.txt").write_text("sleep", encoding="utf-8")
+            with Probe(chk):
+                rec = V.run(chk, cfg, ws, git(repo, "rev-parse", "HEAD"), V.current_sentences(ws)[0], timeout=1)
+                self.assertEqual(rec["verdict"], "failed")
+                self.assertEqual(status(V.compute(cfg, ws))["status"], V.FAILED)
+
+    def test_no_index_means_nothing_is_up_to_date(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            (Path(ws) / "index" / "sentences.json").unlink()
+            with Probe(probe_check(root)):
+                s = V.compute(cfg, ws, do_run=True)
+                self.assertEqual(status(s)["status"], V.NEVER)
+                self.assertEqual(s["ran"], [])
+
+    def test_a_failed_check_is_rerun_only_when_something_changed(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            (Path(root) / "code.txt").write_text("2", encoding="utf-8")
+            with Probe(probe_check(root)):
+                self.assertEqual(V.compute(cfg, ws, do_run=True)["ran"], ["probe"])
+                self.assertEqual(V.compute(cfg, ws, do_run=True)["ran"], [])
+                commit(repo, {"sections/01_intro.tex": INTRO.replace("fail slowly", "fail quietly")}, "c", 1_700_000_100)
+                reindex(ws)
+                self.assertEqual(V.compute(cfg, ws, do_run=True)["ran"], ["probe"])
+
+
+class ShownTest(unittest.TestCase):
+    def test_the_reminder_names_what_is_not_current_and_is_silent_otherwise(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root)):
+                s = V.compute(cfg, ws)
+                line = V.reminder_line(s, ws)
+                self.assertIn("从未运行 探针", line)
+                s = V.compute(cfg, ws, do_run=True)
+                self.assertIsNone(V.reminder_line(s, ws))
+                self.assertEqual(V.todo_cell(s)["tone"], "white")
+            self.assertIn("还没有算过", V.reminder_line(None, ws))
+
+    def test_the_todo_cell_counts_and_names(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root)):
+                cell = V.todo_cell(V.compute(cfg, ws))
+                self.assertEqual(cell["tone"], "orange")
+                self.assertIn("从未运行 1", cell["text"])
+                self.assertIn("探针", cell["sub"])
+                self.assertLessEqual(len(cell["value"]), 16)
+
+    def test_the_table_lists_the_unwired_checks_with_their_reasons(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            text = V.table(V.compute(cfg, ws), ws)
+            for name, reason in K.UNWIRED.items():
+                self.assertIn(name, text)
+                self.assertIn(reason, text)
+
+
+class RealCheckTest(unittest.TestCase):
+    def test_the_positioning_audit_runs_on_the_archived_draft(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            cfg["inputs"] = {"bib": "references.bib"}
+            with Probe(K.by_id("claim-positioning")):
+                r = status(V.compute(cfg, ws, do_run=True), "claim-positioning")
+                self.assertIn(r["status"], (V.OK,), r)
+                rec = V.load_run(ws, "claim-positioning")
+                self.assertIn("--bib", rec["argv"])
+                self.assertIn(rec["exit"], (0, 1))
+
+
+def manifest(venue, n, files=True):
+    recs = [{"arxiv_id": f"2101.{i:05d}", **({"file": f"2101.{i:05d}.pdf"} if files else {})} for i in range(n)]
+    return {"venue": venue, "admitted": n, "accounting_closes": True, "records": recs}
+
+
+class TargetTest(unittest.TestCase):
+    def cfg(self, root, **target):
+        cfg = {"repo": str(root), "ref": "main", "genre": "journal", "_ws": str(Path(root) / "ws"), "target": target}
+        return cfg
+
+    def corpus(self, root, m, make=None):
+        d = Path(root) / "corpus"
+        d.mkdir(exist_ok=True)
+        for r in m["records"][: make if make is not None else len(m["records"])]:
+            if r.get("file"):
+                (d / r["file"]).write_bytes(b"%PDF")
+        p = Path(root) / "manifest.json"
+        p.write_text(json.dumps(m), encoding="utf-8")
+        return {"manifest": str(p), "dir": str(d)}
+
+    def test_a_journal_without_a_venue_is_reported(self):
+        with TempDir() as root:
+            self.assertTrue(any("目标未登记" in p for p in TG.describe(self.cfg(root))["problems"]))
+
+    def test_an_escaped_venue_name_matches_and_a_full_corpus_passes(self):
+        with TempDir() as root:
+            vc = self.corpus(root, manifest("Information &amp; Things", 25))
+            cfg = self.cfg(root, venue="Information & Things", venue_corpus=vc)
+            self.assertEqual(TG.venue_corpus_problems(cfg), [])
+
+    def test_wrong_venue_small_corpus_and_missing_files_are_each_named(self):
+        with TempDir() as root:
+            vc = self.corpus(root, manifest("Other Journal", 12), make=10)
+            ps = TG.venue_corpus_problems(self.cfg(root, venue="Information & Things", venue_corpus=vc))
+            self.assertTrue(any("不是" in p for p in ps), ps)
+            self.assertTrue(any("少于 20" in p for p in ps), ps)
+            self.assertTrue(any("少了 2 个" in p for p in ps), ps)
+
+    def test_an_intent_card_outside_human_is_a_draft(self):
+        with TempDir() as root:
+            (Path(root) / "ws" / "human").mkdir(parents=True)
+            card = Path(root) / "card.md"
+            card.write_text("M1", encoding="utf-8")
+            self.assertEqual(TG.intent_card_state(self.cfg(root, intent_card=str(card)))[0], "draft")
+            own = Path(root) / "ws" / "human" / "card.md"
+            own.write_text("M1", encoding="utf-8")
+            self.assertEqual(TG.intent_card_state(self.cfg(root, intent_card=str(own)))[0], "author")
+
+    def test_experiments_without_a_disposition_or_past_review_are_listed(self):
+        with TempDir() as root:
+            e = Path(root) / "experiments"
+            for name, text in {"a": "# A\n\n处置：已晋升 → .claude/skills/readers\n",
+                               "b": "# B\n\n- **处置**：退役 — 结论已写进 spec\n",
+                               "c": "# C\n\n处置：进行中 — 门：作者裁定；复查 2026-09-01\n",
+                               "d": "# D\n\n处置：进行中 — 门：作者裁定；复查 2026-10-30\n",
+                               "e": "# E\n\n结果很好，下一步接进 AWT。\n"}.items():
+                (e / name).mkdir(parents=True)
+                (e / name / "README.md").write_text(text, encoding="utf-8")
+            (e / "f").mkdir()
+            got = TG.experiments({"experiments_dir": str(e)}, today=dt.date(2026, 9, 21))
+            self.assertEqual(got["promoted"], ["a"])
+            self.assertEqual(got["retired"], ["b"])
+            self.assertEqual(got["overdue"], ["c"])
+            self.assertEqual(got["in_progress"], [["d", "2026-10-30"]])
+            self.assertEqual(got["undisposed"], ["e", "f"])
+
+
+if __name__ == "__main__":
+    unittest.main()
