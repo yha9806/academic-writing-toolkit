@@ -224,14 +224,14 @@ class LocateRowsTest(unittest.TestCase):
                                  "verbatim": lc["verbatim"], "status": "one", "rows": rows}])
 
     def test_rows_carry_where_copy_and_both_texts(self):
-        s = self.history_with_rows([{"label": "X6.2", "section": "X", "par": 6, "path": "sections/06_results.tex", "line": 209,
-                                     "old": "Three $x$ models", "new": "Three retrievers released after the benchmark was built"}],
-                                   names={"X": "Language as a Leakage Control"})
+        s = self.history_with_rows([{"label": "X6.2", "section": "X", "par": 6, "path": "sections/results.tex", "line": 42,
+                                     "old": "Three $x$ models", "new": "Three newer models were added to the same pool"}],
+                                   names={"X": "Controls"})
         row = only(L.build(s, now=NOW))["detail"]["history"][0]["rows"][0]
-        self.assertEqual(row["where"], "Language as a Leakage Control · 第 6 段 · sections/06_results.tex:209")
-        self.assertEqual(row["copy"], "sections/06_results.tex:209 · X6.2 · “Three retrievers released after the benchmark…”")
+        self.assertEqual(row["where"], "Controls · 第 6 段 · sections/results.tex:42")
+        self.assertEqual(row["copy"], "sections/results.tex:42 · X6.2 · “Three newer models were added to…”")
         self.assertEqual(row["old"], "Three x models")
-        self.assertEqual(row["new"], "Three retrievers released after the benchmark was built")
+        self.assertEqual(row["new"], "Three newer models were added to the same pool")
 
     def test_missing_location_leaves_where_short_and_copy_without_a_line(self):
         s = self.history_with_rows([{"label": "A03", "section": "A", "par": None, "path": None, "line": None, "old": None, "new": "New abstract sentence."}])
