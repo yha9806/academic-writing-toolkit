@@ -16,6 +16,10 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
+    ("A", "history.py", 's["line"] = text.count("\\n", 0, m.start()) + 1', 's["line"] = 1',
+     "test_history.LocateTest.test_sentences_carry_the_file_and_line_where_they_start"),
+    ("A", "lintel.py", 'where = " · ".join(x for x in (sec, f"第 {r[\'par\']} 段" if r.get("par") else None, at) if x)', 'where = sec',
+     "test_lintel.LocateRowsTest.test_rows_carry_where_copy_and_both_texts"),
     ("1.1", "doctor.py", 'for key in ("evidence_dir", "keymap_from"):', "for key in ():",
      "test_doctor.DoctorTest.test_each_wrong_path_is_named"),
     ("1.1", "cli.py", 'print(f"doctor: {len(problems)} 项读不到或不存在")\n        return 1', 'print(f"doctor: {len(problems)} 项读不到或不存在")\n        return 0',
@@ -203,7 +207,7 @@ MUTATIONS = [
      'test_latex.LatexTest.test_sections_and_comments'),
     ('latex', 'text.py', '_TEX_COMMENT = re.compile(r"(?<!\\\\)%.*$", re.M)', '_TEX_COMMENT = re.compile(r"%.*$", re.M)',
      'test_latex.LatexTest.test_only_the_chosen_sections_become_sentences'),
-    ('latex', 'history.py', 'md = "\\n\\n".join(gitio.show(repo, c["sha"], p) for p in paths)', 'md = gitio.show(repo, c["sha"], paths[0])',
+    ('latex', 'history.py', 'md = "\\n\\n".join(t for _, t in texts)', 'md = gitio.show(repo, c["sha"], paths[0])',
      'test_latex.MultiFileTest.test_a_commit_to_either_file_is_a_new_version_of_one_draft'),
     ('latex', 'history.py', '    return list(g) if isinstance(g, list) else [f":(glob){g}"]', '    return [f":(glob){g}"]',
      'test_latex.MultiFileTest.test_a_commit_to_either_file_is_a_new_version_of_one_draft'),

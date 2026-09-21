@@ -82,3 +82,33 @@ class StableIdTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+from loop import config as _C
+from loop import history as _H
+from fixtures import TempDir as _TempDir, draft_md as _draft_md, make_repo as _make_repo, workspace as _workspace
+
+
+class LocateTest(unittest.TestCase):
+    """候选 A：索引时给每句记它在哪个文件、第几行（句首六个词，跨行也认），面板才能指到「文件:行」。"""
+
+    def test_sentences_carry_the_file_and_line_where_they_start(self):
+        with _TempDir() as root:
+            md = _draft_md("A title", "First abstract sentence here. Second abstract sentence there.",
+                           ["Intro sentence one is\nwrapped over two lines. Intro sentence two.", "Paragraph two starts here."])
+            repo = _make_repo(root, [({"drafts/DRAFT-v1.md": md}, "v1", 1_700_000_000)])
+            cfg = _C.load(_workspace(root, repo, "main"))
+            vs = _H.load_versions(cfg)
+            lines = md.splitlines()
+            prose = [s for s in vs[-1]["sentences"] if s["section"] in ("A", "I")]
+            self.assertTrue(prose)
+            for s in prose:
+                self.assertEqual(s["path"], "drafts/DRAFT-v1.md", s)
+                self.assertIn(s["text"].split()[0], lines[s["line"] - 1], s)
+            wrapped = next(s for s in prose if s["text"].startswith("Intro sentence one"))
+            self.assertEqual(lines[wrapped["line"] - 1], "Intro sentence one is")
+
+    def test_a_sentence_not_found_as_written_gets_no_line(self):
+        sents = [{"text": "not in the file at all"}, {"text": ""}]
+        _H.locate(sents, [("f.md", "something else\n")])
+        self.assertNotIn("line", sents[0]); self.assertNotIn("path", sents[0]); self.assertNotIn("line", sents[1])

@@ -8,6 +8,7 @@ index/sources.json records what the index was built from, so `rebuild --check` c
 """
 import hashlib
 import json
+import re
 import os
 from pathlib import Path
 
@@ -115,6 +116,7 @@ def summarize(cfg, head, versions, changesets, chk, threads, explanations=()):
         "messages_before_first_version": sum(1 for t in threads if t["draft_version"] is None),
         "explained": sum(1 for e in explanations if e["reading"] is not None),
         "latest": _latest(explanations),
+        "section_names": {r["prefix"]: _rule_name(r["match"]) for r in cfg["draft"]["sections"]},
         "latest_changeset": changeset_view(changesets[-1], threads, explanations) if changesets else None,
         "history": [_compact(changeset_view(c, threads, explanations)) for c in reversed(changesets)],
     }
@@ -132,7 +134,11 @@ def _row_view(r):
             return "+".join(i.get("label", "") for i in x)
         return (x or {}).get("label", "")
     old, new = r.get("old"), r.get("new")
-    return {"kind": r["kind"], "label": label(new) or label(old), "old": text(old), "new": text(new)}
+    src = new if isinstance(new, dict) else (new[0] if isinstance(new, list) and new else None)
+    src = src or (old if isinstance(old, dict) else (old[0] if isinstance(old, list) and old else None)) or {}
+    view = {"kind": r["kind"], "label": label(new) or label(old), "old": text(old), "new": text(new)}
+    view.update({k: src[k] for k in ("section", "par", "path", "line") if src.get(k) is not None})   # 定位（候选 A）
+    return view
 
 
 def changeset_view(c, threads, explanations):
@@ -151,10 +157,20 @@ def changeset_view(c, threads, explanations):
             "basis": expl.get("basis") if expl else None, "label": expl.get("label") if expl else None}
 
 
+ROWS_KEPT = 16
+
+
+def _rule_name(match):
+    """The section's display name from its rule: the regex with the anchors taken off ("^Abstract$" -> "Abstract")."""
+    return re.sub(r"\\b|[\^$]", "", match).strip()
+
+
 def _compact(v):
-    """The panel's timeline row: no sentence texts, the message cut to a line."""
+    """The panel's timeline row: the message cut to a line, and the first rows with their location
+    (候选 A: the panel opens a changeset to the sentences it changed; the host takes at most 16)."""
     return {"id": v["id"], "time": v["time"], "n": v["n"], "traced": v["traced"],
-            "verbatim": (v["verbatim"] or "")[:200] or None, "status": v["status"]}
+            "verbatim": (v["verbatim"] or "")[:200] or None, "status": v["status"],
+            "rows": [{k: r.get(k) for k in ("label", "old", "new", "section", "par", "path", "line")} for r in v["rows"][:ROWS_KEPT]]}
 
 
 def _latest(explanations):

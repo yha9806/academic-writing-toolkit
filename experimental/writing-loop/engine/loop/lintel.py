@@ -150,9 +150,28 @@ def _body(lc):
     ]
 
 
+ROWS_LOCATED = 16
+
+
+def _rows(h, names):
+    """The rows the panel shows when a changeset is opened (候选 A, 作者 09-21 定甲+乙): which sentence, where it is
+    (section · paragraph · file:line, whichever the index knows), what to paste, and the texts before and after."""
+    out = []
+    for r in (h.get("rows") or [])[:ROWS_LOCATED]:
+        sec = names.get(r.get("section") or "", r.get("section") or "")
+        at = f"{r['path']}:{r['line']}" if r.get("path") and r.get("line") else None
+        where = " · ".join(x for x in (sec, f"第 {r['par']} 段" if r.get("par") else None, at) if x)
+        first = " ".join(detex(r.get("new") or r.get("old") or "").split()[:6])
+        copy = " · ".join(x for x in (at, r.get("label"), f"“{first}…”" if first else None) if x)
+        out.append({"label": r.get("label") or "", "where": _clip(where, 256) or None, "copy": _clip(copy, 1024) or None,
+                    "old": detex(r["old"]) if r.get("old") else None, "new": detex(r.get("new") or "")})
+    return out
+
+
 def _detail(summary, lc, bad, notices):
     """The panel (storyboard ⑨): every changeset newest first, and the Passive things that never reach the notch."""
     hist = summary.get("history") or []
+    names = summary.get("section_names") or {}
     traced = sum(1 for h in hist if h["traced"])
     history = []
     for h in hist[:500]:
@@ -162,7 +181,8 @@ def _detail(summary, lc, bad, notices):
             "lines": [
                 {"label": "你说", "text": h["verbatim"] or "追不到你哪句话", "tone": "white85" if h["verbatim"] else "orange"},
                 {"label": "改了", "text": f"{h['n']} 行", "tone": "white55"},
-            ]})
+            ],
+            "rows": _rows(h, names) or None})
     if lc:
         head = f"刚改 {lc['n']} 行 · " + ("已追到" if lc["traced"] else "无出处")
     else:

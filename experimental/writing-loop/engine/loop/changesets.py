@@ -32,7 +32,11 @@ RARE_DF = 2
 
 
 def _sent(s):
-    return {"sid": s["sid"], "label": s["label"], "text": s["text"]}
+    d = {"sid": s["sid"], "label": s["label"], "text": s["text"]}
+    for k in ("section", "par", "path", "line"):   # 定位（候选 A）；老索引里没有就没有
+        if k in s:
+            d[k] = s[k]
+    return d
 
 
 def _changed_words(old_text, new_text):

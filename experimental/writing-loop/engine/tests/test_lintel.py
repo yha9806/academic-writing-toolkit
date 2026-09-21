@@ -175,6 +175,41 @@ class OneActivityTest(unittest.TestCase):
         self.assertNotEqual(a["events"][0]["id"], b["events"][0]["id"])
 
 
+class LocateRowsTest(unittest.TestCase):
+    """候选 A（作者 09-21 定甲+乙）：面板里点开一条改动集，看到改的是哪句、在哪、拿去贴的定位、改前改后。"""
+
+    def history_with_rows(self, rows, names=None):
+        lc = change()
+        return summary(latest_changeset=lc, section_names=names or {},
+                       history=[{"id": lc["id"], "time": lc["time"], "n": lc["n"], "traced": True,
+                                 "verbatim": lc["verbatim"], "status": "one", "rows": rows}])
+
+    def test_rows_carry_where_copy_and_both_texts(self):
+        s = self.history_with_rows([{"label": "X6.2", "section": "X", "par": 6, "path": "sections/06_results.tex", "line": 209,
+                                     "old": "Three $x$ models", "new": "Three retrievers released after the benchmark was built"}],
+                                   names={"X": "Language as a Leakage Control"})
+        row = only(L.build(s, now=NOW))["detail"]["history"][0]["rows"][0]
+        self.assertEqual(row["where"], "Language as a Leakage Control · 第 6 段 · sections/06_results.tex:209")
+        self.assertEqual(row["copy"], "sections/06_results.tex:209 · X6.2 · “Three retrievers released after the benchmark…”")
+        self.assertEqual(row["old"], "Three x models")
+        self.assertEqual(row["new"], "Three retrievers released after the benchmark was built")
+
+    def test_missing_location_leaves_where_short_and_copy_without_a_line(self):
+        s = self.history_with_rows([{"label": "A03", "section": "A", "par": None, "path": None, "line": None, "old": None, "new": "New abstract sentence."}])
+        row = only(L.build(s, now=NOW))["detail"]["history"][0]["rows"][0]
+        self.assertEqual(row["where"], "A")
+        self.assertEqual(row["copy"], "A03 · “New abstract sentence.…”")
+        self.assertNotIn("old", row)
+
+    def test_a_history_entry_without_rows_has_no_rows_key(self):
+        a = only(L.build(with_change(), now=NOW))
+        self.assertNotIn("rows", a["detail"]["history"][0])
+
+    def test_at_most_sixteen_rows_reach_the_host(self):
+        rows = [{"label": f"X{i}", "new": f"s {i}"} for i in range(30)]
+        self.assertEqual(len(only(L.build(self.history_with_rows(rows), now=NOW))["detail"]["history"][0]["rows"]), 16)
+
+
 class SummaryViewTest(unittest.TestCase):
     """index.changeset_view: the notch's data is read from the index, never guessed."""
 

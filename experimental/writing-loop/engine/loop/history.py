@@ -6,6 +6,7 @@ that exists there. Sentence ids (S0001…) are inherited through alignment, neve
 """
 import fnmatch
 import posixpath
+import re
 
 from . import align as A
 from . import config as C
@@ -45,14 +46,37 @@ def load_versions(cfg, until=None):
         blob = blobs[0] if len(blobs) == 1 else "+".join(blobs)
         if blob == last_blob:
             continue
-        md = "\n\n".join(gitio.show(repo, c["sha"], p) for p in paths)
+        texts = [(p, gitio.show(repo, c["sha"], p)) for p in paths]
+        md = "\n\n".join(t for _, t in texts)
         path = paths[0] if len(paths) == 1 else "+".join(paths)
         sents = sentences_of(md, cfg["draft"]["sections"], cfg["draft"].get("format", "markdown"))
+        locate(sents, texts)
         for s in sents:
             s["hash"] = text_hash(s["text"])
         versions.append({**c, "path": path, "blob": blob, "sentences": sents})
         last_blob = blob
     return versions
+
+
+_WORD = re.compile(r"\S+")
+LOCATE_WORDS = 6
+
+
+def locate(sents, files):
+    """Give each sentence the file and 1-based line where its first six words start, matched across line breaks
+    (候选 A：面板里点开改动集要能指到「文件:行」). A sentence whose words are not found as written — cut by a LaTeX
+    command, a title line rewritten by the splitter — gets neither key; nothing is guessed."""
+    for s in sents:
+        words = _WORD.findall(s["text"])[:LOCATE_WORDS]
+        if not words:
+            continue
+        pat = re.compile(r"\s+".join(re.escape(w) for w in words))
+        for path, text in files:
+            m = pat.search(text)
+            if m:
+                s["path"] = path
+                s["line"] = text.count("\n", 0, m.start()) + 1
+                break
 
 
 def _group(s):
