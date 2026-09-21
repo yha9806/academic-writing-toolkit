@@ -147,11 +147,12 @@ class OneActivityTest(unittest.TestCase):
         self.assertIn("还有 5 句", big[-1]["text"])
         self.assertNotIn("badge", a["body"][0])
         # 没有 Claude 标签时理由行是「改了」；有几页画几页（分镜 ㉙）
-        self.assertEqual(only(L.build(with_change(label=None), now=NOW))["body"][0]["items"][0]["text"], "改了")
+        # 没有 Claude 标签：不画理由行（会和页标题「改了」重），第一条就是原因行
+        self.assertEqual(only(L.build(with_change(label=None), now=NOW))["body"][0]["items"][0]["text"], "追到你的话")
         self.assertEqual([b["title"] for b in only(L.build(with_change(traced=False), now=NOW))["body"]], ["改了"])
         self.assertEqual([b["title"] for b in only(L.build(with_change(reading=None), now=NOW))["body"]], ["改了", "你说"])
-        s = with_change(n=2); s["latest_changeset"]["rows"][1]["kind"] = "added"; s["latest_changeset"]["rows"][1]["old"] = ""
-        added = only(L.build(s, now=NOW))["body"][0]["items"][3]
+        s = with_change(n=2, label="改"); s["latest_changeset"]["rows"][1]["kind"] = "added"; s["latest_changeset"]["rows"][1]["old"] = ""
+        added = only(L.build(s, now=NOW))["body"][0]["items"][3]     # 理由行 + 原因行 + 两条 diff
         self.assertEqual((added["label"], added["new"]), ("X1 新增", "new 1")); self.assertNotIn("old", added)
         # 无出处两种的理由行
         e = only(L.build(with_change(traced=False), now=NOW))["body"][0]["items"]
@@ -163,7 +164,7 @@ class OneActivityTest(unittest.TestCase):
     def test_rows_are_shown_as_the_reader_sees_them_not_as_latex(self):
         self.assertEqual(L.detex("from $48.4\\times$ chance to $1.6\\times$, $1{,}632$ plates, $23.5\\%$"),
                          "from 48.4× chance to 1.6×, 1,632 plates, 23.5%")
-        s = with_change(n=1)
+        s = with_change(n=1, label="改")
         s["latest_changeset"]["rows"][0]["new"] = "Recall@10 is $17$ of $18$"
         self.assertEqual(L.build(s, now=NOW)[0]["body"][0]["items"][2]["new"], "Recall@10 is 17 of 18")
 

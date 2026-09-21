@@ -183,8 +183,11 @@ def _body(lc):
     if not lc:
         return []
     tone = {"traced": "white", "unmatched": "orange", "elsewhere": "white55"}[origin(lc)]
-    items = [{"kind": "para", "tone": tone, "text": _headline(lc)},
-             {"kind": "para", "tone": "white55", "text": _reason(lc)}]
+    items = []
+    # 追到但 Claude 没写标签时不画理由行：兜底的「改了」会和页标题「改了」重一次（09-21 真屏）。
+    if not (origin(lc) == "traced" and not lc.get("label")):
+        items.append({"kind": "para", "tone": tone, "text": _headline(lc)})
+    items.append({"kind": "para", "tone": "white55", "text": _reason(lc)})
     for r in lc["rows"][:DIFF_ROWS]:
         word = KIND_WORD.get(r["kind"], r["kind"]) if r["kind"] not in ("edited", "moved") else ""
         item = {"kind": "diff", "label": f"{r['label']}{' ' + word if word else ''}", "new": _clip(detex(r["new"] or ""), 20000)}
