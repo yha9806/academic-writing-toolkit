@@ -17,6 +17,10 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'catalogue.py', '    for s in sorted(set(skills) - owners - set(SKILL_ROLES) - set(MODEL_READ)):', '    for s in []:',
+     'test_catalogue.WiringTest.test_a_skill_that_checks_nothing_and_says_nothing_is_seen'),
+    ("cov", 'catalogue.py', '        for name in sorted(set(not_checks) ^ NOT_CHECKS_ACK):', '        for name in []:',
+     'test_catalogue.WiringTest.test_moving_a_check_into_not_checks_alone_is_seen'),
     ("cov", 'skill:audit/scripts/audit-prose-structure.py', '        out = v < vals[0] or v > vals[-1]', '        out = False',
      'test_structure.StructureTest.test_sentences_that_open_with_a_condition_are_outside_a_plain_baseline'),
     ("cov", 'skill:audit/scripts/audit-prose-structure.py', '            "opens_with_sub": sum(1 for s in sents if OPENER.match(s)) / len(sents),', '            "opens_with_sub": 0.0,',

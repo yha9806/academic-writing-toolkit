@@ -556,6 +556,9 @@ def table(summary, ws):
     gap = gaps(summary)
     if gap:
         lines.append("AWT 读不了这种稿件、也没有别的检查替它的（工具的缺口，不是这篇稿子的待办）：" + "、".join(r["name"] for r in gap))
+    lines.append("由模型阅读完成、循环没有运行记录的检查（catalogue.MODEL_READ）：")
+    for k, v in sorted(K.MODEL_READ.items()):
+        lines.append(f"  {v}")
     lines.append("不接进循环的检查（理由写在 catalogue.UNWIRED）：")
     for u in summary["unwired"]:
         lines.append(f"  {u['script']}：{u['reason']}")

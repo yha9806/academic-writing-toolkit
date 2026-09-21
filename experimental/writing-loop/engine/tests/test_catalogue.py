@@ -24,6 +24,10 @@ def registered_checks():
     return set(_load(ROOT / "scripts" / "check-fails-closed.py", "fails_closed").CHECKS)
 
 
+def not_checks():
+    return set(_load(ROOT / "scripts" / "check-fails-closed.py", "fails_closed").NOT_CHECKS)
+
+
 def installer_names():
     return set(_load(ROOT / "scripts" / "install-codex-skills.py", "install_codex").NAMES)
 
@@ -40,8 +44,24 @@ def skill_dirs():
 
 class WiringTest(unittest.TestCase):
     def test_every_registered_check_is_wired_or_declared_unwired(self):
-        problems = K.wiring_problems(registered_checks(), skill_dirs(), installer_names(), documented_skills())
+        problems = K.wiring_problems(registered_checks(), skill_dirs(), installer_names(), documented_skills(),
+                                     not_checks())
         self.assertEqual(problems, [], "\n".join(problems))
+
+    def test_a_skill_that_checks_nothing_and_says_nothing_is_seen(self):
+        saved = dict(K.SKILL_ROLES)
+        try:
+            K.SKILL_ROLES.pop("export")
+            problems = K.wiring_problems(registered_checks(), skill_dirs(), installer_names())
+            self.assertTrue(any("技能 export" in p for p in problems), problems)
+        finally:
+            K.SKILL_ROLES.clear()
+            K.SKILL_ROLES.update(saved)
+
+    def test_moving_a_check_into_not_checks_alone_is_seen(self):
+        problems = K.wiring_problems(registered_checks() - {"audit/audit-claim-positioning.py"}, skill_dirs(),
+                                     installer_names(), None, not_checks() | {"audit/audit-claim-positioning.py"})
+        self.assertTrue(any("NOT_CHECKS" in p and "audit-claim-positioning" in p for p in problems), problems)
 
     def test_the_invariant_sees_a_skill_nobody_can_find(self):
         problems = K.wiring_problems(registered_checks(), skill_dirs(), installer_names(),
@@ -56,7 +76,7 @@ class WiringTest(unittest.TestCase):
 
     def test_the_invariant_sees_a_skill_that_is_not_installed(self):
         problems = K.wiring_problems(registered_checks(), skill_dirs() | {"zz-new-skill"}, installer_names())
-        self.assertTrue(any("zz-new-skill" in p for p in problems), problems)
+        self.assertTrue(any("zz-new-skill" in p and "Codex 安装器" in p for p in problems), problems)
 
     def test_the_invariant_sees_a_catalogued_script_that_is_not_registered(self):
         problems = K.wiring_problems(registered_checks() - {"audit/audit-claim-positioning.py"},

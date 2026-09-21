@@ -73,6 +73,11 @@ def _ledger_argv(ctx):
     return args
 
 
+def _credits_outside(cfg):
+    """The author's accepted method credits change what the ledger audit reports."""
+    return [str(Path(cfg["_ws"]) / "human" / "credits.txt")] if cfg.get("_ws") else []
+
+
 def _bib(cfg):
     b = get(cfg, "inputs.bib")
     return {"bib": b} if b else {}
@@ -144,7 +149,7 @@ CHECKS = [
     {"id": "claim-ledger", "name": "主张台账", "kind": "script", "scripts": ["audit/audit-claim-ledger.py"],
      "formats": ["latex"], "instead": {"markdown": "citation-fidelity"},
      "scope": {"kind": "cite"}, "needs": ["overview.ledger"],
-     "inputs": _ledger_inputs, "outside": _no_outside, "argv": _ledger_argv},
+     "inputs": _ledger_inputs, "outside": _credits_outside, "argv": _ledger_argv},
     {"id": "claim-positioning", "name": "定位", "kind": "script", "scripts": ["audit/audit-claim-positioning.py"],
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "all"}, "needs": [],
@@ -224,13 +229,37 @@ CHECKS = [
 
 UNWIRED = {
     "review/audit-review-findings.py":
-        "审的是 /review 写出的发现文件能否解析、是否只落在声明读过的文件里；对象是评审报告，不是稿件，由 /review 自己调用",
+        "只验 /review 写出的发现文件能否解析、是否只落在声明读过的文件里；对象是评审报告。/review 本身是模型阅读的稿件评审，"
+        "见 MODEL_READ",
+    "scripts/check_lost_in_conversation_bench.py":
+        "校验 writing-control 基准的夹具目录（三种工作流与控制产物是否齐），对象是基准夹具，不是稿件",
     "scripts/audit-public-content.py":
         "审的是 AWT 公开仓自己有没有混进私密内容；对象是工具仓，不是用户的稿件，由 AWT 的测试套件调用",
 }
 
 # Skills present on disk but not installed for Codex, with the reason. Empty: every skill is installed.
 SKILLS_NOT_INSTALLED = {}
+
+# Checks a model performs by reading, with no script and so no run record: the loop cannot tell whether they have
+# looked at the current draft. They are listed in every coverage table so that their absence is visible.
+MODEL_READ = {
+    "review": "/review：模型通读稿件，写出带锚点的发现（文件:行 + 原文 + 一句话问题）；没有运行记录，循环看不出它读的是哪一版",
+    "audit": "/audit 的 A 数字一致、B 术语与缩写首次定义、C 交叉引用：由模型阅读完成，不是脚本；循环看不出它们查没查过当前稿",
+}
+
+# Skills that make no check on a manuscript, with what they do instead.
+SKILL_ROLES = {
+    "read": "逐页读文献、写带页码的笔记；不对稿件下判断",
+    "integrate": "把笔记整合进章节：整合计划、编辑范围、升级规则；不对稿件下判断",
+    "export": "把章节转成 Word 与 ZIP；不对稿件下判断",
+}
+
+# check-fails-closed.py's NOT_CHECKS, acknowledged here: moving a check there to escape the wiring invariant has to
+# be done in two places, on purpose.
+NOT_CHECKS_ACK = {
+    "export/convert_to_docx.py", "audit/citations.mjs", "audit/quote-fidelity.mjs", "audit/pdf-pages.mjs",
+    "audit/build-venue-baseline.py",
+}
 
 
 def by_id(cid):
@@ -241,7 +270,7 @@ def wired_scripts():
     return {s for c in CHECKS for s in c["scripts"]}
 
 
-def wiring_problems(registered, skills, installed, documented=None):
+def wiring_problems(registered, skills, installed, documented=None, not_checks=None):
     """Problems with how the toolkit's checks and skills reach a manuscript. Empty list = nothing unaccounted for."""
     problems = []
     wired = wired_scripts()
@@ -265,4 +294,10 @@ def wiring_problems(registered, skills, installed, documented=None):
         for s in c["scripts"]:
             if not script_path(s).is_file():
                 problems.append(f"{c['id']}：脚本 {s} 不在盘上")
+    owners = {s.split("/", 1)[0] for s in wired}
+    for s in sorted(set(skills) - owners - set(SKILL_ROLES) - set(MODEL_READ)):
+        problems.append(f"技能 {s}：没有一项检查在目录里，也没在 SKILL_ROLES / MODEL_READ 说明它是什么")
+    if not_checks is not None:
+        for name in sorted(set(not_checks) ^ NOT_CHECKS_ACK):
+            problems.append(f"{name}：check-fails-closed 的 NOT_CHECKS 与 catalogue.NOT_CHECKS_ACK 不一致（改一边必须改另一边）")
     return problems

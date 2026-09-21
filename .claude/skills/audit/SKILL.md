@@ -23,9 +23,11 @@ Run `loop coverage <workspace> --run` first (`experimental/writing-loop/bin/loop
 derives every check's inputs from the workspace (the tracked draft files at HEAD,
 the bibliography, the ledgers, the target venue's corpus) instead of the thesis
 defaults below, runs the ones the latest edits made due, and lists the checks
-that cannot run on this manuscript and why. Its table is the audit's coverage;
-report any check it shows as not current, missing a prerequisite, not applicable
-or failed, and never report a check it did not run as clean.
+that cannot run on this manuscript and why. Its table covers the script checks
+only: categories A, B and C below are read by the model, leave no run record, and
+are listed under the table as such. Report any check it shows as not current,
+missing a prerequisite, not applicable or failed, and never report a check it did
+not run as clean.
 
 ## Purpose
 

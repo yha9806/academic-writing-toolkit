@@ -85,6 +85,9 @@ CHECKS = {
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty), "--json"],
     "scripts/audit-public-content.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty), "--json"],
+    # A fixture validator for the writing-control bench; an empty bench is not a valid one (exit 1).
+    "scripts/check_lost_in_conversation_bench.py":
+        lambda s, empty: ["python3", str(s), str(empty)],
 }
 
 NOT_CHECKS = {
@@ -102,7 +105,8 @@ def discovered():
         if path.suffix not in {".py", ".mjs"} or "__pycache__" in path.parts:
             continue
         out[f"{path.parent.parent.name}/{path.name}"] = path
-    for path in sorted(SCRIPTS.glob("audit-*.py")):
+    # scripts/check_*.py make pass/fail claims too; one sat outside this registry until 2026-09-21.
+    for path in sorted(list(SCRIPTS.glob("audit-*.py")) + list(SCRIPTS.glob("check_*.py"))):
         out[f"scripts/{path.name}"] = path
     return out
 
