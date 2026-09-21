@@ -127,7 +127,34 @@ class AlignmentTest(unittest.TestCase):
             al = ovw.get(now)["payload"]["stages"][1]["alignment"]
         self.assertEqual(al["headline"][0]["value"], "0")
         self.assertEqual([i["tag"] for i in al["items"]], ["方法署名"])
-        self.assertIn("1 句你标了方法署名", al["caption"])
+        self.assertIn(("方法署名", "1"), [(k["name"], k["value"]) for k in al["legend"]])
+        self.assertNotIn("caption", al)
+
+    def test_first_page_carries_numbers_in_legends_and_explanations_in_hints(self):
+        """分镜 ㊾ ㊿：标题两个字，数在图例格里，怎么读进 hint；第一页没有说明段。"""
+        with TempDir() as t:
+            cfg, _ = build_ws(t)
+            got = O.build(cfg, T0 + 12 * DAY)
+        p = got["payload"]
+        self.assertEqual(p["days"]["title"], "阶段")
+        self.assertTrue(p["days"]["note"].endswith(" 版"), p["days"]["note"])
+        self.assertIn("空 3 天以上就分段", p["days"]["hint"])
+        prof = p["stages"][1]["profile"]
+        self.assertEqual(prof["title"], "剖面")
+        self.assertNotIn("caption", prof)
+        self.assertEqual([k["name"] for k in prof["legend"]][:3], ["改过或新加", "删", "一句没动"])
+        self.assertIn("宽 = 句数", prof["hint"])
+        self.assertIn("相对", prof["note"])
+        al = p["stages"][1]["alignment"]
+        self.assertEqual(al["title"], "依据")
+        self.assertEqual([k["name"] for k in al["legend"]], ["引用", "已绑", "缺", "只署名"])
+        self.assertEqual(al["legend"][0]["value"], "3")
+        self.assertNotIn("swatch", al["legend"][3])
+        self.assertIn("片段都在存档原文里", al["hint"])
+        self.assertEqual(p["todo"]["title"], "待办")
+        self.assertEqual(p["todo"]["hint"], "只对着清单算，不打总分")
+        self.assertEqual([c["label"] for c in got["stats"]], ["句", "版", "改动集 · 这一段", "缺依据"])
+        self.assertEqual(got["stats"][3]["value"], "1")
 
     def test_an_action_the_panel_did_not_offer_writes_nothing(self):
         with TempDir() as t:
@@ -152,6 +179,7 @@ class TodoTest(unittest.TestCase):
             cfg, _ = build_ws(t)
             cells = O.build(cfg, T0 + 12 * DAY)["payload"]["todo"]["cells"]
         self.assertEqual(cells[0]["text"], "没有登记清单")
+        self.assertEqual(cells[0]["value"], "没登记")
         self.assertNotIn("%", json.dumps(cells, ensure_ascii=False))
 
     def test_issues_that_cannot_be_asked_say_so_instead_of_zero(self):
@@ -164,10 +192,13 @@ class TodoTest(unittest.TestCase):
         with TempDir() as t:
             cfg, _ = build_ws(t, report={"ready_to_upload": False, "failures": [], "title_page_placeholders": 2,
                                          "source_commit": "abcdef123"})
-            cells = O.build(cfg, T0 + 12 * DAY)["payload"]["todo"]["cells"]
+            got = O.build(cfg, T0 + 12 * DAY)
+            cells = got["payload"]["todo"]["cells"]
         self.assertEqual(cells[1]["text"], "失败 0 项 · 标题页 2 处待填")
+        self.assertEqual(cells[1]["value"], "待填 2")
         self.assertEqual(cells[1]["sub"], "所以还不能上传 · 构建于 abcdef1")
         self.assertEqual(cells[1]["tone"], "orange")
+        self.assertEqual(got["stats"][-1], {"label": "标题页待填", "value": "2", "tone": "orange"})
 
 
 class InboxActionTest(unittest.TestCase):
@@ -214,13 +245,17 @@ class PanelTest(unittest.TestCase):
         s = {"name": "ws", "head": "abc1234", "versions": 3, "sentences": 4, "changesets": 1, "ledger_status": {},
              "unattached_ledger": 0, "latest_changeset": None, "history": hist, "section_names": {"I": "§1"}}
         ov = {"payload": {"days": {"title": "t", "bars": []}, "stages": [], "selected": 0,
-                          "todo": {"title": "还差什么", "cells": []}},
-              "touches": {"c1": ["I", "B"]}, "actions": set(), "stage_changesets": 1}
+                          "todo": {"title": "待办", "cells": []}},
+              "touches": {"c1": ["I", "B"]}, "actions": set(), "stage_changesets": 1,
+              "stats": [{"label": "句", "value": "4"}, {"label": "版", "value": "3"}]}
         d = L.build(s, now=T0, overview=ov)[0]["detail"]
         self.assertEqual(d["history"][0]["sections"], ["I", "B"])
         self.assertEqual(d["overview"]["latest"]["tag"], "补区间")
         self.assertEqual(d["overview"]["latest"]["more"], "这一段 1 个改动集")
-        self.assertNotIn("overview", L.build(s, now=T0)[0]["detail"])
+        self.assertEqual([c["label"] for c in d["stats"]], ["句", "版"])     # 有总览时数据条换成总览的格
+        plain = L.build(s, now=T0)[0]["detail"]
+        self.assertNotIn("overview", plain)
+        self.assertEqual([c["label"] for c in plain["stats"]], ["追到", "拦下", "缺依据"])
 
 
 if __name__ == "__main__":

@@ -176,16 +176,22 @@ def heat(base, head, names, touches=None, labels=None):
     return out[:CELLS_MAX]
 
 
-def profile_block(cells, base_note):
+def profile_block(cells, note, base):
+    """剖面块。数字进图例格、读法进标题悬停：第一页不留说明段（分镜 ㊾ ㊿，作者 09-21 晚「第一页字太多」）。"""
     total = sum(c["weight"] for c in cells)
     ch = sum(c["changed"] for c in cells)
     rem = sum(c["removed"] for c in cells)
     still = sum(1 for c in cells if c["changed"] == 0)
-    marks = any(c["mark"] for c in cells)
-    # 读法写在说明行里，不放标题：标题和右边的「相对 …」挤在一行，长了会被截（09-21 实拍）。
-    return {"title": "这一段改了哪里", "note": base_note[:64],
-            "caption": (f"{total} 句里 {ch} 句改过或新加 · 删 {rem} 句 · {still} 节一句没动"
-                        + (" · 白点 = 这一段新开的节" if marks else "") + " · 一格一节，宽 = 句数，高 = 改过的比例")[:256],
+    marks = sum(1 for c in cells if c["mark"])
+    legend = [{"name": "改过或新加", "swatch": "indigo", "value": str(ch)},
+              {"name": "删", "value": str(rem)},
+              {"name": "一句没动", "swatch": "white28", "value": f"{still} 节"}]
+    if marks:
+        legend.append({"name": "新开", "swatch": "white", "value": f"{marks} 节"})
+    return {"title": "剖面", "note": note[:64],
+            "hint": (f"一格一节 · 宽 = 句数 · 高 = 这一段改过的比例 · 白点 = 这一段新开的节 · {base} · 共 {total} 句"
+                     " · 点一格 = 只看碰过那一节的改动集")[:256],
+            "legend": legend,
             "cells": [{k: c[k] for k in ("id", "label", "chapter", "weight", "value", "mark", "note")} for c in cells]}
 
 
@@ -302,24 +308,25 @@ def _file_chapters(head, names):
 
 def ledger_alignment(repo, commits, led, credits, cache_dir, head, names, scope):
     """Alignment block for one stage from the TSV claim ledger; the trend has one point per commit of the stage."""
-    title = f"引用有没有原文依据 · {scope}" if scope else "引用有没有原文依据"
+    title = "依据"
     # 这一段最后一个提交里没有台账，就不跑：整段都没有东西可以对。
     if not commits or _git(repo, "cat-file", "-e", f"{commits[-1][0]}:{led['path']}") is None:
-        return {"title": title[:64], "empty": "这一段还没有台账，不画这一块"}
+        return {"title": title, "empty": "这一段还没有台账，不画这一块"}
     results = [(sha, t, a) for sha, t in commits for a in [audit_at(repo, sha, led, credits, cache_dir)] if a is not None]
     if not results or results[-1][2].get("_no_ledger"):
-        return {"title": title[:64], "empty": "这一段还没有台账，不画这一块"}
+        return {"title": title, "empty": "这一段还没有台账，不画这一块"}
     now = _count(results[-1][2])
     points = [{"scope": c["cite"], "done": c["bound"], "missing": len(c["ua"])} for c in (_count(a) for _, _, a in results)]
     first = next(i for i, (_, _, a) in enumerate(results) if not a.get("_no_ledger"))
+    # 三条线的键（走势图自己的图例）；面板第一页画的是下面那张带数的图例格，线的键只在没有格的老宿主上用。
+    keys = [{"name": "引用", "swatch": "white45", "value": str(now["cite"])},
+            {"name": "已绑", "swatch": "indigo", "value": str(now["bound"])},
+            {"name": "缺", "swatch": "orange", "dashed": True, "value": f"{points[0]['missing']}→{len(now['ua'])}"}]
     trend = None
     if len(points) >= 2:
         trend = {"points": points[-200:], "marker": first or None,
                  "markerLabel": f"{_day(results[first][1])} 建台账" if first else None,
-                 "startLabel": _day(results[0][1]), "endLabel": _day(results[-1][1]),
-                 "legend": [{"name": f"引用 {now['cite']}", "swatch": "white45"},
-                            {"name": f"已绑 {now['bound']}", "swatch": "indigo"},
-                            {"name": f"缺 {points[0]['missing']}→{len(now['ua'])}", "swatch": "orange", "dashed": True}]}
+                 "startLabel": _day(results[0][1]), "endLabel": _day(results[-1][1]), "legend": keys}
     files = _file_chapters(head, names)
     items = []
     for f in now["ua"]:
@@ -335,11 +342,14 @@ def ledger_alignment(repo, commits, led, credits, cache_dir, head, names, scope)
                       "key": f["cite_key"][:256], "text": _words(f.get("sentence") or f["detail"])[:256], "tone": "white45"})
     headline = [{"value": str(len(now["ua"])), "text": "句在转述文献却没绑原文", "tone": "orange" if now["ua"] else "white"},
                 {"value": str(len(now["q"])), "text": "处限定词丢了", "tone": "orange" if now["q"] else "white"}]
-    cap = f"{now['cite']} 句带引用 · {now['bound']} 句已绑原文 · {len(now['uc'])} 句只署名"
+    # 一句下面的图例格：数不再写成句子（分镜 ㊾）。范围与「片段都在存档原文里」进标题悬停。
+    legend = keys + [{"name": "只署名", "value": str(len(now["uc"]))}]
     if now["credited"]:
-        cap += f" · {len(now['credited'])} 句你标了方法署名"
-    cap += f" · 硬错 {now['hard']}" if now["hard"] else " · 片段都在存档原文里"
-    return {"title": title[:64], "note": f"主张台账 {now['rows']} 行", "headline": headline, "caption": cap[:256],
+        legend.append({"name": "方法署名", "value": str(len(now["credited"]))})
+    if now["hard"]:
+        legend.append({"name": "硬错", "swatch": "orange", "value": str(now["hard"])})
+    hint = " · ".join(x for x in [scope, f"硬错 {now['hard']} 处" if now["hard"] else "片段都在存档原文里", "点一下 = 逐句清单"] if x)
+    return {"title": title, "note": f"台账 {now['rows']} 行", "hint": hint[:256], "headline": headline, "legend": legend[:6],
             "trend": trend, "items": items[:ITEMS_MAX],
             "folded": f"只署名的 {len(now['uc'])} 句收起了" if now["uc"] else None}
 
@@ -353,7 +363,7 @@ def checks_alignment(chk):
     bound = [x for x in cited if x["ledger"]]
     nosrc = sum(1 for x in xs for e in x["ledger"] if e.get("status") != "found")
     hold = sum(1 for x in xs if x.get("placeholders"))
-    return {"title": "引用有没有原文依据", "note": f"台账 {chk['ledger_total']} 条",
+    return {"title": "依据", "note": f"台账 {chk['ledger_total']} 条",
             "headline": [{"value": f"{len(bound)}/{len(cited)}", "text": "句带引用的都绑了原文" if len(bound) == len(cited) else "句带引用的绑了原文",
                           "tone": "white"},
                          {"value": str(nosrc), "text": "条原文没存到", "tone": "orange" if nosrc else "white"},
@@ -387,38 +397,65 @@ def issues(repo, remote, cache_dir, now, ttl=ISSUES_TTL):
     return out
 
 
-def todo_block(cfg_ov, repo, ref, cache_dir, now):
+def build_report(repo, ref, rpath):
+    """The submission build report (the registry's `build_report` path) at `ref`; None when there is none or it is not a report."""
+    if not rpath:
+        return None
+    raw = _git(repo, "show", f"{ref}:{rpath}")
+    try:
+        rep = json.loads(raw) if raw else None
+    except ValueError:
+        rep = None
+    return rep if isinstance(rep, dict) and "ready_to_upload" in rep else None
+
+
+def todo_block(cfg_ov, repo, ref, cache_dir, now, rep=None):
+    """待办：左栏一行一条，右边只放一个数（`value`）；整句（`text`）与预防针（`sub`）进悬停（分镜 51）。"""
     cells = []
     iss = cfg_ov.get("issues")
     if iss:
         xs = issues(repo, iss.get("remote", "origin"), cache_dir, now)
         if xs is None:
-            cells.append({"title": "稿件仓 issue", "text": "取不到", "sub": "gh 没登录或断网，不写数"})
+            cells.append({"title": "稿件仓 issue", "text": "取不到", "value": "取不到", "sub": "gh 没登录或断网，不写数"})
         else:
             closed = sum(1 for i in xs if i.get("state") == "CLOSED")
-            cells.append({"title": "稿件仓 issue", "text": f"已关 {closed} / 共 {len(xs)}",
+            cells.append({"title": "稿件仓 issue", "text": f"已关 {closed} / 共 {len(xs)}", "value": f"{closed}/{len(xs)}",
                           "sub": f"范围就是这 {len(xs)} 条，加条目比例会降"})
     else:
-        cells.append({"title": "清单", "text": "没有登记清单",
+        cells.append({"title": "清单", "text": "没有登记清单", "value": "没登记",
                       "sub": "所以不写完成度；登记一个（issue 或清单文件）之后这里才出比例"})
     rpath = cfg_ov.get("build_report")
     if rpath:
-        raw = _git(repo, "show", f"{ref}:{rpath}")
-        try:
-            rep = json.loads(raw) if raw else None
-        except ValueError:
-            rep = None
-        if isinstance(rep, dict) and "ready_to_upload" in rep:
+        rep = rep if rep is not None else build_report(repo, ref, rpath)
+        if rep:
             fails = len(rep.get("failures") or [])
             ph = rep.get("title_page_placeholders") or 0
             ready = bool(rep.get("ready_to_upload"))
             text = f"失败 {fails} 项" + (f" · 标题页 {ph} 处待填" if ph else "")
-            cells.append({"title": "投稿构建", "text": text,
+            value = f"待填 {ph}" if ph else ("可上传" if ready else f"失败 {fails}")
+            cells.append({"title": "投稿构建", "text": text, "value": value[:16],
                           "sub": ("可以上传" if ready else "所以还不能上传") + f" · 构建于 {str(rep.get('source_commit') or '?')[:7]}",
                           "tone": "white" if ready else "orange"})
         else:
-            cells.append({"title": "投稿构建", "text": "读不出构建报告", "sub": f"{rpath}（{ref}）", "tone": "orange"})
-    return {"title": "还差什么", "note": "只对着清单算，不打总分", "cells": cells[:4]}
+            cells.append({"title": "投稿构建", "text": "读不出构建报告", "value": "读不出", "sub": f"{rpath}（{ref}）", "tone": "orange"})
+    return {"title": "待办", "hint": "只对着清单算，不打总分", "cells": cells[:4]}
+
+
+def stats_strip(versions, stage_cs, alignment, ledger, rep):
+    """数据条五格（分镜 ㊾，借许愿柳）：句 / 版 / 这一段改动集 / 缺依据 / 标题页待填。没有的格不写。"""
+    out = [{"label": "句", "value": str(len(versions[-1]["sentences"]))},
+           {"label": "版", "value": str(len(versions))},
+           {"label": "改动集 · 这一段", "value": str(stage_cs)}]
+    hl = (alignment or {}).get("headline") or []
+    if ledger and hl and not (alignment or {}).get("empty"):
+        out.append({"label": "缺依据", "value": hl[0]["value"], "tone": "orange" if hl[0].get("tone") == "orange" else None})
+    if rep:
+        ph = rep.get("title_page_placeholders") or 0
+        ready = bool(rep.get("ready_to_upload"))
+        out.append({"label": "标题页待填" if ph else "投稿构建",
+                    "value": str(ph) if ph else ("可上传" if ready else f"失败 {len(rep.get('failures') or [])}"),
+                    "tone": None if ready else "orange"})
+    return out[:8]
 
 
 # ---------------------------------------------------------------- the whole thing
@@ -512,13 +549,14 @@ def build(cfg, now):
         if k == len(stages) - 1:
             stage_cs = len(cs)
         base = stages[k - 1][-1] if k else first_draft(s)
-        base_note = (f"相对 {_day(base['time'])} 第 {k} 段末（{base['sha'][:7]}）" if k
+        base_long = (f"相对 {_day(base['time'])} 第 {k} 段末（{base['sha'][:7]}）" if k
                      else f"相对 {_day(base['time'])} 第一版正文（{base['sha'][:7]}）")
         cells = heat(base, s[-1], names, cs, labels)
         n0 = len(first_draft(s)["sentences"]) if k == 0 else len(stages[k - 1][-1]["sentences"])
         title = f"{_day(s[0]['time'])} – " + ("今天" if k == len(stages) - 1 and _day(s[-1]["time"]) == _day(now) else _day(s[-1]["time"]))
         entry = {"title": title, "name": stage_names.get(s[0]["sha"][:7]),
-                 "caption": f"{len(s)} 版 · {n0}→{len(s[-1]['sentences'])} 句", "profile": profile_block(cells, base_note)}
+                 "caption": f"{len(s)} 版 · {n0}→{len(s[-1]['sentences'])} 句",
+                 "profile": profile_block(cells, f"相对 {_day(base['time'])} · {base['sha'][:7]}", base_long)}
         if led:
             last = k == len(stages) - 1
             lo = s[0]["sha"]
@@ -534,13 +572,20 @@ def build(cfg, now):
             if al:
                 entry["alignment"] = al
         out_stages.append(entry)
+    shown = out_stages[-8:]
+    span = shown[0]["title"].split(" – ")[0] + " → " + shown[-1]["title"].split(" – ")[-1]
+    rep = build_report(repo, ref, ov.get("build_report"))
     payload = {
-        "days": {"title": "阶段 · 每天改过或新加几句", "note": f"空 {gap} 天以上就分段", "bars": day_bars(versions, stages, gap)},
-        "stages": out_stages[-8:],
-        "selected": min(len(out_stages), 8) - 1,
-        "todo": todo_block(ov, repo, ref, Path(cfg["_ws"]) / "cache", now),
+        # 标题两个字、右边一个数、读法进悬停（分镜 ㊾ ㊿）。
+        "days": {"title": "阶段", "note": f"{span} · {len(versions)} 版",
+                 "hint": f"柱 = 那天改过或新加的句数 · 靛蓝 = 选中的段 · 空 {gap} 天以上就分段 · 点左栏的段换段",
+                 "bars": day_bars(versions, stages, gap)},
+        "stages": shown,
+        "selected": len(shown) - 1,
+        "todo": todo_block(ov, repo, ref, Path(cfg["_ws"]) / "cache", now, rep),
     }
-    return {"payload": payload, "touches": touches_all, "actions": actions, "stage_changesets": stage_cs}
+    return {"payload": payload, "touches": touches_all, "actions": actions, "stage_changesets": stage_cs,
+            "stats": stats_strip(versions, stage_cs, shown[-1].get("alignment"), bool(led), rep)}
 
 
 def apply_action(ovw, action, now=None):

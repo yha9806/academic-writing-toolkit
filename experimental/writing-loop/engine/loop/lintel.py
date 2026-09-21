@@ -310,6 +310,9 @@ def _detail(summary, lc, bad, notices, overview=None):
             ov["latest"] = {"at": h.get("at"), "tag": h["tag"], "badge": (h.get("badge") or "").split(" ")[0] or None,
                             "where": where, "more": f"这一段 {overview.get('stage_changesets', 0)} 个改动集"}
         d["overview"] = ov
+        # 有总览时数据条换成总览的五格（分镜 ㊾）：句 / 版 / 这一段改动集 / 缺依据 / 标题页待填。
+        if overview.get("stats"):
+            d["stats"] = overview["stats"]
     return d
 
 
