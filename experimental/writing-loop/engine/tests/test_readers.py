@@ -55,7 +55,7 @@ def panel(root, packet, bad=()):
 class ReadersTest(unittest.TestCase):
     def build(self, root, ws, questions=True):
         q = Path(root) / "q.tsv"
-        q.write_text("images\tWhat does the benchmark retrieve?\n", encoding="utf-8")
+        q.write_text("span\tWhich bridges does the survey cover?\n", encoding="utf-8")
         out = Path(root) / "packet"
         args = ["--workspace", ws, "--out", out] + (["--questions", q] if questions else [])
         r = script("build-reader-packet.py", *args)
@@ -77,7 +77,7 @@ class ReadersTest(unittest.TestCase):
             self.assertEqual(packet["source"]["sections"], ["A", "I"])
             self.assertTrue(packet["snapshot"]["scope"])
             prompt = (out / "prompt_R1.txt").read_text(encoding="utf-8")
-            self.assertIn('"images": What does the benchmark retrieve?', prompt)
+            self.assertIn('"span": Which bridges does the survey cover?', prompt)
             self.assertIn("outside_knowledge", prompt)
 
     def test_nothing_to_read_exits_2(self):

@@ -41,12 +41,13 @@ HIT = {"✓": "hit", "hit": "hit", "△": "partial", "partial": "partial", "✗"
 LIMITS = [
     "Readers are sub-agents told to ignore what they can see beyond the text; they are not readers who never knew. "
     "Each reports the outside knowledge it used.",
-    "Eight readers separate only large differences. In the calibration this method came from, repeated panels on "
-    "the same text agreed at kappa about 0.66 and the model explained more than the persona; a one-round rise or "
-    "fall in wording tests was not reproducible.",
-    "Whether a sentence changed its meaning is the author's call: a machine checker caught one of three planted "
-    "changes in that calibration.",
-    "Guessed words are descriptive only (word-level agreement with the author was 4 of 13); punctuation is not seen.",
+    "Eight readers separate only large differences. When this method was calibrated, repeated panels on the same "
+    "text agreed only moderately and the reader model mattered more than the persona; a one-round rise or fall "
+    "after a wording change did not reproduce.",
+    "Whether a sentence changed its meaning is the author's call: in calibration a machine checker missed most "
+    "of the meaning changes planted for it.",
+    "Guessed words are descriptive only: at the level of single words the readers rarely matched where the author "
+    "got stuck. Punctuation is not seen.",
     "Free-text summaries overstate misreadings; a directed question is the way to confirm one.",
 ]
 
