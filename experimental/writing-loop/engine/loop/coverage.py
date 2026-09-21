@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 from . import catalogue as K
+from . import history as H
 from . import targets as TG
 
 OK = "最新"
@@ -60,13 +61,28 @@ def draft_format(cfg):
 
 
 def draft_files(cfg, head):
-    """The draft's files at head, by the same rule the index uses (a list of paths, or one glob)."""
-    names = (_git(cfg["repo"], "ls-tree", "-r", "--name-only", head) or "").splitlines()
-    g = cfg["draft"]["glob"]
-    if isinstance(g, list):
-        have = set(names)
-        return [p for p in g if p in have]
-    return [p for p in names if fnmatch.fnmatch(p, g)]
+    """The draft's files at head, by the index's own rule (history._draft_at): a list names every file of one draft;
+    a glob names one file per version and only the highest-numbered is the draft. A check that read the superseded
+    versions too would report on text nobody is revising."""
+    got = H._draft_at(cfg, head)
+    if not got:
+        return []
+    return list(got) if isinstance(got, list) else [got]
+
+
+def also_checked(cfg):
+    """Files that are submitted with the draft but not tracked sentence by sentence (a supplement, an appendix):
+    whole-text checks read them, and a change to them makes those checks stale."""
+    return list(K.get(cfg, "inputs.also_checked") or [])
+
+
+def check_inputs(check, cfg):
+    """{role: repo path} a check reads besides the draft: its own inputs, plus the also-checked files for a check
+    whose scope is the whole text."""
+    out = dict(check["inputs"](cfg))
+    if check["scope"]["kind"] == "all":
+        out.update({f"also{i}": q for i, q in enumerate(also_checked(cfg))})
+    return out
 
 
 def current_sentences(ws):
@@ -90,54 +106,107 @@ def in_sections(sec, prefixes):
     return False
 
 
-def scope_of(check, cfg, sentences):
-    """{sid: hash} for the sentences whose change makes this check stale."""
+def _scope_sentences(check, cfg, sentences):
     kind = check["scope"]["kind"]
     fmt = draft_format(cfg)
     if kind == "none":
-        return {}
+        return []
     if kind == "all":
-        keep = sentences
-    elif kind == "cite":
+        return list(sentences)
+    if kind == "cite":
         rx = CITE.get(fmt, CITE["markdown"])
-        keep = [s for s in sentences if rx.search(s["text"])]
-    elif kind == "numbers":
-        keep = [s for s in sentences if DIGIT.search(s["text"])]
-    elif kind == "sections":
+        return [s for s in sentences if rx.search(s["text"])]
+    if kind == "numbers":
+        return [s for s in sentences if DIGIT.search(s["text"])]
+    if kind == "sections":
         prefixes = K.get(cfg, check["scope"]["config"]) or check["scope"]["default"]
-        keep = [s for s in sentences if in_sections(s.get("section"), prefixes)]
-    else:
-        raise ValueError(f"unknown scope kind {kind}")
-    return {s["sid"]: s["hash"] for s in keep}
+        return [s for s in sentences if in_sections(s.get("section"), prefixes)]
+    raise ValueError(f"unknown scope kind {kind}")
+
+
+def scope_of(check, cfg, sentences):
+    """{sid: hash} for the indexed sentences whose change makes this check stale."""
+    return {s["sid"]: s["hash"] for s in _scope_sentences(check, cfg, sentences)}
+
+
+def order_of(check, cfg, sentences):
+    """The sequence of those sentences with their section and paragraph: a reordering or a merge of paragraphs
+    changes what a reader (or a sentence-rhythm measure) sees without changing any sentence."""
+    seq = [[s["sid"], s.get("section"), s.get("par")] for s in _scope_sentences(check, cfg, sentences)]
+    return _sha(json.dumps(seq)) if seq else None
+
+
+def unindexed_of(check, cfg, head):
+    """What the index cannot see but the check reads: text outside the indexed sections (a preamble's keywords,
+    a section with no rule). For a whole-text check, every draft file's blob; for a citation or number check, the
+    draft's lines that carry a citation or a digit."""
+    kind = check["scope"]["kind"]
+    if kind == "all":
+        return {f: _git(cfg["repo"], "rev-parse", f"{head}:{f}") for f in draft_files(cfg, head)}
+    if kind in ("cite", "numbers"):
+        rx = CITE.get(draft_format(cfg), CITE["markdown"]) if kind == "cite" else DIGIT
+        lines = []
+        for f in draft_files(cfg, head):
+            text = _git(cfg["repo"], "show", f"{head}:{f}") or ""
+            lines += [f"{f}\0{ln}" for ln in text.splitlines() if rx.search(ln)]
+        return {"lines": _sha("\n".join(lines))}
+    return {}
+
+
+_OUTSIDE_CACHE = {}
 
 
 def outside_hash(path):
-    """A file: its bytes. A directory: the names and sizes of its files (a corpus of PDFs is not re-read each time).
-    Missing: None."""
+    """A file or a directory by content (a directory: every file's relative path and bytes). A missing path: None.
+    Content, not size: a replaced PDF of the same size is a different corpus. File digests are memoised on
+    (path, size, mtime) for the life of the process."""
     p = Path(path)
+
+    def file_digest(q):
+        st = q.stat()
+        key = (str(q), st.st_size, st.st_mtime_ns)
+        if key not in _OUTSIDE_CACHE:
+            _OUTSIDE_CACHE[key] = _sha(q.read_bytes())
+        return _OUTSIDE_CACHE[key]
     if p.is_file():
-        return _sha(p.read_bytes())
+        return file_digest(p)
     if p.is_dir():
-        rows = sorted(f"{q.relative_to(p)}\0{q.stat().st_size}" for q in p.rglob("*") if q.is_file())
+        rows = sorted(f"{q.relative_to(p)}\0{file_digest(q)}" for q in p.rglob("*") if q.is_file())
         return _sha("\n".join(rows))
     return None
 
 
 def script_hash(check):
+    """The check's scripts and everything beside them: a skill's scripts directory is hashed whole, because a
+    script's behaviour lives in the libraries it imports from there too."""
     h = hashlib.sha1()
     for s in check["scripts"]:
         p = K.script_path(s)
-        h.update(s.encode() + b"\0" + (p.read_bytes() if p.is_file() else b"<missing>"))
+        files = [p] if (Path(s).is_absolute() or s.startswith("scripts/")) else \
+            sorted(q for q in p.parent.rglob("*") if q.is_file() and "__pycache__" not in q.parts)
+        for q in files:
+            h.update(str(q.name).encode() + b"\0" + (q.read_bytes() if q.is_file() else b"<missing>"))
     return h.hexdigest()
+
+
+def config_hash(check, cfg):
+    """The configuration a run depends on: its prerequisites, inputs, the target and the draft rule."""
+    keep = {k: cfg.get(k) for k in ("inputs", "target", "draft")}
+    keep["needs"] = {n: K.get(cfg, n) for n in check["needs"]}
+    keep["ledger"] = K.get(cfg, "overview.ledger")
+    return _sha(json.dumps(keep, sort_keys=True, ensure_ascii=False, default=str))
 
 
 def snapshot(check, cfg, sentences, head):
     """What a run of this check at head looks at. Two runs with equal snapshots would see the same thing."""
-    inputs = {role: _git(cfg["repo"], "rev-parse", f"{head}:{path}") for role, path in check["inputs"](cfg).items()}
+    inputs = {role: _git(cfg["repo"], "rev-parse", f"{head}:{path}") for role, path in check_inputs(check, cfg).items()}
     return {"scope": scope_of(check, cfg, sentences),
+            "order": order_of(check, cfg, sentences),
+            "unindexed": unindexed_of(check, cfg, head),
             "inputs": inputs,
-            "outside": {p: outside_hash(p) for p in check["outside"](cfg)},
-            "script": script_hash(check)}
+            "outside": {q: outside_hash(q) for q in check["outside"](cfg)},
+            "script": script_hash(check),
+            "config": config_hash(check, cfg)}
 
 
 def diff(old, new):
@@ -150,14 +219,20 @@ def diff(old, new):
     if n:
         parts = [f"改 {edited}" if edited else "", f"新增 {added}" if added else "", f"删 {removed}" if removed else ""]
         reasons.append("句子" + " ".join(x for x in parts if x))
+    elif old.get("order") != new["order"]:
+        reasons.append("句子顺序或分段变了")
+    if old.get("unindexed") != new["unindexed"]:
+        reasons.append("索引外的正文变了")
     for role in sorted(set(old.get("inputs") or {}) | set(new["inputs"])):
         if (old.get("inputs") or {}).get(role) != new["inputs"].get(role):
             reasons.append(f"输入 {role} 变了")
-    for p in sorted(set(old.get("outside") or {}) | set(new["outside"])):
-        if (old.get("outside") or {}).get(p) != new["outside"].get(p):
-            reasons.append(f"外部文件 {Path(p).name} 变了")
+    for q in sorted(set(old.get("outside") or {}) | set(new["outside"])):
+        if (old.get("outside") or {}).get(q) != new["outside"].get(q):
+            reasons.append(f"外部文件 {Path(q).name} 变了")
     if old.get("script") != new["script"]:
         reasons.append("检查脚本本身改过")
+    if old.get("config") != new["config"]:
+        reasons.append("工作区配置改过")
     return reasons, n
 
 
@@ -194,6 +269,11 @@ def interpret(check_id, code, stdout, stderr):
         return "failed", "没有查到任何对象或前提不满足（退出码 2）：" + (stderr.strip().splitlines() or [first])[-1][:160]
     if code not in (0, 1):
         return "failed", f"退出码 {code}：" + ((stderr or "").strip().splitlines() or [first or "（无输出）"])[-1][:160]
+    if not isinstance(data, dict):
+        # Every catalogued check is run with --json and prints its result as one object. Exit 0 or 1 without one is
+        # a crash (a traceback, a malformed ledger's error line, a missing file): nothing was examined.
+        tail = ((stderr or "").strip().splitlines() or [first or "（无输出）"])[-1][:160]
+        return "failed", f"退出码 {code} 却没有给出结果：{tail}"
     summary = ""
     if isinstance(data, dict):
         if "outliers" in data:
@@ -211,7 +291,7 @@ def interpret(check_id, code, stdout, stderr):
 
 def materialize(cfg, check, head, dest):
     """Archive the draft and the check's inputs at head into dest. Returns ({role: path}, error or None)."""
-    inputs = check["inputs"](cfg)
+    inputs = check_inputs(check, cfg)
     missing = [f"{role}={p}" for role, p in inputs.items() if _git(cfg["repo"], "cat-file", "-e", f"{head}:{p}") is None]
     if missing:
         return None, "配置的输入在 HEAD 上不存在：" + "，".join(missing)
@@ -261,7 +341,7 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
 
 # ---------------------------------------------------------------- status
 
-def row(check, cfg, ws, head, sentences):
+def row(check, cfg, ws, head, sentences, index_head=None):
     base = {"id": check["id"], "name": check["name"], "kind": check["kind"]}
     fmt = draft_format(cfg)
     if fmt not in check["formats"]:
@@ -269,8 +349,13 @@ def row(check, cfg, ws, head, sentences):
         return {**base, "status": NOT_APPLICABLE, "instead": instead,
                 "detail": (f"只读 {'/'.join(check['formats'])}；这里由 {instead} 覆盖" if instead
                            else f"只读 {'/'.join(check['formats'])}，这种稿件没有别的检查替它")}
+    rec = load_run(ws, check["id"])
     reason = (cfg.get("waive") or {}).get(check["id"])
     if reason:
+        if rec is not None and rec.get("verdict") == "failed":
+            # A waiver records a decision not to run a check; it does not turn a run that failed into a decision.
+            return {**base, "status": FAILED, "detail": f"已豁免，但上次运行失败：{rec.get('summary') or ''}",
+                    "due": False}
         return {**base, "status": WAIVED, "detail": str(reason)}
     missing = [n for n in check["needs"] if K.get(cfg, n) is None]
     if missing:
@@ -278,14 +363,19 @@ def row(check, cfg, ws, head, sentences):
     problems = TG.problems_for(check["id"], cfg)
     if problems:
         return {**base, "status": MISSING, "detail": "；".join(problems)}
+    if not head:
+        return {**base, "status": FAILED, "detail": f"ref {cfg.get('ref')} 解析不了，说不出查过哪一版", "due": False}
     if sentences is None:
         return {**base, "status": NEVER, "detail": "索引还没建，说不出查过什么"}
-    rec = load_run(ws, check["id"])
     if rec is None:
         return {**base, "status": NEVER, "detail": "由 loop update 自动跑" if check["kind"] == "script"
-                else "要由宿主代理开读者组（readers 技能）"}
+                else f"按 {K.script_path(check['scripts'][0]).parent.parent / 'SKILL.md'} 开读者组"}
     new = snapshot(check, cfg, sentences, head)
     reasons, n = diff(rec.get("snapshot") or {}, new)
+    if index_head and index_head != head:
+        # The sentences compared above are the index's, and the index is older than HEAD: nothing can be called
+        # current until it catches up.
+        reasons.insert(0, f"索引建于 {index_head[:7]}，落后于 HEAD {head[:7]}（先跑 loop update）")
     last = {"last_commit": (rec.get("commit") or "")[:7], "last_at": rec.get("at"), "result": rec.get("summary"),
             "verdict": rec.get("verdict")}
     if rec.get("verdict") == "failed":
@@ -310,16 +400,16 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
         for check in K.CHECKS:
             if only and check["id"] not in only:
                 continue
-            r = row(check, cfg, ws, head, sentences)
+            r = row(check, cfg, ws, head, sentences, index_head)
             if check["kind"] == "script" and (due(r) or (force and r["status"] in (OK, FAILED, STALE, NEVER))):
                 run(check, cfg, ws, head, sentences, now=now)
                 ran.append(check["id"])
-    rows = [row(c, cfg, ws, head, sentences) for c in K.CHECKS]
+    rows = [row(c, cfg, ws, head, sentences, index_head) for c in K.CHECKS]
     counts = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
-    summary = {"schema": SCHEMA, "workspace": cfg["name"], "head": head, "index_head": index_head,
-               "index_behind": bool(head and index_head and head != index_head),
+    summary = {"schema": SCHEMA, "workspace": cfg["name"], "ref": cfg.get("ref"), "head": head,
+               "index_head": index_head, "index_behind": bool(head and index_head and head != index_head),
                "computed_at": dt.datetime.fromtimestamp(now or time.time(), dt.timezone.utc).isoformat(),
                "format": draft_format(cfg), "rows": rows, "counts": counts, "ran": ran,
                "target": TG.describe(cfg),
@@ -333,25 +423,49 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     return summary
 
 
-def load_summary(ws):
+STATUSES = (OK, STALE, NEVER, MISSING, NOT_APPLICABLE, WAIVED, FAILED)
+
+
+def load_summary(ws, cfg=None):
+    """The summary on disk, or None when there is none or it cannot be trusted: another schema, another workspace,
+    rows of the wrong shape or an unknown status. With cfg, a summary computed for an older HEAD is marked
+    (`stale_head`), and every surface then treats coverage as not current."""
     try:
-        return json.loads((Path(ws) / "cache" / "coverage" / "summary.json").read_text(encoding="utf-8"))
+        s = json.loads((Path(ws) / "cache" / "coverage" / "summary.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    ok = (isinstance(s, dict) and s.get("schema") == SCHEMA and isinstance(s.get("rows"), list) and s["rows"]
+          and all(isinstance(r, dict) and r.get("status") in STATUSES and r.get("name") for r in s["rows"]))
+    if not ok or (cfg and cfg.get("name") and s.get("workspace") not in (None, cfg["name"])):
+        return None
+    if cfg and cfg.get("repo") and cfg.get("ref"):
+        now = _git(cfg["repo"], "rev-parse", "--verify", f"{cfg['ref']}^{{commit}}")
+        if now != s.get("head"):
+            s["stale_head"] = now or "?"
+    return s
 
 
 # ---------------------------------------------------------------- the three places it is shown
 
 def attention(summary):
-    """The rows this manuscript's work can act on: not current, never run, missing a prerequisite, failed."""
-    return [r for r in summary["rows"] if r["status"] in ATTENTION]
+    """The rows this manuscript's work can act on: not current, never run, missing a prerequisite, failed. A summary
+    computed for an older HEAD, or from an index behind HEAD, is itself a row: nothing in it is current."""
+    out = []
+    if summary.get("stale_head"):
+        out.append({"id": "_summary", "name": "覆盖摘要", "status": STALE,
+                    "detail": f"算于 {(summary.get('head') or '?')[:7]}，HEAD 已到 {summary['stale_head'][:7]}"})
+    return out + [r for r in summary["rows"] if r["status"] in ATTENTION]
 
 
 def gaps(summary):
     """Checks the toolkit has that cannot read this kind of draft, with nothing covering for them. A gap in the
-    toolkit, not a task for this turn: listed in the table and on the notch, kept out of the per-turn line so the
-    line does not become wallpaper the agent learns to skip."""
+    toolkit, not a task for this turn: listed in the table, counted on the notch and in the to-do cell, kept out of
+    the per-turn line so the line does not become wallpaper the agent learns to skip."""
     return [r for r in summary["rows"] if r["status"] == NOT_APPLICABLE and not r.get("instead")]
+
+
+def waived(summary):
+    return [r for r in summary["rows"] if r["status"] == WAIVED]
 
 
 def findings(summary):
@@ -391,8 +505,6 @@ def reminder_line(summary, ws):
         bits.append("目标档案：" + "；".join(t["problems"]))
     if e.get("undisposed") or e.get("overdue"):
         bits.append(f"原型待处置 {len(e.get('undisposed') or []) + len(e.get('overdue') or [])}")
-    if summary.get("index_behind"):
-        bits.append("索引落后于 HEAD")
     if not bits:
         return None
     line = f"覆盖（{(summary.get('head') or '')[:7]}）：" + "；".join(bits)
@@ -403,18 +515,25 @@ def todo_cell(summary):
     """The overview's 还差什么 cell for coverage: counts, and the first names."""
     if summary is None:
         return {"title": "检查", "text": "没算过", "value": "没算过", "sub": "loop coverage --run", "tone": "orange"}
-    rows, gap, found = attention(summary), gaps(summary), findings(summary)
+    rows, gap, found, wv = attention(summary), gaps(summary), findings(summary), waived(summary)
+    target = (summary.get("target") or {}).get("problems")
+    running = len((summary.get("experiments") or {}).get("in_progress") or [])
     c = {}
     for r in rows:
         c[r["status"]] = c.get(r["status"], 0) + 1
-    tail = (f"；有发现 {len(found)} 项" if found else "") + (f"；另有 {len(gap)} 项 AWT 读不了这种稿件" if gap else "")
-    if not rows and not (summary.get("target") or {}).get("problems"):
-        return {"title": "检查", "text": "都查过当前稿", "sub": ("按改动自动判过期" + tail)[:120],
-                "value": "全部最新", "tone": "white"}
-    text = " · ".join(f"{k} {v}" for k, v in c.items())
+    tail = ((f"；有发现 {len(found)} 项" if found else "") + (f"；另有 {len(gap)} 项 AWT 读不了这种稿件" if gap else "")
+            + (f"；豁免 {len(wv)} 项" if wv else "") + (f"；原型进行中 {running}" if running else ""))
+    if not rows and not target:
+        if not gap and not wv:
+            return {"title": "检查", "text": "都查过当前稿", "sub": ("按改动自动判过期" + tail)[:120],
+                    "value": "全部最新", "tone": "white"}
+        # Everything that can run has looked at this draft, but not everything the toolkit has could: say which.
+        value = f"缺口 {len(gap)}" if gap else f"豁免 {len(wv)}"
+        return {"title": "检查", "text": "能跑的都查过当前稿", "sub": tail.lstrip("；")[:120], "value": value,
+                "tone": "white"}
+    text = " · ".join(f"{k} {v}" for k, v in c.items()) or "目标档案有问题"
     names = "、".join(r["name"] for r in rows[:3])
-    return {"title": "检查", "text": text[:64] or "目标档案有问题", "sub": (names + tail)[:120], "value": text[:16],
-            "tone": "orange"}
+    return {"title": "检查", "text": text[:64], "sub": (names + tail)[:120], "value": text[:16], "tone": "orange"}
 
 
 def table(summary, ws):

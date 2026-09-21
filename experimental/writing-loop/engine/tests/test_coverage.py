@@ -226,6 +226,15 @@ class NeverGreenTest(unittest.TestCase):
                 self.assertEqual(r["status"], V.FAILED)
                 self.assertIn("退出码 2", r["detail"])
 
+    def test_exit_1_without_a_result_is_a_crash_not_a_finding(self):
+        # A traceback, or an error line such as a malformed ledger's, also exits 1. Only a check that printed its
+        # result has findings; one that printed none examined nothing and must not turn green.
+        for out, code in (("Traceback (most recent call last):\n  boom", 1), ("LEDGER_COLUMNS: expected five", 1),
+                          ("done", 0)):
+            self.assertEqual(V.interpret("x", code, out, "")[0], "failed", out)
+        self.assertEqual(V.interpret("x", 1, '{"issues": ["a"]}', "")[0], "findings")
+        self.assertEqual(V.interpret("x", 0, '{"issues": []}', "")[0], "ok")
+
     def test_a_timeout_is_a_failure(self):
         with TempDir() as root:
             repo, ws = setup(root)
@@ -258,6 +267,157 @@ class NeverGreenTest(unittest.TestCase):
                 commit(repo, {"sections/01_intro.tex": INTRO.replace("fail slowly", "fail quietly")}, "c", 1_700_000_100)
                 reindex(ws)
                 self.assertEqual(V.compute(cfg, ws, do_run=True)["ran"], ["probe"])
+
+
+class GrillTest(unittest.TestCase):
+    """Each false green the 2026-09-21 review reproduced, kept as a test."""
+
+    def test_a_glob_draft_is_checked_on_the_one_file_the_index_tracks(self):
+        with TempDir() as root:
+            repo = make_repo(root, [({"drafts/DRAFT-v1.md": "# Draft\n\n## Abstract\n\nOld one.\n",
+                                      "drafts/DRAFT-v2.md": "# Draft\n\n## Abstract\n\nNew one.\n"}, "v", 1_700_000_000)])
+            ws = workspace(root, repo, "main")
+            cfg = C.load(ws)
+            self.assertEqual(V.draft_files(cfg, git(repo, "rev-parse", "HEAD")), ["drafts/DRAFT-v2.md"])
+
+    def test_text_the_index_does_not_see_still_makes_a_whole_text_check_stale(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root, scope="all")):
+                V.compute(cfg, ws, do_run=True)
+                commit(repo, {"main.tex": MAIN.replace("\\documentclass{article}", "\\documentclass{article}\n\\keywords{Gauges}")},
+                       "preamble", 1_700_000_100)
+                reindex(ws)
+                r = status(V.compute(cfg, ws))
+                self.assertEqual(r["status"], V.STALE, r)
+                self.assertIn("索引外的正文变了", r["detail"])
+
+    def test_a_citation_in_an_unindexed_section_makes_a_citation_check_stale(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root, scope="cite")):
+                V.compute(cfg, ws, do_run=True)
+                commit(repo, {"sections/01_intro.tex": INTRO + "\n\\section{Methods}\nWe follow~\\cite{smith2020}.\n"},
+                       "methods", 1_700_000_100)
+                reindex(ws)
+                self.assertEqual(status(V.compute(cfg, ws))["status"], V.STALE)
+
+    def test_reordering_paragraphs_makes_a_sections_check_stale(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            chk = probe_check(root, scope="sections")
+            chk["scope"] = {"kind": "sections", "config": "target.readers.sections", "default": ["I"]}
+            with Probe(chk):
+                V.compute(cfg, ws, do_run=True)
+                swapped = INTRO.replace("Bridges fail slowly~\\cite{smith2020}. Nobody watches them.\n\nInspections are rare.",
+                                        "Inspections are rare.\n\nBridges fail slowly~\\cite{smith2020}. Nobody watches them.")
+                self.assertNotEqual(swapped, INTRO)
+                commit(repo, {"sections/01_intro.tex": swapped}, "swap", 1_700_000_100)
+                reindex(ws)
+                r = status(V.compute(cfg, ws))
+                self.assertEqual(r["status"], V.STALE, r)
+
+    def test_an_index_behind_head_and_a_summary_for_an_older_head_are_never_current(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root)):
+                V.compute(cfg, ws, do_run=True)
+                commit(repo, {"sections/01_intro.tex": INTRO.replace("Inspections", "Checks")}, "not indexed", 1_700_000_100)
+                s = V.load_summary(ws, cfg)
+                self.assertTrue(s.get("stale_head"))
+                self.assertEqual(V.attention(s)[0]["id"], "_summary")
+                self.assertNotEqual(V.todo_cell(s)["value"], "全部最新")
+                r = status(V.compute(cfg, ws))
+                self.assertEqual(r["status"], V.STALE)
+                self.assertIn("索引建于", r["detail"])
+
+    def test_a_summary_of_another_workspace_or_schema_is_not_trusted(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root)):
+                s = V.compute(cfg, ws, do_run=True)
+            path = Path(ws) / "cache" / "coverage" / "summary.json"
+            for bad in ({**s, "schema": 99}, {**s, "workspace": "someone-else"}, {**s, "rows": []},
+                        {**s, "rows": [{"name": "x", "status": "fine"}]}):
+                path.write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+                self.assertIsNone(V.load_summary(ws, cfg))
+
+    def test_a_waiver_does_not_hide_a_failure_and_the_cell_never_says_all_current_with_one(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            (Path(root) / "code.txt").write_text("2", encoding="utf-8")
+            with Probe(probe_check(root)):
+                V.compute(cfg, ws, do_run=True)
+                cfg["waive"] = {"probe": "不做"}
+                self.assertEqual(status(V.compute(cfg, ws))["status"], V.FAILED)
+            with Probe(probe_check(root, formats=("markdown",), instead={"latex": None})):
+                cell = V.todo_cell(V.compute(C.load(ws), ws))
+                self.assertEqual((cell["value"], cell["text"]), ("缺口 1", "能跑的都查过当前稿"))
+
+    def test_a_library_beside_the_script_makes_it_stale(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            fake = Path(root) / "awt"
+            d = fake / ".claude" / "skills" / "probe" / "scripts"
+            d.mkdir(parents=True)
+            (d / "probe.py").write_text(PROBE, encoding="utf-8")
+            (d / "lib.py").write_text("X = 1\n", encoding="utf-8")
+            chk = probe_check(root)
+            chk["scripts"] = ["probe/probe.py"]
+            saved = K.ENGINE_ROOT
+            K.ENGINE_ROOT = fake
+            try:
+                with Probe(chk):
+                    V.compute(cfg, ws, do_run=True)
+                    (d / "lib.py").write_text("X = 2\n", encoding="utf-8")
+                    self.assertIn("检查脚本本身改过", status(V.compute(cfg, ws))["detail"])
+            finally:
+                K.ENGINE_ROOT = saved
+
+    def test_a_same_size_change_in_a_corpus_is_a_different_corpus(self):
+        with TempDir() as root:
+            d = Path(root) / "corpus"
+            d.mkdir()
+            (d / "a.pdf").write_bytes(b"%PDF-aaaa")
+            before = V.outside_hash(d)
+            (d / "a.pdf").write_bytes(b"%PDF-bbbb")
+            self.assertNotEqual(V.outside_hash(d), before)
+
+    def test_an_unresolvable_ref_is_a_failure(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root)):
+                V.compute(cfg, ws, do_run=True)
+                cfg["ref"] = "no-such-branch"
+                self.assertEqual(status(V.compute(cfg, ws))["status"], V.FAILED)
+
+    def test_a_config_change_makes_it_stale(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            with Probe(probe_check(root)):
+                V.compute(cfg, ws, do_run=True)
+                cfg["inputs"] = {"literature_exclude": ["me*"]}
+                self.assertIn("工作区配置改过", status(V.compute(cfg, ws))["detail"])
+
+    def test_files_submitted_with_the_draft_are_read_and_watched(self):
+        with TempDir() as root:
+            repo, ws = setup(root, extra_commits=[({"supplement.tex": "Supp one.\n"}, "supp", 1_700_000_050)])
+            cfg = C.load(ws)
+            cfg["inputs"] = {"also_checked": ["supplement.tex"]}
+            with Probe(probe_check(root, scope="all")):
+                V.compute(cfg, ws, do_run=True)
+                commit(repo, {"supplement.tex": "Supp two.\n"}, "supp2", 1_700_000_100)
+                reindex(ws)
+                self.assertIn("输入 also0 变了", status(V.compute(cfg, ws))["detail"])
 
 
 class ShownTest(unittest.TestCase):

@@ -73,7 +73,9 @@ class PromptTest(unittest.TestCase):
             cov = Path(ws) / "cache" / "coverage"
             cov.mkdir(parents=True, exist_ok=True)
             row = {"id": "x", "name": "读者组", "kind": "panel", "status": "过期", "detail": "句子改 3"}
-            summary = {"head": "abc1234def", "rows": [row], "target": {}, "experiments": None}
+            head = git(repo, "rev-parse", "HEAD")
+            summary = {"schema": 1, "workspace": C.load(ws)["name"], "head": head, "rows": [row], "target": {},
+                       "experiments": None}
             (cov / "summary.json").write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
             ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
             self.assertIn("过期 读者组", ctx)
@@ -86,7 +88,19 @@ class PromptTest(unittest.TestCase):
             self.assertIn("覆盖", ctx, "a broken summary must not read as all checked")
             (cov / "summary.json").write_text(json.dumps({"rows": 5}), encoding="utf-8")
             ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
-            self.assertIn("不能当作都查过了", ctx, "a summary of the wrong shape must not read as all checked")
+            self.assertIn("覆盖：还没有算过", ctx, "a summary of the wrong shape is not trusted")
+            summary["head"] = "0" * 40
+            (cov / "summary.json").write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
+            ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("覆盖摘要", ctx, "a summary computed for another HEAD is not current")
+            from loop import coverage as V
+            saved = V.reminder_line
+            V.reminder_line = lambda *a, **k: (_ for _ in ()).throw(KeyError("rows"))
+            try:
+                ctx = LH.handle(prompt_payload(repo), regs)["hookSpecificOutput"]["additionalContext"]
+            finally:
+                V.reminder_line = saved
+            self.assertIn("不能当作都查过了", ctx, "a failure computing the line must still reach the agent as text")
 
     def test_the_documentations_field_name_is_a_visible_error_not_silence(self):
         """The docs once said user_prompt; the runtime sends prompt. A hook reading the wrong one must be seen."""

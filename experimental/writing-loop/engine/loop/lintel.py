@@ -318,20 +318,26 @@ def _detail(summary, lc, bad, notices, overview=None, coverage=NOT_GIVEN):
             d["stats"] = overview["stats"]
     if coverage is not NOT_GIVEN:
         # 检查覆盖（spec 2026-09-21 D4）：不在当前稿上的检查有几项。没算过也要说，不能留空当作都查过了。
-        d["stats"] = list(d["stats"])[:7] + [_coverage_stat(coverage)]
+        d["stats"] = (list(d["stats"]) + _coverage_stats(coverage))[:8]
     return d
 
 
 
-def _coverage_stat(summary):
+def _coverage_stats(summary):
+    """检查待办 = what this draft's work can act on (a summary for an older HEAD counts); AWT 读不了 = checks the
+    toolkit has that cannot read this draft. Neither is ever left out as a way of saying zero."""
     from . import coverage as V
     if summary is None:
-        return {"label": "检查", "value": "没算过", "tone": "orange"}
+        return [{"label": "检查", "value": "没算过", "tone": "orange"}]
     try:
         n = len(V.attention(summary)) + (1 if (summary.get("target") or {}).get("problems") else 0)
+        gap = len(V.gaps(summary))
     except (KeyError, TypeError, AttributeError):
-        return {"label": "检查", "value": "读不出", "tone": "orange"}
-    return {"label": "检查待办", "value": str(n), "tone": "orange" if n else None}
+        return [{"label": "检查", "value": "读不出", "tone": "orange"}]
+    out = [{"label": "检查待办", "value": str(n), "tone": "orange" if n else None}]
+    if gap:
+        out.append({"label": "AWT 读不了", "value": str(gap)})
+    return out
 
 
 def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_GIVEN):

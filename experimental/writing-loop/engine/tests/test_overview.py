@@ -1,4 +1,5 @@
 import json
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -192,7 +193,10 @@ class TodoTest(unittest.TestCase):
             first = ovw.get(T0 + 12 * DAY)
             cov = Path(cfg["_ws"]) / "cache" / "coverage"
             cov.mkdir(parents=True, exist_ok=True)
-            (cov / "summary.json").write_text(json.dumps({"rows": [{"id": "a", "name": "甲", "status": "最新"}],
+            head = subprocess.run(["git", "-C", str(cfg["repo"]), "rev-parse", cfg["ref"]], capture_output=True,
+                                  text=True).stdout.strip()
+            (cov / "summary.json").write_text(json.dumps({"schema": 1, "workspace": cfg["name"], "head": head,
+                                                          "rows": [{"id": "a", "name": "甲", "status": "最新"}],
                                                           "target": {}}), encoding="utf-8")
             again = ovw.get(T0 + 12 * DAY)
             self.assertIsNot(first, again, "a new coverage summary must rebuild the overview, not reuse it")

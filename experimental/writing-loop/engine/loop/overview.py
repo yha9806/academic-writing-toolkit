@@ -439,7 +439,7 @@ def todo_block(cfg_ov, repo, ref, cache_dir, now, rep=None):
         else:
             cells.append({"title": "投稿构建", "text": "读不出构建报告", "value": "读不出", "sub": f"{rpath}（{ref}）", "tone": "orange"})
     from . import coverage as V
-    cells.append(V.todo_cell(V.load_summary(Path(cache_dir).parent)))  # 检查覆盖（spec 2026-09-21 D4）
+    cells.append(V.todo_cell(V.load_summary(Path(cache_dir).parent, {"repo": repo, "ref": ref})))  # 检查覆盖（D4）
     return {"title": "待办", "hint": "只对着清单算，不打总分", "cells": cells[:4]}
 
 

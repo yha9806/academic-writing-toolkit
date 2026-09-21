@@ -266,7 +266,7 @@ def cmd_lintel(a):
                 problems.append(f"总览：{type(e).__name__}：{e}")
         from . import coverage as V
         acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov,
-                        coverage=V.load_summary(a.workspace))
+                        coverage=V.load_summary(a.workspace, cfg))
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:

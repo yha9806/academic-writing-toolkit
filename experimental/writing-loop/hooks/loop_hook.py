@@ -277,7 +277,7 @@ def reminder_text(ws, cfg):
     text = REMINDER.format(name=cfg["name"])
     try:
         from loop import coverage as V
-        line = V.reminder_line(V.load_summary(ws), ws)
+        line = V.reminder_line(V.load_summary(ws, cfg), ws)
     except Exception as e:  # noqa: BLE001 -- any failure here must still reach the agent as text
         line = f"覆盖：摘要读不出（{type(e).__name__}），不能当作都查过了"
     return text + ("\n" + line if line else "")

@@ -67,6 +67,13 @@ class CoverageStatTest(unittest.TestCase):
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
         self.assertEqual(got, [{"label": "检查待办", "value": "0"}], "no None reaches the host")
 
+    def test_a_check_the_toolkit_cannot_run_here_is_counted_as_a_gap(self):
+        rows = [{"id": "b", "name": "乙", "status": "最新"}, {"id": "c", "name": "丙", "status": "不适用", "instead": None}]
+        got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
+        self.assertIn({"label": "AWT 读不了", "value": "1"}, [x for x in only(L.build(summary(), now=NOW, coverage={
+            "rows": rows, "target": {}}))["detail"]["stats"]])
+        self.assertEqual(got[0]["value"], "0")
+
     def test_a_summary_of_the_wrong_shape_is_not_read_as_clean(self):
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": 5})))
         self.assertEqual(got[0]["value"], "读不出")
