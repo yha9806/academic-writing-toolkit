@@ -503,8 +503,9 @@ def reminder_line(summary, ws):
                     + (f" 等 {len(found)} 项" if len(found) > 3 else ""))
     if t.get("problems"):
         bits.append("目标档案：" + "；".join(t["problems"]))
-    if e.get("undisposed") or e.get("overdue"):
-        bits.append(f"原型待处置 {len(e.get('undisposed') or []) + len(e.get('overdue') or [])}")
+    pending = (e.get("undisposed") or []) + (e.get("overdue") or []) + (e.get("promoted_missing") or [])
+    if pending:
+        bits.append(f"原型待处置 {len(pending)}（{'、'.join(pending[:3])}）")
     if not bits:
         return None
     line = f"覆盖（{(summary.get('head') or '')[:7]}）：" + "；".join(bits)
@@ -550,9 +551,11 @@ def table(summary, ws):
     lines.append("目标档案：" + ("；".join(t["problems"]) if t.get("problems") else (t.get("line") or "—")))
     e = summary.get("experiments")
     if e:
-        lines.append(f"原型：{e['total']} 个实验，未处置 {len(e['undisposed'])}，逾期 {len(e['overdue'])}，"
-                     f"进行中 {len(e['in_progress'])}"
-                     + (f"（{'、'.join(e['undisposed'] + e['overdue'])}）" if e['undisposed'] or e['overdue'] else ""))
+        bad = e["undisposed"] + e["overdue"] + e.get("promoted_missing", [])
+        lines.append(f"原型：{e['total']} 个，未处置 {len(e['undisposed'])}，逾期 {len(e['overdue'])}，"
+                     f"晋升目标不存在 {len(e.get('promoted_missing', []))}，进行中 {len(e['in_progress'])}"
+                     + (f"（{'、'.join(bad)}）" if bad else "")
+                     + ("；进行中：" + "、".join(f"{n}（复查 {d}）" for n, d in e["in_progress"]) if e["in_progress"] else ""))
     gap = gaps(summary)
     if gap:
         lines.append("AWT 读不了这种稿件、也没有别的检查替它的（工具的缺口，不是这篇稿子的待办）：" + "、".join(r["name"] for r in gap))

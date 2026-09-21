@@ -553,7 +553,7 @@ class TargetTest(unittest.TestCase):
     def test_experiments_without_a_disposition_or_past_review_are_listed(self):
         with TempDir() as root:
             e = Path(root) / "experiments"
-            for name, text in {"a": "# A\n\n处置：已晋升 → .claude/skills/readers\n",
+            for name, text in {"a": "# A\n\n处置：已晋升 → `.claude/skills/readers`\n",
                                "b": "# B\n\n- **处置**：退役 — 结论已写进 spec\n",
                                "c": "# C\n\n处置：进行中 — 门：作者裁定；复查 2026-09-01\n",
                                "d": "# D\n\n处置：进行中 — 门：作者裁定；复查 2026-10-30\n",
@@ -561,8 +561,25 @@ class TargetTest(unittest.TestCase):
                 (e / name).mkdir(parents=True)
                 (e / name / "README.md").write_text(text, encoding="utf-8")
             (e / "f").mkdir()
-            got = TG.experiments({"experiments_dir": str(e)}, today=dt.date(2026, 9, 21))
-            self.assertEqual(got["promoted"], ["a"])
+            (e / "g").mkdir()
+            (e / "g" / "README.md").write_text("# G\n\n" + "".join(f"line {i}\n" for i in range(12))
+                                               + "处置：退役 — buried in the body\n", encoding="utf-8")
+            (e / "i").mkdir()
+            (e / "i" / "README.md").write_text("# I\n\n处置：已晋升 → `.claude/skills/readers`（旁注提到 `other.py`）\n",
+                                               encoding="utf-8")
+            (e / "h").mkdir()
+            (e / "h" / "README.md").write_text("# H\n\n处置：已晋升 → `no/such/place.py`\n", encoding="utf-8")
+            (Path(root) / ".claude" / "skills" / "readers").mkdir(parents=True)
+            saved = K.ENGINE_ROOT
+            K.ENGINE_ROOT = Path(root)
+            try:
+                got = TG.experiments({"experiments_dir": [str(e)]}, today=dt.date(2026, 9, 21))
+            finally:
+                K.ENGINE_ROOT = saved
+            self.assertEqual(got["promoted_missing"], ["h"], "a promotion to a path that does not exist")
+            self.assertIn("g", got["undisposed"], "a disposition buried in the body is not one")
+            got["undisposed"].remove("g")
+            self.assertEqual(got["promoted"], ["a", "i"], "a note after the target is not a second target")
             self.assertEqual(got["retired"], ["b"])
             self.assertEqual(got["overdue"], ["c"])
             self.assertEqual(got["in_progress"], [["d", "2026-10-30"]])

@@ -129,30 +129,56 @@ def describe(cfg):
     return {"venue": venue, "line": line, "problems": problems, "intent_card": state}
 
 
+HEAD_LINES = 8
+BACKTICKED = re.compile(r"`([^`\s]+)`")
+
+
+def _promoted_target_exists(rest, roots):
+    """Every path named in backticks after 已晋升 must exist under one of the roots: a promotion to a place that is
+    not there is not a promotion."""
+    target = re.split(r"[；;（(]", rest, maxsplit=1)[0]   # the promotion target, not the notes after it
+    paths = [p for p in BACKTICKED.findall(target) if "/" in p or p.endswith((".py", ".mjs", ".md"))]
+    if not paths:
+        return False
+    return all(any((r / p.lstrip("/")).exists() for r in roots) or Path(p).expanduser().exists() for p in paths)
+
+
 def experiments(cfg, today=None):
     d = cfg.get("experiments_dir")
     if not d:
         return None
-    root = Path(d).expanduser()
+    dirs = [Path(x).expanduser() for x in (d if isinstance(d, list) else [d])]
     today = today or dt.date.today()
-    out = {"dir": str(root), "total": 0, "undisposed": [], "overdue": [], "in_progress": [], "promoted": [],
-           "retired": []}
-    if not root.is_dir():
-        out["undisposed"].append(f"（目录不存在：{d}）")
-        return out
-    for exp in sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))):
-        out["total"] += 1
-        try:
-            text = (exp / "README.md").read_text(encoding="utf-8")
-        except OSError:
-            out["undisposed"].append(exp.name)
+    out = {"dir": ", ".join(map(str, dirs)), "total": 0, "undisposed": [], "overdue": [], "in_progress": [],
+           "promoted": [], "retired": [], "promoted_missing": []}
+    roots = [K.ENGINE_ROOT] + [x.parent for x in dirs]
+    for root in dirs:
+        if not root.is_dir():
+            out["undisposed"].append(f"（目录不存在：{root}）")
             continue
-        m = DISPOSITION.search(text)
-        if not m:
-            out["undisposed"].append(exp.name)
-            continue
+        for exp in sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))):
+            _one(exp, out, today, roots)
+    return out
+
+
+def _one(exp, out, today, roots):
+    out["total"] += 1
+    try:
+        text = (exp / "README.md").read_text(encoding="utf-8")
+    except OSError:
+        out["undisposed"].append(exp.name)
+        return
+    # The disposition is a heading-level fact: it must sit just under the title, not anywhere in the body.
+    head = "\n".join([ln for ln in text.splitlines() if ln.strip()][:HEAD_LINES])
+    m = DISPOSITION.search(head)
+    if not m:
+        out["undisposed"].append(exp.name)
+        return
+    if True:
         kind, rest = m.group(1), m.group(2)
-        if kind == "已晋升":
+        if kind == "已晋升" and not _promoted_target_exists(rest, roots):
+            out["promoted_missing"].append(exp.name)
+        elif kind == "已晋升":
             out["promoted"].append(exp.name)
         elif kind == "退役":
             out["retired"].append(exp.name)
@@ -164,7 +190,6 @@ def experiments(cfg, today=None):
                 out["overdue"].append(exp.name)
             else:
                 out["in_progress"].append([exp.name, dm.group(1)])
-    return out
 
 
 def doctor_problems(cfg):
