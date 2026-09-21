@@ -238,7 +238,7 @@ def _history(hist, names):
     while i < len(hist):
         h = hist[i]
         if h["traced"]:
-            # 作者 09-21：「每一个都写着你说很奇怪，我需要更多的有效的信息」——行头写为什么（Claude 的标签），
+            # 2026-09-21: the panel rows all read 你说 …, which carries little; the row now leads with why (Claude's label)
             # 次行写改到哪；原话不再在面板里重复（弹出卡与展开卡第 2 页有）。没有标签时行头写改到的节。
             where = touched(h, names)
             label = _fit(h["label"], LABEL_MAX) if h.get("label") else None
@@ -366,7 +366,8 @@ def build(summary, *, now, problems=(), notices=()):
         "popup": [{"label": l, "text": _clip(t, 20000), "tone": tn, "lines": ln} for l, t, tn, ln in popup],
         # 另一件活动展开时，底部翻页行写的是这一件的 flip；没有它宿主写「还没有标签」。
         "flip": {"title": label, "subtitle": _clip(ws, 64), "phase": _clip(where or "没有改动", 64)},
-        # 09-21 晚作者：悬停点点翻页「有点奇怪」——不分页了，三节竖着排，靠展开卡的滚动看全（宿主的分页机制留着没用）。
+        # 2026-09-21: hover-to-turn pages was awkward once the card could scroll; the three sections stack and the card scrolls
+        # (the host keeps its paging for producers that want it).
         "body": _body(lc),
         "detail": _detail(summary, lc, bad, notices),
         "events": [{"id": i, "type": t, "at": _iso(now)} for i, t in events],
