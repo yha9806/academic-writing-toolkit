@@ -66,7 +66,8 @@ def activity_id(name):
 #: 右翼放得下约 6 个汉字（lintel slots.md §1）；拉丁字母算半个，所以「colSmol 说反」正好是 6。
 LABEL_MAX = 6
 #: 展开态总高 ≤470pt（slots.md §3）：三段加四行两行的句子刚好，多了看不到。
-ROWS_SHOWN = 4
+# 展开态分页之后（候选 E）「改了」那一节独占一页，能放下更多行；470pt 里两行一句约放 8 句。
+ROWS_SHOWN = 8
 
 
 def width(text):
@@ -251,6 +252,8 @@ def build(summary, *, now, problems=(), notices=()):
         "popup": [{"label": l, "text": _clip(t, 20000), "tone": tn, "lines": ln} for l, t, tn, ln in popup],
         # 另一件活动展开时，底部翻页行写的是这一件的 flip；没有它宿主写「还没有标签」。
         "flip": {"title": label, "subtitle": _clip(ws, 64), "phase": (lc["id"] if lc else summary["head"])},
+        # 候选 E（作者 09-21）：展开态按三节分页，悬停点点翻；宿主缺省不分页，所以要标。
+        "paged": True,
         "body": _body(lc),
         "detail": _detail(summary, lc, bad, notices),
         "events": [{"id": i, "type": t, "at": _iso(now)} for i, t in events],
