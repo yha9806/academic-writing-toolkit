@@ -3,6 +3,7 @@ import os
 import unittest
 from pathlib import Path
 
+from loop import index as X
 from loop import lintel as L
 
 from fixtures import TempDir
@@ -12,56 +13,177 @@ NOW = 1_789_700_000
 CLEAN = {"name": "ws", "head": "abc1234", "versions": 15, "sentences": 82, "changesets": 14,
          "mixed": 0, "all_unknown": 0, "ledger": 91,
          "ledger_status": {"found": 91}, "unattached_ledger": 0,
-         "messages": 64, "messages_attached": 1, "messages_before_first_version": 17}
+         "messages": 64, "messages_attached": 1, "messages_before_first_version": 17,
+         "latest_changeset": None, "history": []}
 
 
 def summary(**over):
     s = dict(CLEAN)
     s["ledger_status"] = dict(CLEAN["ledger_status"])
+    s["history"] = list(CLEAN["history"])
     s.update(over)
     return s
 
 
-class BuildTest(unittest.TestCase):
-    def test_no_problems_leaves_only_the_draft_card(self):
-        self.assertEqual([a["id"] for a in L.build(summary(), now=NOW)], ["draft"])
+def change(n=15, traced=True, label=None, reading="改正 §5.5 那几句", verbatim="改 §5.5 那句 colSmol", cid="a066846"):
+    rows = [{"kind": "edited", "label": f"X{i}", "old": f"old {i}", "new": f"new {i}"} for i in range(n)]
+    return {"id": cid, "subject": "s", "time": NOW - 60, "status": "one" if traced else "none",
+            "rows": rows, "n": n, "traced": traced, "mid": "h-1" if traced else None,
+            "verbatim": verbatim if traced else None, "reading": reading if traced else None,
+            "changed": "X6.2、X7.2" if traced else None, "basis": None, "label": label}
 
-    def test_each_kind_of_problem_adds_its_own_card(self):
-        s = summary(ledger_status={"found": 88, "no_source": 3}, all_unknown=12, mixed=2)
-        ids = [a["id"] for a in L.build(s, now=NOW, problems=["doctor: 台账路径读不到"])]
-        self.assertEqual(ids, ["draft", "ledger", "triggers", "tool"])
 
-    def test_first_popup_line_always_says_who(self):
-        s = summary(ledger_status={"found": 88, "no_source": 3}, all_unknown=12)
-        for a in L.build(s, now=NOW, problems=["x"]):
-            self.assertEqual(a["popup"][0]["label"], "谁说的")
-            self.assertIn(a["popup"][0]["text"], L.SOURCE_WORD.values())
+def with_change(**kw):
+    lc = change(**kw)
+    return summary(latest_changeset=lc, changesets=CLEAN["changesets"],
+                   history=[{"id": lc["id"], "time": lc["time"], "n": lc["n"], "traced": lc["traced"],
+                             "verbatim": lc["verbatim"], "status": lc["status"]}])
 
-    def test_inferred_trigger_is_assumed_not_flagged(self):
-        """全 △ 是「不知道」，只有推断是「我替你定的」——两者不能画成同一个圆心。"""
-        only_inferred = L.build(summary(mixed=2), now=NOW)[1]
-        self.assertEqual(only_inferred["status"]["center"], "assumed")
-        self.assertFalse(only_inferred["flagged"])
-        unknown = L.build(summary(all_unknown=1, mixed=2), now=NOW)[1]
-        self.assertEqual(unknown["status"]["center"], "flagged")
-        self.assertTrue(unknown["flagged"])
+
+def only(acts):
+    return acts[0]
+
+
+class OneActivityTest(unittest.TestCase):
+    """设计研究 P1（作者 09-18 定稿）：一个稿件一个活动，两个位置各归一个来源，谁也挤不掉谁。"""
+
+    def test_one_activity_whatever_the_state(self):
+        cases = [
+            (summary(), (), ()),
+            (with_change(), (), ()),
+            (with_change(traced=False), (), ()),
+            (with_change(), ["doctor: 台账路径读不到"], ["拦下写入：1 次"]),
+            (summary(ledger_status={"found": 88, "no_source": 3}, all_unknown=12, mixed=2), ["x"], ["y"]),
+        ]
+        for s, problems, notices in cases:
+            acts = L.build(s, now=NOW, problems=problems, notices=notices)
+            self.assertEqual([a["id"] for a in acts], ["loop-ws"], (problems, notices))
+
+    def test_each_manuscript_has_its_own_activity_id(self):
+        self.assertEqual(only(L.build(summary(name="IPM"), now=NOW))["id"], "loop-IPM")
+        self.assertEqual(L.activity_id("framework v9 / 2026"), "loop-framework-v9-2026")
+
+    def test_the_wing_is_the_reason_claude_wrote_else_the_count(self):
+        self.assertEqual(only(L.build(with_change(label="colSmol 说反"), now=NOW))["label"]["text"], "colSmol 说反")
+        self.assertEqual(only(L.build(with_change(label=None), now=NOW))["label"]["text"], "改了15句")
+        # a reason longer than the wing is cut, not dropped
+        long = only(L.build(with_change(label="这一句说反了要改回来"), now=NOW))["label"]["text"]
+        self.assertLessEqual(L.width(long), L.LABEL_MAX)
+        self.assertTrue(long.endswith("…"))
+        # width, not code points: seven Latin letters and two characters fit; ten characters do not
+        self.assertEqual(L.width("colSmol 说反"), 6)
+
+    def test_a_traced_change_is_active_not_attention(self):
+        a = only(L.build(with_change(), now=NOW))
+        self.assertFalse(a["flagged"])
+        self.assertEqual(a["rank"], "event")
+        self.assertEqual([e["type"] for e in a["events"]], ["changed"])
+        self.assertEqual([p["label"] for p in a["popup"]], ["你说", "改了", "读成"])
+        self.assertEqual(a["popup"][0]["text"], "改 §5.5 那句 colSmol")
+        self.assertEqual(a["pill"]["title"], "15")
+
+    def test_an_untraced_change_is_time_sensitive(self):
+        a = only(L.build(with_change(traced=False), now=NOW))
+        self.assertEqual(a["label"]["text"], "改动无出处")
+        self.assertTrue(a["flagged"])
+        self.assertEqual(a["status"]["center"], "flagged")
+        self.assertEqual([e["type"] for e in a["events"]], ["drift"])
+        self.assertEqual(a["popup"][0]["text"], "追不到你哪句话")
+
+    def test_a_fault_outranks_a_change(self):
+        a = only(L.build(with_change(), now=NOW, problems=["索引：读不出"]))
+        self.assertEqual(a["label"]["text"], "跑挂了")
+        self.assertEqual((a["rank"], a["status"]["center"]), ("anomaly", "broken"))
+        self.assertIn("tool-broken", [e["type"] for e in a["events"]])
+
+    def test_passive_things_stay_off_the_wings(self):
+        s = with_change()
+        s["ledger_status"] = {"found": 88, "no_source": 3}
+        a = only(L.build(s, now=NOW, notices=["拦下写入：2 次"]))
+        wings = json.dumps([a["label"], a["ears"], a["popup"], a["body"]], ensure_ascii=False)
+        self.assertNotIn("拦下", wings)
+        self.assertNotIn("缺依据", wings)
+        stats = {c["label"]: c["value"] for c in a["detail"]["stats"]}
+        self.assertEqual((stats["拦下"], stats["缺依据"]), ("1", "3"))
+        self.assertEqual(sorted(e["type"] for e in a["events"]), ["changed", "evidence-missing", "guard"])
+
+    def test_no_change_yet_is_idle_with_the_draft_on_the_popup(self):
+        a = only(L.build(summary(), now=NOW))
+        self.assertEqual((a["label"]["text"], a["status"]["center"], a["rank"]), ("还没有改动", "idle", "none"))
+        self.assertNotIn("pill", a)
+        self.assertEqual(a["body"], [])
+
+    def test_expanded_card_shows_your_words_the_reading_and_the_rows(self):
+        a = only(L.build(with_change(n=15), now=NOW))
+        self.assertEqual([b["title"] for b in a["body"]], ["你说", "Claude 读成", "改了 · 15 行"])
+        rows = a["body"][2]["items"]
+        self.assertEqual(len(rows), L.ROWS_SHOWN + 1)
+        self.assertIn("还有 3 行", rows[-1]["text"])
+        self.assertEqual(a["body"][2]["badge"], "X6.2、X7.2")
+
+    def test_panel_lists_every_changeset_newest_first_with_the_passive_note(self):
+        s = with_change()
+        s["history"] = [{"id": "b", "time": NOW, "n": 2, "traced": False, "verbatim": None, "status": "none"},
+                        {"id": "a", "time": NOW - 9, "n": 15, "traced": True, "verbatim": "改 §5.5", "status": "one"}]
+        a = only(L.build(s, now=NOW, notices=["拦下写入：2 次"]))
+        d = a["detail"]
+        self.assertEqual([h["id"] for h in d["history"]], ["b", "a"])
+        self.assertEqual(d["history"][0]["badge"], "△")
+        self.assertNotIn("badge", d["history"][1])
+        self.assertEqual(d["history"][0]["lines"][0]["text"], "追不到你哪句话")
+        self.assertIn("拦下 1 次", d["historyNote"])
+        self.assertEqual(d["chart"]["legend"][0]["count"], 1)
+
+    def test_labels_tags_and_pills_fit_the_notch(self):
+        for s, problems in ((summary(), ()), (with_change(), ()), (with_change(traced=False), ()),
+                            (with_change(label="colSmol 说反"), ()), (with_change(), ["x"])):
+            a = only(L.build(s, now=NOW, problems=problems))
+            self.assertLessEqual(L.width(a["label"]["text"]), 6, a["label"])
+            self.assertLessEqual(L.width(a["ears"]["tag"]["text"]), 6, a["ears"])
+            if "pill" in a:
+                self.assertLessEqual(L.width(a["pill"]["title"]), 6, a["pill"])
+            self.assertLessEqual(len(a["popup"]), 4)
+            self.assertLessEqual(len(a["body"]), 8)
+
+    def test_no_none_reaches_the_host(self):
+        a = only(L.build(with_change(traced=False), now=NOW, notices=["x"]))
+        self.assertNotIn("null", json.dumps(a))
 
     def test_revision_ignores_the_clock(self):
-        a = L.build(summary(), now=NOW)[0]
-        b = L.build(summary(), now=NOW + 5000)[0]
+        a = only(L.build(with_change(), now=NOW))
+        b = only(L.build(with_change(), now=NOW + 5000))
         self.assertNotEqual(a["updatedAt"], b["updatedAt"])
         self.assertEqual(a["revision"], b["revision"])
 
-    def test_revision_changes_when_a_number_changes(self):
-        a = L.build(summary(), now=NOW)[0]
-        b = L.build(summary(sentences=83), now=NOW)[0]
+    def test_revision_changes_with_a_new_changeset(self):
+        a = only(L.build(with_change(cid="a066846"), now=NOW))
+        b = only(L.build(with_change(cid="b123456"), now=NOW))
         self.assertNotEqual(a["revision"], b["revision"])
+        self.assertNotEqual(a["events"][0]["id"], b["events"][0]["id"])
 
-    def test_labels_and_tags_fit_the_notch(self):
-        s = summary(ledger_status={"found": 8, "no_source": 3}, all_unknown=12, mixed=2)
-        for a in L.build(s, now=NOW, problems=["x"]):
-            self.assertLessEqual(len(a["label"]["text"]), 6, a["id"])
-            self.assertLessEqual(len(a["ears"]["tag"]["text"]), 6, a["id"])
+
+class SummaryViewTest(unittest.TestCase):
+    """index.changeset_view: the notch's data is read from the index, never guessed."""
+
+    def test_traced_changeset_carries_the_message_and_the_explanation(self):
+        cs = {"id": "c1", "subject": "s", "time": 1, "status": "one", "triggers": ["h-1"],
+              "rows": [{"kind": "edited", "old": {"label": "A1", "text": "o"}, "new": {"label": "A1", "text": "n"}},
+                       {"kind": "merge", "old": [{"label": "A2", "text": "x"}, {"label": "A3", "text": "y"}], "new": {"label": "A2", "text": "xy"}}]}
+        threads = [{"mid": "h-1", "text": "改 A1"}]
+        expl = [{"mid": "h-1", "reading": "只改 A1", "changed": "A1", "basis": "你说", "label": "只改A1"}]
+        v = X.changeset_view(cs, threads, expl)
+        self.assertEqual((v["traced"], v["verbatim"], v["reading"], v["label"], v["n"]), (True, "改 A1", "只改 A1", "只改A1", 2))
+        self.assertEqual(v["rows"][1], {"kind": "merge", "label": "A2", "old": "x / y", "new": "xy"})
+
+    def test_untraced_changeset_guesses_nothing(self):
+        cs = {"id": "c2", "subject": "s", "time": 1, "status": "none", "triggers": [], "rows": []}
+        v = X.changeset_view(cs, [{"mid": "h-1", "text": "改 A1"}], [{"mid": "h-1", "reading": "r", "changed": None, "basis": None}])
+        self.assertEqual((v["traced"], v["mid"], v["verbatim"], v["reading"]), (False, None, None, None))
+
+    def test_old_explanations_without_a_label_field_still_load(self):
+        cs = {"id": "c1", "subject": "s", "time": 1, "status": "one", "triggers": ["h-1"], "rows": []}
+        v = X.changeset_view(cs, [{"mid": "h-1", "text": "t"}], [{"mid": "h-1", "reading": "r", "changed": None, "basis": None}])
+        self.assertIsNone(v["label"])
 
 
 def register(home, producer=L.PRODUCER):
@@ -84,44 +206,43 @@ class SyncTest(unittest.TestCase):
 
     def test_unchanged_content_is_not_rewritten(self):
         root = self.root
-        if True:
-            acts = L.build(summary(), now=NOW)
-            self.assertEqual(L.sync(acts, home=root, now=NOW)["written"], 1)
-            # 修改时间按测试的钟来设，否则「旧到该续心跳了」取决于真实墙上时间。
-            os.utime(self.dir(root) / "draft.json", (NOW, NOW))
-            again = L.build(summary(), now=NOW + 5)
-            self.assertEqual(L.sync(again, home=root, now=NOW + 5),
-                             {"written": 0, "touched": 0, "unchanged": 1, "removed": 0})
+        acts = L.build(summary(), now=NOW)
+        self.assertEqual(L.sync(acts, home=root, now=NOW)["written"], 1)
+        # 修改时间按测试的钟来设，否则「旧到该续心跳了」取决于真实墙上时间。
+        os.utime(self.dir(root) / "loop-ws.json", (NOW, NOW))
+        again = L.build(summary(), now=NOW + 5)
+        self.assertEqual(L.sync(again, home=root, now=NOW + 5),
+                         {"written": 0, "touched": 0, "unchanged": 1, "removed": 0})
 
     def test_heartbeat_rewrites_the_same_bytes_so_seen_is_not_reset(self):
         root = self.root
-        if True:
-            L.sync(L.build(summary(), now=NOW), home=root, now=NOW)
-            p = self.dir(root) / "draft.json"
-            before = p.read_bytes()
-            os.utime(p, (NOW - 600, NOW - 600))
-            counts = L.sync(L.build(summary(), now=NOW + 600), home=root, now=NOW + 600)
-            self.assertEqual(counts["touched"], 1)
-            self.assertEqual(p.read_bytes(), before)
+        L.sync(L.build(summary(), now=NOW), home=root, now=NOW)
+        p = self.dir(root) / "loop-ws.json"
+        before = p.read_bytes()
+        os.utime(p, (NOW - 600, NOW - 600))
+        counts = L.sync(L.build(summary(), now=NOW + 600), home=root, now=NOW + 600)
+        self.assertEqual(counts["touched"], 1)
+        self.assertEqual(p.read_bytes(), before)
 
-    def test_a_problem_that_went_away_takes_its_card_with_it(self):
+    def test_a_card_from_the_old_six_card_producer_is_removed_but_another_manuscript_is_not(self):
         root = self.root
-        if True:
-            L.sync(L.build(summary(all_unknown=12), now=NOW), home=root, now=NOW)
-            self.assertTrue((self.dir(root) / "triggers.json").exists())
-            counts = L.sync(L.build(summary(), now=NOW + 1), home=root, now=NOW + 1)
-            self.assertEqual(counts["removed"], 1)
-            self.assertFalse((self.dir(root) / "triggers.json").exists())
+        L.sync(L.build(summary(), now=NOW), home=root, now=NOW)
+        L.sync(L.build(summary(name="other"), now=NOW), home=root, now=NOW)
+        stray = self.dir(root) / "triggers.json"
+        stray.write_text("{}", encoding="utf-8")
+        counts = L.sync(L.build(summary(), now=NOW + 1), home=root, now=NOW + 1)
+        self.assertEqual(counts["removed"], 1)
+        self.assertFalse(stray.exists())
+        self.assertEqual(sorted(p.name for p in self.dir(root).glob("*.json")), ["loop-other.json", "loop-ws.json"])
 
     def test_written_file_is_valid_json_with_the_protocol_keys(self):
         root = self.root
-        if True:
-            L.sync(L.build(summary(), now=NOW), home=root, now=NOW)
-            a = json.loads((self.dir(root) / "draft.json").read_text(encoding="utf-8"))
-            for k in ("schema", "id", "open", "running", "inProgress", "stale", "flagged",
-                      "rank", "labelUntilSeen", "pillUntilSeen", "popup", "body", "events"):
-                self.assertIn(k, a)
-            self.assertEqual(a["id"], "draft")
+        L.sync(L.build(with_change(), now=NOW), home=root, now=NOW)
+        a = json.loads((self.dir(root) / "loop-ws.json").read_text(encoding="utf-8"))
+        for k in ("schema", "id", "open", "running", "inProgress", "stale", "flagged",
+                  "rank", "labelUntilSeen", "pillUntilSeen", "popup", "body", "events", "detail"):
+            self.assertIn(k, a)
+        self.assertEqual(a["id"], "loop-ws")
 
 
 class OffByDefaultTest(unittest.TestCase):
@@ -162,7 +283,7 @@ class CliOffByDefaultTest(unittest.TestCase):
             self.assertFalse(home.exists())
             register(home)
             self.assertEqual(main(["lintel", str(ws), "--once", "--home", str(home)]), 0)
-            self.assertTrue((home / "producers" / L.PRODUCER / "activities" / "draft.json").exists())
+            self.assertEqual(len(list((home / "producers" / L.PRODUCER / "activities").glob("loop-*.json"))), 1)
 
 
 class ResidentTest(unittest.TestCase):
@@ -187,24 +308,6 @@ class ResidentTest(unittest.TestCase):
             self.assertFalse(_producer_alive(pf))
             pf.write_text("not a pid")
             self.assertFalse(_producer_alive(pf))
-
-
-class NewCardsTest(unittest.TestCase):
-    def test_a_reply_card_appears_and_changes_with_each_new_reply(self):
-        s = summary()
-        s["latest"] = {"mid": "h1", "ts": "t", "replies": 1, "last_reply": "a1", "reading": "只改标题", "changed": "T01"}
-        a1 = next(a for a in L.build(s, now=NOW) if a["id"] == "reply")
-        s["latest"] = {**s["latest"], "replies": 2, "last_reply": "a2"}
-        a2 = next(a for a in L.build(s, now=NOW) if a["id"] == "reply")
-        self.assertNotEqual(a1["revision"], a2["revision"])
-        s["latest"] = {**s["latest"], "replies": 0, "last_reply": None}
-        self.assertNotIn("reply", [a["id"] for a in L.build(s, now=NOW)])
-
-    def test_a_refused_write_is_a_notice_card_not_an_anomaly(self):
-        acts = {a["id"]: a for a in L.build(summary(), now=NOW, notices=["拦下写入：1 次"])}
-        self.assertIn("guard", acts)
-        self.assertNotIn("tool", acts)
-        self.assertNotEqual(acts["guard"]["rank"], "anomaly")
 
 
 if __name__ == "__main__":

@@ -115,7 +115,46 @@ def summarize(cfg, head, versions, changesets, chk, threads, explanations=()):
         "messages_before_first_version": sum(1 for t in threads if t["draft_version"] is None),
         "explained": sum(1 for e in explanations if e["reading"] is not None),
         "latest": _latest(explanations),
+        "latest_changeset": changeset_view(changesets[-1], threads, explanations) if changesets else None,
+        "history": [_compact(changeset_view(c, threads, explanations)) for c in reversed(changesets)],
     }
+
+
+def _row_view(r):
+    """One changeset row as label + old/new text; a split's new and a merge's old are lists."""
+    def text(x):
+        if isinstance(x, list):
+            return " / ".join(i.get("text", "") for i in x)
+        return (x or {}).get("text", "")
+
+    def label(x):
+        if isinstance(x, list):
+            return "+".join(i.get("label", "") for i in x)
+        return (x or {}).get("label", "")
+    old, new = r.get("old"), r.get("new")
+    return {"kind": r["kind"], "label": label(new) or label(old), "old": text(old), "new": text(new)}
+
+
+def changeset_view(c, threads, explanations):
+    """A changeset with what the notch needs beside it: the author's message that triggered it (verbatim),
+    and what Claude said about that message (reading / changed / basis / label). A changeset whose triggers
+    name no author message is `traced: False`; nothing is guessed in its place."""
+    triggers = [t for t in c.get("triggers", ()) if isinstance(t, str) and t.startswith("h-")]
+    mid = triggers[0] if triggers else None
+    thread = next((t for t in threads if t["mid"] == mid), None) if mid else None
+    expl = next((e for e in explanations if e["mid"] == mid), None) if mid else None
+    rows = [_row_view(r) for r in c["rows"]]
+    return {"id": c["id"], "subject": c.get("subject", ""), "time": c.get("time"), "status": c["status"],
+            "rows": rows, "n": len(rows), "traced": mid is not None, "mid": mid,
+            "verbatim": thread["text"] if thread else None,
+            "reading": expl.get("reading") if expl else None, "changed": expl.get("changed") if expl else None,
+            "basis": expl.get("basis") if expl else None, "label": expl.get("label") if expl else None}
+
+
+def _compact(v):
+    """The panel's timeline row: no sentence texts, the message cut to a line."""
+    return {"id": v["id"], "time": v["time"], "n": v["n"], "traced": v["traced"],
+            "verbatim": (v["verbatim"] or "")[:200] or None, "status": v["status"]}
 
 
 def _latest(explanations):

@@ -61,16 +61,18 @@ Field names are the ones the runtime sends (read from the Claude Code binary, 2.
 
 `bin/loop lintel` writes cards for a separate notch host (lintel) as JSON activity files. It stays off until the producer has been registered with that host; until then it refuses with a non-zero exit code and creates no directories.
 
-Once registered, the hooks start one resident `loop lintel` per workspace (a pid file prevents a second one). It reads the index that the hooks keep up to date and never rebuilds it, so it costs almost nothing while idle, and it rewrites unchanged cards often enough to keep lintel's heartbeat alive. Cards, each present only while it applies (except the first):
+Once registered, the hooks start one resident `loop lintel` per workspace (a pid file prevents a second one). It reads the index that the hooks keep up to date and never rebuilds it, so it costs almost nothing while idle, and it rewrites unchanged cards often enough to keep lintel's heartbeat alive.
 
-| card | when | notes |
+**One manuscript, one activity** (design research 2026-09-18, balance rule P1, decided by the author on 09-18). The activity's id is `loop`; the wings, the capsule, the popup and the expanded card say the one thing that matters now, in this order:
+
+| state | right wing | how it reaches you |
 |---|---|---|
-| draft | always | versions, sentences, latest commit |
-| reply | Claude has replied to the author's latest message | changes with every new reply, so the host shows it as unseen again |
-| ledger | ledger entries not found in their saved source | a standing state, so it does not pop the notch open |
-| triggers | change sets with no traceable trigger, or an inferred one | untraceable ones pop the notch open |
-| guard | a model write into `human/` was refused | the guard worked; a notice, not a fault; cleared by `loop ack` |
-| tool | the engine, an update or a hook failed | a fault; failed updates clear on the next success, hook errors on `loop ack` |
+| the engine failed | 跑挂了 | anomaly, red; `tool-broken` event |
+| the latest change set has no traceable author message | 改动无出处 | Time Sensitive: `drift` event (registered with `attention`), the short card pops for six seconds |
+| the latest change set traces to your message | the ≤6-character reason Claude wrote in its explanation block (`标签：`), else `改了 N 句`; the small number is the sentence count | Active: `changed` event, no popup |
+| no change set yet | 还没有改动 | idle |
+
+The popup is three lines (你说 / 改了 / 读成); the expanded card is your words, Claude's reading, and the rows two lines each; the panel lists every change set newest first, with the badge `△` on the ones that trace to nothing. Missing-evidence ledger entries and refused writes into `human/` are Passive: they never reach the wings, only the panel's note and its stats, and their events carry no `attention`. Seen means gone (`labelUntilSeen`, `pillUntilSeen`).
 
 ## Tests
 

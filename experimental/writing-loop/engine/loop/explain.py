@@ -6,6 +6,7 @@ In a registered manuscript session the UserPromptSubmit hook asks Claude to end 
     读成：<how it read the author's last message>
     改了：<sentence labels, or 无>
     依据：<what the change rests on>
+    标签：<why it changed, in at most six characters; the notch's right wing>
     〔/循环〕
 
 A first line of the form "我读成了：…" (the wishing-willow plugin asks for one) counts as 读成 when the block
@@ -16,21 +17,21 @@ never in its place (spec T14; v2 red line 7).
 import re
 
 BLOCK = re.compile(r"〔循环〕[ \t]*\n(.*?)\n[ \t]*〔/循环〕", re.S)
-FIELD = re.compile(r"^\s*(读成|改了|依据)\s*[：:]\s*(.*?)\s*$")
+FIELD = re.compile(r"^\s*(读成|改了|依据|标签)\s*[：:]\s*(.*?)\s*$")
 # [ \t] rather than \s at both ends: \s would swallow the line break and run past the blank line that ends a reading
 WILLOW = re.compile(r"^[ \t]*⚠?[ \t]*我读成了[ \t]*[：:][ \t]*(.*?)[ \t]*$", re.M)
 WILLOW_STOP = re.compile(r"^\s*(?:我补上的|标签|你批准的)\s*[：:]")
 LIST_MARK = re.compile(r"^\s*(?:[-*•]|\d+[.、])\s*")
 MAX_LINES = 6
-KEYS = {"读成": "reading", "改了": "changed", "依据": "basis"}
+KEYS = {"读成": "reading", "改了": "changed", "依据": "basis", "标签": "label"}
 
 
 def parse(text):
-    """Return {"reading", "changed", "basis", "source", "block", "over_limit"} for one turn's reply text.
+    """Return {"reading", "changed", "basis", "label", "source", "block", "over_limit"} for one turn's reply text.
 
     The last complete block wins; within a block the first occurrence of a field wins. An unclosed block is
     not a block. A reading taken from a "我读成了" line is marked as such, so the two sources are never mixed up."""
-    out = {"reading": None, "changed": None, "basis": None, "source": None, "block": False, "over_limit": False}
+    out = {"reading": None, "changed": None, "basis": None, "label": None, "source": None, "block": False, "over_limit": False}
     blocks = list(BLOCK.finditer(text))
     if blocks:
         out["block"] = True
@@ -89,9 +90,9 @@ def build(conv):
         starts_turn = turn_of[h["mid"]] == h["mid"]
         block = parse("\n\n".join(a["text"] for a in turn[h["mid"]])) if starts_turn else None
         rec = {"mid": h["mid"], "ts": h["ts"], "verbatim": h["text"], "replies": [a["aid"] for a in own[h["mid"]]],
-               "reading": None, "changed": None, "basis": None, "source": None, "block": False, "over_limit": False}
+               "reading": None, "changed": None, "basis": None, "label": None, "source": None, "block": False, "over_limit": False}
         if block and block["block"]:
-            rec.update(changed=block["changed"], basis=block["basis"], block=True, over_limit=block["over_limit"])
+            rec.update(changed=block["changed"], basis=block["basis"], label=block["label"], block=True, over_limit=block["over_limit"])
             if block["source"] == "解释块":
                 rec.update(reading=block["reading"], source="解释块")
         if rec["reading"] is None:

@@ -15,6 +15,11 @@ class ParseTest(unittest.TestCase):
     def test_block_fields_are_read(self):
         p = EX.parse("Done.\n\n〔循环〕\n读成：只改标题\n改了：T01\n依据：你说标题太长\n〔/循环〕")
         self.assertEqual((p["reading"], p["changed"], p["basis"], p["source"]), ("只改标题", "T01", "你说标题太长", "解释块"))
+        self.assertIsNone(p["label"])
+
+    def test_the_label_line_is_the_notch_wing_and_stays_short_in_the_record(self):
+        p = EX.parse("〔循环〕\n读成：改正 §5.5 那句\n改了：X6.2\n依据：你说说反了\n标签：colSmol 说反\n〔/循环〕")
+        self.assertEqual((p["reading"], p["changed"], p["label"], p["source"]), ("改正 §5.5 那句", "X6.2", "colSmol 说反", "解释块"))
 
     def test_first_line_reading_counts_when_the_block_omits_it(self):
         p = EX.parse("我读成了：先别动 A03\n\n...\n\n〔循环〕\n改了：无\n〔/循环〕")
