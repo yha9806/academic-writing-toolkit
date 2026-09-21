@@ -53,8 +53,10 @@ def revision(a):
     return hashlib.sha1(json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
 
 
-#: 作者 09-18 定的身份色是靛蓝；lintel 调色板里最近的一档（◌）。
-IDENTITY = "deepBlue"
+#: 作者 09-18 定的身份色是靛蓝；登记表里也是 indigo（09-21 之前这里写 deepBlue，面板圆点与括号成了两种蓝）。
+IDENTITY = "indigo"
+#: 进度条里无出处的格子；只染标记不染字（channel-separation §3）。
+UNTRACED = "white28"
 #: 09-18 之前的产出一个稿件写六张卡；同一目录里遇到就删（它们的事现在都在一个活动里）。
 LEGACY_IDS = ("draft", "reply", "ledger", "triggers", "guard", "tool")
 
@@ -117,37 +119,52 @@ def _prune(x):
 
 
 def sections(lc):
-    """「X6.2、X7.2、X9.3 等 15 处」: the first labels and the count, never the sentences themselves."""
+    """「X6.2、X7.2、X9.3 等 15 句」: the first labels and the count, never the sentences themselves. The unit is 句 everywhere."""
     labels = [r["label"] for r in lc["rows"] if r["label"]]
     head = "、".join(labels[:3])
     if not head:
-        return f"{lc['n']} 处"
-    return f"{head} 等 {lc['n']} 处" if lc["n"] > 3 else f"{head} · {lc['n']} 处"
+        return f"{lc['n']} 句"
+    return f"{head} 等 {lc['n']} 句" if lc["n"] > 3 else f"{head} · {lc['n']} 句"
+
+
+def touched(lc, names):
+    """The sections a change set touched, as the short names from the registry (「摘要 · §5.5」), in order of first appearance.
+    A row without a section prefix in the index falls back to the first letter of its label."""
+    seen = []
+    for r in lc["rows"]:
+        p = r.get("section") or (r.get("label") or "")[:1]
+        if p and p not in seen:
+            seen.append(p)
+    return " · ".join(names.get(p, p) for p in seen)
+
+
+def _hm(t):
+    return time.strftime("%H:%M", time.localtime(t)) if t else ""
 
 
 KIND_WORD = {"added": "新增", "removed": "删去", "edited": "改写", "split": "拆分", "merge": "合并"}
 
 
 def _body(lc):
-    """The expanded card (storyboard ⑧): your words, Claude's reading, then the rows, two lines each."""
+    """The expanded card, one page per section that exists (分镜 ㉙): your words only if traced, the reading only if
+    Claude wrote one, then the rows. No page says 「追不到」 or 「没有写」— an absent thing is not drawn.
+    Rows are 「label  sentence」; the kind word only when it is not a plain edit."""
     if not lc:
         return []
     items = []
     for r in lc["rows"][:ROWS_SHOWN]:
         text = detex(r["new"] or r["old"])
-        items.append({"kind": "para", "tone": "white85",
-                      "text": f"{r['label']} {KIND_WORD.get(r['kind'], r['kind'])}  {_clip(text, 110)}"})
+        word = KIND_WORD.get(r["kind"], r["kind"]) if r["kind"] not in ("edited", "moved") else ""
+        items.append({"kind": "para", "tone": "white85", "text": f"{r['label']}{' ' + word if word else ''}  {_clip(text, 110)}"})
     if lc["n"] > ROWS_SHOWN:
-        items.append({"kind": "para", "tone": "white55", "text": f"…还有 {lc['n'] - ROWS_SHOWN} 行，在面板里"})
-    return [
-        {"kind": "section", "title": "你说",
-         "items": [{"kind": "para", "tone": "white85",
-                    "text": _clip(lc["verbatim"], 140) if lc["verbatim"] else "追不到你哪句话"}]},
-        {"kind": "section", "title": "Claude 读成",
-         "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["reading"], 140) if lc["reading"] else "没有写「读成」"}]},
-        {"kind": "section", "title": f"改了 · {lc['n']} 行", "badge": _clip(lc["changed"], 64) if lc["changed"] else None,
-         "items": items},
-    ]
+        items.append({"kind": "para", "tone": "white55", "text": f"…还有 {lc['n'] - ROWS_SHOWN} 句，在面板里"})
+    pages = []
+    if lc["traced"] and lc["verbatim"]:
+        pages.append({"kind": "section", "title": "你说", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["verbatim"], 140)}]})
+    if lc["reading"]:
+        pages.append({"kind": "section", "title": "Claude 读成", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["reading"], 140)}]})
+    pages.append({"kind": "section", "title": "改了", "items": items})
+    return pages
 
 
 ROWS_LOCATED = 16
@@ -168,47 +185,59 @@ def _rows(h, names):
     return out
 
 
+#: 一个折叠组最多摊开这么多改动集（协议 rows ≤16）；更长的连续无出处切成几组。
+FOLD_MAX = 16
+
+
+def _history(hist, names):
+    """The panel timeline (分镜 ㉚): a traced change set is its own row (your words, the count as the badge, the commit
+    as the dim trailing text, the sentence rows when opened); consecutive untraced ones fold into one row
+    「无出处 ×k · N 句」 that opens to one line per change set. Nothing says 「追不到你哪句话」 twice."""
+    out = []
+    i = 0
+    while i < len(hist):
+        h = hist[i]
+        if h["traced"]:
+            out.append({"id": h["id"], "badge": f"{h['n']} 句", "duration": h["id"][:7],
+                        "at": _iso(h["time"]) if h["time"] else None, "expandable": True,
+                        "lines": [{"label": "你说", "text": h["verbatim"], "tone": "white85"}] if h["verbatim"] else [],
+                        "rows": _rows(h, names) or None})
+            i += 1
+            continue
+        run = []
+        while i < len(hist) and not hist[i]["traced"] and len(run) < FOLD_MAX:
+            run.append(hist[i]); i += 1
+        out.append({"id": f"fold-{run[0]['id']}", "tag": f"无出处 ×{len(run)}", "badge": f"{sum(r['n'] for r in run)} 句",
+                    "at": _iso(run[0]["time"]) if run[0]["time"] else None, "expandable": True, "lines": [],
+                    "rows": [{"label": r["id"][:7], "where": _clip(f"{r['n']} 句 · {_hm(r['time'])}", 256), "copy": r["id"],
+                              "new": _clip(detex(r.get("subject") or ""), 200) or "（没有提交信息）"} for r in run]})
+    return out
+
+
 def _detail(summary, lc, bad, notices):
-    """The panel (storyboard ⑨): every changeset newest first, and the Passive things that never reach the notch."""
+    """The panel (分镜 ㉚): timeline with the untraced folded, a progress strip one cell per change set (the author 09-21:
+    progress by change set), and three cells — 追到 / 拦下 / 缺依据. No chart: the host's chart is a duration histogram."""
     hist = summary.get("history") or []
     names = summary.get("section_names") or {}
     traced = sum(1 for h in hist if h["traced"])
-    history = []
-    for h in hist[:500]:
-        history.append({
-            "id": h["id"], "tag": h["id"], "badge": None if h["traced"] else "△",
-            "at": _iso(h["time"]) if h["time"] else None, "expandable": True,
-            "lines": [
-                {"label": "你说", "text": h["verbatim"] or "追不到你哪句话", "tone": "white85" if h["verbatim"] else "orange"},
-                {"label": "改了", "text": f"{h['n']} 行", "tone": "white55"},
-            ],
-            "rows": _rows(h, names) or None})
     if lc:
-        head = f"刚改 {lc['n']} 行 · " + ("已追到" if lc["traced"] else "无出处")
+        head = f"{lc['n']} 句 · " + ("已追到" if lc["traced"] else "无出处")
     else:
         head = "没有改动"
     return {
         "listTitle": _clip(f"{summary['name']} · {head}", 64),
         "dot": IDENTITY,
-        "history": history,
+        "history": _history(hist[:500], names),
         "historyNote": _clip(f"有空再看：拦下 {len(notices)} 次 · 缺依据 {bad} 条", 64),
+        "strip": {"title": "改动集 · 旧 → 新",
+                  "cells": [IDENTITY if h["traced"] else UNTRACED for h in reversed(hist[:500])],
+                  "legend": [{"name": "追到", "count": traced, "swatch": IDENTITY},
+                             {"name": "无出处", "count": len(hist) - traced, "swatch": UNTRACED}]},
         "stats": [
-            {"label": "版本", "value": str(summary["versions"])},
-            {"label": "句", "value": str(summary["sentences"])},
-            {"label": "改动集", "value": str(summary["changesets"])},
             {"label": "追到", "value": f"{traced}/{len(hist)}"},
             {"label": "拦下", "value": str(len(notices)), "tone": "orange" if notices else None},
             {"label": "缺依据", "value": str(bad), "tone": "orange" if bad else None},
         ],
-        # 图表的柱是时长（宿主画的是时间轴）。改动集没有时长可画，只给图例和一句话；
-        # 09-21 真屏上把句数当秒数画进了「1时 / 1分 / 1秒」的轴，是误用。
-        "chart": {
-            "title": "改动集",
-            "headline": _clip(f"{len(hist)} 个改动集里 {traced} 个追到你的话", 64),
-            "bars": [],
-            "legend": [{"name": "追到", "count": traced, "swatch": IDENTITY},
-                       {"name": "追不到", "count": len(hist) - traced, "swatch": "orange"}],
-        },
     }
 
 
@@ -220,40 +249,45 @@ def build(summary, *, now, problems=(), notices=()):
     st = summary.get("ledger_status") or {}
     bad = st.get("not_found", 0) + st.get("file_missing", 0) + st.get("no_source", 0) + summary.get("unattached_ledger", 0)
     n = lc["n"] if lc else 0
+    names = summary.get("section_names") or {}
+    where = touched(lc, names) if lc else ""
     events = []
+    count = None   # 右翼的小数字（label.count）：字里不再有数（channel-separation §5）
 
     if problems:
         text = "；".join(problems)[:20000]
         label, tone, center, rank, flagged = "跑挂了", "red", "broken", "anomaly", True
-        tag, pill = f"{len(problems)} 处", f"{len(problems)} ⚠"
+        count, tag, pill = len(problems), f"{len(problems)} 处", f"{len(problems)} ⚠"
         popup = [("谁说的", "工具", "secondary", 1), ("跑挂了", text, "warning", 2)]
         events.append((f"tool-broken:{_sha(text)}", "tool-broken"))
     elif lc and not lc["traced"]:
-        # Time Sensitive（P2）：改了，但不知道因为你哪句话。drift 登记时标 attention，会弹精简卡。
+        # Time Sensitive（P2）：改了，但不知道因为你哪句话。橙 = 要你看；胶囊保留 △（作者 09-21）。
+        # 弹出卡两行：改了哪几句，和为什么追不到——不写「追不到你哪句话」「没有写读成」这种否定句。
         label, tone, center, rank, flagged = "改动无出处", "orange", "flagged", "event", True
-        tag, pill = f"{n} △", f"{n} △"
-        popup = [("你说", "追不到你哪句话", "warning", 1),
-                 ("改了", sections(lc), "primary", 1),
-                 ("读成", lc["reading"] or "没有写「读成」", "secondary", 2)]
+        count, tag, pill = n, f"{n} 句", f"{n} △"
+        k = lc.get("messages_in_window", 0)
+        popup = [("改了", sections(lc), "primary", 1),
+                 ("无出处", "窗口里没有你的消息" if not k else f"窗口里 {k} 条消息都对不上", "warning", 1)]
         events.append((f"drift:{lc['id']}", "drift"))
     elif lc:
-        # Active（P2）：右翼 = 为什么改（Claude 在解释块里写的 ≤6 字），小数字 = 改了几句。changed 不弹。
-        label = _fit(lc["label"], LABEL_MAX) if lc.get("label") else f"改了{n}句"
-        tone, center, rank, flagged = IDENTITY, "done", "event", False
-        tag, pill = f"{n} 句", str(n)
+        # Active（P2）：右翼 = 为什么改（Claude 在解释块里写的 ≤6 字，没有就「改了」），小数字 = 几句。changed 不弹。
+        label = _fit(lc["label"], LABEL_MAX) if lc.get("label") else "改了"
+        tone, center, rank, flagged = "white", "done", "event", False
+        count, tag, pill = n, f"{n} 句", str(n)
         popup = [("你说", lc["verbatim"] or "（没有原话）", "primary", 1),
-                 ("改了", sections(lc), "primary", 1),
-                 ("读成", lc["reading"] or "没有写「读成」", "secondary", 2)]
+                 ("改了", sections(lc), "primary", 1)]
+        if lc["reading"]:
+            popup.append(("读成", lc["reading"], "secondary", 2))
         events.append((f"changed:{lc['id']}", "changed"))
     elif summary.get("just_registered"):
         # 候选 B：刚从刘海上拖进来登记好的稿件（分镜 ⑯ 右半）。下一轮常驻产出会把它换成「还没有改动」。
-        label, tone, center, rank, flagged = "登记好了", IDENTITY, "done", "event", False
+        label, tone, center, rank, flagged = "登记好了", "white", "done", "event", False
         tag, pill = f"{summary['sentences']} 句", str(summary["sentences"])
         popup = [("谁说的", "拖放 · lintel", "secondary", 1),
                  ("稿件", f"{summary['sentences']} 句 · {len(summary.get('section_names') or {})} 节 · {summary.get('ref') or summary['head']}", "primary", 2)]
         events.append((f"changed:registered-{summary['head']}", "changed"))
     else:
-        label, tone, center, rank, flagged = "还没有改动", IDENTITY, "idle", "none", False
+        label, tone, center, rank, flagged = "还没有改动", "white", "idle", "none", False
         tag, pill = f"{summary['sentences']} 句", None
         popup = [("谁说的", "原文 · git", "secondary", 1),
                  ("稿件", f"{summary['sentences']} 句，{summary['versions']} 个版本，最新 {summary['head']}", "primary", 2)]
@@ -272,13 +306,13 @@ def build(summary, *, now, problems=(), notices=()):
         "heartbeatSeconds": HEARTBEAT,
         "updatedAt": _iso(now), "activityAt": _iso(now),
         "status": {"center": center, "lastWriteAt": _iso(now)},
-        "label": {"text": label, "tone": tone},
-        # 左耳很窄：来源名宿主已经画了（识别字 / 登记名），这里只放稿件名。
-        "ears": {"leading": _clip(ws, 64), "phase": (lc["id"] if lc else summary["head"]),
+        "label": {"text": label, "tone": tone, "count": count},
+        # 左耳很窄：来源名宿主已经画了（识别字 / 登记名），这里只放稿件名；第二格是改到的节（作者 09-21），不是提交号。
+        "ears": {"leading": _clip(ws, 64), "phase": _clip(where or ("没有改动" if not lc else ""), 64),
                  "tag": {"text": tag, "tone": tone}},
         "popup": [{"label": l, "text": _clip(t, 20000), "tone": tn, "lines": ln} for l, t, tn, ln in popup],
         # 另一件活动展开时，底部翻页行写的是这一件的 flip；没有它宿主写「还没有标签」。
-        "flip": {"title": label, "subtitle": _clip(ws, 64), "phase": (lc["id"] if lc else summary["head"])},
+        "flip": {"title": label, "subtitle": _clip(ws, 64), "phase": _clip(where or "没有改动", 64)},
         # 候选 E（作者 09-21）：展开态按三节分页，悬停点点翻；宿主缺省不分页，所以要标。
         "paged": True,
         "body": _body(lc),

@@ -136,6 +136,9 @@ def build(versions, transitions, conv):
     for tr in transitions:
         prev, cur = versions[tr["from"]], versions[tr["to"]]
         rows = rows_for(prev, cur, tr["align"])
+        if not rows:
+            # 提交碰了稿件文件但没有一句被盯的句子变化（09-21：IPM 39 个里 22 个是这种）：不是改动集，不进索引。
+            continue
         trailer = TRAILER.findall(cur.get("body", ""))
         window = [h for h in humans if prev["time"] < h["t"] <= cur["time"]]
         df_prev, df_cur = vocabulary(prev), vocabulary(cur)

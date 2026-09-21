@@ -116,7 +116,8 @@ def summarize(cfg, head, versions, changesets, chk, threads, explanations=()):
         "messages_before_first_version": sum(1 for t in threads if t["draft_version"] is None),
         "explained": sum(1 for e in explanations if e["reading"] is not None),
         "latest": _latest(explanations),
-        "section_names": {r["prefix"]: _rule_name(r["match"]) for r in cfg["draft"]["sections"]},
+        # 短节名（作者 09-21：存登记表 `draft.sections[].short`）；没填就用规则名。
+        "section_names": {r["prefix"]: r.get("short") or _rule_name(r["match"]) for r in cfg["draft"]["sections"]},
         "latest_changeset": changeset_view(changesets[-1], threads, explanations) if changesets else None,
         "history": [_compact(changeset_view(c, threads, explanations)) for c in reversed(changesets)],
     }
@@ -152,6 +153,7 @@ def changeset_view(c, threads, explanations):
     rows = [_row_view(r) for r in c["rows"]]
     return {"id": c["id"], "subject": c.get("subject", ""), "time": c.get("time"), "status": c["status"],
             "rows": rows, "n": len(rows), "traced": mid is not None, "mid": mid,
+            "messages_in_window": len(c.get("window_messages") or []),
             "verbatim": thread["text"] if thread else None,
             "reading": expl.get("reading") if expl else None, "changed": expl.get("changed") if expl else None,
             "basis": expl.get("basis") if expl else None, "label": expl.get("label") if expl else None}
@@ -170,6 +172,7 @@ def _compact(v):
     (候选 A: the panel opens a changeset to the sentences it changed; the host takes at most 16)."""
     return {"id": v["id"], "time": v["time"], "n": v["n"], "traced": v["traced"],
             "verbatim": (v["verbatim"] or "")[:200] or None, "status": v["status"],
+            "subject": (v.get("subject") or "")[:200], "messages_in_window": v.get("messages_in_window", 0),
             "rows": [{k: r.get(k) for k in ("label", "old", "new", "section", "par", "path", "line")} for r in v["rows"][:ROWS_KEPT]]}
 
 

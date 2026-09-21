@@ -64,8 +64,12 @@ class OneActivityTest(unittest.TestCase):
         self.assertEqual(L.activity_id("framework v9 / 2026"), "loop-framework-v9-2026")
 
     def test_the_wing_is_the_reason_claude_wrote_else_the_count(self):
-        self.assertEqual(only(L.build(with_change(label="colSmol 说反"), now=NOW))["label"]["text"], "colSmol 说反")
-        self.assertEqual(only(L.build(with_change(label=None), now=NOW))["label"]["text"], "改了15句")
+        # channel-separation §5（作者 09-21）：字里不再有数，数在 label.count
+        a = only(L.build(with_change(label="colSmol 说反"), now=NOW))
+        self.assertEqual((a["label"]["text"], a["label"]["count"]), ("colSmol 说反", 15))
+        b = only(L.build(with_change(label=None), now=NOW))
+        self.assertEqual((b["label"]["text"], b["label"]["count"]), ("改了", 15))
+        self.assertNotIn("15", b["label"]["text"])
         # a reason longer than the wing is cut, not dropped
         long = only(L.build(with_change(label="这一句说反了要改回来"), now=NOW))["label"]["text"]
         self.assertLessEqual(L.width(long), L.LABEL_MAX)
@@ -88,7 +92,12 @@ class OneActivityTest(unittest.TestCase):
         self.assertTrue(a["flagged"])
         self.assertEqual(a["status"]["center"], "flagged")
         self.assertEqual([e["type"] for e in a["events"]], ["drift"])
-        self.assertEqual(a["popup"][0]["text"], "追不到你哪句话")
+        # 弹出两行：改了哪几句、为什么追不到；没有「追不到你哪句话」「没有写读成」这种否定句（分镜 ㉗）
+        self.assertEqual([p["label"] for p in a["popup"]], ["改了", "无出处"])
+        self.assertEqual(a["popup"][1]["text"], "窗口里没有你的消息")
+        self.assertEqual((a["label"]["count"], a["pill"]["title"]), (15, "15 △"))   # 胶囊保留 △（作者 09-21）
+        s = with_change(traced=False); s["latest_changeset"]["messages_in_window"] = 3
+        self.assertEqual(only(L.build(s, now=NOW))["popup"][1]["text"], "窗口里 3 条消息都对不上")
 
     def test_a_fault_outranks_a_change(self):
         a = only(L.build(with_change(), now=NOW, problems=["索引：读不出"]))
@@ -115,11 +124,17 @@ class OneActivityTest(unittest.TestCase):
 
     def test_expanded_card_shows_your_words_the_reading_and_the_rows(self):
         a = only(L.build(with_change(n=15), now=NOW))
-        self.assertEqual([b["title"] for b in a["body"]], ["你说", "Claude 读成", "改了 · 15 行"])
+        self.assertEqual([b["title"] for b in a["body"]], ["你说", "Claude 读成", "改了"])   # 页标题不带数（数在耳朵）
         rows = a["body"][2]["items"]
         self.assertEqual(len(rows), L.ROWS_SHOWN + 1)
-        self.assertIn(f"还有 {15 - L.ROWS_SHOWN} 行", rows[-1]["text"])
-        self.assertEqual(a["body"][2]["badge"], "X6.2、X7.2")
+        self.assertIn(f"还有 {15 - L.ROWS_SHOWN} 句", rows[-1]["text"])
+        self.assertNotIn("badge", a["body"][2])
+        self.assertEqual(rows[0]["text"], "X0  new 0")                       # 改写不写「改写」
+        # 有几页画几页（分镜 ㉙）：无出处只有「改了」；没有读法就没有「Claude 读成」
+        self.assertEqual([b["title"] for b in only(L.build(with_change(traced=False), now=NOW))["body"]], ["改了"])
+        self.assertEqual([b["title"] for b in only(L.build(with_change(reading=None), now=NOW))["body"]], ["你说", "改了"])
+        s = with_change(n=2); s["latest_changeset"]["rows"][1]["kind"] = "added"
+        self.assertEqual(only(L.build(s, now=NOW))["body"][2]["items"][1]["text"], "X1 新增  new 1")
 
     def test_rows_are_shown_as_the_reader_sees_them_not_as_latex(self):
         self.assertEqual(L.detex("from $48.4\\times$ chance to $1.6\\times$, $1{,}632$ plates, $23.5\\%$"),
@@ -129,8 +144,12 @@ class OneActivityTest(unittest.TestCase):
         self.assertIn("Recall@10 is 17 of 18", L.build(s, now=NOW)[0]["body"][2]["items"][0]["text"])
 
     def test_the_flip_row_names_the_activity_not_a_missing_tag(self):
-        a = only(L.build(with_change(label="colSmol 说反"), now=NOW))
-        self.assertEqual(a["flip"], {"title": "colSmol 说反", "subtitle": "ws", "phase": "a066846"})
+        # 耳朵与翻页行的第二格是改到的节（短名来自登记表 draft.sections[].short），不是提交号（作者 09-21）
+        s = with_change(label="colSmol 说反"); s["section_names"] = {"X": "§5.5"}
+        a = only(L.build(s, now=NOW))
+        self.assertEqual(a["flip"], {"title": "colSmol 说反", "subtitle": "ws", "phase": "§5.5"})
+        self.assertEqual((a["ears"]["phase"], a["ears"]["tag"]["text"]), ("§5.5", "15 句"))
+        self.assertEqual(only(L.build(with_change(), now=NOW))["ears"]["phase"], "X")    # 没有短名就用前缀
 
     def test_panel_lists_every_changeset_newest_first_with_the_passive_note(self):
         s = with_change()
@@ -138,14 +157,34 @@ class OneActivityTest(unittest.TestCase):
                         {"id": "a", "time": NOW - 9, "n": 15, "traced": True, "verbatim": "改 §5.5", "status": "one"}]
         a = only(L.build(s, now=NOW, notices=["拦下写入：2 次"]))
         d = a["detail"]
-        self.assertEqual([h["id"] for h in d["history"]], ["b", "a"])
-        self.assertEqual(d["history"][0]["badge"], "△")
-        self.assertNotIn("badge", d["history"][1])
-        self.assertEqual(d["history"][0]["lines"][0]["text"], "追不到你哪句话")
+        # 分镜 ㉚：无出处折成一行（点开才摊），追到的一行 = 你说 + 句数徽章 + 行尾提交号
+        self.assertEqual([h["id"] for h in d["history"]], ["fold-b", "a"])
+        fold, one = d["history"]
+        self.assertEqual((fold["tag"], fold["badge"], fold["lines"]), ("无出处 ×1", "2 句", []))
+        self.assertEqual([(r["label"], r["copy"]) for r in fold["rows"]], [("b", "b")])
+        self.assertTrue(fold["rows"][0]["where"].startswith("2 句 · "))
+        self.assertEqual((one["badge"], one["duration"], one["lines"][0]["text"]), ("15 句", "a", "改 §5.5"))
+        self.assertNotIn("tag", one)
         self.assertIn("拦下 1 次", d["historyNote"])
-        self.assertEqual(d["chart"]["legend"][0]["count"], 1)
-        # the host draws bars on a time axis; a sentence count is not a duration
-        self.assertEqual(d["chart"]["bars"], [])
+        # 进度按改动集（作者 09-21）：一格一个，旧 → 新；图表卡没有了；数据条只剩三格
+        self.assertNotIn("chart", d)
+        self.assertEqual(d["strip"]["cells"], [L.IDENTITY, L.UNTRACED])
+        self.assertEqual([(k["name"], k["count"]) for k in d["strip"]["legend"]], [("追到", 1), ("无出处", 1)])
+        self.assertEqual([c["label"] for c in d["stats"]], ["追到", "拦下", "缺依据"])
+        self.assertEqual(d["listTitle"], "ws · 15 句 · 已追到")
+
+    def test_consecutive_untraced_changesets_fold_in_groups_of_sixteen(self):
+        s = with_change()
+        s["history"] = [{"id": f"u{i:02d}", "time": NOW - i, "n": 1, "traced": False, "verbatim": None, "status": "none", "subject": f"s {i}"}
+                        for i in range(20)]
+        d = only(L.build(s, now=NOW))["detail"]
+        self.assertEqual([(h["tag"], len(h["rows"])) for h in d["history"]], [("无出处 ×16", 16), ("无出处 ×4", 4)])
+        self.assertEqual(d["history"][0]["rows"][0]["new"], "s 0")
+        self.assertEqual(d["strip"]["cells"], [L.UNTRACED] * 20)
+
+    def test_identity_is_the_registry_indigo(self):
+        self.assertEqual(L.IDENTITY, "indigo")
+        self.assertEqual(only(L.build(with_change(), now=NOW))["detail"]["dot"], "indigo")
 
     def test_labels_tags_and_pills_fit_the_notch(self):
         for s, problems in ((summary(), ()), (with_change(), ()), (with_change(traced=False), ()),

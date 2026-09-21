@@ -106,7 +106,7 @@ MUTATIONS = [
      "test_lintel.SyncTest.test_a_card_from_the_old_six_card_producer_is_removed_but_another_manuscript_is_not"),
     ("4.2", "lintel.py", '    elif lc and not lc["traced"]:', "    elif False:",
      "test_lintel.OneActivityTest.test_an_untraced_change_is_time_sensitive"),
-    ("4.2", "lintel.py", 'label = _fit(lc["label"], LABEL_MAX) if lc.get("label") else f"改了{n}句"', 'label = lc["label"] if lc.get("label") else f"改了{n}句"',
+    ("4.2", "lintel.py", 'label = _fit(lc["label"], LABEL_MAX) if lc.get("label") else "改了"', 'label = lc["label"] if lc.get("label") else "改了"',
      "test_lintel.OneActivityTest.test_the_wing_is_the_reason_claude_wrote_else_the_count"),
     ("4.2", "lintel.py", '    if problems:\n        text = "；".join(problems)[:20000]\n        label, tone, center, rank, flagged = "跑挂了"',
      '    if False:\n        text = "；".join(problems)[:20000]\n        label, tone, center, rank, flagged = "跑挂了"',

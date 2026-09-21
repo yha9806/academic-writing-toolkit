@@ -85,7 +85,7 @@ def section_rules(texts):
     rules = []
     for i, h in enumerate(dict.fromkeys(headings)):
         prefix = chr(ord("A") + i) if i < 26 else f"S{i}"
-        rule = {"match": "^" + re.escape(h) + "$", "prefix": prefix, "kind": "prose"}
+        rule = {"match": "^" + re.escape(h) + "$", "prefix": prefix, "kind": "prose", "short": h if len(h) <= 8 else h[:7] + "…"}
         if h == "Abstract":
             rule["flat"] = True
         rules.append(rule)
