@@ -139,9 +139,12 @@ class OneActivityTest(unittest.TestCase):
         items = a["body"][0]["items"]
         self.assertEqual((items[0]["text"], items[0]["tone"]), ("colSmol 说反", "white"))
         self.assertEqual(items[1]["text"], "追到你的话")
-        self.assertEqual([i["kind"] for i in items[2:2 + L.DIFF_ROWS]], ["diff"] * L.DIFF_ROWS)
+        self.assertEqual([i["kind"] for i in items[2:2 + 15]], ["diff"] * 15)   # 15 句全给：展开卡里滚动看（作者 09-21）
         self.assertEqual({k: items[2][k] for k in ("label", "old", "new")}, {"label": "X0", "old": "old 0", "new": "new 0"})   # 改写不写「改写」
-        self.assertIn(f"还有 {15 - L.DIFF_ROWS} 句", items[-1]["text"])
+        self.assertEqual(items[-1]["kind"], "diff")                                # 没超过上限就没有「还有 N 句」
+        big = only(L.build(with_change(n=L.DIFF_ROWS + 5), now=NOW))["body"][0]["items"]
+        self.assertEqual(sum(1 for i in big if i["kind"] == "diff"), L.DIFF_ROWS)
+        self.assertIn("还有 5 句", big[-1]["text"])
         self.assertNotIn("badge", a["body"][0])
         # 没有 Claude 标签时理由行是「改了」；有几页画几页（分镜 ㉙）
         self.assertEqual(only(L.build(with_change(label=None), now=NOW))["body"][0]["items"][0]["text"], "改了")
