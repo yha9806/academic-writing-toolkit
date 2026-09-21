@@ -173,6 +173,7 @@ def _compact(v):
     return {"id": v["id"], "time": v["time"], "n": v["n"], "traced": v["traced"],
             "verbatim": (v["verbatim"] or "")[:200] or None, "status": v["status"],
             "subject": (v.get("subject") or "")[:200], "messages_in_window": v.get("messages_in_window", 0),
+            "label": v.get("label"),
             "rows": [{k: r.get(k) for k in ("label", "old", "new", "section", "par", "path", "line")} for r in v["rows"][:ROWS_KEPT]]}
 
 

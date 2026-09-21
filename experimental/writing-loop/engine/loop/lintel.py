@@ -136,7 +136,7 @@ def touched(lc, names):
     """The sections a change set touched, as the short names from the registry (「摘要 · §5.5」), in order of first appearance.
     A row without a section prefix in the index falls back to the first letter of its label."""
     seen = []
-    for r in lc["rows"]:
+    for r in lc.get("rows") or []:   # 面板的压缩历史项可能没有 rows
         p = r.get("section") or (r.get("label") or "")[:1]
         if p and p not in seen:
             seen.append(p)
@@ -238,10 +238,14 @@ def _history(hist, names):
     while i < len(hist):
         h = hist[i]
         if h["traced"]:
-            out.append({"id": h["id"], "badge": f"{h['n']} 句", "duration": h["id"][:7],
+            # 作者 09-21：「每一个都写着你说很奇怪，我需要更多的有效的信息」——行头写为什么（Claude 的标签），
+            # 次行写改到哪；原话不再在面板里重复（弹出卡与展开卡第 2 页有）。没有标签时行头写改到的节。
+            where = touched(h, names)
+            label = _fit(h["label"], LABEL_MAX) if h.get("label") else None
+            lines = [{"label": "改到", "text": where, "tone": "white55"}] if (label and where) else []
+            out.append({"id": h["id"], "tag": label or where or "改了", "badge": f"{h['n']} 句", "duration": h["id"][:7],
                         "at": _iso(h["time"]) if h["time"] else None, "expandable": True,
-                        "lines": [{"label": "你说", "text": h["verbatim"], "tone": "white85"}] if h["verbatim"] else [],
-                        "rows": _rows(h, names) or None})
+                        "lines": lines, "rows": _rows(h, names) or None})
             i += 1
             continue
         kind_ = origin(h)
@@ -362,8 +366,7 @@ def build(summary, *, now, problems=(), notices=()):
         "popup": [{"label": l, "text": _clip(t, 20000), "tone": tn, "lines": ln} for l, t, tn, ln in popup],
         # 另一件活动展开时，底部翻页行写的是这一件的 flip；没有它宿主写「还没有标签」。
         "flip": {"title": label, "subtitle": _clip(ws, 64), "phase": _clip(where or "没有改动", 64)},
-        # 候选 E（作者 09-21）：展开态按三节分页，悬停点点翻；宿主缺省不分页，所以要标。
-        "paged": True,
+        # 09-21 晚作者：悬停点点翻页「有点奇怪」——不分页了，三节竖着排，靠展开卡的滚动看全（宿主的分页机制留着没用）。
         "body": _body(lc),
         "detail": _detail(summary, lc, bad, notices),
         "events": [{"id": i, "type": t, "at": _iso(now)} for i, t in events],

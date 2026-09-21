@@ -188,8 +188,15 @@ class OneActivityTest(unittest.TestCase):
         self.assertEqual((fold["tag"], fold["badge"], fold["lines"]), ("别处 ×1", "2 句", []))
         self.assertEqual([(r["label"], r["copy"]) for r in fold["rows"]], [("b", "b")])
         self.assertTrue(fold["rows"][0]["where"].startswith("2 句 · "))
-        self.assertEqual((one["badge"], one["duration"], one["lines"][0]["text"]), ("15 句", "a", "改 §5.5"))
-        self.assertNotIn("tag", one)
+        # 行头 = 为什么（Claude 标签）或改到的节，没有就「改了」；原话不再在面板里重复（作者 09-21）
+        self.assertEqual((one["tag"], one["badge"], one["duration"], one["lines"]), ("改了", "15 句", "a", []))
+        s["history"][1]["label"] = "colSmol 说反"
+        s["history"][1]["rows"] = [{"label": "X6.2", "section": "X", "new": "a"}, {"label": "A03", "section": "A", "new": "b"}]
+        s["section_names"] = {"X": "§5.5", "A": "摘要"}
+        one = only(L.build(s, now=NOW))["detail"]["history"][1]
+        self.assertEqual((one["tag"], one["lines"][0]["label"], one["lines"][0]["text"]), ("colSmol 说反", "改到", "§5.5 · 摘要"))
+        s["history"][1]["label"] = None
+        self.assertEqual(only(L.build(s, now=NOW))["detail"]["history"][1]["tag"], "§5.5 · 摘要")
         self.assertIn("拦下 1 次", d["historyNote"])
         # 进度按改动集（作者 09-21）：一格一个，旧 → 新；图表卡没有了；数据条只剩三格
         self.assertNotIn("chart", d)
@@ -434,3 +441,10 @@ class ResidentTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoPagingTest(unittest.TestCase):
+    def test_the_loop_activity_is_not_paged_any_more(self):
+        # 09-21 晚：悬停点点翻页奇怪 → 不分页，三节竖排，靠滚动
+        self.assertNotIn("paged", only(L.build(with_change(), now=NOW)))
+
