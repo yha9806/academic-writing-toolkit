@@ -3,6 +3,7 @@ import os
 import unittest
 from pathlib import Path
 
+from loop import coverage as V
 from loop import index as X
 from loop import lintel as L
 
@@ -299,6 +300,94 @@ class OneActivityTest(unittest.TestCase):
         self.assertNotEqual(a["events"][0]["id"], b["events"][0]["id"])
 
 
+def turn(start, touches=(), ended=None, key="p1", chars=12):
+    return {"start": start, "session": "s1", "key": key, "chars": chars, "touches": list(touches), "ended": ended}
+
+
+COV = {"rows": [{"id": "a", "name": "检查甲", "status": V.OK, "verdict": "findings", "result": "r"},
+                {"id": "b", "name": "检查乙", "status": V.OK, "verdict": "ok", "result": "r"}]}
+
+
+class TurnStateTest(unittest.TestCase):
+    """设计 B3 与作者 09-22 的裁定：开工每条都弹、在跑按 ② 口径、落地弹两行、看过后胶囊留括号加几时前。"""
+
+    def test_every_message_starts_with_a_two_line_card(self):
+        a = only(L.build(with_change(), now=NOW, turn=turn(NOW - 3, chars=44), coverage=COV))
+        self.assertEqual(a["label"]["text"], "开工")
+        self.assertEqual([e["type"] for e in a["events"]], ["started"])
+        self.assertEqual([p["label"] for p in a["popup"]], ["收到", "稿子"])
+        self.assertIn("44 字", a["popup"][0]["text"])
+        self.assertEqual(a["popup"][1]["text"], "82 句 · 缺依据 0 · 有发现 1")
+        self.assertEqual(a["status"]["clock"]["style"], "live")
+        self.assertEqual(a["rank"], "event")
+        # 另一条消息是另一件事；过了 START_FRESH 就回到改动集
+        other = only(L.build(with_change(), now=NOW, turn=turn(NOW - 3, key="p2")))
+        self.assertNotEqual(a["revision"], other["revision"])
+        later = only(L.build(with_change(), now=NOW + L.START_FRESH, turn=turn(NOW - 3)))
+        self.assertEqual([e["type"] for e in later["events"]], ["changed"])
+
+    def test_a_start_beats_an_old_drift_so_every_message_pops(self):
+        s = with_change(traced=False); s["latest_changeset"]["messages_in_window"] = 3
+        a = only(L.build(s, now=NOW, turn=turn(NOW - 2)))
+        self.assertEqual(a["label"]["text"], "开工")
+
+    def test_running_names_the_action_ticks_from_the_first_touch_and_does_not_pop(self):
+        tr = turn(NOW - 100, touches=[(NOW - 80, "draft"), (NOW - 10, "head")])
+        a = only(L.build(with_change(), now=NOW, turn=tr))
+        self.assertEqual(a["label"]["text"], "提交")
+        self.assertTrue(a["running"] and a["inProgress"])
+        self.assertEqual(a["status"]["clock"], {"style": "live", "since": L._iso(NOW - 80)})
+        self.assertEqual(a["pill"]["clockSince"], L._iso(NOW - 80))
+        self.assertFalse(a["labelUntilSeen"] or a["pillUntilSeen"])
+        self.assertNotIn("pillSeen", a)
+        self.assertEqual([e["type"] for e in a["events"]], [])
+        # 动作变了不是另一件事：看过之后不重亮
+        b = only(L.build(with_change(), now=NOW, turn=turn(NOW - 100, touches=[(NOW - 80, "draft")])))
+        self.assertEqual(a["revision"], b["revision"])
+        self.assertEqual(b["label"]["text"], "改正文")
+
+    def test_an_old_drift_does_not_beat_running_but_a_drift_in_this_turn_does(self):
+        s = with_change(traced=False); s["latest_changeset"]["messages_in_window"] = 3
+        old = turn(NOW - 50, touches=[(NOW - 20, "draft")])            # the drift (NOW - 60) is before this turn
+        self.assertEqual(only(L.build(s, now=NOW, turn=old))["label"]["text"], "改正文")
+        this = turn(NOW - 90, touches=[(NOW - 80, "draft")])           # the drift is inside this turn
+        self.assertEqual(only(L.build(s, now=NOW, turn=this))["label"]["text"], "改动无出处")
+
+    def test_landing_pops_two_lines_once_the_index_has_caught_up(self):
+        s = with_change(); s["latest_changeset"]["strength"] = "session"
+        tr = turn(NOW - 120, touches=[(NOW - 90, "draft"), (NOW - 60, "head")], ended=NOW - 30)
+        a = only(L.build(s, now=NOW, turn=tr, built_at=NOW - 20, coverage=COV))
+        self.assertEqual([e["type"] for e in a["events"]], ["changed", "landed"])
+        self.assertEqual([p["label"] for p in a["popup"]], ["改了", "检查"])
+        self.assertTrue(a["popup"][0]["text"].startswith("15 句 · ○ 按会话"))
+        self.assertEqual(a["popup"][1]["text"], "有发现 1：检查甲")
+        landed_at = next(e["at"] for e in a["events"] if e["type"] == "landed")
+        self.assertEqual(landed_at, L._iso(NOW - 30))
+        # 索引还是这一轮结束之前建的：不弹
+        b = only(L.build(s, now=NOW, turn=tr, built_at=NOW - 40))
+        self.assertEqual([e["type"] for e in b["events"]], ["changed"])
+        # 改动集不在这一轮里：不弹
+        c = only(L.build(s, now=NOW, turn=turn(NOW - 50, ended=NOW - 30), built_at=NOW - 20))
+        self.assertEqual([e["type"] for e in c["events"]], ["changed"])
+
+    def test_a_turn_that_only_ran_the_readers_lands_with_the_weakest_item(self):
+        tr = turn(NOW - 50, ended=NOW - 30)
+        rd = {"t": NOW - 35, "summary": "M1.recall 7/9，M2.recall 4/9", "verdict": "findings"}
+        a = only(L.build(with_change(), now=NOW, turn=tr, readers=rd, built_at=NOW - 20))
+        self.assertEqual(a["label"]["text"], "读者组")
+        self.assertEqual([(p["label"], p["text"]) for p in a["popup"]], [("读者", "最弱 M2 4/9"), ("改了", "无")])
+        self.assertEqual([e["type"] for e in a["events"]], ["landed"])
+        self.assertEqual(only(L.build(with_change(), now=NOW + L.LANDED_HOLD, turn=tr, readers=rd,
+                                      built_at=NOW - 20))["label"]["text"], "改了")
+
+    def test_after_it_is_seen_the_capsule_keeps_the_bracket_and_how_long_ago(self):
+        a = only(L.build(with_change(), now=NOW))
+        self.assertTrue(a["pillUntilSeen"])
+        self.assertEqual(a["pillSeen"], {"pulse": False, "agoSince": L._iso(NOW - 60)})
+        self.assertNotIn("pillSeen", only(L.build(summary(), now=NOW)))           # no capsule, nothing to keep
+        self.assertNotIn("pillSeen", only(L.build(with_change(), now=NOW, problems=["x"])))
+
+
 class IdentityTest(unittest.TestCase):
     """revision 是刘海上这件事的身份（设计 2026-09-22-awt-live M2）：宿主按它记看过，所以面板、标签、提交号都不进来。
     09-22 同一个改动集因为面板里的检查数变了，一天重新亮了四次。"""
@@ -383,6 +472,18 @@ class SummaryViewTest(unittest.TestCase):
         cs = {"id": "c2", "subject": "s", "time": 1, "status": "none", "triggers": [], "rows": []}
         v = X.changeset_view(cs, [{"mid": "h-1", "text": "改 A1"}], [{"mid": "h-1", "reading": "r", "changed": None, "basis": None}])
         self.assertEqual((v["traced"], v["mid"], v["verbatim"], v["reading"]), (False, None, None, None))
+
+    def test_how_firmly_it_was_traced_is_carried_to_the_notch(self):
+        # 缺口 3（分镜 ⑥①）：只靠「提交时的会话」追到的是空心，句子一级的来源是实心
+        def cs(*sources):
+            return {"id": "c1", "subject": "s", "time": 1, "status": "one", "triggers": ["h-1"],
+                    "rows": [{"kind": "edited", "old": {"label": "A1", "text": "o"}, "new": {"label": "A1", "text": "n"},
+                              "trigger": {"source": s, "mid": "h-1"}} for s in sources]}
+        view = lambda c: X.changeset_view(c, [{"mid": "h-1", "text": "t"}], [])["strength"]
+        self.assertEqual(view(cs("提交时的会话")), "session")
+        self.assertEqual(view(cs("提交时的会话", "脚本推断")), "sentence")
+        self.assertEqual(view(cs("提交信息")), "sentence")
+        self.assertIsNone(view(cs()))
 
     def test_old_explanations_without_a_label_field_still_load(self):
         cs = {"id": "c1", "subject": "s", "time": 1, "status": "one", "triggers": ["h-1"], "rows": []}

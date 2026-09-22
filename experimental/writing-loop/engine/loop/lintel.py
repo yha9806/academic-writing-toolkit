@@ -46,6 +46,11 @@ VOLATILE_STATUS = ("lastWriteAt",)
 #: 改动无出处在提交后这么久里算「刚发生的事」（rank event），之后回到普通一级（设计 2026-09-22-awt-live M4）。
 #: 其余的事一律不用 event：协议里它是「刚发生、只停几秒」，长期挂着会一直抢主位。
 DRIFT_FRESH = 3600.0
+# 开工弹卡（作者 09-22：每发一条就弹）在消息之后停这么久：许愿柳先弹 6 秒、冷却 10 秒，写作循环的排在它后面，
+# 要等到那时这件事还在，排队的那张才弹得出来（lintel C2：两个来源各排各的）。
+START_FRESH = 45.0
+# 只有读者组结果的落地（分镜 ⑤⑨）留这么久；改了句子的落地就是那个改动集自己，不另计时。
+LANDED_HOLD = 3600.0
 
 
 def _iso(t):
@@ -362,9 +367,40 @@ def _coverage_stats(summary):
     return out
 
 
-def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_GIVEN):
+def _status_line(summary, bad, coverage):
+    """开工 / 在跑卡的第二行：稿子此刻的三个数（分镜 ⑤⑤）。检查没算过就写没算过，不写 0。"""
+    from . import coverage as V
+    try:
+        found = f"有发现 {len(V.findings(coverage))}" if isinstance(coverage, dict) else "检查没算过"
+    except (KeyError, TypeError, AttributeError):
+        found = "检查读不出"
+    return f"{summary['sentences']} 句 · 缺依据 {bad} · {found}"
+
+
+def _checks_line(coverage):
+    """落地卡的第二行（分镜 ⑤⑧）。检查结论没有「上一次」可比（设计 §2），所以写的是现状：有发现的是哪几项。"""
+    from . import coverage as V
+    if not isinstance(coverage, dict):
+        return "检查没算过"
+    try:
+        found = V.findings(coverage)
+    except (KeyError, TypeError, AttributeError):
+        return "检查读不出"
+    if not found:
+        return "检查都过了"
+    return f"有发现 {len(found)}：" + "、".join(r["name"] for r in found[:3]) + ("…" if len(found) > 3 else "")
+
+
+STRENGTH = {"session": "○ 按会话", "sentence": "● 按句子"}
+
+
+def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_GIVEN, turn=None, readers=None,
+          built_at=None):
     """从索引摘要（`index.summarize`）生成活动：一个稿件一个，永远只有一个。
-    `problems` 是引擎自己的毛病；`notices` 是该知道但不是故障的事（被拦下的写入）。"""
+    `problems` 是引擎自己的毛病；`notices` 是该知道但不是故障的事（被拦下的写入）。
+    `turn` 是最近一轮（`turns.current`），`readers` 是最近一次读者组（`turns.readers_run`），`built_at` 是索引最近一次建成的时刻。
+    一件事的先后（设计 B3，作者 09-22 定 B1 ②）：引擎出事 > 开工 > 本轮新出的无出处 > 在跑 > 只有读者组的落地 > 改动集 > 没有改动。"""
+    from . import turns as TN
     ws = summary["name"]
     lc = summary.get("latest_changeset")
     st = summary.get("ledger_status") or {}
@@ -375,6 +411,21 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
     events = []
     when_lc = _when(lc, now) if lc else None
     count = None   # 右翼的小数字（label.count）：字里不再有数（channel-separation §5）
+    start = turn["start"] if turn else None
+    ended = turn["ended"] if turn else None
+    started = bool(turn and 0 <= now - start < START_FRESH)
+    is_running = TN.running(turn, now)
+    # 落地（B2）：这一轮结束了，索引是在结束之后建的（追平），这一轮的时间窗里有这个改动集。
+    in_window = lambda t: t is not None and start is not None and ended is not None and start <= t <= ended + 5
+    caught_up = ended is not None and built_at is not None and built_at >= ended
+    landed = bool(lc and lc["traced"] and n and caught_up and in_window(when_lc))
+    readers_landed = bool(readers and caught_up and in_window(readers.get("t")) and not in_window(when_lc)
+                          and now - ended < LANDED_HOLD)
+    drift_now = bool(lc and not lc["traced"] and origin(lc) == "unmatched" and (not is_running or (start and when_lc >= start)))
+    run_state = False
+    status_line = _status_line(summary, bad, None if coverage is NOT_GIVEN else coverage)
+    clock = None   # None = 按 when 画「几时前」；否则 (样式, 起点)
+    phase = None
 
     if problems:
         text = "；".join(problems)[:20000]
@@ -383,6 +434,32 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         count, tag, pill = len(problems), f"{len(problems)} 处", f"{len(problems)} ⚠"
         popup = [("谁说的", "工具", "secondary", 1), ("跑挂了", text, "warning", 2)]
         events.append((f"tool-broken:{_sha(text)}", "tool-broken"))
+    elif started:
+        # 开工弹卡（作者 09-22：本稿件会话里每发一条就弹）：第一行收到哪一条（时刻 · 字数，不抄原话），第二行稿子此刻的三个数。
+        label, tone, center, rank, flagged = "开工", "white", "live", "event", False
+        key, when = f"started:{turn['key']}", start
+        tag, pill = "开工", None
+        popup = [("收到", f"你 {_hm(start)} 的消息 · {turn['chars']} 字", "primary", 1), ("稿子", status_line, "secondary", 1)]
+        events.append((f"started:{turn['key']}", "started"))
+        clock, phase = ("live", start), f"开工 · {_hm(start)}"
+    elif is_running and not drift_now:
+        # 在跑（B1 ②）：这一轮碰过稿子、还没结束。右翼写动作，不放数（分镜 ⑤⑦）；跑表从第一次碰稿算。不弹（Active）。
+        act, first = TN.action(turn), turn["touches"][0][0]
+        label, tone, center, rank, flagged = act, "white", "live", "none", False
+        key, when = f"running:{turn['key']}", first
+        tag, pill = act, None
+        popup = [("在跑", f"{act} · 从 {_hm(first)}", "primary", 1), ("稿子", status_line, "secondary", 1)]
+        clock, phase, run_state = ("live", first), act, True
+    elif readers_landed:
+        # 只跑出读者组结果、没改句子的一轮（分镜 ⑤⑨，默认弹，写最弱的一项）。
+        w = TN.weakest_reader(readers.get("summary"))
+        text = f"最弱 {w[0]} {w[1]}/{w[2]}" if w else "有结果"
+        label, tone, center, rank, flagged = "读者组", "orange" if readers.get("verdict") == "findings" else "white", "done", "none", False
+        key, when = f"landed-readers:{int(readers['t'])}", readers["t"]
+        tag, pill = "读者组", (f"{w[1]}/{w[2]}" if w else None)
+        popup = [("读者", text, "warning" if tone == "orange" else "primary", 1), ("改了", "无", "quiet", 1)]
+        events.append((f"landed:readers-{int(readers['t'])}", "landed"))
+        phase = f"落地 · {_hm(ended)}"
     elif lc and not lc["traced"]:
         if origin(lc) == "unmatched":
             # Time Sensitive（P2）：窗口里有你的消息，没一条对上 = Claude 改了你没让改的。橙 = 要你看；胶囊保留 △（作者 09-21）。
@@ -410,6 +487,13 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         if lc["reading"]:
             popup.append(("读成", lc["reading"], "secondary", 2))
         events.append((f"changed:{lc['id']}", "changed"))
+        if landed:
+            # 落地弹卡（分镜 ⑤⑧）：两行，改了什么（几句 · 追得牢不牢 · 哪几节）/ 检查此刻的现状。身份仍是这个改动集（M2）。
+            how = STRENGTH.get(lc.get("strength"))
+            popup = [("改了", " · ".join(x for x in (f"{n} 句", how, sections(lc)) if x), "primary", 1),
+                     ("检查", _checks_line(None if coverage is NOT_GIVEN else coverage), "secondary", 1)]
+            events.append((f"landed:{lc['id']}", "landed"))
+            phase = f"落地 · {_hm(ended)}"
     elif summary.get("just_registered"):
         # 候选 B：刚从刘海上拖进来登记好的稿件（分镜 ⑯ 右半）。下一轮常驻产出会把它换成「还没有改动」。
         label, tone, center, rank, flagged = "登记好了", "white", "done", "none", False
@@ -433,17 +517,19 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
 
     a = {
         "schema": 1, "id": activity_id(ws),
-        "open": True, "running": False, "inProgress": False, "stale": False,
+        "open": True, "running": run_state, "inProgress": run_state, "stale": False,
         "flagged": flagged, "rank": rank,
-        "labelUntilSeen": True, "pillUntilSeen": True,
+        # 在跑期间看过也不撤（设计 B3）；开工的胶囊是跑表，也不撤。
+        "labelUntilSeen": not run_state, "pillUntilSeen": not (run_state or started and not problems),
         "heartbeatSeconds": HEARTBEAT,
         # activityAt = 这件事发生的时刻（改动集 = 提交时刻），不是这一轮重建的时刻：宿主拿它排先后（设计 M5）。
         "updatedAt": _iso(now), "activityAt": _iso(when) if when is not None else None,
         "status": {"center": center, "lastWriteAt": _iso(now),
-                   "clock": {"style": "ago", "since": _iso(when)} if when is not None and not problems else None},
+                   "clock": ({"style": clock[0], "since": _iso(clock[1])} if clock else
+                             {"style": "ago", "since": _iso(when)} if when is not None and not problems else None)},
         "label": {"text": label, "tone": tone, "count": count},
         # 左耳很窄：来源名宿主已经画了（识别字 / 登记名），这里只放稿件名；第二格是改到的节（作者 09-21），不是提交号。
-        "ears": {"leading": _clip(ws, 64), "phase": _clip(where or ("没有改动" if not lc else ""), 64),
+        "ears": {"leading": _clip(ws, 64), "phase": _clip(phase or where or ("没有改动" if not lc else ""), 64),
                  "tag": {"text": tag, "tone": tone}},
         "popup": [{"label": l, "text": _clip(t, 20000), "tone": tn, "lines": ln} for l, t, tn, ln in popup],
         # 另一件活动展开时，底部翻页行写的是这一件的 flip；没有它宿主写「还没有标签」。
@@ -452,14 +538,30 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         # (the host keeps its paging for producers that want it).
         "body": _body(lc),
         "detail": _detail(summary, lc, bad, notices, overview, coverage),
-        "events": [{"id": i, "type": ty, "at": _iso(when if ty in ("changed", "drift") and when is not None else now)}
-                   for i, ty in events],
+        "events": [{"id": i, "type": ty, "at": _iso(_event_at(ty, i, when_lc, start, ended, now))} for i, ty in events],
     }
     if pill:
         a["pill"] = {"pulse": False, "title": pill, "tint": tone}
+    if clock and not problems:
+        # 胶囊里是括号 + 跑表（分镜 ⑤⑥）
+        a["pill"] = {"pulse": False, "clockSince": _iso(clock[1]), "tint": "white"}
+    if a.get("pill") and a["pillUntilSeen"] and when is not None and not problems:
+        # 看过之后胶囊不撤，只剩括号加「几时前」（作者 09-22；宿主 C3 的 pillSeen）
+        a["pillSeen"] = {"pulse": False, "agoSince": _iso(when)}
     a = _prune(a)
     a["revision"] = identity(key)
     return [a]
+
+
+def _event_at(ty, eid, when_lc, start, ended, now):
+    """事件的时刻 = 事发时刻（设计 M5）：改动集 = 提交时刻，开工 = 消息时刻，落地 = 这一轮结束的时刻。"""
+    if ty in ("changed", "drift") and when_lc is not None:
+        return when_lc
+    if ty == "started" and start is not None:
+        return start
+    if ty == "landed" and ended is not None:
+        return ended
+    return now
 
 
 class NotRegistered(Exception):

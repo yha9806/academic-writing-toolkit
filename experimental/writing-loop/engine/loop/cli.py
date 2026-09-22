@@ -99,6 +99,14 @@ def cmd_update(a):
     from . import index as X
     ws = Path(a.workspace)
     (ws / "cache").mkdir(parents=True, exist_ok=True)
+    try:
+        # The notch's turn signal (turns.py): every request is recorded before the lock, so a request folded into a
+        # running update still counts. A broken notch module must not stop the index from being rebuilt (same as M3).
+        from . import turns as TN
+        TN.record(ws, a.reason)
+    except Exception as e:  # noqa: BLE001
+        TN = None
+        HL.record_event(ws, "hook_error", f"刘海的轮次记录读不进来：{type(e).__name__}：{e}")
     lock, dirty = ws / "cache" / "update.lock", ws / "cache" / "update.dirty"
     summary = None
     while True:
@@ -113,8 +121,11 @@ def cmd_update(a):
                 t0 = time.time()
                 try:
                     cfg = C.load(ws)
+                    before = (X.load_summary(cfg) or {}).get("head") if TN else None
                     files, summary = X.build(cfg)
                     X.write(cfg, files)
+                    if TN and summary.get("head") and summary["head"] != before:
+                        TN.record(ws, f"head:{summary['head']}")   # the manuscript got a commit: a touch, whichever repo git ran in
                 except Exception as e:  # recorded, never swallowed: health shows it until a later success
                     HL.record_error(ws, f"{type(e).__name__}：{e}")
                     print(f"update 失败：{type(e).__name__}：{e}", file=sys.stderr)
@@ -266,8 +277,16 @@ def cmd_lintel(a):
                 HL.record_error(a.workspace, f"总览：{type(e).__name__}：{e}")
                 problems.append(f"总览：{type(e).__name__}：{e}")
         from . import coverage as V
+        turn = readers = None
+        try:
+            # 这一轮在做什么（开工 / 在跑 / 落地）：读不出是引擎的毛病，照样交上去，不当作「没有在跑」
+            from . import turns as TN
+            turn, readers = TN.current(ws, cfg), TN.readers_run(ws)
+        except Exception as e:  # noqa: BLE001
+            problems.append(f"轮次：{type(e).__name__}：{e}")
         acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov,
-                        coverage=V.load_summary(a.workspace, cfg))
+                        coverage=V.load_summary(a.workspace, cfg), turn=turn, readers=readers,
+                        built_at=(HL.load(a.workspace).get("last_ok") or {}).get("t"))
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:

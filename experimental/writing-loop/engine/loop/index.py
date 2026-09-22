@@ -151,8 +151,12 @@ def changeset_view(c, threads, explanations):
     thread = next((t for t in threads if t["mid"] == mid), None) if mid else None
     expl = next((e for e in explanations if e["mid"] == mid), None) if mid else None
     rows = [_row_view(r) for r in c["rows"]]
+    # How firmly it was traced (gap 3, storyboard ⑥①): a sentence-level source (the commit message, the inference
+    # from the sentences) is solid; only "the session that made the commit" is hollow.
+    srcs = {r["trigger"].get("source") for r in c["rows"] if isinstance(r.get("trigger"), dict)}
+    strength = "sentence" if srcs & {"提交信息", "脚本推断"} else ("session" if "提交时的会话" in srcs else None)
     return {"id": c["id"], "subject": c.get("subject", ""), "time": c.get("time"), "status": c["status"],
-            "rows": rows, "n": len(rows), "traced": mid is not None, "mid": mid,
+            "rows": rows, "n": len(rows), "traced": mid is not None, "mid": mid, "strength": strength,
             "messages_in_window": len(c.get("window_messages") or []),
             "verbatim": thread["text"] if thread else None,
             "reading": expl.get("reading") if expl else None, "changed": expl.get("changed") if expl else None,
