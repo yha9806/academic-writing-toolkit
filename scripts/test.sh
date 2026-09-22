@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (199 automated tests, labelled T2-T210: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 changed-sentence audit) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (202 automated tests, labelled T2-T213: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 changed-sentence audit + T211-T213 venue topic and contribution type) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -5578,6 +5578,114 @@ assert d['changed'] == 6 and d['flagged'] == 0, [(r['where'], r['flags']) for r 
 "
 }
 
+test_T211() {
+    # A manuscript is placed among a venue's articles by word overlap: the
+    # nearest article is the one that shares its words, and its percentile is
+    # where its own nearest-neighbour similarity falls among the articles'. An
+    # empty corpus or a title with no content word is refused, never a pass.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+works = [
+    {"title": "Graph neural networks for traffic forecasting", "year": 2024, "doi": "10.1/a", "abstract": ""},
+    {"title": "Graph neural networks for route forecasting", "year": 2024, "doi": "10.1/b", "abstract": ""},
+    {"title": "Contrastive hashing for image retrieval", "year": 2025, "doi": "10.1/c", "abstract": ""},
+    {"title": "Deep hashing for sketch image retrieval", "year": 2025, "doi": "10.1/d", "abstract": ""},
+    {"title": "Auditing river gauge benchmarks for sampling shortcuts", "year": 2026, "doi": "10.1/e", "abstract": ""},
+    {"title": "Recommendation with session intent modelling", "year": 2026, "doi": "10.1/f", "abstract": ""},
+]
+(d / "corpus.json").write_text(json.dumps({"works": works}))
+(d / "empty.json").write_text(json.dumps({"works": []}))
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/venue-topic-fit.py neighbors --corpus "$tmp/corpus.json" --title "Sampling shortcuts in river gauge benchmarks" --json 2>/dev/null)
+    code=$?
+    [ "$code" -eq 0 ] || { rm -rf "$tmp"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)['titles']
+assert d['n'] == 6, d['n']
+assert d['top'][0]['doi'] == '10.1/e', d['top'][0]
+assert 0 <= d['ours_percentile'] <= 100, d['ours_percentile']
+" || { rm -rf "$tmp"; return 1; }
+    python3 .claude/skills/audit/scripts/venue-topic-fit.py neighbors --corpus "$tmp/empty.json" --title "Anything at all" >/dev/null 2>&1
+    code=$?
+    [ "$code" -eq 2 ] || { rm -rf "$tmp"; return 1; }
+    python3 .claude/skills/audit/scripts/venue-topic-fit.py neighbors --corpus "$tmp/corpus.json" --title "of the and" >/dev/null 2>&1
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 2 ]
+}
+
+test_T212() {
+    # A sample for coding is the same for the same seed, and a tally reports
+    # counts with Wilson intervals. An uncoded row or an unknown code stops the
+    # tally: a sheet half coded is not a result.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+works = [{"title": "Paper number %d on gauges" % i, "year": 2025, "doi": "10.1/%d" % i, "abstract": ""} for i in range(40)]
+(d / "corpus.json").write_text(json.dumps({"works": works}))
+PYEOF
+    python3 .claude/skills/audit/scripts/venue-topic-fit.py sample --corpus "$tmp/corpus.json" --n 10 --seed 7 --out "$tmp/a.tsv" >/dev/null 2>&1 || { rm -rf "$tmp"; return 1; }
+    python3 .claude/skills/audit/scripts/venue-topic-fit.py sample --corpus "$tmp/corpus.json" --n 10 --seed 7 --out "$tmp/b.tsv" >/dev/null 2>&1 || { rm -rf "$tmp"; return 1; }
+    cmp -s "$tmp/a.tsv" "$tmp/b.tsv" || { rm -rf "$tmp"; return 1; }
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+rows = d.joinpath("a.tsv").read_text().splitlines()
+codes = ["M"] * 7 + ["E", "E?", "R"]
+d.joinpath("coded.tsv").write_text("\n".join([rows[0]] + [r + c for r, c in zip(rows[1:], codes)]) + "\n")
+d.joinpath("half.tsv").write_text("\n".join([rows[0]] + [r + c for r, c in zip(rows[1:], codes[:5])] + rows[6:]) + "\n")
+d.joinpath("odd.tsv").write_text("\n".join([rows[0]] + [r + "X" for r in rows[1:]]) + "\n")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/venue-topic-fit.py tally --sheet "$tmp/coded.tsv" --json 2>/dev/null)
+    code=$?
+    [ "$code" -eq 0 ] || { rm -rf "$tmp"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['n'] == 10 and d['doubtful'] == 1, d
+assert d['codes']['M']['count'] == 7 and d['codes']['E']['count'] == 2, d['codes']
+lo, hi = d['codes']['E']['wilson95']
+assert 0.05 < lo < 0.2 and 0.4 < hi < 0.6, (lo, hi)
+" || { rm -rf "$tmp"; return 1; }
+    python3 .claude/skills/audit/scripts/venue-topic-fit.py tally --sheet "$tmp/half.tsv" >/dev/null 2>&1
+    code=$?
+    [ "$code" -eq 2 ] || { rm -rf "$tmp"; return 1; }
+    python3 .claude/skills/audit/scripts/venue-topic-fit.py tally --sheet "$tmp/odd.tsv" >/dev/null 2>&1
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 2 ]
+}
+
+test_T213() {
+    # The corpus request names the tool and carries no personal data: no e-mail
+    # address and no mailto parameter. Checked on the request itself, without
+    # the network. An abstract stored as an inverted index is rebuilt in order.
+    local out
+    out=$(python3 .claude/skills/audit/scripts/venue-topic-fit.py fetch --issn 1234-5678 --out /dev/null --dry-run 2>/dev/null) || return 1
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert 'issn:1234-5678' in d['url'].replace('%3A', ':'), d['url']
+blob = json.dumps(d)
+assert 'mailto' not in blob and '@' not in blob, blob
+assert 'venue-topic-fit' in d['headers'].get('User-agent', ''), d['headers']
+" || return 1
+    python3 .claude/skills/audit/scripts/venue-topic-fit.py fetch --issn not-an-issn --out /dev/null --dry-run >/dev/null 2>&1
+    [ "$?" -eq 2 ] || return 1
+    python3 -c "
+import importlib.util
+spec = importlib.util.spec_from_file_location('v', '.claude/skills/audit/scripts/venue-topic-fit.py')
+v = importlib.util.module_from_spec(spec); spec.loader.exec_module(v)
+assert v.abstract_from_index({'gauges': [1], 'River': [0], 'rise': [2]}) == 'River gauges rise'
+"
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -5642,6 +5750,9 @@ run_test "T207 changed sentences: each kind of addition is flagged by name; a pl
 run_test "T208 changed sentences: splits, expansions and additions between two versions are all judged" test_T208
 run_test "T209 changed sentences: list items and captions are read; references, comments and math make no punctuation" test_T209
 run_test "T210 changed sentences: prepositions, -ly adjectives, a comma for a semicolon and a name are not flagged" test_T210
+run_test "T211 venue topic fit: the nearest article and the percentile; an empty corpus or an empty title is refused" test_T211
+run_test "T212 venue topic fit: a seeded sample repeats; a tally with intervals; a half-coded sheet is refused" test_T212
+run_test "T213 venue topic fit: the corpus request carries no personal data; abstracts rebuilt in order" test_T213
 run_test "T190 every path the README's structure block names exists on disk" test_T190
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192

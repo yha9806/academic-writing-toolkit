@@ -99,6 +99,7 @@ NOT_CHECKS = {
     "audit/quote-fidelity.mjs": "library: quote graders (pure functions) used by the fidelity audit; no claim of its own",
     "audit/pdf-pages.mjs": "library: page labelling of pdftotext output used by the fidelity audit; no claim of its own",
     "audit/build-venue-baseline.py": "corpus builder: fetches a venue's papers from arXiv and writes a manifest; makes no pass/fail claim about a manuscript, and its own corpus floor exits 2 (T176)",
+    "audit/venue-topic-fit.py": "venue survey: places a manuscript's topic among a venue's articles and tallies coded contribution types; a position is not a pass or a fail, and an empty corpus, an uncoded row or an unknown code exits 2 (T211, T212)",
 }
 
 

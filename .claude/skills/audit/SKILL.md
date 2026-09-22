@@ -261,6 +261,33 @@ the scope in other words; `technique` passed both.
    flagged sentence keeps the base where it was until the sentence is fixed,
    or until the author accepts it by moving `draft.base_ref` forward.
 
+   **G3. Topic and contribution type against the venue (before choosing it)**
+
+   The venue corpus of `build-venue-baseline.py` answers whether the
+   manuscript reads like the venue. It is built from preprints, which skew to
+   the subfields whose authors post them, so it cannot say whether the venue
+   publishes this topic or this kind of contribution. That takes every
+   article the venue published in a window, from the registrar:
+
+   ```
+   python3 .claude/skills/audit/scripts/venue-topic-fit.py fetch --issn <ISSN> --from 2024-01-01 --out <corpus.json>
+   python3 .claude/skills/audit/scripts/venue-topic-fit.py neighbors --corpus <corpus.json> --title "<title>" --abstract <abstract.txt>
+   python3 .claude/skills/audit/scripts/venue-topic-fit.py sample --corpus <corpus.json> --n 100 --seed <int> --out <sheet.tsv>
+   python3 .claude/skills/audit/scripts/venue-topic-fit.py tally --sheet <sheet.tsv>
+   ```
+
+   `neighbors` gives the nearest articles and where the manuscript's own
+   nearest-neighbour similarity falls among the articles': a low percentile
+   means its wording sits at the edge of what the venue publishes. Read the
+   nearest articles before drawing anything from the number. `sample` draws
+   titles to code by contribution type (M method, E evaluation or analysis of
+   existing systems, D dataset or benchmark, S study of people or science,
+   R review; mark a doubtful code with `?`); `tally` gives shares with 95%
+   intervals. The coder is whoever codes the sheet, and the report should
+   name them. Three limits go into any report of it: coding from titles is
+   coarse; TF-IDF measures shared words, not fit; and every article in the
+   corpus was accepted, so nothing here is an acceptance rate.
+
 3. **Output the audit report** using the format below.
 
 ## Output Format
