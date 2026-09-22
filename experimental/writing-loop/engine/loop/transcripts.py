@@ -21,6 +21,8 @@ from . import config as C
 from pathlib import Path
 
 _REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>\s*", re.S)
+#: A Bash call whose command commits. Only such a call counts: a commit line in `git log` output is not the session committing.
+GIT_COMMIT = re.compile(r"\bgit\b[^\n;&|]*\bcommit\b")
 
 
 def _ts(s):
@@ -59,6 +61,14 @@ def session_files(cfg):
                    for p in d.glob("*.jsonl")})
 
 
+def _under(path, root):
+    """path is root or inside it (both resolved)."""
+    if not path or not root:
+        return False
+    p = str(Path(path).resolve())
+    return p == root or p.startswith(root.rstrip("/") + "/")
+
+
 def _load_scan(path):
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -76,7 +86,11 @@ def _save_scan(path, data):
 
 
 def read(cfg, files=None, scan_cache=None):
-    """Return {"human": [...], "assistant": [...], "unclassified": {kind: n}, "files": [(path, bytes)], "bad_lines": n}.
+    """Return {"human": [...], "assistant": [...], "commit_calls": [...], "unclassified": {kind: n}, "files": [(path, bytes)],
+    "bad_lines": n}. `commit_calls` are the `git … commit` calls a session in scope made on this manuscript's repository
+    (the command names the repository, or the session works inside it): {"t0", "t1", "session"}, when the call was made
+    and when its result came back. git's own output is not read: `git commit -q` prints nothing, and that is how the
+    sessions commit.
 
     scan_cache: optional path to a JSON file remembering, per session file, (size, mtime_ns, holds the branch).
     A file whose size and mtime are unchanged and that did not hold the branch is not read again: most session
@@ -85,6 +99,13 @@ def read(cfg, files=None, scan_cache=None):
     srcs = sources(cfg)
     files = session_files(cfg) if files is None else files
     humans, assistants, uncl, bad, seen_files, branch_files = {}, {}, {}, 0, [], []
+    tool_cmds, calls = {}, []
+    # The repository as a command may name it: as configured, resolved (/var → /private/var), or with ~ for home.
+    repo_raw = os.path.expanduser(str(cfg.get("repo") or "")) if cfg.get("repo") else ""
+    repo_path = str(Path(repo_raw).resolve()) if repo_raw else ""
+    home = str(Path.home())
+    repo_names = {n for n in (repo_raw, repo_path) if n}
+    repo_names |= {"~" + n[len(home):] for n in repo_names if n.startswith(home + "/")}
     needle = re.compile(rb'"gitBranch"\s*:\s*(?:' + b"|".join(re.escape(json.dumps(b).encode()) for b, _ in srcs) + rb")")
 
     def add_human(r, raw, channel, command_mode):
@@ -138,8 +159,22 @@ def read(cfg, files=None, scan_cache=None):
                     kind = (r.get("origin") or {}).get("kind")
                     k = f"origin:{kind}" if kind else _unclassified_kind(raw)
                     uncl[k] = uncl.get(k, 0) + 1
+            elif typ == "user":
+                # A tool result. Only a commit call on this manuscript's repository is kept: when it ran, in which session.
+                for b in (r.get("message") or {}).get("content") or []:
+                    if not (isinstance(b, dict) and b.get("type") == "tool_result"):
+                        continue
+                    cmd, t0, cwd = tool_cmds.get(b.get("tool_use_id"), ("", None, ""))
+                    if t0 is None or not GIT_COMMIT.search(cmd):
+                        continue
+                    if not (repo_path and (any(n and n in cmd for n in repo_names) or _under(cwd, repo_path))):
+                        continue
+                    calls.append({"t0": t0, "t1": _ts(r["timestamp"]), "session": r.get("sessionId")})
             elif typ == "assistant":
                 msg = r.get("message") or {}
+                for b in msg.get("content") or []:
+                    if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Bash":
+                        tool_cmds[b.get("id")] = (str((b.get("input") or {}).get("command") or ""), _ts(r["timestamp"]), str(r.get("cwd") or ""))
                 texts = [b.get("text", "") for b in msg.get("content") or [] if isinstance(b, dict) and b.get("type") == "text"]
                 texts = [x for x in texts if x.strip()]
                 if not texts or not msg.get("id"):
@@ -155,4 +190,5 @@ def read(cfg, files=None, scan_cache=None):
         h["sessions"].sort()
     human = sorted(humans.values(), key=lambda h: (h["t"], h["mid"]))
     assistant = sorted(({**a, "text": "\n\n".join(a.pop("parts"))} for a in assistants.values()), key=lambda a: (a["t"], a["aid"]))
-    return {"human": human, "assistant": assistant, "unclassified": dict(sorted(uncl.items())), "files": seen_files, "branch_files": branch_files, "bad_lines": bad}
+    calls.sort(key=lambda c: (c["t0"], c["t1"], c["session"] or ""))
+    return {"human": human, "assistant": assistant, "commit_calls": calls, "unclassified": dict(sorted(uncl.items())), "files": seen_files, "branch_files": branch_files, "bad_lines": bad}

@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from loop import config as C
 from loop import changesets as CS
@@ -85,6 +86,78 @@ class TriggerTest(unittest.TestCase):
         with TempDir() as root:
             cs, _ = build(root, pars, ["说明文字那句改一下"], body=f"Loop-Trigger: {mid}")
             self.assertEqual(cs["rows"][0]["trigger"], {"source": "提交信息", "mid": mid})
+
+
+def build_in_session(root, pars2, messages, command=None, output="", at=(3590, 3600)):
+    """Like build(), but the session committed the second version the way the working sessions do: from its own
+    worktree, `cd <repo> && git commit -q …`, which prints nothing. The transcript holds the Bash call (made at T0+at[0])
+    and its result (back at T0+at[1]); the commit's own time is T0+3600."""
+    repo = make_repo(root, [({"drafts/DRAFT-v1.md": draft_md("T", "Abs.", BASE)}, "v1", T0),
+                            ({"drafts/DRAFT-v1.md": draft_md("T", "Abs.", pars2)}, "v2", T0 + 3600)])
+    wt = Path(root) / "wt"
+    wt.mkdir()
+    command = (command if command is not None else "cd {repo} && git add -A && git commit -q -m v2").format(repo=repo)
+    recs = [{"type": "user", "timestamp": iso(T0 + 600 + 300 * k), "origin": {"kind": "human"},
+             "message": {"role": "user", "content": m}} for k, m in enumerate(messages)]
+    recs += [{"type": "assistant", "timestamp": iso(T0 + at[0]),
+              "message": {"id": "a1", "role": "assistant",
+                          "content": [{"type": "tool_use", "id": "tu1", "name": "Bash", "input": {"command": command}}]}},
+             {"type": "user", "timestamp": iso(T0 + at[1]), "toolUseResult": {"stdout": output},
+              "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "tu1", "content": output}]}}]
+    projects = make_transcripts(root, wt, "main", recs)
+    ws = workspace(root, repo, "main", projects=projects)
+    cfg = C.load(ws)
+    cfg["transcripts"]["cwd_prefix"] = str(wt)
+    C.save(ws, cfg)
+    cfg = C.load(ws)
+    vs = H.load_versions(cfg)
+    conv = T.read(cfg)
+    return CS.build(vs, H.assign_ids(vs), conv)[0], conv
+
+
+class SessionCommitTest(unittest.TestCase):
+    """The author approves proposals by number ("1. 可以 2. 按你的办"): no sentence label, no quotation, no rare word.
+    The session then commits the change with `git commit -q`. The commit was traced to nothing and shown as 改动无出处
+    (09-22, twice). A commit the session itself made is traced to the author's latest message in that session."""
+
+    APPROVAL = ["1. 可以\n2. 按你的办", "好的，继续"]
+
+    def edited(self):
+        pars = list(BASE)
+        pars[1] = BASE[1].replace("is missing", "is unlisted")
+        return pars
+
+    def sources(self, cs):
+        return {r["trigger"]["source"] for r in cs["rows"]}
+
+    def test_a_quiet_commit_the_session_made_is_traced_to_the_authors_latest_message_there(self):
+        with TempDir() as root:
+            cs, conv = build_in_session(root, self.edited(), self.APPROVAL)
+            latest = [h for h in conv["human"] if h["text"] == "好的，继续"][0]["mid"]
+            self.assertEqual(self.sources(cs), {"提交时的会话"})
+            self.assertEqual({r["trigger"]["mid"] for r in cs["rows"]}, {latest})
+            self.assertEqual((cs["status"], cs["triggers"]), ("one", [latest]))
+
+    def test_without_the_sessions_commit_the_same_message_is_still_no_trigger(self):
+        with TempDir() as root:
+            cs, _ = build(root, self.edited(), self.APPROVAL)
+            self.assertEqual(self.sources(cs), {"△"})
+
+    def test_a_commit_line_in_git_log_output_is_not_the_session_committing(self):
+        with TempDir() as root:
+            cs, _ = build_in_session(root, self.edited(), self.APPROVAL, command="cd {repo} && git log --oneline -3",
+                                     output="abc1234 v2")
+            self.assertEqual(self.sources(cs), {"△"})
+
+    def test_a_commit_call_at_another_time_is_not_this_commit(self):
+        with TempDir() as root:
+            cs, _ = build_in_session(root, self.edited(), self.APPROVAL, at=(100, 110))
+            self.assertEqual(self.sources(cs), {"△"})
+
+    def test_a_commit_call_that_does_not_name_the_manuscripts_repository_is_not_this_commit(self):
+        with TempDir() as root:
+            cs, _ = build_in_session(root, self.edited(), self.APPROVAL, command="git commit -q -m other")
+            self.assertEqual(self.sources(cs), {"△"})
 
 
 if __name__ == "__main__":

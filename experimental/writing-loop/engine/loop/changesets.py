@@ -8,7 +8,12 @@ Trigger sources, in order:
       (one such word is enough), or if it occurs in at most RARE_DF sentences of the
       previous version (two such words needed). Words spread across the draft ("image", "evaluation") never count:
       a first version that accepted any two shared words attributed whole commits on exactly those;
-  (c) otherwise △ 追不到触发源.
+  (c) the commit was made by a session in scope — its time falls inside a `git … commit` call that session made on this
+      manuscript's repository (transcripts.commit_calls): the author's latest message in that session before the
+      commit — source 提交时的会话. The author approves proposals
+      by number ("1. 可以 2. 按你的办"), which names no sentence, quotes nothing and shares no rare word; the commit
+      that follows was shown as 改动无出处 (09-22, twice) although it did what the author had just approved;
+  (d) otherwise △ 追不到触发源.
 A change set whose rows point to more than one trigger, or mix a trigger with △, is marked mixed (spec T13).
 """
 import re
@@ -18,6 +23,8 @@ from .text import norm
 from .threads import LABEL, quoted_fragments
 
 TRAILER = re.compile(r"^Loop-Trigger:\s*(\S+)\s*$", re.M)
+#: A commit's time (git, whole seconds) against the call that made it (transcript timestamps): allowed slack either side.
+CALL_SLACK = 2
 _WORD = re.compile(r"[A-Za-z][A-Za-z'’-]{4,}")
 STOP = set("""about above after again against because before being below between could doing during every first
 further having other their there these those through under until where which while would should since shall
@@ -132,6 +139,7 @@ def infer_trigger(row, messages, df_prev, df_cur):
 def build(versions, transitions, conv):
     humans = conv["human"]
     known = {h["mid"] for h in humans}
+    calls = conv.get("commit_calls") or []
     out = []
     for tr in transitions:
         prev, cur = versions[tr["from"]], versions[tr["to"]]
@@ -142,6 +150,9 @@ def build(versions, transitions, conv):
         trailer = TRAILER.findall(cur.get("body", ""))
         window = [h for h in humans if prev["time"] < h["t"] <= cur["time"]]
         df_prev, df_cur = vocabulary(prev), vocabulary(cur)
+        made = next((c for c in calls if c["t0"] - CALL_SLACK <= cur["time"] <= c["t1"] + CALL_SLACK), None)
+        said = [h for h in humans if made and made["session"] in (h.get("sessions") or ()) and h["t"] <= cur["time"]]
+        session_mid = said[-1]["mid"] if said else None   # humans are in time order
         for k, row in enumerate(rows):
             row["rid"] = f"{cur['sha'][:7]}:{k:02d}"
             if trailer:
@@ -154,6 +165,8 @@ def build(versions, transitions, conv):
             mid, ev = infer_trigger(row, window, df_prev, df_cur)
             if mid:
                 row["trigger"] = {"source": "脚本推断", "mid": mid, **ev}
+            elif session_mid:
+                row["trigger"] = {"source": "提交时的会话", "mid": session_mid}
             else:
                 row["trigger"] = {"source": "△", "why": "追不到触发源" if window else "上一版定稿到这次提交之间没有你的消息"}
         mids = sorted({r["trigger"]["mid"] for r in rows if r["trigger"].get("mid")})
