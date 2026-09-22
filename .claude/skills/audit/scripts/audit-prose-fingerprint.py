@@ -112,6 +112,9 @@ def strip_markup(text: str, suffix: str) -> str:
         text = re.sub(r"\\begin\{(?:tabular|table|figure|itemize|enumerate|description|equation|align)\*?\}"
                       r".*?\\end\{(?:tabular|table|figure|itemize|enumerate|description|equation|align)\*?\}",
                       " ", text, flags=re.S)
+        # An environment's name is not prose: \begin{center} used to leave the word "center" behind, and a
+        # colon before it ("character by character: center") was counted as an explanatory colon.
+        text = re.sub(r"\\(?:begin|end)\{[^}]*\}", " ", text)
         text = re.sub(r"\\[a-zA-Z]+\*?", " ", text)
         text = re.sub(r"[{}$&~\\]", " ", text)
     elif suffix == ".md":
