@@ -36,6 +36,11 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 # AWT_LOOP_ENGINE: the engine copy a mutation run is testing; otherwise the one in this checkout.
 ENGINE = Path(os.environ.get("AWT_LOOP_ENGINE") or ROOT / "experimental" / "writing-loop" / "engine")
+if not ENGINE.is_dir():
+    # A user-scope install has no engine beside it; the installer records the checkout's (references/loop-engine.txt).
+    _rec = Path(__file__).resolve().parent.parent / "references" / "loop-engine.txt"
+    if _rec.is_file():
+        ENGINE = Path(_rec.read_text(encoding="utf-8").strip())
 # The panel the method was calibrated on: two personas x two models x two samples. --min-readers may raise it.
 MIN_PANEL = 8
 MIN_JUDGES = 2

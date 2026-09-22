@@ -29,6 +29,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 # AWT_LOOP_ENGINE: the engine copy a mutation run is testing; otherwise the one in this checkout.
 ENGINE = Path(os.environ.get("AWT_LOOP_ENGINE") or ROOT / "experimental" / "writing-loop" / "engine")
+if not ENGINE.is_dir():
+    # A user-scope install has no engine beside it; the installer records the checkout's (references/loop-engine.txt).
+    _rec = Path(__file__).resolve().parent.parent / "references" / "loop-engine.txt"
+    if _rec.is_file():
+        ENGINE = Path(_rec.read_text(encoding="utf-8").strip())
 
 PERSONAS = {
     "R1": "a researcher in the manuscript's field whose first language is not English; you read English papers daily",
