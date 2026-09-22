@@ -336,8 +336,9 @@ def interpret(check_id, code, stdout, stderr):
     return ("ok" if code == 0 else "findings"), (summary or first[:160] or ("通过" if code == 0 else "有发现"))
 
 
-def materialize(cfg, check, head, dest):
-    """Archive the draft and the check's inputs at head into dest. Returns ({role: path}, error or None)."""
+def materialize(cfg, check, head, dest, prev=None, info=None):
+    """Archive the draft and the check's inputs at head into dest. Returns ({role: path}, error or None). For a check
+    that compares two versions, prev is its last run record and info receives the base it was compared with."""
     if check.get("project"):
         tar = _git(cfg["repo"], "archive", head, binary=True)
         if tar is None:
@@ -356,17 +357,48 @@ def materialize(cfg, check, head, dest):
     got, err = _extract(tar, dest, inputs)
     if err or not check.get("base"):
         return got, err
-    return _materialize_base(cfg, check, head, dest, got)
+    return _materialize_base(cfg, check, head, dest, got, prev, info if info is not None else {})
 
 
-def _materialize_base(cfg, check, head, dest, inputs):
+def _commit(cfg, ref):
+    return (_git(cfg["repo"], "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}") or "").strip() or None
+
+
+def _is_ancestor(cfg, a, b):
+    return subprocess.run(["git", "-C", cfg["repo"], "merge-base", "--is-ancestor", a, b],
+                          capture_output=True).returncode == 0
+
+
+def resolve_base(cfg, check, head, prev):
+    """(ref, why) for a check that compares the draft with an earlier version.
+
+    The base is the last commit at which this check flagged nothing (the record's clean_head), so every commit since
+    then is read, not only the latest: a round of several commits cannot hide a rewrite in an early one. A flagged
+    sentence keeps the base where it was, so it stays in the report until it is fixed or the author accepts it by
+    moving draft.base_ref forward. draft.base_ref is a floor: a clean head older than it is ignored. With neither, the
+    commit before head."""
+    pin = K.get(cfg, "draft.base_ref")
+    pin_sha = _commit(cfg, pin) if pin else None
+    clean = (prev or {}).get("clean_head")
+    if clean and clean != head and _commit(cfg, clean) and _is_ancestor(cfg, clean, head) \
+            and (not pin_sha or _is_ancestor(cfg, pin_sha, clean)):
+        return clean, "clean"
+    if pin:
+        return pin, "pin"
+    return check["base"](cfg, head), "parent"
+
+
+def _materialize_base(cfg, check, head, dest, inputs, prev=None, info=None):
     """The version before the edit, for a check that compares two: the draft files and the also-checked files at the
-    base ref, under BASE_DIR. A base that does not resolve fails the check by name; comparing the draft with itself
+    base, under BASE_DIR. A base that does not resolve fails the check by name; comparing the draft with itself
     would report no change, which reads as a pass."""
-    ref = check["base"](cfg, head)
+    ref, why = resolve_base(cfg, check, head, prev)
     sha = _git(cfg["repo"], "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
     if not sha:
         return None, f"比对用的上一版 {ref} 在仓库里找不到（第一个提交之前没有上一版；或 draft.base_ref 写错）"
+    sha = sha.strip()
+    if info is not None:
+        info.update({"ref": ref, "commit": sha, "why": why})
     paths = sorted(set(draft_files(cfg, sha)) | {p for p in also_checked(cfg)
                                                   if _git(cfg["repo"], "cat-file", "-e", f"{sha}:{p}") is not None})
     if not paths:
@@ -396,10 +428,14 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
     snap = snapshot(check, cfg, sentences, head)
     rec = {"id": check["id"], "commit": head, "at": dt.datetime.fromtimestamp(now, dt.timezone.utc).isoformat(),
            "snapshot": snap}
+    prev = load_run(ws, check["id"]) if check.get("base") else None
+    base_info = {}
     with tempfile.TemporaryDirectory(prefix="loop-coverage-") as tmp:
-        inputs, err = materialize(cfg, check, head, tmp)
+        inputs, err = materialize(cfg, check, head, tmp, prev, base_info)
         if err:
             rec.update({"verdict": "failed", "summary": err, "exit": None})
+            if check.get("base"):
+                _record_base(rec, prev, base_info, head)
             save_run(ws, rec)
             return rec
         ctx = {"cfg": cfg, "ws": str(ws), "tmp": tmp, "inputs": inputs, "head": head}
@@ -426,8 +462,26 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
         except OSError as e:
             rec.update({"exit": None, "verdict": "failed", "summary": f"起不来：{e}"})
         rec["seconds"] = round(time.time() - t0, 2)
+    if check.get("base"):
+        _record_base(rec, prev, base_info, head)
     save_run(ws, rec)
     return rec
+
+
+BASE_WHY = {"clean": "上次无标出", "pin": "base_ref", "parent": "上一提交"}
+
+
+def _record_base(rec, prev, info, head):
+    """Which version the draft was read against, and the base the next run starts from: head when nothing was flagged,
+    else wherever the last clean run left it."""
+    if info:
+        rec["base"] = info
+        if rec.get("verdict") in ("ok", "findings") and rec.get("summary"):
+            rec["summary"] += f"（对照 {info['commit'][:7]}，{BASE_WHY.get(info['why'], info['why'])}）"
+    if rec.get("verdict") == "ok":
+        rec["clean_head"] = head
+    elif (prev or {}).get("clean_head"):
+        rec["clean_head"] = prev["clean_head"]
 
 
 # ---------------------------------------------------------------- status
@@ -633,7 +687,10 @@ def reminder_line(summary, ws):
         xs = [_name(r) for r in rows if r["status"] == status]
         if xs:
             bits.append(f"{status} " + "、".join(xs))
-    found = findings(summary)
+    # A check that reads what changed since the last round names what this round did; standing findings of the
+    # whole-document audits would otherwise push it out of the first three.
+    compares = {c["id"] for c in K.CHECKS if c.get("base")}
+    found = sorted(findings(summary), key=lambda r: r["id"] not in compares)
     if found:
         bits.append("有发现 " + "、".join(f"{r['name']}（{_short(r.get('result'))}）" for r in found[:3])
                     + (f" 等 {len(found)} 项" if len(found) > 3 else ""))

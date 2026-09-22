@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Check thesis chapters for consistency before submission — contradictory numbers, terminology drift, and broken cross-references.
+description: Check thesis chapters for consistency before submission — contradictory numbers, terminology drift, and broken cross-references — and read every rewritten or proposed sentence against the one it replaces before anyone sees the rewrite.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
@@ -233,22 +233,33 @@ the scope in other words; `technique` passed both.
 
    The fingerprint and structure audits measure whole documents, so a handful
    of rewrites cannot move them, and neither reads a proposal that has not been
-   applied. Every proposed rewrite goes through this first, as an `id, old,
-   new` TSV:
+   applied. Every proposed rewrite, and every sentence a correction adds, goes
+   through this first, as an `id, old, new` TSV (leave `old` empty for an
+   added sentence; the file is read without quoting):
 
    ```
    python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs <rewrites.tsv> --baseline <venue-corpus-dir>
    ```
 
-   It flags a rewrite that is longer than the sentence it replaces, or that
-   adds a colon, semicolon, dash, parenthesis, subordinate clause, -ly adverb
-   or two prepositional phrases, and one that grows past the venue's 90th
-   percentile of sentence length or density. A correction that stays faithful
-   to its source by piling qualifiers onto the old sentence is the usual cause;
-   split it or restructure it, and re-run until nothing is flagged or each
-   remaining flag is one you can defend. Show the author the rewrites only
-   after that. Once applied, the writing loop runs the same audit on each commit
-   against the version before it (`draft.base_ref`, or the previous commit).
+   For a rewrite it names what was added: three or more words, a comma (when
+   punctuation as a whole grew), a colon, semicolon, dash or parenthesis, a
+   subordinate clause (counted as gained, so trading "because" for "which"
+   counts), an adverb or a modifier (counted net, so a term swap does not),
+   two prepositional phrases, a subordinate opener, or a merge of sentences.
+   A split is judged as the old sentence against all its pieces. An added
+   sentence is flagged for any colon, semicolon, dash or worded parenthesis
+   and for density above the venue's 75th percentile. Modifiers are a
+   stand-in for a part-of-speech tagger; the report's `limits` line says what
+   it cannot see. A correction that stays faithful to its source by piling
+   qualifiers onto the old sentence is the usual cause; split it or restructure
+   it, and re-run until nothing is flagged or each remaining flag is one you
+   can defend. Show the author the rewrites only after that.
+
+   Once applied, the writing loop runs the same audit on each commit against
+   the last commit at which it flagged nothing, so a round of several commits
+   is read as a whole; the run record and the summary name that base. A
+   flagged sentence keeps the base where it was until the sentence is fixed,
+   or until the author accepts it by moving `draft.base_ref` forward.
 
 3. **Output the audit report** using the format below.
 

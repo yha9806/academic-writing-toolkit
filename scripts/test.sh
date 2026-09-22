@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (195 automated tests, labelled T2-T206: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T206 changed-sentence audit) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (199 automated tests, labelled T2-T210: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 changed-sentence audit) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -5422,6 +5422,162 @@ assert 'long_for_venue' in flags and 'longer' in flags, flags
     [ "$code" -eq 2 ]
 }
 
+test_T207() {
+    # Every kind of addition a rewrite can make is flagged by name, one row each,
+    # and a rewrite that only gets shorter is not. Clauses are counted as gained:
+    # trading "because" for "which" is an added clause even though the count is
+    # unchanged. Modifiers and adverbs are counted net: swapping one for another
+    # adds none.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+rows = [
+    ("longer", "The gauge reads the river twice a day.", "The gauge reads the level of the river twice a day in spring."),
+    ("comma", "The survey counted bridges in the north.", "The survey counted bridges in the north, the port and the hills."),
+    ("colon", "The survey counted three kinds of bridge.", "The survey counted three kinds: stone, iron and timber."),
+    ("semicolon", "The survey counted stone bridges in the north.", "The survey counted stone bridges; the timber ones were skipped."),
+    ("dash", "The survey counted stone bridges in the north.", "The survey counted stone bridges --- the old ones --- in the north."),
+    ("parenthesis", "The survey counted stone bridges in the north.", "The survey counted stone bridges (the old ones) in the north."),
+    ("clause", "The gauge failed because the river froze.", "The gauge failed in the frost, which froze the river."),
+    ("adverb", "The gauge reads the river twice a day.", "The gauge still reads the river only twice a day."),
+    ("modifier", "The survey counted bridges in the north.", "The survey counted the damaged bridges collected from the north."),
+    ("prepositions", "The survey counted bridges.", "The survey counted bridges of stone in the north."),
+    ("opener", "The gauge failed in the frost.", "When the frost came the gauge failed."),
+    ("merged", "The gauge failed. The river froze.", "The gauge failed and the river froze."),
+    ("clean", "The survey counted the bridges that had cracked piers in the northern district.", "The survey counted bridges with cracked piers."),
+    ("swap", "The survey used a stone-age baseline for the count.", "The survey used an iron-age baseline for the count."),
+]
+lines = ["id\told\tnew"] + ["\t".join(r) for r in rows]
+(pathlib.Path(sys.argv[1]) / "pairs.tsv").write_text("\n".join(lines) + "\n")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || return 1
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+by = {r['where']: r for r in d['sentences']}
+for flag in ('longer', 'comma', 'colon', 'semicolon', 'dash', 'parenthesis', 'clause', 'adverb', 'modifier',
+             'prepositions', 'opener', 'merged'):
+    assert flag in by[flag]['flags'], (flag, by[flag]['flags'])
+assert by['clause']['added']['clauses'] == ['which'], by['clause']['added']
+assert set(by['adverb']['added']['adverbs']) == {'still', 'only'}, by['adverb']['added']
+assert by['clean']['flags'] == [], by['clean']['flags']
+assert by['swap']['flags'] == [], by['swap']['flags']
+assert d['limits'].startswith('not measured'), d['limits']
+"
+}
+
+test_T208() {
+    # Between two versions every changed sentence is judged. A sentence split in
+    # two is read as the old sentence against both pieces; a short sentence
+    # expanded past recognition is still a revision; a new sentence with no
+    # predecessor is held to the default ceilings when no venue is given, and
+    # the report says so.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base" "$tmp/draft"
+    printf '%s\n' 'The team logged the river level at the gauge each morning for the regional office that funds the gauge. Floods are rare. The office keeps the logs.' > "$tmp/base/ch.md"
+    printf '%s\n' 'The team logged the river level at the gauge each morning. The regional office, which funds the gauge, reads the logs. Floods, which the county still fears, are rare: one per decade. The office keeps the logs. Staff also checked salinity (roughly) because farmers asked. Pumps rust; crews repaint them.' > "$tmp/draft/ch.md"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/draft" --base "$tmp/base" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || return 1
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+kinds = {r['kind']: r for r in d['sentences']}
+assert {r['kind'] for r in d['sentences']} == {'split', 'revised', 'added'}, [(r['kind'], r['new'][:30]) for r in d['sentences']]
+assert kinds['split']['pieces'] == 2 and 'clause' in kinds['split']['flags'], kinds['split']
+assert {'colon', 'clause', 'adverb'} <= set(kinds['revised']['flags']), kinds['revised']['flags']
+added = {r['new'][:5]: r for r in d['sentences'] if r['kind'] == 'added'}
+assert {'parenthesis', 'dense_for_venue'} <= set(added['Staff']['flags']), added['Staff']['flags']
+assert 'semicolon' in added['Pumps']['flags'], added['Pumps']['flags']
+assert d['added_without_venue'] == 2, d['added_without_venue']
+assert all(r['flags'] for r in d['sentences']), 'no changed sentence passes unread'
+"
+}
+
+test_T209() {
+    # LaTeX is read the way a reader sees it: a change inside a list item or a
+    # figure caption is a changed sentence; reference commands, inline comments
+    # and inline math do not make colons or parentheses; a stray quotation mark
+    # in a pairs file stays text and does not swallow the rows after it.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base" "$tmp/draft"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+base = r"""\section{Method}
+The gauge reads the river twice a day, as \cref{sec:setup} explains. % TODO: link
+\begin{itemize}
+\item The first gauge sits at the bridge
+\item The second gauge sits in the reeds upstream
+\end{itemize}
+\begin{figure}\centering\includegraphics{g.pdf}
+\caption{The gauge at the bridge in winter.}\end{figure}
+The level $f(x)$ rises in spring.
+"""
+draft = base.replace("The first gauge sits at the bridge",
+                     "The first gauge, which the county bought, sits at the bridge; it rusted in March")
+draft = draft.replace("The gauge at the bridge in winter.", "The gauge at the bridge in winter: it froze twice.")
+draft = draft.replace("rises in spring.", "rises in spring, see \\autoref{fig:g}.")
+(d / "base" / "ch.tex").write_text(base)
+(d / "draft" / "ch.tex").write_text(draft)
+(d / "pairs.tsv").write_text('id\told\tnew\nq1\tThe gauge reads the river.\t"The gauge reads the river twice.\n'
+                             'q2\tThe office keeps logs.\tThe office keeps the logs.\n')
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/draft" --base "$tmp/base" --json 2>/dev/null)
+    code=$?
+    [ "$code" -eq 1 ] || { rm -rf "$tmp"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+item = next(r for r in d['sentences'] if 'county' in r['new'])
+cap = next(r for r in d['sentences'] if 'froze' in r['new'])
+assert {'semicolon', 'clause'} <= set(item['flags']), item['flags']
+assert 'reeds' not in item['new'], 'a list item without a full stop is still its own sentence'
+assert 'colon' in cap['flags'], cap['flags']
+level = [r for r in d['sentences'] if 'rises' in r['new']]
+assert all('colon' not in r['flags'] and 'parenthesis' not in r['flags'] for r in level), level
+" || { rm -rf "$tmp"; return 1; }
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['compared']['pairs'] == 2, d['compared']
+"
+}
+
+test_T210() {
+    # Rewrites that get plainer are not flagged: a preposition that looks like a
+    # conjunction ("since 2019", "after training", "once a year"), an adjective
+    # that ends in -ly, a comma that replaces a semicolon, a proper noun ending
+    # in -ly.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'a\tThe archive has grown steadily for a decade.\tThe archive has grown since 2019.\n' >> "$tmp/pairs.tsv"
+    printf 'b\tThe model was tested at the end of the training schedule.\tThe model was tested after training.\n' >> "$tmp/pairs.tsv"
+    printf 'c\tThe team checks the gauge each year.\tThe team checks the gauge once a year.\n' >> "$tmp/pairs.tsv"
+    printf 'd\tA second failure is possible.\tA second failure is likely.\n' >> "$tmp/pairs.tsv"
+    printf 'e\tThe gauge failed; the river froze; the team left.\tThe gauge failed, and the team left.\n' >> "$tmp/pairs.tsv"
+    printf 'f\tThe second coder was a student.\tThe second coder was Kelly.\n' >> "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 0 ] || { echo "$out" | head -40; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['changed'] == 6 and d['flagged'] == 0, [(r['where'], r['flags']) for r in d['sentences']]
+"
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -5482,6 +5638,10 @@ run_test "T203 prose fingerprint: a baseline file that extracted as symbols is n
 run_test "T204 changed sentences: a proposed rewrite is read against the sentence it replaces" test_T204
 run_test "T205 changed sentences: only what changed between two versions is read, a dot directory is not the draft" test_T205
 run_test "T206 changed sentences: a rewrite is placed among the venue's sentences; a corpus too small is refused" test_T206
+run_test "T207 changed sentences: each kind of addition is flagged by name; a plainer rewrite and a term swap are not" test_T207
+run_test "T208 changed sentences: splits, expansions and additions between two versions are all judged" test_T208
+run_test "T209 changed sentences: list items and captions are read; references, comments and math make no punctuation" test_T209
+run_test "T210 changed sentences: prepositions, -ly adjectives, a comma for a semicolon and a name are not flagged" test_T210
 run_test "T190 every path the README's structure block names exists on disk" test_T190
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192

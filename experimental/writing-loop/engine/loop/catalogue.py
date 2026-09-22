@@ -17,8 +17,9 @@ Per check:
             and a change to any of them makes the check stale.
   outside   function(cfg) -> [absolute paths] read in place (a venue corpus, an intent card); their content hash is
             part of what a run is keyed on.
-  base      optional function(cfg, head) -> git ref: the draft at that ref is archived beside the draft, in BASE_DIR,
-            for a check that compares two versions.
+  base      optional function(cfg, head) -> fallback git ref, for a check that compares two versions: the draft at the
+            base coverage.resolve_base picks (the check's last clean head, else this ref) is archived beside the
+            draft, in BASE_DIR, and the run record names it.
   argv      function(ctx) -> argument list, run with cwd = the archived tree.
 """
 import os
@@ -163,8 +164,10 @@ BASE_DIR = ".awt-base"
 
 
 def _base_ref(cfg, head):
-    """The version the changed-sentence check compares the draft with: draft.base_ref when the author has set one (the
-    start of an editing round, so every commit in the round is read against it), else the commit before head."""
+    """The fallback base of the changed-sentence check: draft.base_ref when the author has set one, else the commit
+    before head. coverage.resolve_base prefers the last commit at which the check flagged nothing, so a round of
+    several commits is read as a whole and a flagged sentence stays reported until it is fixed or accepted (by moving
+    draft.base_ref forward)."""
     return get(cfg, "draft.base_ref") or f"{head}~1"
 
 

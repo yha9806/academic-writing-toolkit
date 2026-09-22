@@ -667,6 +667,49 @@ class RealCheckTest(unittest.TestCase):
             with Probe(K.by_id("sentence-changes")):
                 self.assertEqual(status(V.compute(C.load(ws), ws, do_run=True), "sentence-changes")["status"], V.FAILED)
 
+    def test_a_round_of_commits_is_read_from_the_last_clean_run_and_a_flag_holds_the_base(self):
+        # A rewrite in one commit followed by a commit that touches no prose: read against the commit before head,
+        # the rewrite was never seen and the check showed 0 changed. The base is the last clean run instead.
+        with TempDir() as root:
+            plain = INTRO.replace("Inspections are rare.", "Inspections are few.")
+            repo, ws = setup(root, [({"sections/01_intro.tex": plain}, "v2", 1_700_000_100)])
+            with Probe(K.by_id("sentence-changes")):
+                V.compute(C.load(ws), ws, do_run=True)
+                rec = V.load_run(ws, "sentence-changes")
+                v2 = git(repo, "rev-parse", "HEAD")
+                self.assertEqual(rec["verdict"], "ok", rec["summary"])
+                self.assertEqual(rec["clean_head"], v2)
+                bad = plain.replace("Inspections are few.",
+                                    "Inspections, which the county still schedules, are few: one per decade.")
+                commit(repo, {"sections/01_intro.tex": bad}, "v3", 1_700_000_200)
+                commit(repo, {"references.bib": BIB + "@misc{x, title={X}}\n"}, "v4", 1_700_000_300)
+                reindex(ws)
+                V.compute(C.load(ws), ws, do_run=True)
+                rec = V.load_run(ws, "sentence-changes")
+                self.assertEqual(rec["exit"], 1, rec["summary"])
+                self.assertEqual(rec["base"]["commit"], v2)
+                self.assertIn(f"对照 {v2[:7]}", rec["summary"])
+                flags = rec["result"]["sentences"][0]["flags"]
+                self.assertTrue({"colon", "clause", "adverb"} <= set(flags), flags)
+                self.assertEqual(rec["clean_head"], v2, "a flagged run leaves the base where it was")
+                commit(repo, {"sections/01_intro.tex": plain}, "v5", 1_700_000_400)
+                reindex(ws)
+                V.compute(C.load(ws), ws, do_run=True)
+                rec = V.load_run(ws, "sentence-changes")
+                self.assertEqual(rec["verdict"], "ok", rec["summary"])
+                self.assertEqual(rec["clean_head"], git(repo, "rev-parse", "HEAD"))
+
+    def test_the_changed_sentence_finding_leads_the_reminder_line(self):
+        # Whole-document audits keep standing findings; the line names three, so the check that reads this round's
+        # rewrites comes first or is never named.
+        rows = [{"id": c["id"], "name": c["name"], "status": V.OK, "verdict": "findings", "result": "越界 1 项"}
+                for c in K.CHECKS if c.get("kind") == "script" and not c.get("base")][:4]
+        rows.append({"id": "sentence-changes", "name": K.by_id("sentence-changes")["name"], "status": V.OK,
+                     "verdict": "findings", "result": "改动 3 句，标出 2 句"})
+        line = V.reminder_line({"rows": rows, "head": "abc1234", "target": {}, "experiments": {}}, "ws")
+        self.assertIn(K.by_id("sentence-changes")["name"], line)
+        self.assertLess(line.index(K.by_id("sentence-changes")["name"]), line.index(rows[0]["name"]))
+
 
 def manifest(venue, n, files=True):
     recs = [{"arxiv_id": f"2101.{i:05d}", **({"file": f"2101.{i:05d}.pdf"} if files else {})} for i in range(n)]
