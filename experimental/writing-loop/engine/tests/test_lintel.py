@@ -359,7 +359,7 @@ class TurnStateTest(unittest.TestCase):
         a = only(L.build(s, now=NOW, turn=tr, built_at=NOW - 20, coverage=COV))
         self.assertEqual([e["type"] for e in a["events"]], ["changed", "landed"])
         self.assertEqual([p["label"] for p in a["popup"]], ["改了", "检查"])
-        self.assertTrue(a["popup"][0]["text"].startswith("15 句 · ○ 按会话"))
+        self.assertEqual(a["popup"][0]["text"], "X0、X1、X2 等 15 句 · ○ 按会话")   # the count once, not twice
         self.assertEqual(a["popup"][1]["text"], "有发现 1：检查甲")
         landed_at = next(e["at"] for e in a["events"] if e["type"] == "landed")
         self.assertEqual(landed_at, L._iso(NOW - 30))

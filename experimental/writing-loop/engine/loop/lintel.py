@@ -490,7 +490,7 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         if landed:
             # 落地弹卡（分镜 ⑤⑧）：两行，改了什么（几句 · 追得牢不牢 · 哪几节）/ 检查此刻的现状。身份仍是这个改动集（M2）。
             how = STRENGTH.get(lc.get("strength"))
-            popup = [("改了", " · ".join(x for x in (f"{n} 句", how, sections(lc)) if x), "primary", 1),
+            popup = [("改了", " · ".join(x for x in (sections(lc), how) if x), "primary", 1),   # sections() already says how many
                      ("检查", _checks_line(None if coverage is NOT_GIVEN else coverage), "secondary", 1)]
             events.append((f"landed:{lc['id']}", "landed"))
             phase = f"落地 · {_hm(ended)}"
