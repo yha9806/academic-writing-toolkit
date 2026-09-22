@@ -120,7 +120,7 @@ class OneActivityTest(unittest.TestCase):
     def test_a_traced_change_is_active_not_attention(self):
         a = only(L.build(with_change(), now=NOW))
         self.assertFalse(a["flagged"])
-        self.assertEqual(a["rank"], "event")
+        self.assertEqual(a["rank"], "none")   # 设计 2026-09-22-awt-live M4：event 在协议里是「只停几秒」
         self.assertEqual([e["type"] for e in a["events"]], ["changed"])
         self.assertEqual([p["label"] for p in a["popup"]], ["你说", "改了", "读成"])
         self.assertEqual(a["popup"][0]["text"], "改 §3.2 那句 betaVal")
@@ -137,13 +137,16 @@ class OneActivityTest(unittest.TestCase):
         self.assertEqual([p["label"] for p in a["popup"]], ["改了", "无出处"])
         self.assertEqual(a["popup"][1]["text"], "窗口里 3 条消息都对不上")
         self.assertEqual((a["label"]["count"], a["pill"]["title"]), (15, "15 △"))   # 胶囊保留 △（作者 09-21）
+        # 刚发生的一小时里压过普通的事；之后只靠 flagged
+        self.assertEqual(a["rank"], "event")
+        self.assertEqual(only(L.build(s, now=NOW - 60 + L.DRIFT_FRESH))["rank"], "none")
 
     def test_a_change_with_no_message_of_yours_in_the_window_is_history_not_an_alert(self):
         # 分镜 ㊳：窗口里没有你的消息 = 别的会话或你自己提交的；翼换字、不弹、灰、changed
         a = only(L.build(with_change(traced=False), now=NOW))
         self.assertEqual((a["label"]["text"], a["label"]["tone"], a["label"]["count"]), ("别处改了", "white55", 15))
         self.assertFalse(a["flagged"])
-        self.assertEqual((a["rank"], a["status"]["center"]), ("event", "idle"))
+        self.assertEqual((a["rank"], a["status"]["center"]), ("none", "idle"))
         self.assertEqual([e["type"] for e in a["events"]], ["changed"])
         self.assertEqual([p["label"] for p in a["popup"]], ["改了", "别处"])
         self.assertEqual(a["popup"][1]["text"], "窗口里没有你的消息")
@@ -296,6 +299,38 @@ class OneActivityTest(unittest.TestCase):
         self.assertNotEqual(a["events"][0]["id"], b["events"][0]["id"])
 
 
+class IdentityTest(unittest.TestCase):
+    """revision 是刘海上这件事的身份（设计 2026-09-22-awt-live M2）：宿主按它记看过，所以面板、标签、提交号都不进来。
+    09-22 同一个改动集因为面板里的检查数变了，一天重新亮了四次。"""
+
+    def test_the_panel_and_a_late_label_do_not_make_it_new(self):
+        a = only(L.build(with_change(label="换例子"), now=NOW))
+        b = only(L.build(with_change(label="拆长句"), now=NOW + 30, notices=["拦下写入：2 次"]))
+        self.assertNotEqual(L.content_hash(a), L.content_hash(b))
+        self.assertEqual(a["revision"], b["revision"])
+
+    def test_a_new_changeset_or_a_new_kind_is_new(self):
+        a = only(L.build(with_change(cid="c0ffee1"), now=NOW))
+        self.assertNotEqual(a["revision"], only(L.build(with_change(cid="b123456"), now=NOW))["revision"])
+        self.assertNotEqual(a["revision"], only(L.build(with_change(traced=False), now=NOW))["revision"])
+
+    def test_no_change_yet_stays_the_same_thing_across_commits(self):
+        a = only(L.build(summary(head="aaaaaaa"), now=NOW))
+        b = only(L.build(summary(head="bbbbbbb"), now=NOW))
+        self.assertEqual(a["revision"], b["revision"])
+
+    def test_the_time_is_when_it_happened(self):
+        a = only(L.build(with_change(), now=NOW + 5000))
+        self.assertEqual(a["activityAt"], L._iso(NOW - 60))
+        self.assertEqual(a["status"]["clock"], {"style": "ago", "since": L._iso(NOW - 60)})
+        self.assertEqual(a["events"][0]["at"], L._iso(NOW - 60))
+        idle = only(L.build(summary(), now=NOW))
+        self.assertNotIn("activityAt", idle)
+        self.assertNotIn("clock", idle["status"])
+        broken = only(L.build(with_change(), now=NOW, problems=["索引：读不出"]))
+        self.assertNotIn("clock", broken["status"])
+
+
 class LocateRowsTest(unittest.TestCase):
     """候选 A（作者 09-21 定甲+乙）：面板里点开一条改动集，看到改的是哪句、在哪、拿去贴的定位、改前改后。"""
 
@@ -382,6 +417,25 @@ class SyncTest(unittest.TestCase):
         again = L.build(summary(), now=NOW + 5)
         self.assertEqual(L.sync(again, home=root, now=NOW + 5),
                          {"written": 0, "touched": 0, "unchanged": 1, "removed": 0})
+
+    def test_a_panel_change_is_written_though_the_thing_is_the_same(self):
+        root = self.root
+        L.sync(L.build(with_change(), now=NOW), home=root, now=NOW)
+        os.utime(self.dir(root) / "loop-ws.json", (NOW, NOW))
+        again = L.build(with_change(), now=NOW + 5, coverage=None)   # 只有面板的数字条变了，事件一样
+        self.assertEqual([e["id"] for e in again[0]["events"]],
+                         [e["id"] for e in L.build(with_change(), now=NOW)[0]["events"]])
+        self.assertEqual(L.sync(again, home=root, now=NOW + 5)["written"], 1)
+        on_disk = json.loads((self.dir(root) / "loop-ws.json").read_text(encoding="utf-8"))
+        self.assertEqual(on_disk["detail"], again[0]["detail"])
+
+    def test_an_event_alone_is_written(self):
+        root = self.root
+        acts = L.build(summary(), now=NOW)
+        L.sync(acts, home=root, now=NOW)
+        os.utime(self.dir(root) / "loop-ws.json", (NOW, NOW))
+        acts[0]["events"] = acts[0].get("events", []) + [{"id": "guard:x", "type": "guard", "at": L._iso(NOW)}]
+        self.assertEqual(L.sync(acts, home=root, now=NOW + 5)["written"], 1)
 
     def test_heartbeat_rewrites_the_same_bytes_so_seen_is_not_reset(self):
         root = self.root

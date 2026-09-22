@@ -15,9 +15,10 @@
 Passive 的事（缺依据的台账条目、被拦下的 human/ 写入）不上刘海：只进面板（detail），并作为
 不带 attention 的事件记下来。看过就撤（P4）：labelUntilSeen / pillUntilSeen。
 
-「同一件事没有新变化不重写」靠 revision：内容算一个哈希，和磁盘上那份一样就不写。
-例外是文件旧到快过心跳——lintel 拿文件的修改时间判来源程序还活着（1.5 倍心跳没动就画 ⚠），
-所以到点要把同样的字节再写一遍：字节一样 → revision 一样 → 宿主不会把你已经看过的又标成没看过。
+`revision` 是刘海上这件事的身份（设计 2026-09-22-awt-live M2）：宿主按它记你看过没有，所以它只由事的种类与 id 组成，
+面板、标签、事件、时刻都不进来。先前它是整份活动的哈希，面板一变看过的旧改动就又算没看过，09-22 一天重亮四次。
+「内容没变不重写」另用 `content_hash`，每轮对磁盘上那份现算。例外是文件旧到快过心跳——lintel 拿文件的修改时间
+判来源程序还活着（1.5 倍心跳没动就画 ⚠），所以到点要把同样的字节再写一遍。
 """
 import hashlib
 import json
@@ -38,22 +39,40 @@ def lintel_home():
     return os.environ.get("LOOP_LINTEL_HOME") or HOME
 HEARTBEAT = 120.0
 
-#: 不参与 revision 的字段：它们每次都变，算进去就等于每次都「有新变化」——
-#: 而「有新变化」在宿主那边意味着你已经看过的卡又被标成没看过，于是刘海每隔几秒重新弹一次。
-VOLATILE = ("updatedAt", "activityAt", "events")
+#: 写盘判据里不算的字段：它们每轮都可能变，算进去就等于每轮都重写。
+VOLATILE = ("updatedAt", "activityAt")
 #: 同上，只是埋在 status 里（新鲜度用的时刻）。
 VOLATILE_STATUS = ("lastWriteAt",)
+#: 改动无出处在提交后这么久里算「刚发生的事」（rank event），之后回到普通一级（设计 2026-09-22-awt-live M4）。
+#: 其余的事一律不用 event：协议里它是「刚发生、只停几秒」，长期挂着会一直抢主位。
+DRIFT_FRESH = 3600.0
 
 
 def _iso(t):
     return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t)) + ".000Z"
 
 
-def revision(a):
-    body = {k: v for k, v in a.items() if k not in VOLATILE and k != "revision"}
+def identity(key):
+    """刘海上这件事的身份，宿主按它记你看过没有。key 只写事的种类与 id（见 build）。"""
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+
+
+def content_hash(a):
+    """写不写盘的判据：整份活动去掉每轮都变的时刻。事件的 id 与类型算在里面（只多了一个事件也要写，
+    不然事件到不了宿主），事件的时刻不算。"""
+    body = {k: v for k, v in a.items() if k not in VOLATILE}
     if "status" in body:
         body["status"] = {k: v for k, v in body["status"].items() if k not in VOLATILE_STATUS}
+    body["events"] = [{k: v for k, v in e.items() if k != "at"} for e in body.get("events", [])]
     return hashlib.sha1(json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+
+
+def _when(lc, default):
+    """改动集的提交时刻（索引里是字符串或数）；读不出就用 default。"""
+    try:
+        return float(lc.get("time"))
+    except (TypeError, ValueError):
+        return default
 
 
 #: 作者 09-18 定的身份色是靛蓝；登记表里也是 indigo（09-21 之前这里写 deepBlue，面板圆点与括号成了两种蓝）。
@@ -354,31 +373,37 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
     names = summary.get("section_names") or {}
     where = touched(lc, names) if lc else ""
     events = []
+    when_lc = _when(lc, now) if lc else None
     count = None   # 右翼的小数字（label.count）：字里不再有数（channel-separation §5）
 
     if problems:
         text = "；".join(problems)[:20000]
         label, tone, center, rank, flagged = "跑挂了", "red", "broken", "anomaly", True
+        key, when = f"problem:{_sha(text)}", now
         count, tag, pill = len(problems), f"{len(problems)} 处", f"{len(problems)} ⚠"
         popup = [("谁说的", "工具", "secondary", 1), ("跑挂了", text, "warning", 2)]
         events.append((f"tool-broken:{_sha(text)}", "tool-broken"))
     elif lc and not lc["traced"]:
         if origin(lc) == "unmatched":
             # Time Sensitive（P2）：窗口里有你的消息，没一条对上 = Claude 改了你没让改的。橙 = 要你看；胶囊保留 △（作者 09-21）。
-            label, tone, center, rank, flagged = "改动无出处", "orange", "flagged", "event", True
+            label, tone, center, flagged = "改动无出处", "orange", "flagged", True
+            rank = "event" if now - when_lc < DRIFT_FRESH else "none"
+            key, when = f"change:{lc['id']}:unmatched", when_lc
             count, tag, pill = n, f"{n} 句", f"{n} △"
             popup = [("改了", sections(lc), "primary", 1), ("无出处", _reason(lc), "warning", 1)]
             events.append((f"drift:{lc['id']}", "drift"))
         else:
             # Active（P2）：窗口里没有你的消息 = 别的会话或你自己提交的，只是历史（分镜 ㊳，作者 09-21）。翼换字、不弹、灰。
-            label, tone, center, rank, flagged = "别处改了", "white55", "idle", "event", False
+            label, tone, center, rank, flagged = "别处改了", "white55", "idle", "none", False
+            key, when = f"change:{lc['id']}:elsewhere", when_lc
             count, tag, pill = n, f"{n} 句", str(n)
             popup = [("改了", sections(lc), "primary", 1), ("别处", _reason(lc), "secondary", 1)]
             events.append((f"changed:{lc['id']}", "changed"))
     elif lc:
         # Active（P2）：右翼 = 为什么改（Claude 在解释块里写的 ≤6 字，没有就「改了」），小数字 = 几句。changed 不弹。
         label = _fit(lc["label"], LABEL_MAX) if lc.get("label") else "改了"
-        tone, center, rank, flagged = "white", "done", "event", False
+        tone, center, rank, flagged = "white", "done", "none", False
+        key, when = f"change:{lc['id']}:traced", when_lc
         count, tag, pill = n, f"{n} 句", str(n)
         popup = [("你说", lc["verbatim"] or "（没有原话）", "primary", 1),
                  ("改了", sections(lc), "primary", 1)]
@@ -387,13 +412,15 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         events.append((f"changed:{lc['id']}", "changed"))
     elif summary.get("just_registered"):
         # 候选 B：刚从刘海上拖进来登记好的稿件（分镜 ⑯ 右半）。下一轮常驻产出会把它换成「还没有改动」。
-        label, tone, center, rank, flagged = "登记好了", "white", "done", "event", False
+        label, tone, center, rank, flagged = "登记好了", "white", "done", "none", False
+        key, when = f"registered:{summary['head']}", now
         tag, pill = f"{summary['sentences']} 句", str(summary["sentences"])
         popup = [("谁说的", "拖放 · lintel", "secondary", 1),
                  ("稿件", f"{summary['sentences']} 句 · {len(summary.get('section_names') or {})} 节 · {summary.get('ref') or summary['head']}", "primary", 2)]
         events.append((f"changed:registered-{summary['head']}", "changed"))
     else:
         label, tone, center, rank, flagged = "还没有改动", "white", "idle", "none", False
+        key, when = f"none:{ws}", None
         tag, pill = f"{summary['sentences']} 句", None
         popup = [("谁说的", "原文 · git", "secondary", 1),
                  ("稿件", f"{summary['sentences']} 句，{summary['versions']} 个版本，最新 {summary['head']}", "primary", 2)]
@@ -410,8 +437,10 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         "flagged": flagged, "rank": rank,
         "labelUntilSeen": True, "pillUntilSeen": True,
         "heartbeatSeconds": HEARTBEAT,
-        "updatedAt": _iso(now), "activityAt": _iso(now),
-        "status": {"center": center, "lastWriteAt": _iso(now)},
+        # activityAt = 这件事发生的时刻（改动集 = 提交时刻），不是这一轮重建的时刻：宿主拿它排先后（设计 M5）。
+        "updatedAt": _iso(now), "activityAt": _iso(when) if when is not None else None,
+        "status": {"center": center, "lastWriteAt": _iso(now),
+                   "clock": {"style": "ago", "since": _iso(when)} if when is not None and not problems else None},
         "label": {"text": label, "tone": tone, "count": count},
         # 左耳很窄：来源名宿主已经画了（识别字 / 登记名），这里只放稿件名；第二格是改到的节（作者 09-21），不是提交号。
         "ears": {"leading": _clip(ws, 64), "phase": _clip(where or ("没有改动" if not lc else ""), 64),
@@ -423,12 +452,13 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         # (the host keeps its paging for producers that want it).
         "body": _body(lc),
         "detail": _detail(summary, lc, bad, notices, overview, coverage),
-        "events": [{"id": i, "type": t, "at": _iso(now)} for i, t in events],
+        "events": [{"id": i, "type": ty, "at": _iso(when if ty in ("changed", "drift") and when is not None else now)}
+                   for i, ty in events],
     }
     if pill:
         a["pill"] = {"pulse": False, "title": pill, "tint": tone}
     a = _prune(a)
-    a["revision"] = revision(a)
+    a["revision"] = identity(key)
     return [a]
 
 
@@ -470,10 +500,11 @@ def sync(acts, *, home=HOME, producer=PRODUCER, now=None, heartbeat=HEARTBEAT):
             except ValueError:
                 old = None
         stale = not p.exists() or now - p.stat().st_mtime > heartbeat / 2
-        if old is not None and old.get("revision") == a["revision"] and not stale:
+        same = old is not None and content_hash(old) == content_hash(a)
+        if same and not stale:
             counts["unchanged"] += 1
             continue
-        if old is not None and old.get("revision") == a["revision"]:
+        if same:
             # 心跳：内容没变，把原来那份原样再写一遍，只为更新修改时间。
             data = (json.dumps(old, ensure_ascii=False, indent=1, sort_keys=True) + "\n").encode("utf-8")
             counts["touched"] += 1
