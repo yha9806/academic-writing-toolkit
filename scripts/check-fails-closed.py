@@ -60,6 +60,10 @@ CHECKS = {
         lambda s, empty: ["python3", str(s), "--target", str(empty), "--baseline", str(empty)],
     "audit/audit-prose-fingerprint.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty)],
+    # The prose view feeds the chapter checks; a file it cannot read, or that holds no prose, stops the run (exit 2)
+    # rather than handing them an empty chapters/ directory.
+    "audit/prose-view.py":
+        lambda s, empty: ["python3", str(s), "--out", str(empty / "view"), str(empty / "none.tex")],
     # Nothing to compare: no prose in the draft, and no version before it.
     "audit/audit-sentence-changes.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty), "--base", str(empty)],
@@ -77,6 +81,9 @@ CHECKS = {
         lambda s, empty: ["node", str(s), "--base-dir", str(empty)],
     "verify-refs/verify-refs.py":
         lambda s, empty: ["python3", str(s), "--bib", str(empty / "empty.bib")],
+    # No bibliography and no manuscript: nothing reconciled is not a pass (exit 2).
+    "verify-refs/reconcile-cites.py":
+        lambda s, empty: ["python3", str(s), "--bib", str(empty / "empty.bib"), str(empty / "main.tex")],
     # No file to lint: nothing linted is not a pass (exit 2).
     "note/notes-lint.mjs":
         lambda s, empty: ["node", str(s)],

@@ -1049,5 +1049,79 @@ class RiskRegisterTest(unittest.TestCase):
             self.assertEqual(V.pending(s), [])
 
 
+
+class LatexCoverageTest(unittest.TestCase):
+    """The chapter checks read a LaTeX draft, or a Markdown draft that is not under chapters/, through the prose
+    view; LaTeX citations are reconciled with the bibliography across every \input."""
+
+    def run_one(self, ws, cid):
+        with Probe(K.by_id(cid)):
+            s = V.compute(C.load(ws), ws, do_run=True)
+        return status(s, cid), V.load_run(ws, cid)
+
+    def test_the_chapter_checks_read_a_latex_draft(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            for cid in ("paragraph-logic", "word-count", "british-english"):
+                r, rec = self.run_one(ws, cid)
+                self.assertNotIn(r["status"], (V.NOT_APPLICABLE, V.FAILED), (cid, r, rec and rec.get("summary")))
+                self.assertIn(rec["verdict"], ("ok", "findings"), rec.get("summary"))
+            self.assertIn("词", V.load_run(ws, "word-count")["summary"])
+            files = V.load_run(ws, "paragraph-logic")["result"]["files_scanned"]
+            self.assertEqual(files, 2, "main.tex and the section, each as one chapter")
+
+    def test_a_markdown_draft_outside_chapters_is_read(self):
+        with TempDir() as root:
+            draft = "# Draft\n\n## Introduction\n\nBridges fail slowly and nobody watches them closely enough.\n"
+            repo = make_repo(root, [({"drafts/DRAFT-v1.md": draft}, "v1", 1_700_000_000)])
+            ws = workspace(root, repo, "main", glob="drafts/DRAFT-v*.md")
+            cfg = C.load(ws)
+            cfg["draft"]["sections"] = [{"match": r"^Introduction$", "prefix": "I", "kind": "prose"}]
+            C.save(ws, cfg)
+            reindex(ws)
+            r, rec = self.run_one(ws, "paragraph-logic")
+            self.assertIn(rec["verdict"], ("ok", "findings"), rec.get("summary"))   # before the view: failed, exit 2
+            self.assertEqual(rec["result"]["files_scanned"], 1)
+
+    def test_the_spelling_convention_follows_the_genre_unless_named(self):
+        with TempDir() as root:
+            mixed = INTRO.replace("Inspections are rare.", "We organise the survey. They digitized one volume. "
+                                                            "They digitised two more.")
+            repo, ws = setup(root, [({"sections/01_intro.tex": mixed}, "v2", 1_700_000_100)])
+            cfg = C.load(ws)
+            self.assertEqual(K.spelling_mode(cfg), "british")
+            cfg["genre"] = "journal"
+            C.save(ws, cfg)
+            self.assertEqual(K.spelling_mode(C.load(ws)), "consistent")
+            r, rec = self.run_one(ws, "british-english")
+            self.assertEqual(rec["result"]["mode"], "consistent")
+            self.assertEqual([i["current"] for i in rec["result"]["issues"]], ["digitized"])
+            cfg = C.load(ws)
+            cfg["target"] = {"spelling": "british"}
+            C.save(ws, cfg)
+            self.assertEqual(K.spelling_mode(C.load(ws)), "british")
+
+    def test_latex_citations_are_reconciled_across_inputs(self):
+        with TempDir() as root:
+            main = MAIN.replace(r"\input{sections/01_intro}", r"\input{sections/01_intro}" "\n" r"\input{tables/t1}")
+            bib = BIB + "@article{jones2021, title={T}, author={Jones, B.}, year={2021}, journal={J}}\n"
+            repo, ws = setup(root, [({"main.tex": main, "tables/t1.tex": r"From \citep{jones2021}." "\n",
+                                      "references.bib": bib}, "v2", 1_700_000_100)])
+            cfg = C.load(ws)
+            cfg.setdefault("inputs", {})["bib"] = "references.bib"
+            C.save(ws, cfg)
+            r, rec = self.run_one(ws, "cite-bib")
+            self.assertEqual(rec["verdict"], "ok", rec.get("summary"))
+            self.assertEqual(rec["result"]["cited_keys"], 2, "a citation in an \\input file counts")
+            commit(repo, {"sections/01_intro.tex": INTRO.replace("smith2020", "nobody1999")}, "v3", 1_700_000_200)
+            reindex(ws)
+            r, rec = self.run_one(ws, "cite-bib")
+            self.assertEqual(rec["verdict"], "findings")
+            kinds = sorted((i["kind"], i["key"]) for i in rec["result"]["issues"])
+            self.assertEqual(kinds, [("bib-not-cited", "smith2020"), ("cited-not-in-bib", "nobody1999")])
+            self.assertEqual(status(V.compute(C.load(ws), ws), "citation-style")["status"], V.NOT_APPLICABLE)
+            self.assertEqual(status(V.compute(C.load(ws), ws), "citation-style")["instead"], "cite-bib")
+
+
 if __name__ == "__main__":
     unittest.main()

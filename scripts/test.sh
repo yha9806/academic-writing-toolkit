@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (204 automated tests, labelled T2-T215: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T211-T213 venue topic and contribution type) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (207 automated tests, labelled T2-T218: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T211-T213 venue topic and contribution type) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -5752,6 +5752,107 @@ assert s["d"]["verdict"] == "rejected" and s["d"]["reason"] == "rewrote" and s["
     [ "$rc" -eq 2 ]
 }
 
+test_T216() {
+    # The prose view turns a LaTeX draft into Markdown chapters that the
+    # chapters/*.md checks can read: headings kept, citations, references,
+    # comments and environment names gone, captions fenced at the end, and a
+    # file with no prose at all is refused (exit 2).
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    cat > "$tmp/a.tex" <<'TEXEOF'
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+We survey old bridges.
+\end{abstract}
+\section{Introduction}\label{sec:intro}
+Bridges fail slowly~\cite{smith2020} (\S\ref{sec:intro}).% hidden remark
+\begin{center}
+Spans are long.
+\end{center}
+
+Inspections are rare.
+\input{sections/02_methods}
+\makeatletter\let\x@internal\relax\makeatother
+\bibliographystyle{plainstyle}
+\bibliography{refs}
+\begin{figure}[t]\caption{Cracked piers.}\end{figure}
+\begin{equation} x = y \end{equation}
+\end{document}
+TEXEOF
+    printf '%% only a comment\n' > "$tmp/empty.tex"
+    python3 .claude/skills/audit/scripts/prose-view.py --out "$tmp/v" "$tmp/a.tex" >/dev/null 2>&1 || { rm -rf "$tmp"; return 1; }
+    out=$(cat "$tmp/v/chapters/01-a.md")
+    printf '%s' "$out" | grep -q '^## Abstract$' || { rm -rf "$tmp"; return 1; }
+    printf '%s' "$out" | grep -q '^## Introduction$' || { rm -rf "$tmp"; return 1; }
+    printf '%s' "$out" | grep -q '^Bridges fail slowly\.' || { rm -rf "$tmp"; return 1; }
+    printf '%s' "$out" | grep -q '^Inspections are rare\.$' || { rm -rf "$tmp"; return 1; }
+    printf '%s' "$out" | grep -q 'Cracked piers\.' || { rm -rf "$tmp"; return 1; }
+    printf '%s' "$out" | grep -q '^```captions' || { rm -rf "$tmp"; return 1; }
+    if printf '%s' "$out" | grep -qE 'smith2020|hidden|\\|center|x = y|02_methods|refs|plainstyle|internal'; then rm -rf "$tmp"; return 1; fi
+    python3 .claude/skills/audit/scripts/prose-view.py --out "$tmp/w" "$tmp/empty.tex" >/dev/null 2>&1
+    local rc=$?
+    rm -rf "$tmp"
+    [ "$rc" -eq 2 ]
+}
+
+test_T217() {
+    # Spelling consistency: a family written both ways is reported at the
+    # rarer form; words spelt alike in both conventions (revised, advised) and
+    # a capitalised name in mid-sentence are not counted; a text that keeps to
+    # one convention passes; the default British mode is unchanged.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/mixed/chapters" "$tmp/clean/chapters"
+    printf 'We organise the survey and digitised the maps.\nThey revised and advised the Research Center on colour.\nA third volume was digitized later.\nThe catalogue grew.\n' > "$tmp/mixed/chapters/01.md"
+    printf 'We organise the survey and digitised the maps.\nThey revised the catalogue on colour.\n' > "$tmp/clean/chapters/01.md"
+    python3 scripts/audit-british-english.py --base-dir "$tmp/mixed" --mode consistent --json > "$tmp/m.json" 2>/dev/null
+    [ $? -eq 1 ] || { rm -rf "$tmp"; return 1; }
+    python3 - "$tmp/m.json" <<'PYEOF' || { rm -rf "$tmp"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+words = [i["current"] for i in d["issues"]]
+assert words == ["digitized"], words
+f = d["families"]["-ise/-ize"]
+assert (f["uk"], f["us"]) == (2, 1), f
+assert "-re/-er" not in d["families"], "a name in mid-sentence was counted"
+PYEOF
+    python3 scripts/audit-british-english.py --base-dir "$tmp/clean" --mode consistent >/dev/null 2>&1
+    [ $? -eq 0 ] || { rm -rf "$tmp"; return 1; }
+    python3 scripts/audit-british-english.py --base-dir "$tmp/mixed" --json | grep -q '"digitized"\|"organize"\|"Center"'
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
+test_T218() {
+    # Citation reconciliation follows \input into included files, reports a
+    # key cited but not defined and an entry defined but never cited, treats
+    # \nocite{*} as citing everything, and refuses an unreadable bibliography.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/tables"
+    printf '@article{alpha2020, title={A}, year={2020}}\n@article{beta2021, title={B}, year={2021}}\n@article{gamma2022, title={C}, year={2022}}\n' > "$tmp/refs.bib"
+    printf '\\documentclass{article}\\begin{document}\nSee \\citet{alpha2020} and \\cite[p.~3]{delta2023}.\n%% \\cite{gamma2022} is commented out\n\\input{tables/t1}\n\\end{document}\n' > "$tmp/main.tex"
+    printf 'Table from \\citep{beta2021}.\n' > "$tmp/tables/t1.tex"
+    (cd "$tmp" && python3 "$OLDPWD/.claude/skills/verify-refs/scripts/reconcile-cites.py" --bib refs.bib --json main.tex > r.json 2>/dev/null)
+    [ $? -eq 1 ] || { rm -rf "$tmp"; return 1; }
+    python3 - "$tmp/r.json" <<'PYEOF' || { rm -rf "$tmp"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+got = sorted((i["kind"], i["key"]) for i in d["issues"])
+assert got == [("bib-not-cited", "gamma2022"), ("cited-not-in-bib", "delta2023")], got
+assert len(d["files_read"]) == 2, d["files_read"]
+PYEOF
+    printf '\\nocite{*}\\cite{alpha2020}\n' > "$tmp/all.tex"
+    (cd "$tmp" && python3 "$OLDPWD/.claude/skills/verify-refs/scripts/reconcile-cites.py" --bib refs.bib all.tex >/dev/null 2>&1)
+    [ $? -eq 0 ] || { rm -rf "$tmp"; return 1; }
+    (cd "$tmp" && python3 "$OLDPWD/.claude/skills/verify-refs/scripts/reconcile-cites.py" --bib missing.bib main.tex >/dev/null 2>&1)
+    local rc=$?
+    rm -rf "$tmp"
+    [ "$rc" -eq 2 ]
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -5821,6 +5922,9 @@ run_test "T212 venue topic fit: a seeded sample repeats; a tally with intervals;
 run_test "T213 venue topic fit: the corpus request carries no personal data; abstracts rebuilt in order" test_T213
 run_test "T214 changed sentences: the venue's measured sentences are cached and a changed corpus is measured again" test_T214
 run_test "T215 changed sentences: author verdicts are set against the flags, and an unreadable verdict is refused" test_T215
+run_test "T216 prose view: a LaTeX draft becomes Markdown chapters the chapter checks can read" test_T216
+run_test "T217 spelling consistency: a convention written both ways is reported at the rarer form" test_T217
+run_test "T218 citation reconciliation: cited-not-defined and defined-not-cited, across \\input" test_T218
 run_test "T190 every path the README's structure block names exists on disk" test_T190
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192

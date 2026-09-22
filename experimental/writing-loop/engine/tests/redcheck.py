@@ -570,6 +570,19 @@ MUTATIONS = [
      'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
     ("risks", 'catalogue.py', '"outside": _sentence_outside,', '"outside": _venue_outside,',
      'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
+    # 读不了 LaTeX 的四项（spec awt-loop 2026-09-22-latex-coverage）：视图、整树取件、拼写模式、LaTeX 的引文替代。
+    ("latex", 'coverage.py', '            err = _write_view(ctx)\n', '            err = None\n',
+     'test_coverage.LatexCoverageTest.test_the_chapter_checks_read_a_latex_draft'),
+    ("latex", 'coverage.py', '            err = _write_view(ctx)\n', '            err = None\n',
+     'test_coverage.LatexCoverageTest.test_a_markdown_draft_outside_chapters_is_read'),
+    ("latex", 'coverage.py', '    if check.get("tree"):\n', '    if False:\n',
+     'test_coverage.LatexCoverageTest.test_latex_citations_are_reconciled_across_inputs'),
+    ("latex", 'catalogue.py', '("consistent" if cfg.get("genre") in ("journal", "conference") else "british")', '"british"',
+     'test_coverage.LatexCoverageTest.test_the_spelling_convention_follows_the_genre_unless_named'),
+    ("latex", 'catalogue.py', '"instead": {"latex": "cite-bib"}', '"instead": {"latex": None}',
+     'test_coverage.LatexCoverageTest.test_latex_citations_are_reconciled_across_inputs'),
+    ("latex", 'coverage.py', '            summary = f"{data[\'total\']} 词（{len(data[\'chapters\'])} 个文件）"', '            summary = ""',
+     'test_coverage.LatexCoverageTest.test_the_chapter_checks_read_a_latex_draft'),
 ]
 
 

@@ -325,6 +325,8 @@ def interpret(check_id, code, stdout, stderr):
             summary = f"越界 {len(out)} 项" + (f"：{', '.join(out)}" if out else "")
         elif "flagged" in data and "changed" in data:
             summary = f"改动 {data['changed']} 句，标出 {data['flagged']} 句"
+        elif "total" in data and "unit" in data and isinstance(data.get("chapters"), list):
+            summary = f"{data['total']} 词（{len(data['chapters'])} 个文件）"
         elif "hard_finding_count" in data:
             summary = f"硬错 {data['hard_finding_count']}"
         elif check_id == "notes-lint" and data and all(isinstance(v, list) for v in data.values()):
@@ -350,6 +352,12 @@ def materialize(cfg, check, head, dest, prev=None, info=None):
             return None, "git archive 失败"
         return _extract(tar, dest, {})
     inputs = check_inputs(check, cfg)
+    if check.get("tree"):
+        # A check that follows \input needs every file the draft pulls in, not only the files the glob names.
+        tar = _git(cfg["repo"], "archive", head, binary=True)
+        if tar is None:
+            return None, "git archive 失败"
+        return _extract(tar, dest, inputs)
     missing = [f"{role}={p}" for role, p in inputs.items() if _git(cfg["repo"], "cat-file", "-e", f"{head}:{p}") is None]
     if missing:
         return None, "配置的输入在 HEAD 上不存在：" + "，".join(missing)
@@ -430,6 +438,26 @@ def _extract(tar, dest, inputs):
     return inputs, None
 
 
+VIEW_DIR = ".awt-view"
+
+
+def _write_view(ctx):
+    """Write the draft's prose as Markdown chapters for the checks that read chapters/*.md (prose-view.py), into a
+    directory of its own so that a draft already under chapters/ is not read twice. Returns an error or None."""
+    if not ctx["drafts"]:
+        return "没有可读的草稿文件，正文视图无从生成"
+    view = str(Path(ctx["tmp"]) / VIEW_DIR)
+    try:
+        r = subprocess.run(K._py(ctx, "audit/prose-view.py") + ["--out", view] + ctx["drafts"], cwd=ctx["tmp"],
+                           capture_output=True, text=True, timeout=TIMEOUT)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return f"正文视图生成失败：{type(e).__name__}"
+    if r.returncode != 0:
+        return "正文视图生成失败：" + ((r.stderr or r.stdout).strip().splitlines() or ["（无输出）"])[-1][:160]
+    ctx["view"] = view
+    return None
+
+
 def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
     """Run one script check at head and record it. The record is written whatever happens, a failure included."""
     now = now or time.time()
@@ -446,7 +474,15 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
                 _record_base(rec, prev, base_info, head)
             save_run(ws, rec)
             return rec
-        ctx = {"cfg": cfg, "ws": str(ws), "tmp": tmp, "inputs": inputs, "head": head}
+        ctx = {"cfg": cfg, "ws": str(ws), "tmp": tmp, "inputs": inputs, "head": head,
+               "drafts": [p for p in draft_files(cfg, head) + (also_checked(cfg) if check["scope"]["kind"] == "all" else [])
+                          if (Path(tmp) / p).is_file()]}
+        if check.get("view"):
+            err = _write_view(ctx)
+            if err:
+                rec.update({"verdict": "failed", "summary": err, "exit": None})
+                save_run(ws, rec)
+                return rec
         argv = check["argv"](ctx)
         rec["argv"] = [a.replace(tmp, "<draft>") for a in argv]
         t0 = time.time()

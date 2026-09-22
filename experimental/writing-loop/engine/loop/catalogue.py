@@ -150,6 +150,12 @@ def _sentence_outside(cfg):
     return _venue_outside(cfg) + [str(accepted_rewrites_path(cfg))]
 
 
+def spelling_mode(cfg):
+    """consistent (either convention, never a mixture) for a journal or a conference, british otherwise, unless the
+    workspace names one in target.spelling."""
+    return get(cfg, "target.spelling") or ("consistent" if cfg.get("genre") in ("journal", "conference") else "british")
+
+
 def _literature_outside(cfg):
     lit = get(cfg, "inputs.literature")
     return [str(Path(lit).expanduser())] if lit else []
@@ -259,25 +265,37 @@ CHECKS = [
      "inputs": _none, "outside": _no_outside,
      "argv": lambda ctx: _node(ctx, "audit/audit-citation-fidelity.mjs") + ["--base-dir", ".", "--json"]},
     {"id": "citation-style", "name": "引文格式", "kind": "script", "scripts": ["scripts/audit-citations.py"],
-     "formats": ["markdown"], "instead": {"latex": None},
+     "formats": ["markdown"], "instead": {"latex": "cite-bib"},
      "scope": {"kind": "cite"}, "needs": [], "optional": _literature_optional,
      "inputs": _none, "outside": _no_outside,
      "argv": lambda ctx: _py(ctx, "scripts/audit-citations.py") + ["--base-dir", ".", "--json"]},
-    {"id": "british-english", "name": "英式拼写", "kind": "script", "scripts": ["scripts/audit-british-english.py"],
-     "formats": ["markdown"], "instead": {"latex": None},
+    # The three chapter checks read chapters/*.md; "view" has the loop write the draft there first, LaTeX or
+    # Markdown, wherever the draft lives (prose-view.py). Without it a draft outside chapters/ read as nothing.
+    {"id": "british-english", "name": "拼写", "kind": "script",
+     "scripts": ["scripts/audit-british-english.py", "audit/prose-view.py"],
+     "formats": ["markdown", "latex"], "instead": {}, "view": True,
+     "scope": {"kind": "all"}, "needs": [], "config_keys": ["target.spelling", "genre"],
+     "inputs": _none, "outside": _no_outside,
+     "argv": lambda ctx: _py(ctx, "scripts/audit-british-english.py") + ["--base-dir", ctx.get("view", "."), "--json",
+                                                                         "--mode", spelling_mode(ctx["cfg"])]},
+    {"id": "paragraph-logic", "name": "段落逻辑", "kind": "script",
+     "scripts": ["scripts/audit-logic.py", "audit/prose-view.py"],
+     "formats": ["markdown", "latex"], "instead": {}, "view": True,
      "scope": {"kind": "all"}, "needs": [],
      "inputs": _none, "outside": _no_outside,
-     "argv": lambda ctx: _py(ctx, "scripts/audit-british-english.py") + ["--base-dir", ".", "--json"]},
-    {"id": "paragraph-logic", "name": "段落逻辑", "kind": "script", "scripts": ["scripts/audit-logic.py"],
-     "formats": ["markdown"], "instead": {"latex": None},
+     "argv": lambda ctx: _py(ctx, "scripts/audit-logic.py") + ["--base-dir", ctx.get("view", "."), "--json"]},
+    {"id": "word-count", "name": "字数", "kind": "script", "scripts": ["map/count-words.mjs", "audit/prose-view.py"],
+     "formats": ["markdown", "latex"], "instead": {}, "view": True,
      "scope": {"kind": "all"}, "needs": [],
      "inputs": _none, "outside": _no_outside,
-     "argv": lambda ctx: _py(ctx, "scripts/audit-logic.py") + ["--base-dir", ".", "--json"]},
-    {"id": "word-count", "name": "字数", "kind": "script", "scripts": ["map/count-words.mjs"],
-     "formats": ["markdown"], "instead": {"latex": None},
-     "scope": {"kind": "all"}, "needs": [],
-     "inputs": _none, "outside": _no_outside,
-     "argv": lambda ctx: _node(ctx, "map/count-words.mjs") + ["--base-dir", ".", "--json"]},
+     "argv": lambda ctx: _node(ctx, "map/count-words.mjs") + ["--base-dir", ctx.get("view", "."), "--json"]},
+    # LaTeX citations come from a BibTeX file, so the check is that the two agree both ways, across every \input.
+    {"id": "cite-bib", "name": "引文对账", "kind": "script", "scripts": ["verify-refs/reconcile-cites.py"],
+     "formats": ["latex"], "instead": {"markdown": "citation-style"}, "tree": True,
+     "scope": {"kind": "cite"}, "needs": ["inputs.bib"],
+     "inputs": _bib, "outside": _no_outside,
+     "argv": lambda ctx: _py(ctx, "verify-refs/reconcile-cites.py") + ["--bib", ctx["inputs"]["bib"], "--root", ".",
+                                                                       "--json"] + ctx["drafts"]},
     {"id": "readers", "name": "读者组", "kind": "panel",
      "scripts": ["readers/build-reader-packet.py", "readers/check-reader-output.py", "readers/tally-readers.py"],
      "formats": ["latex", "markdown"], "instead": {},
