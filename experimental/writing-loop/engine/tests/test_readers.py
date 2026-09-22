@@ -81,6 +81,21 @@ class ReadersTest(unittest.TestCase):
             self.assertIn('"span": Which bridges does the survey cover?', prompt)
             self.assertIn("outside_knowledge", prompt)
 
+    def test_personas_and_questions_can_come_from_the_workspace(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            q = Path(root) / "q.tsv"
+            q.write_text("span\tWhich bridges?\n", encoding="utf-8")
+            cfg = C.load(ws)
+            cfg["target"] = {"readers": {"personas": {"R1": "a bridge engineer", "R2": "a county official"},
+                                         "questions": str(q)}}
+            C.save(ws, cfg)
+            out = Path(root) / "p"
+            self.assertEqual(script("build-reader-packet.py", "--workspace", ws, "--out", out).returncode, 0)
+            prompt = (out / "prompt_R2.txt").read_text(encoding="utf-8")
+            self.assertIn("Persona: a county official", prompt)
+            self.assertIn('"span": Which bridges?', prompt)
+
     def test_nothing_to_read_exits_2(self):
         with TempDir() as root:
             empty = Path(root) / "e.txt"

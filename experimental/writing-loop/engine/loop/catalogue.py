@@ -139,8 +139,8 @@ def _literature_outside(cfg):
 
 
 def _intent_outside(cfg):
-    card = get(cfg, "target.intent_card")
-    return [str(Path(card).expanduser())] if card else []
+    """What the panel is keyed on besides the text: the intent card and the directed questions."""
+    return [str(Path(p).expanduser()) for p in (get(cfg, "target.intent_card"), get(cfg, "target.readers.questions")) if p]
 
 
 def _notes_inputs(cfg):
@@ -237,7 +237,7 @@ CHECKS = [
      "scripts": ["readers/build-reader-packet.py", "readers/check-reader-output.py", "readers/tally-readers.py"],
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "sections", "config": "target.readers.sections", "default": ["A", "I"]},
-     "needs": ["target.intent_card"], "config_keys": ["target.readers.sections"],
+     "needs": ["target.intent_card"], "config_keys": ["target.readers.sections", "target.readers.personas"],
      "inputs": _none, "outside": _intent_outside, "argv": None},
 ]
 

@@ -83,13 +83,59 @@ def venue_corpus_problems(cfg):
     return out
 
 
+APPROVAL = re.compile(r"作者授权定稿[:：]\s*uuid\s+([0-9a-f-]{8,})")
+
+
+def _approval_in_transcripts(cfg, uuid):
+    """Whether a session transcript of this workspace carries the author's message with that uuid. The result is
+    cached per uuid in the workspace: the transcripts are large and a message's existence does not change."""
+    ws = Path(cfg["_ws"]) if cfg.get("_ws") else None
+    cache = ws / "cache" / "coverage" / "approvals.json" if ws else None
+    try:
+        known = json.loads(cache.read_text(encoding="utf-8")) if cache and cache.is_file() else {}
+    except (OSError, ValueError):
+        known = {}
+    if known.get(uuid) is True:
+        return True
+    from . import doctor
+    t = cfg.get("transcripts") or {}
+    files = list(doctor.transcript_files(cfg) or [])
+    for s in t.get("also") or []:
+        if isinstance(s, dict) and s.get("cwd_prefix"):
+            files += list(doctor.transcript_files(cfg, s["cwd_prefix"]) or [])
+    needle = f'"uuid":"{uuid}'.encode()
+    found = False
+    for f in files:
+        try:
+            with open(f, "rb") as fh:
+                for line in fh:
+                    if needle in line and b'"type":"user"' in line:
+                        found = True
+                        break
+        except OSError:
+            continue
+        if found:
+            break
+    if found and cache:
+        known[uuid] = True
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps(known), encoding="utf-8")
+    return found
+
+
 def intent_card_state(cfg):
+    """(state, path). author: the card is in the workspace's human/ folder (only the author writes there).
+    delegated: the card names the author's message that asked Claude to finalise it, and that message is in this
+    workspace's transcripts. draft: anything else."""
     card = K.get(cfg, "target.intent_card")
     if not card:
         return None, None
     p = Path(card).expanduser()
     if not p.is_file():
         return "missing", str(p)
+    m = APPROVAL.search(p.read_text(encoding="utf-8", errors="replace"))
+    if m and cfg.get("transcripts") and _approval_in_transcripts(cfg, m.group(1)):
+        return "delegated", str(p)
     human = (Path(cfg["_ws"]) / "human").resolve() if cfg.get("_ws") else None
     try:
         authored = human is not None and p.resolve().is_relative_to(human)
@@ -123,7 +169,8 @@ def describe(cfg):
         problems.append("意图卡未登记（target.intent_card）")
     elif state == "missing":
         problems.append("意图卡文件不存在")
-    card = {"author": "作者定稿", "draft": "草稿（未经作者定稿）"}.get(state, "—")
+    card = {"author": "作者定稿", "delegated": "Claude 定稿（作者授权，会话记录可查）",
+            "draft": "草稿（未经作者定稿）"}.get(state, "—")
     line = f"{venue or '未登记'} · 意图卡 {card}"
     guide = K.get(cfg, "target.guide")
     if guide and _read(cfg, guide) is None:

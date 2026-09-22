@@ -176,7 +176,12 @@ def from_workspace(ws, sections_arg):
         bibtext = r.stdout.decode("utf-8", "replace") if r.returncode == 0 else ""
     snap = V.snapshot(check, cfg, sentences, head)
     state, card = TG.intent_card_state(cfg)
-    source = {"workspace": str(Path(ws).resolve()), "commit": head, "sections": prefixes,
+    personas = K.get(cfg, "target.readers.personas")
+    if personas:
+        PERSONAS.clear()
+        PERSONAS.update(personas)
+    questions = K.get(cfg, "target.readers.questions")
+    source = {"workspace": str(Path(ws).resolve()), "commit": head, "sections": prefixes, "questions_file": questions,
               "format": V.draft_format(cfg), "venue": K.get(cfg, "target.venue"),
               "intent_card": {"path": card, "state": state,
                               "sha1": sha(Path(card).read_bytes()) if card and Path(card).is_file() else None}}
@@ -241,7 +246,7 @@ def main(argv=None):
         text = " ".join(readable(t, bib, unknown) for t, _, _ in para)
         rendered.append({"p": i, "text": text, "sids": [s for _, s, _ in para if s], "hashes": [h for _, _, h in para]})
     manuscript = "\n\n".join(f"[P{r['p']}] {r['text']}" for r in rendered)
-    questions = read_questions(a.questions)
+    questions = read_questions(a.questions or (source.get("questions_file") and str(Path(source["questions_file"]).expanduser())))
     venue = a.venue or source.get("venue") or "a journal"
     directed_block = "".join(f'- "{q["id"]}": {q["question"]}\n' for q in questions)
     directed_keys = "".join(f", {q['id']}" for q in questions)

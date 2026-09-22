@@ -231,6 +231,8 @@ def record(packet, readers, shape, hits):
     card = (src.get("intent_card") or {}).get("state")
     if card == "draft":
         summary += "（意图卡是草稿）"
+    elif card == "delegated":
+        summary += "（意图卡：作者授权 Claude 定稿）"
     rec = {"id": "readers", "commit": src.get("commit"), "at": dt.datetime.now(dt.timezone.utc).isoformat(),
            "snapshot": packet["snapshot"], "verdict": verdict, "summary": summary, "exit": None,
            "panel": {"readers": len(readers), "personas": shape[1], "models": shape[2]}}

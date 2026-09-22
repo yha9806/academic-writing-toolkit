@@ -17,6 +17,10 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
+    ("cov", 'targets.py', '    if m and cfg.get("transcripts") and _approval_in_transcripts(cfg, m.group(1)):', '    if m:',
+     'test_coverage.TargetTest.test_a_card_finalised_by_claude_on_the_authors_word_is_delegated_only_if_that_word_is_on_record'),
+    ("cov", 'skill:readers/scripts/build-reader-packet.py', '        PERSONAS.update(personas)', '        pass',
+     'test_readers.ReadersTest.test_personas_and_questions_can_come_from_the_workspace'),
     ("cov", 'coverage.py', '        inputs[f"?{role}"] = _git(cfg["repo"], "rev-parse", f"{head}:{path}")', '        pass',
      'test_coverage.Grill2Test.test_a_citation_check_reads_the_notes_and_a_run_that_read_none_fails'),
     ("cov", 'coverage.py', ' | set(optional_inputs(check, cfg, head).values()))', ')',

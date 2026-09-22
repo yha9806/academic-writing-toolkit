@@ -39,7 +39,10 @@ report.
    a placeholder.
 
 2. Open the readers as sub-agents: two personas (`prompt_R1.txt`, `prompt_R2.txt`) × two models (a small and a
-   larger one) × two samples = eight. Give each sub-agent the prompt file's content verbatim and nothing else. Save
+   larger one) × samples per cell. Eight (two samples) is the floor and shows only large differences; use sixteen
+   (four samples) whenever the question is how many readers carried a given point, since a cell repeated on the
+   same text agrees only moderately with itself. Personas and directed questions can live in the loop workspace
+   (`target.readers.personas`, `target.readers.questions`) so every run asks the same thing. Give each sub-agent the prompt file's content verbatim and nothing else. Save
    each reply unedited as `<dir>/outputs/<persona>_<model>_<n>.json`, e.g. `R1_haiku_1.json`. Each reply carries
    the packet id the prompt names; a reply for another packet, or a copy of another reply, is rejected. Rebuild the
    packet into a new directory for a new version rather than over an old one.

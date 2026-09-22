@@ -684,6 +684,21 @@ class TargetTest(unittest.TestCase):
             own.write_text("M1", encoding="utf-8")
             self.assertEqual(TG.intent_card_state(self.cfg(root, intent_card=str(own)))[0], "author")
 
+    def test_a_card_finalised_by_claude_on_the_authors_word_is_delegated_only_if_that_word_is_on_record(self):
+        from fixtures import make_transcripts
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            make_transcripts(root, cfg["transcripts"]["cwd_prefix"], cfg["transcripts"]["git_branch"],
+                             [{"type": "user", "uuid": "abcdef12-0000-4000-8000-000000000001", "timestamp": "2026-09-22T00:00:00Z",
+                               "message": {"role": "user", "content": "最后你来定稿，然后跑"}}])
+            card = Path(root) / "card.md"
+            card.write_text("# card\n作者授权定稿：uuid abcdef12-0000-4000-8000-000000000001\nM1\n", encoding="utf-8")
+            cfg["target"] = {"intent_card": str(card)}
+            self.assertEqual(TG.intent_card_state(cfg)[0], "delegated")
+            card.write_text("# card\n作者授权定稿：uuid deadbeef-0000-4000-8000-000000000009\nM1\n", encoding="utf-8")
+            self.assertEqual(TG.intent_card_state(cfg)[0], "draft", "a uuid that is not on record authorises nothing")
+
     def test_experiments_without_a_disposition_or_past_review_are_listed(self):
         with TempDir() as root:
             e = Path(root) / "experiments"
