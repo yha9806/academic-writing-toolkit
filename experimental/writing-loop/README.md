@@ -47,6 +47,37 @@ A workspace is any directory holding `config.json` plus `human/`, `model/`, `ind
 
 Field names are the ones the runtime sends (read from the Claude Code binary, 2.1.252), not the documentation's. A payload that lacks the field its event needs is recorded in `health.json` as a hook error, so a renamed field shows up instead of silently doing nothing.
 
+## Open gates and strategic risks
+
+Every check above reads the text. None of them can tell whether the evidence is enough for the venue, or whether a
+decision the whole paper depends on has been taken. Those live in a register that the workspace's `config.json`
+names as `risks` (a path to a Markdown file). Each item is a level-two heading with four fields:
+
+```
+## 门 G0 First venue: go, reframe or kill
+来源：planning document, section 3
+消除它的证据：the three judgments and the author's decision
+由哪个门决定：G0
+状态：未决
+
+## 风险 R1 Evidence smaller than every comparator
+来源：mock review, strike 3
+消除它的证据：the same audit on a second, independent source
+由哪个门决定：G0
+规模：我们 12 · 同类 40、95 · 单位 queries
+状态：未决
+```
+
+- Every open item leads the per-turn line (`未决 N：…`), before any check result, and `coverage.pending(summary)`
+  returns them as rows for the notch. They are not check statuses and are not counted as checks to run.
+- An item is decided only by `状态：已决 <YYYY-MM-DD> <decision> — 作者 uuid <uuid>`, where the uuid is the author's
+  message in this workspace's transcripts. A uuid that is not on record, or a message that is not the author's,
+  decides nothing. A register kept under the workspace's `human/` folder is the author's own and needs no uuid.
+- A `规模` line whose own number is below every comparator is said on every turn, decided or not: a decision does
+  not change the numbers.
+- A missing field, an unreadable status, a register that cannot be read or holds no item: each is shown, never
+  taken for "no risks". Editing the register marks the coverage summary stale.
+
 ## What it does not do
 
 - It reads committed versions only. Uncommitted edits in the working tree are not seen.

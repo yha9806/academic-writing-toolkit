@@ -3,6 +3,7 @@
 
     python3 audit-sentence-changes.py --target <file or dir> --base <file or dir> [--baseline <dir>] [--json]
     python3 audit-sentence-changes.py --pairs <tsv with columns id, old, new> [--baseline <dir>] [--json]
+    (a pairs file may add the columns verdict and reason once the author has read the rewrites)
     (either form: --venue-cache <file> keeps the venue's measured sentences between runs)
 
 audit-prose-fingerprint.py and audit-prose-structure.py measure a whole document: rates per 1,000 words and
@@ -50,7 +51,10 @@ a draft after the edit; the writing loop runs it against the last version at whi
 
 The thresholds (three words, two prepositions, the 75th and 90th percentiles) were set against one real round: a
 handful of rewrites an author rejected for adding length, clauses, modifiers and punctuation, and a few dozen changes
-the author accepted. That is the data they were fitted on, not a test of them. The flags are prompts to re-read a sentence, not targets: a revision
+the author accepted. That is the data they were fitted on, not a test of them. The test is a later round: give the
+pairs file a verdict column (accepted or rejected, as the author decided; revised counts as rejected, empty as not
+yet judged) and a reason column, and the report sets the flags against the verdicts, naming the script by its hash
+so that the thresholds that judged are the ones frozen before the round. The flags are prompts to re-read a sentence, not targets: a revision
 may need a clause to stay faithful to its source, and then the flag is the reason to check that it earns it.
 
 Exit: 0 no changed sentence is flagged (including no change at all, reported as such); 1 at least one flagged;
@@ -461,7 +465,13 @@ def prose(cell):
     return re.sub(r"\s+", " ", cell).strip()
 
 
+VERDICTS = {"accepted": "accepted", "accept": "accepted", "kept": "accepted", "接受": "accepted", "留": "accepted",
+            "保留": "accepted", "rejected": "rejected", "reject": "rejected", "revised": "rejected",
+            "退回": "rejected", "拒": "rejected", "不要": "rejected", "改掉": "rejected", "作者改": "rejected"}
+
+
 def read_pairs(path):
+    """[(id, old sentences, new sentences, verdict, reason)]. verdict is accepted, rejected or None (not judged)."""
     rows = []
     with open(path, newline="", encoding="utf-8") as fh:
         reader = csv.reader(fh, delimiter="\t", quoting=csv.QUOTE_NONE)
@@ -469,16 +479,23 @@ def read_pairs(path):
         if not header or not {"id", "old", "new"} <= {h.strip() for h in header}:
             die(f"{path}: the header must name the columns id, old, new (tab-separated)")
         col = {h.strip(): i for i, h in enumerate(header)}
+        for alias, name in (("作者裁定", "verdict"), ("原因", "reason")):
+            if alias in col and name not in col:
+                col[name] = col[alias]
         for n, r in enumerate(reader, start=2):
             if not any(c.strip() for c in r):
                 continue
             if len(r) > len(header):
                 die(f"{path}:{n}: {len(r)} cells where the header has {len(header)} (a tab inside a cell?)")
-            get = lambda k: r[col[k]] if col[k] < len(r) else ""
+            get = lambda k: r[col[k]] if k in col and col[k] < len(r) else ""  # noqa: E731
+            raw = get("verdict").strip().lower()
+            if raw and raw not in VERDICTS:
+                die(f"{path}:{n}: verdict {get('verdict')!r} is not one of accepted, rejected, revised (or empty)")
             new = prose(get("new"))
             if new:
                 old = prose(get("old"))
-                rows.append((get("id"), sentences(old) if old else [], sentences(new) or [new]))
+                rows.append((get("id"), sentences(old) if old else [], sentences(new) or [new],
+                             VERDICTS.get(raw), get("reason").strip() or None))
     return rows
 
 
@@ -615,6 +632,19 @@ def judge(olds, news, venue):
             "flags": sorted(set(flags), key=flags.index), "pieces": len(news), "olds": len(olds)}
 
 
+def verdict_table(results):
+    """The flags set against the author's verdicts, and which version of this script (its thresholds) set them."""
+    import hashlib
+    t = {"judged": 0, "flagged_rejected": 0, "flagged_accepted": 0, "unflagged_rejected": 0, "unflagged_accepted": 0,
+         "script": hashlib.sha256(Path(__file__).resolve().read_bytes()).hexdigest()}
+    for r in results:
+        v = r.get("verdict")
+        if v:
+            t["judged"] += 1
+            t[("flagged_" if r["flags"] else "unflagged_") + v] += 1
+    return t
+
+
 def main():
     ap = argparse.ArgumentParser(description="Check rewritten sentences one by one.")
     ap.add_argument("--target")
@@ -627,6 +657,7 @@ def main():
     global FP
     fp = FP = fingerprint()
     removed = 0
+    verdicts = {}
     if a.pairs:
         if a.target or a.base:
             die("give --pairs, or --target with --base, not both")
@@ -635,7 +666,8 @@ def main():
         rows = read_pairs(a.pairs)
         if not rows:
             die(f"{a.pairs} holds no rewritten sentence")
-        changes = [(rid, old, new) for rid, old, new in rows if norm(" ".join(old)) != norm(" ".join(new))]
+        verdicts = {rid: (v, why) for rid, _, _, v, why in rows}
+        changes = [(rid, old, new) for rid, old, new, _, _ in rows if norm(" ".join(old)) != norm(" ".join(new))]
         compared = {"pairs": len(rows)}
     else:
         if not (a.target and a.base):
@@ -653,6 +685,8 @@ def main():
     for where, olds, news in changes:
         r = judge(olds, news, venue)
         r["where"] = where
+        if where in verdicts:
+            r["verdict"], r["reason"] = verdicts[where]
         results.append(r)
     flagged = [r for r in results if r["flags"]]
     kinds = Counter(r["kind"] for r in results)
@@ -666,6 +700,7 @@ def main():
                       "p75": {k: at(venue["columns"][k], ADDITION_PCT) for k in ("words",) + DENSITY}}
                      if venue else None),
            "limits": LIMITS,
+           "verdicts": verdict_table(results) if verdicts else None,
            "sentences": results,
            "issues": [{"where": r["where"], "flags": r["flags"], "added": r["added"], "new": r["new"]}
                       for r in flagged]}
@@ -691,6 +726,11 @@ def main():
             print(f"  now: {r['new']}")
         if not results:
             print("no sentence changed")
+        vt = out["verdicts"]
+        if vt:
+            print(f"\nauthor verdicts on {vt['judged']} of {len(results)} changed sentences (script {vt['script'][:12]}): "
+                  f"flagged and rejected {vt['flagged_rejected']}, flagged but kept {vt['flagged_accepted']}, "
+                  f"not flagged but rejected {vt['unflagged_rejected']}, not flagged and kept {vt['unflagged_accepted']}")
         print(f"\n{LIMITS}")
     sys.exit(1 if flagged else 0)
 

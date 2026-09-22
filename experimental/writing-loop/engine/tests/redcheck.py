@@ -526,6 +526,34 @@ MUTATIONS = [
      'test_overview.BuildLagTest.test_the_cell_says_how_many_commits_since_the_build'),
     ("gaps", 'health.py', '    return _unacked(load(ws), "guard_denied")', '    return [e for e in load(ws).get("events", []) if e.get("kind") == "guard_denied"]',
      'test_health.NotchCountsTest.test_refused_writes_and_overrides_are_counted_per_event_and_an_ack_clears_them'),
+    # 未决风险与门（spec awt-loop 2026-09-22-risk-register）：作者的决定必须在记录里、未决排在最前、规模不看决定。
+    ("risks", 'targets.py', '        elif cfg.get("transcripts") and _approval_in_transcripts(cfg, uuid):', '        elif True:',
+     'test_coverage.RiskRegisterTest.test_a_decision_counts_only_when_the_authors_message_is_on_record'),
+    ("risks", 'targets.py', "            item[\"detail\"] = \"写了已决，但没指向作者的消息（uuid）\"\n            out[\"open\"].append(item)",
+     "            out[\"decided\"].append(item)",
+     'test_coverage.RiskRegisterTest.test_a_register_the_author_keeps_under_human_needs_no_uuid'),
+    ("risks", 'targets.py', '        out["problems"].append(f"台账里没有一项', '        (lambda *a: None)(f"台账里没有一项',
+     'test_coverage.RiskRegisterTest.test_a_block_missing_a_field_or_an_unreadable_register_is_shown'),
+    ("risks", 'coverage.py', '    open_ = pending(summary)\n', '    open_ = []\n',
+     'test_coverage.RiskRegisterTest.test_open_items_lead_the_line_and_stay_out_of_the_check_counts'),
+    ("risks", 'coverage.py', '    small = below(summary)\n', '    small = []\n',
+     'test_coverage.RiskRegisterTest.test_evidence_below_its_comparators_is_said_even_after_a_decision'),
+    ("risks", 'coverage.py', '        rows.append(["_risks", _stat_sig(Path(cfg["risks"]).expanduser())])', '        pass',
+     'test_coverage.RiskRegisterTest.test_editing_the_register_makes_the_summary_stale'),
+    ("risks", 'targets.py', '    register = re.sub(r"(?ms)^```.*?^```", "", raw)  # an item quoted as an example is not an item', '    register = raw',
+     'test_coverage.RiskRegisterTest.test_a_block_missing_a_field_or_an_unreadable_register_is_shown'),
+    # 测试隔离（spec awt-loop 2026-09-22-rewrite-gates D）：换掉 HOME、拦住真实家目录，各自拿掉必须变红。
+    ("iso", 'engine/tests/isolation.py', '    sys.addaudithook(_hook)\n', '    pass\n',
+     'test_isolation.IsolationTest.test_opening_the_real_home_fails_in_the_test_that_did_it'),
+    ("iso", 'engine/tests/isolation.py', '    os.environ["HOME"] = FAKE_HOME\n', '    pass\n',
+     'test_isolation.IsolationTest.test_home_is_a_throwaway_directory'),
+    ("iso", 'engine/tests/isolation.py', '    return not any(p == a or p.startswith(a + os.sep) for a in ALLOWED)',
+     '    return False', 'test_isolation.IsolationTest.test_this_checkout_the_interpreter_and_named_paths_stay_readable'),
+    # 已接受的标出句在提交后的运行里也算数、基准前移；台账一改，上次运行即过期。
+    ("risks", 'coverage.py', '        _apply_acceptances(rec, cfg)\n', '        pass\n',
+     'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
+    ("risks", 'catalogue.py', '"outside": _sentence_outside,', '"outside": _venue_outside,',
+     'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
 ]
 
 

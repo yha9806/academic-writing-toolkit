@@ -136,6 +136,20 @@ def _venue_outside(cfg):
     return out
 
 
+ACCEPTED_DEFAULT = ".awt-accepted-rewrites.tsv"
+
+
+def accepted_rewrites_path(cfg):
+    """The ledger of flagged sentences the author accepted (key, reason, who, sentence), in the manuscript repository:
+    read in place by the changed-sentence audit's committed runs and by the rewrite gates."""
+    return Path(cfg["repo"]) / (get(cfg, "draft.accepted_rewrites") or ACCEPTED_DEFAULT)
+
+
+def _sentence_outside(cfg):
+    # An acceptance changes what the last run means: the ledger is read in place, so editing it makes the run stale.
+    return _venue_outside(cfg) + [str(accepted_rewrites_path(cfg))]
+
+
 def _literature_outside(cfg):
     lit = get(cfg, "inputs.literature")
     return [str(Path(lit).expanduser())] if lit else []
@@ -229,7 +243,7 @@ CHECKS = [
     {"id": "sentence-changes", "name": "改句结构", "kind": "script", "scripts": ["audit/audit-sentence-changes.py"],
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "all"}, "needs": [], "config_keys": ["draft.base_ref", "target.venue"],
-     "inputs": _none, "outside": _venue_outside, "base": _base_ref, "argv": _sentence_changes_argv},
+     "inputs": _none, "outside": _sentence_outside, "base": _base_ref, "argv": _sentence_changes_argv},
     {"id": "verify-refs", "name": "参考文献条目", "kind": "script", "scripts": ["verify-refs/verify-refs.py"],
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "none"}, "needs": ["inputs.bib"],

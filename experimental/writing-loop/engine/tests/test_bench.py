@@ -1,6 +1,8 @@
 """`loop bench` runs end to end through the hook path; the timing targets themselves are not asserted here."""
 import unittest
 
+import isolation  # noqa: F401  (a throwaway HOME; see isolation.py)
+
 from loop import bench as B
 
 

@@ -37,6 +37,9 @@ NOT_APPLICABLE = "不适用"
 WAIVED = "已豁免"
 FAILED = "失败"
 ATTENTION = (STALE, NEVER, MISSING, FAILED)
+# Not a check's status: an open gate or strategic risk from the workspace's register (targets.risks). Kept out of
+# ATTENTION so it is never counted as a check to run; shown ahead of every check in the per-turn line instead.
+PENDING = "未决"
 TIMEOUT = 60
 SCHEMA = 1
 
@@ -467,10 +470,30 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
         except OSError as e:
             rec.update({"exit": None, "verdict": "failed", "summary": f"起不来：{e}"})
         rec["seconds"] = round(time.time() - t0, 2)
+    if check.get("base") and rec.get("verdict") == "findings":
+        _apply_acceptances(rec, cfg)
     if check.get("base"):
         _record_base(rec, prev, base_info, head)
     save_run(ws, rec)
     return rec
+
+
+def _apply_acceptances(rec, cfg):
+    """A flagged sentence the author accepted (a row with a reason in the ledger, for this exact wording) no longer
+    holds the run: when every flag is accepted the run is clean and the base moves on, as it does at the end of a
+    turn. The summary says how many were accepted, so an acceptance is never mistaken for a sentence that passed."""
+    issues = (rec.get("result") or {}).get("issues") or []
+    if not issues:
+        return
+    acc = accepted(cfg)
+    keys = [sentence_key(i.get("new")) for i in issues]
+    ok = [k for k in keys if k in acc]
+    if not ok:
+        return
+    rec["accepted"] = ok
+    rec["summary"] = (rec.get("summary") or "") + f"，已接受 {len(ok)} 句"
+    if len(ok) == len(keys):
+        rec["verdict"] = "ok"
 
 
 BASE_WHY = {"clean": "上次无标出", "pin": "base_ref", "parent": "上一提交", "head": "当前提交"}
@@ -574,6 +597,7 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
                "config_waivers_ignored": sorted((cfg.get("waive") or {}).keys()),
                "target": TG.describe(cfg),
                "experiments": TG.experiments(cfg),
+               "risks": TG.risks(cfg),
                "unwired": [{"script": k, "reason": v} for k, v in sorted(K.UNWIRED.items())]}
     d = Path(ws) / "cache" / "coverage"
     d.mkdir(parents=True, exist_ok=True)
@@ -604,6 +628,8 @@ def fingerprint(cfg, ws):
     rows = [[c["id"], script_hash(c), config_hash(c, cfg), [_stat_sig(p) for p in c["outside"](cfg)]]
             for c in K.all_checks(cfg)]
     rows.append(["_waivers", sorted(waivers(ws).items())])
+    if cfg.get("risks"):
+        rows.append(["_risks", _stat_sig(Path(cfg["risks"]).expanduser())])
     return _sha(json.dumps(rows, ensure_ascii=False, default=str))
 
 
@@ -668,6 +694,26 @@ def findings(summary):
     return [r for r in summary["rows"] if r["status"] == OK and r.get("verdict") == "findings"]
 
 
+def pending(summary):
+    """Open gates and strategic risks, as rows (status 未决): what the author has not decided yet. A register that
+    cannot be read, or holds no item, is itself a row, so an unreadable register never reads as "no risks"."""
+    r = (summary or {}).get("risks") or {}
+    out = [{"id": "_risks", "name": "风险台账", "status": PENDING, "detail": p} for p in r.get("problems") or []]
+    return out + [{"id": i["id"], "name": f"{i['kind']} {i['id']} {i['title']}", "status": PENDING,
+                   "detail": i.get("detail") or "", "gate": i.get("gate") or ""} for i in r.get("open") or []]
+
+
+def below(summary):
+    """Evidence smaller than every comparator the register names. A fact, not a decision: shown until the numbers
+    change, whatever was decided about it."""
+    return ((summary or {}).get("risks") or {}).get("below") or []
+
+
+def _least(b):
+    """「同类最少 40」only when there is more than one comparator: with one, "least" claims a range it does not have."""
+    return f"同类最少 {b['least']}" if b.get("comparators", 2) > 1 else f"同类 {b['least']}"
+
+
 def _short(text, limit=28):
     """The first clause of a detail, never cut inside a word or a config key."""
     first = re.split(r"[；;：:]", text or "", maxsplit=1)[0].strip()
@@ -688,6 +734,17 @@ def reminder_line(summary, ws):
     rows = attention(summary)
     t, e = summary.get("target") or {}, summary.get("experiments") or {}
     bits = []
+    # Undecided gates and risks first: they decide whether the rest of the work is worth doing, and the line is cut
+    # from the end.
+    open_ = pending(summary)
+    if open_:
+        bits.append(f"{PENDING} {len(open_)}：" + "、".join(
+            f"{_short(r['name'], 24)}（{_short(r['detail'], 24)}）" if r["detail"] else _short(r["name"], 24)
+            for r in open_))
+    small = below(summary)
+    if small:
+        bits.append("规模 " + "、".join(f"{b['kind']} {b['id']}：我们 {b['ours']} < {_least(b)}"
+                                        + (f"（{b['unit']}）" if b.get("unit") else "") for b in small))
     for status in (FAILED, STALE, NEVER, MISSING):
         xs = [_name(r) for r in rows if r["status"] == status]
         if xs:
@@ -707,9 +764,9 @@ def reminder_line(summary, ws):
                     + "、".join(summary["config_waivers_ignored"]))
     if t.get("problems"):
         bits.append("目标档案：" + "；".join(t["problems"]))
-    pending = (e.get("undisposed") or []) + (e.get("overdue") or []) + (e.get("promoted_missing") or [])
-    if pending:
-        bits.append(f"原型待处置 {len(pending)}（{'、'.join(pending[:3])}）")
+    waiting = (e.get("undisposed") or []) + (e.get("overdue") or []) + (e.get("promoted_missing") or [])
+    if waiting:
+        bits.append(f"原型待处置 {len(waiting)}（{'、'.join(waiting[:3])}）")
     if not bits:
         return None
     line = f"覆盖（{(summary.get('head') or '')[:7]}）：" + "；".join(bits)
@@ -752,6 +809,14 @@ def table(summary, ws):
         last = f" · 上次 {r['last_commit']}" if r.get("last_commit") else ""
         res = f" · {r['result']}" if r.get("result") and r["status"] == STALE else ""
         lines.append(f"  {r['status']:<4} {r['name']:<{w}} {r.get('detail', '')}{last}{res}".rstrip())
+    rk = summary.get("risks")
+    if rk:
+        lines.append(f"未决（{rk['path']}）：" + ("无" if not pending(summary) else ""))
+        lines += [f"  {PENDING}   {r['name']}  {r['detail']}".rstrip() for r in pending(summary)]
+        lines += [f"  已决   {i['kind']} {i['id']} {i['title']}  {i['decided_on']} {i.get('decision') or ''}".rstrip()
+                  for i in rk.get("decided") or []]
+        lines += [f"  规模   {b['kind']} {b['id']}：我们 {b['ours']} < {_least(b)} {b.get('unit') or ''}".rstrip()
+                  for b in below(summary)]
     t = summary.get("target") or {}
     lines.append("目标档案：" + ("；".join(t["problems"]) if t.get("problems") else (t.get("line") or "—")))
     e = summary.get("experiments")
@@ -775,7 +840,7 @@ def table(summary, ws):
 
 # ---------------------------------------------------------------- the working tree, between commits
 
-ACCEPTED_DEFAULT = ".awt-accepted-rewrites.tsv"
+ACCEPTED_DEFAULT = K.ACCEPTED_DEFAULT
 
 
 def sentence_key(text):
@@ -785,7 +850,7 @@ def sentence_key(text):
 
 
 def accepted_path(cfg):
-    return Path(cfg["repo"]) / (K.get(cfg, "draft.accepted_rewrites") or ACCEPTED_DEFAULT)
+    return K.accepted_rewrites_path(cfg)
 
 
 def accepted(cfg):

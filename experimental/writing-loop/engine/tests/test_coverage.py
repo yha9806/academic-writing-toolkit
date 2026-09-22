@@ -699,6 +699,36 @@ class RealCheckTest(unittest.TestCase):
                 self.assertEqual(rec["verdict"], "ok", rec["summary"])
                 self.assertEqual(rec["clean_head"], git(repo, "rev-parse", "HEAD"))
 
+    def test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base(self):
+        # The acceptance ledger released the turn but not the committed run: an accepted sentence stayed "flagged" in
+        # every per-turn line and held the base where it was, so every later round was read against an old version.
+        with TempDir() as root:
+            plain = INTRO.replace("Inspections are rare.", "Inspections are few.")
+            repo, ws = setup(root, [({"sections/01_intro.tex": plain}, "v2", 1_700_000_100)])
+            with Probe(K.by_id("sentence-changes")):
+                V.compute(C.load(ws), ws, do_run=True)
+                v2 = git(repo, "rev-parse", "HEAD")
+                bad = plain.replace("Inspections are few.", "Inspections, which the county still schedules, are few.")
+                commit(repo, {"sections/01_intro.tex": bad}, "v3", 1_700_000_200)
+                reindex(ws)
+                cfg = C.load(ws)
+                V.compute(cfg, ws, do_run=True)
+                rec = V.load_run(ws, "sentence-changes")
+                self.assertEqual((rec["verdict"], rec["clean_head"]), ("findings", v2), rec["summary"])
+                key = V.sentence_key(rec["result"]["issues"][0]["new"])
+                V.accepted_path(cfg).write_text(f"{key}\t\tauthor\t…\n", encoding="utf-8")
+                V.compute(cfg, ws, do_run=True)
+                self.assertEqual(V.load_run(ws, "sentence-changes")["verdict"], "findings", "a row without a reason accepts nothing")
+                V.accepted_path(cfg).write_text(f"{key}\tthe schedule is the finding\tauthor\t…\n", encoding="utf-8")
+                self.assertEqual(status(V.compute(cfg, ws), "sentence-changes")["status"], V.STALE,
+                                 "a new acceptance makes the last run stale")
+                V.compute(cfg, ws, do_run=True)
+                rec = V.load_run(ws, "sentence-changes")
+                self.assertEqual(rec["verdict"], "ok", rec["summary"])
+                self.assertIn("已接受 1", rec["summary"])
+                self.assertEqual(rec["clean_head"], git(repo, "rev-parse", "HEAD"))
+                self.assertEqual(rec["accepted"], [key])
+
     def test_an_uncommitted_rewrite_is_read_and_holds_the_turn_until_fixed_or_accepted(self):
         # About two thirds of one session's writes to a draft went through scripts run in a shell, which a gate on the
         # editor tools never sees. The working tree is read instead, whatever wrote it, and before any commit.
@@ -869,6 +899,154 @@ class TargetTest(unittest.TestCase):
             self.assertEqual(got["overdue"], ["c"])
             self.assertEqual(got["in_progress"], [["d", "2026-10-30"]])
             self.assertEqual(got["undisposed"], ["e", "f"])
+
+
+
+REGISTER = """# 待决项
+
+## 门 G0 首站去留
+来源：规划文档第 3 节
+消除它的证据：三判断与作者的去留裁定
+由哪个门决定：门 G0
+状态：未决
+
+## 风险 R1 样本太小
+- **来源**：模拟审稿第 3 条
+- **消除它的证据**：第二个独立来源上的同一审计
+- **由哪个门决定**：门 G0
+- **规模**：我们 12 · 同类 40、95 · 单位 查询
+- **状态**：未决
+"""
+UUID = "abcdef12-0000-4000-8000-0000000000aa"
+
+
+class RiskRegisterTest(unittest.TestCase):
+    """Known strategic risks and open gates are said every turn, ahead of the checks, until the author decides."""
+
+    def ws_with(self, root, text, where=None):
+        repo, ws = setup(root)
+        cfg = C.load(ws)
+        path = Path(where or (Path(root) / "risks.md"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        cfg["risks"] = str(path)
+        C.save(ws, cfg)
+        return C.load(ws), ws, path
+
+    def on_record(self, root, cfg, uuid=UUID, kind="user"):
+        from fixtures import make_transcripts
+        make_transcripts(root, cfg["transcripts"]["cwd_prefix"], cfg["transcripts"]["git_branch"],
+                         [{"type": kind, "uuid": uuid, "timestamp": "2026-09-22T00:00:00Z",
+                           "message": {"role": kind, "content": "按默认做"}}])
+
+    def test_open_items_lead_the_line_and_stay_out_of_the_check_counts(self):
+        with TempDir() as root:
+            cfg, ws, _ = self.ws_with(root, REGISTER)
+            with Probe(probe_check(root)):
+                s = V.compute(cfg, ws)
+                line = V.reminder_line(s, ws)
+                self.assertIn("未决 2", line)
+                self.assertIn("门 G0", line)
+                self.assertIn("风险 R1", line)
+                self.assertLess(line.index("未决 2"), line.index("从未运行"), "open decisions come before check results")
+                self.assertEqual([r["status"] for r in V.pending(s)], [V.PENDING, V.PENDING])
+                self.assertNotIn(V.PENDING, V.ATTENTION)
+                self.assertTrue(all(r["status"] != V.PENDING for r in V.attention(s)))
+                self.assertIn("门 G0", V.table(s, ws))
+
+    def test_open_items_survive_a_long_line(self):
+        with TempDir() as root:
+            cfg, ws, _ = self.ws_with(root, REGISTER)
+            rows = [{"id": f"c{i}", "name": "检查" * 20 + str(i), "status": V.STALE, "detail": "改了"} for i in range(12)]
+            s = V.compute(cfg, ws)
+            s["rows"] = rows
+            self.assertIn("风险 R1", V.reminder_line(s, ws))
+
+    def test_a_decision_counts_only_when_the_authors_message_is_on_record(self):
+        with TempDir() as root:
+            text = REGISTER.replace("状态：未决\n\n## 风险", f"状态：已决 2026-09-23 Reframe — 作者 uuid {UUID}\n\n## 风险")
+            cfg, ws, _ = self.ws_with(root, text)
+            s = V.compute(cfg, ws)
+            g0 = next(r for r in V.pending(s) if "G0" in r["name"])
+            self.assertIn("查不到", g0["detail"], "a uuid that is not on record decides nothing")
+            self.on_record(root, cfg, kind="assistant")
+            s = V.compute(cfg, ws)
+            self.assertTrue(any("G0" in r["name"] for r in V.pending(s)), "Claude's own message is not the author's")
+            self.on_record(root, cfg)
+            s = V.compute(cfg, ws)
+            self.assertFalse(any("G0" in r["name"] for r in V.pending(s)))
+            self.assertEqual([d["id"] for d in s["risks"]["decided"]], ["G0"])
+            self.assertIn("未决 1", V.reminder_line(s, ws))
+
+    def test_a_register_the_author_keeps_under_human_needs_no_uuid(self):
+        with TempDir() as root:
+            text = REGISTER.replace("状态：未决\n\n## 风险", "状态：已决 2026-09-23 Go\n\n## 风险")
+            cfg, ws, _ = self.ws_with(root, text)
+            self.assertTrue(any("G0" in r["name"] for r in V.pending(V.compute(cfg, ws))))
+            b = Path(root) / "b"
+            cfg, ws, _ = self.ws_with(b, text, where=b / "ws" / "human" / "risks.md")
+            self.assertFalse(any("G0" in r["name"] for r in V.pending(V.compute(cfg, ws))))
+
+    def test_a_block_missing_a_field_or_an_unreadable_register_is_shown(self):
+        with TempDir() as root:
+            cfg, ws, path = self.ws_with(root, REGISTER.replace("消除它的证据：三判断与作者的去留裁定\n", ""))
+            s = V.compute(cfg, ws)
+            g0 = next(r for r in V.pending(s) if "G0" in r["name"])
+            self.assertIn("缺 消除它的证据", g0["detail"])
+            path.write_text("## 门 G0 x\n来源：a\n消除它的证据：b\n由哪个门决定：c\n状态：大概好了\n", encoding="utf-8")
+            self.assertIn("状态读不懂", V.pending(V.compute(cfg, ws))[0]["detail"])
+            path.write_text("```\n## 门 G9 示例\n状态：未决\n```\n", encoding="utf-8")
+            s = V.compute(cfg, ws)
+            self.assertIn("没有一项", V.reminder_line(s, ws), "a register with nothing parseable is not 'no risks'")
+            path.unlink()
+            s = V.compute(cfg, ws)
+            self.assertIn("台账读不到", V.reminder_line(s, ws))
+
+    def test_evidence_below_its_comparators_is_said_even_after_a_decision(self):
+        with TempDir() as root:
+            text = REGISTER.replace("- **状态**：未决", f"- **状态**：已决 2026-09-23 Go — 作者 uuid {UUID}")
+            cfg, ws, _ = self.ws_with(root, text)
+            self.on_record(root, cfg)
+            s = V.compute(cfg, ws)
+            self.assertFalse(any("R1" in r["name"] for r in V.pending(s)))
+            line = V.reminder_line(s, ws)
+            self.assertIn("规模", line)
+            self.assertIn("12 < 同类最少 40", line)
+            cfg2, ws2, _ = self.ws_with(Path(root) / "b", text.replace("我们 12", "我们 60"))
+            self.assertNotIn("同类最少", V.reminder_line(V.compute(cfg2, ws2), ws2) or "")
+            cfg3, ws3, _ = self.ws_with(Path(root) / "c", text.replace("同类 40、95", "同类 40"))
+            line = V.reminder_line(V.compute(cfg3, ws3), ws3)
+            self.assertIn("12 < 同类 40", line)
+            self.assertNotIn("最少", line, "one comparator is not a range")
+
+    def test_editing_the_register_makes_the_summary_stale(self):
+        with TempDir() as root:
+            cfg, ws, path = self.ws_with(root, REGISTER)
+            V.compute(cfg, ws)
+            self.assertFalse(V.load_summary(ws, cfg).get("stale_inputs"))
+            path.write_text(REGISTER + "\n## 风险 R2 另一条\n来源：a\n消除它的证据：b\n由哪个门决定：c\n状态：未决\n",
+                            encoding="utf-8")
+            self.assertTrue(V.load_summary(ws, cfg).get("stale_inputs"))
+
+    def test_the_readme_example_is_a_register_the_parser_reads(self):
+        import re as _re
+        readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+        sec = readme.split("## Open gates and strategic risks", 1)[1]
+        example = _re.search(r"```\n(.*?)```", sec, _re.S).group(1)
+        with TempDir() as root:
+            cfg, ws, _ = self.ws_with(root, example)
+            s = V.compute(cfg, ws)
+            self.assertEqual([r["name"].split()[1] for r in V.pending(s)], ["G0", "R1"])
+            self.assertEqual(s["risks"]["problems"], [])
+            self.assertIn("12 < 同类最少 40", V.reminder_line(s, ws))
+
+    def test_no_register_configured_says_nothing(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            s = V.compute(cfg, ws)
+            self.assertIsNone(s.get("risks"))
+            self.assertEqual(V.pending(s), [])
 
 
 if __name__ == "__main__":

@@ -255,6 +255,13 @@ the scope in other words; `technique` passed both.
    it, and re-run until nothing is flagged or each remaining flag is one you
    can defend. Show the author the rewrites only after that.
 
+   Keep the file after the author has read it, with two more columns:
+   `verdict` (accepted, or rejected; revised counts as rejected; empty while
+   not judged) and `reason`. Run the audit on it again and it sets the flags
+   against the verdicts and names the script by its hash. The thresholds were
+   fitted on one round; a later round's verdicts, judged by the version frozen
+   before that round, are their only test.
+
    Once applied, the writing loop runs the same audit on each commit against
    the last commit at which it flagged nothing, so a round of several commits
    is read as a whole; the run record and the summary name that base. A

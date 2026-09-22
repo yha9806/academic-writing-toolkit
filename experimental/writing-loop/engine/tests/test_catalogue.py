@@ -8,6 +8,8 @@ loop's catalogue or in its UNWIRED list with a reason, and every skill is either
 import importlib.util
 import unittest
 
+import isolation  # noqa: F401  (a throwaway HOME; see isolation.py)
+
 from loop import catalogue as K
 
 ROOT = K.ENGINE_ROOT

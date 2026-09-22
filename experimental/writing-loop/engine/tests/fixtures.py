@@ -1,4 +1,5 @@
 """Hermetic fixtures: a throwaway manuscript repo and a fake transcripts directory."""
+import isolation  # noqa: F401  (first: a throwaway HOME, and no test may open the real one)
 import json
 import os
 import subprocess

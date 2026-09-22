@@ -1,5 +1,7 @@
 import unittest
 
+import isolation  # noqa: F401  (a throwaway HOME; see isolation.py)
+
 from loop import explain as EX
 
 

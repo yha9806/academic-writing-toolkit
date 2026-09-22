@@ -257,6 +257,100 @@ def _one(exp, out, today, roots, dirs):
                 out["in_progress"].append([exp.name, dm.group(1)])
 
 
+
+# ---------------------------------------------------------------- open decisions: gates and strategic risks
+
+RISK_HEAD = re.compile(r"^##\s+(门|风险)\s+(\S+)\s+(.+?)\s*$", re.M)
+RISK_FIELD = re.compile(r"^\s*(?:[-*]\s*)?(?:\*\*)?(来源|消除它的证据|由哪个门决定|状态|规模)(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*(.*?)\s*$",
+                        re.M)
+RISK_NEEDS = ("来源", "消除它的证据", "由哪个门决定", "状态")
+RISK_DECIDED = re.compile(r"^已决\s+(\d{4}-\d{2}-\d{2})\s*(.*?)(?:\s*[—–-]+\s*作者\s*[:：]?\s*uuid\s+([0-9a-f-]{8,}))?\s*$")
+NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _scale(text):
+    """`我们 18 · 同类 46、120 · 单位 查询` -> {ours, least, unit, below}; None when the line does not say both sides."""
+    parts = {m.group(1): m.group(2).strip() for m in re.finditer(r"(我们|同类|单位)\s*[:：]?\s*([^·]*)", text)}
+    ours = NUMBER.findall(parts.get("我们", ""))
+    theirs = [float(x.replace(",", "")) for x in NUMBER.findall(parts.get("同类", ""))]
+    if not ours or not theirs:
+        return None
+    o, least = float(ours[0].replace(",", "")), min(theirs)
+    fmt = lambda x: str(int(x)) if x == int(x) else str(x)  # noqa: E731
+    return {"ours": fmt(o), "least": fmt(least), "comparators": len(theirs), "unit": parts.get("单位", "").strip(),
+            "below": o < least}
+
+
+def risks(cfg):
+    """The workspace's register of open gates and strategic risks, or None when none is configured.
+
+    An item is open until its status says 已决 with a date and the uuid of the author's message that decided it, and
+    that message is in this workspace's transcripts; a register kept under the workspace's human/ folder is the
+    author's own and needs no uuid. Whatever cannot be read is reported, never taken for "no risks": an item missing a
+    field or with a status nobody can parse stays open and says why, and a register that cannot be read or holds no
+    item is a problem of its own."""
+    path = cfg.get("risks")
+    if not path:
+        return None
+    p = Path(path).expanduser()
+    out = {"path": str(p), "open": [], "decided": [], "below": [], "problems": []}
+    try:
+        raw = p.read_text(encoding="utf-8")
+    except OSError:
+        out["problems"].append(f"台账读不到：{p}")
+        return out
+    register = re.sub(r"(?ms)^```.*?^```", "", raw)  # an item quoted as an example is not an item
+    human = (Path(cfg["_ws"]) / "human").resolve() if cfg.get("_ws") else None
+    try:
+        authored = human is not None and p.resolve().is_relative_to(human)
+    except AttributeError:  # Python < 3.9
+        authored = human is not None and str(p.resolve()).startswith(str(human) + "/")
+    heads = list(RISK_HEAD.finditer(register))
+    if not heads:
+        out["problems"].append(f"台账里没有一项（要 `## 门 <id> <标题>` 或 `## 风险 <id> <标题>`）：{p.name}")
+    for i, h in enumerate(heads):
+        body = register[h.end(): heads[i + 1].start() if i + 1 < len(heads) else len(register)]
+        fields = {}
+        for m in RISK_FIELD.finditer(body):
+            fields.setdefault(m.group(1), m.group(2))
+        item = {"kind": h.group(1), "id": h.group(2), "title": h.group(3), "gate": fields.get("由哪个门决定", ""),
+                "source": fields.get("来源", ""), "status": fields.get("状态", "")}
+        if fields.get("规模"):
+            sc = _scale(fields["规模"])
+            if sc:
+                item["scale"] = sc
+                if sc["below"]:
+                    out["below"].append({"id": item["id"], "kind": item["kind"], **sc})
+        missing = [f for f in RISK_NEEDS if not fields.get(f)]
+        status = fields.get("状态", "")
+        if missing:
+            item["detail"] = "格式不全：缺 " + "、".join(missing)
+            out["open"].append(item)
+            continue
+        if status.startswith("未决"):
+            item["detail"] = "未过" if item["kind"] == "门" else f"待 {item['gate']}"
+            out["open"].append(item)
+            continue
+        d = RISK_DECIDED.match(status)
+        if not d:
+            item["detail"] = f"状态读不懂：{status[:40]}"
+            out["open"].append(item)
+            continue
+        item["decided_on"], item["decision"], uuid = d.group(1), d.group(2).strip(), d.group(3)
+        if authored:
+            out["decided"].append(item)
+        elif not uuid:
+            item["detail"] = "写了已决，但没指向作者的消息（uuid）"
+            out["open"].append(item)
+        elif cfg.get("transcripts") and _approval_in_transcripts(cfg, uuid):
+            item["uuid"] = uuid
+            out["decided"].append(item)
+        else:
+            item["detail"] = f"已决所指的作者消息在会话记录里查不到（uuid {uuid[:8]}）"
+            out["open"].append(item)
+    return out
+
+
 def doctor_problems(cfg):
     """(item, message) pairs for `loop doctor`, whose contract is narrower than coverage's: a path the config names
     must resolve. A target that is not registered, or a corpus that is too small, is a coverage gap and is shown by
