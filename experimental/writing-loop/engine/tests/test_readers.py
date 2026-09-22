@@ -100,7 +100,27 @@ Each gauge has a dial.} \caption{Gauges on the north span.} \label{fig:gauges} \
             for debris in ("enumerate", "label=", "nosep", "figure", "[htbp]", "art/gauges", "Alt text", "dial"):
                 self.assertNotIn(debris, text)
             self.assertIn("Q1. Which spans crack first?", text)
-            self.assertIn("Figure caption: Gauges on the north span.", text)
+            self.assertIn("Caption: Gauges on the north span.", text)
+
+    def test_alt_text_with_an_escaped_brace_or_a_short_form_and_a_table_spec_do_not_leak_or_swallow(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            intro = INTRO + (r"""
+\begin{table}[b]\centering\caption[Short]{Readings by span.} \begin{tabular}{@{}lr@{}} north & 12 \\ \end{tabular}
+\end{table} After the table the survey continues.
+
+\begin{figure}[t] \Description[Gauge dial]{Alt text with a brace \{0, 1. The dial.} \caption{Dials.} \end{figure}
+The next sentence must survive.
+""")
+            commit(repo, {"sections/01_intro.tex": intro}, "v2", 1_700_000_100)
+            reindex(ws)
+            out, _ = self.build(root, ws)
+            text = (out / "manuscript.txt").read_text(encoding="utf-8")
+            for debris in ("@", "lr", "Short", "Gauge dial", "Alt text", "The dial"):
+                self.assertNotIn(debris, text)
+            for kept in ("Caption: Readings by span.", "north", "After the table the survey continues.",
+                         "Caption: Dials.", "The next sentence must survive."):
+                self.assertIn(kept, text)
 
     def test_personas_and_questions_can_come_from_the_workspace(self):
         with TempDir() as root:

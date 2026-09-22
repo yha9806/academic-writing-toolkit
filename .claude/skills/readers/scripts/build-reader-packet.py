@@ -111,19 +111,48 @@ def bib_entries(text):
 CITE = re.compile(r"\\(citet|citep|cite|citeauthor|citeyear)\*?(?:\[[^\]]*\])*\{([^}]*)\}")
 
 
+def balanced_end(t, k):
+    """Index just past the group that opens at t[k] == "{". An escaped brace (\\{ or \\}) is text, not structure: counted,
+    one unpaired \\{ in alt text swallowed the rest of the paragraph."""
+    depth, k = 1, k + 1
+    while k < len(t) and depth:
+        if t[k] == "\\":
+            k += 2
+            continue
+        depth += {"{": 1, "}": -1}.get(t[k], 0)
+        k += 1
+    return k
+
+
 def drop_command(t, name):
-    """Remove \\name{...} with its whole balanced argument; a figure's alt text (\\Description) is for screen readers,
-    and a reader of the page never sees it."""
-    out, i, tag = [], 0, "\\" + name + "{"
+    """Remove \\name[...]{...} with its optional argument and its whole balanced argument; a figure's alt text
+    (\\Description, whose acmart form takes an optional short text) is for screen readers, and a reader of the page
+    never sees it."""
+    out, i = [], 0
+    rx = re.compile(r"\\" + name + r"(?![A-Za-z])\s*(?:\[[^\]]*\])?\s*\{")
     while True:
-        j = t.find(tag, i)
-        if j < 0:
+        m = rx.search(t, i)
+        if not m:
             return "".join(out) + t[i:]
-        out.append(t[i:j])
-        k, depth = j + len(tag), 1
-        while k < len(t) and depth:
-            depth += {"{": 1, "}": -1}.get(t[k], 0)
-            k += 1
+        out.append(t[i:m.start()])
+        i = balanced_end(t, m.end() - 1)
+
+
+def drop_env_args(t):
+    """A tabular's column specification (and a tabular*/tabularx width) is typesetting, not text."""
+    rx = re.compile(r"\\begin\{(tabular\*?|tabularx|array)\}\s*(?:\[[^\]]*\])?")
+    out, i = [], 0
+    while True:
+        m = rx.search(t, i)
+        if not m:
+            return "".join(out) + t[i:]
+        out.append(t[i:m.start()] + " ")
+        k = m.end()
+        for _ in range(1 if m.group(1) in ("tabular", "array") else 2):
+            while k < len(t) and t[k].isspace():
+                k += 1
+            if k < len(t) and t[k] == "{":
+                k = balanced_end(t, k)
         i = k
 
 
@@ -142,8 +171,9 @@ def readable(text, bib, unknown):
         return "(" + "; ".join(parts) + ")"
     t = CITE.sub(cite, text)
     t = drop_command(t, "Description")
+    t = drop_env_args(t)
     t = re.sub(r"\\(?:input|include|includegraphics)\*?(?:\[[^\]]*\])?\{[^}]*\}", "", t)
-    t = re.sub(r"\\caption\{", "Figure caption: {", t)
+    t = re.sub(r"\\caption\s*(?:\[[^\]]*\])?\s*\{", " Caption: {", t)
     t = re.sub(r"\\begin\{[^}]*\}(?:\[[^\]]*\])*", " ", t)
     t = re.sub(r"\\end\{[^}]*\}", " ", t)
     t = re.sub(r"\\item\[([^\]]*)\]", r"\1", t)

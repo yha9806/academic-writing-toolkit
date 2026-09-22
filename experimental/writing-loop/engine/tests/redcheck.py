@@ -16,6 +16,10 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
+    ("cov", 'skill:readers/scripts/build-reader-packet.py', '        if t[k] == "\\\\":\n            k += 2\n            continue\n', '',
+     'test_readers.ReadersTest.test_alt_text_with_an_escaped_brace_or_a_short_form_and_a_table_spec_do_not_leak_or_swallow'),
+    ("cov", 'skill:readers/scripts/build-reader-packet.py', '    t = drop_env_args(t)', '    pass',
+     'test_readers.ReadersTest.test_alt_text_with_an_escaped_brace_or_a_short_form_and_a_table_spec_do_not_leak_or_swallow'),
     ("cov", 'coverage.py', '        elif check_id == "notes-lint" and data and all(isinstance(v, list) for v in data.values()):',
      '        elif False:',
      'test_coverage.NeverGreenTest.test_a_notes_lint_result_is_summarised_by_file_not_by_its_first_line'),
