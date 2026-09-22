@@ -4,8 +4,12 @@
   UserPromptSubmit  in a registered manuscript session: append the prompt verbatim to human/comments.jsonl
                     and ask for the explanation block at the end of manuscript replies
   PreToolUse        in any session: refuse a model write into a registered workspace's human/ (spec T2)
-  PostToolUse       in a registered session: a write to the draft or the ledger, or a git command -> update
-  Stop              in a registered session: -> update (the transcript grew)
+  PostToolUse       in a registered session: a write to the draft or the ledger, or a git command -> update; with
+                    gates.rewrites on, after any write tool or shell command the working tree's changed sentences are
+                    read and what was flagged is added to the agent's context
+  Stop              in a registered session: -> update (the transcript grew); with gates.rewrites on, a flagged rewrite
+                    left unhandled in the working tree or the reply blocks the stop once (stop_hook_active then lets it
+                    through and records stop_gate_overridden)
 
 Field names are the runtime's, read from the Claude Code binary (2.1.252), not from the documentation:
 prompt, tool_name, tool_input, session_id, cwd. The documentation's names have been wrong before, and a
@@ -387,14 +391,63 @@ def on_post_tool(payload, regs, now, spawn):
                 spawn(ws, f"write:{rel}")
     elif tool == "Bash" and GIT_RE.search(ti.get("command") or ""):
         spawn(ws, "git")
+    if (cfg.get("gates") or {}).get("rewrites") and (tool in WRITE_TOOLS or tool == "Bash"):
+        ctx = rewrite_context(ws, cfg, now)
+        if ctx:
+            return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": ctx}}
     return None
 
 
+def rewrite_context(ws, cfg, now):
+    """After any tool that can write the draft, a script run in a shell included: the changed-sentence audit on the
+    working tree. Nothing when the draft is unchanged since the last read (a content fingerprint, so this costs a
+    hash); otherwise one line naming what was flagged. Imported here, not at the top: a broken coverage module must
+    not take the human/ guard down with it."""
+    try:
+        from loop import coverage as V
+        r = V.worktree_check(cfg, ws)
+    except Exception as e:  # noqa: BLE001 -- the agent must hear that the gate is down
+        HL.record_event(ws, "hook_error", f"改句门：{type(e).__name__}：{e}", now=now)
+        return f"改句门自己坏了（{type(e).__name__}：{e}），这一次的改动没有查。"
+    if r.get("error"):
+        HL.record_event(ws, "hook_error", f"改句门：{r['error']}", now=now)
+        return f"改句检查没能跑：{r['error']}"
+    if r.get("cached") or not r.get("unresolved"):
+        return None
+    items = "；".join(f"[{s['key']}] {'、'.join(s['flags'])}：{s['new'][:80]}" for s in r["unresolved"][:5])
+    return (f"改句检查（{r.get('summary', '')}）：{len(r['unresolved'])} 句标出、未处理——{items}。"
+            f"结束这一轮前改掉，或在接受台账写理由。")
+
+
+def stop_gate(payload, ws, cfg, now):
+    """The turn may not end while a flagged rewrite is unhandled, in the working tree or in the reply. Blocked once:
+    when the runtime says a Stop hook already blocked this turn (stop_hook_active), the turn ends and the override is
+    recorded for the notch, rather than blocking until the runtime's own cap forces it."""
+    reply = payload.get("last_assistant_message")
+    if not isinstance(reply, str):
+        HL.record_event(ws, "hook_error", "Stop 的载荷里没有字符串字段 last_assistant_message：回复里的改句这一轮没查", now=now)
+        reply = None
+    try:
+        from loop import coverage as V
+        reason = V.stop_verdict(cfg, ws, reply)
+    except Exception as e:  # noqa: BLE001 -- an audit that did not run is not a pass
+        HL.record_event(ws, "hook_error", f"改句门：{type(e).__name__}：{e}", now=now)
+        reason = f"改句门自己坏了（{type(e).__name__}：{e}）。修好，或在回复里说明为什么这一轮不需要它。"
+    if not reason:
+        return None
+    if payload.get("stop_hook_active"):
+        HL.record_event(ws, "stop_gate_overridden", reason[:300], now=now)
+        return None
+    return {"decision": "block", "reason": reason}
+
+
 def on_stop(payload, regs, now, spawn):
-    ws, _cfg = session_ws(payload, regs)
+    ws, cfg = session_ws(payload, regs)
     if ws is not None:
         spawn(ws, "stop")
         ensure_producer(ws)
+        if (cfg.get("gates") or {}).get("rewrites"):
+            return stop_gate(payload, ws, cfg, now)
     return None
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (202 automated tests, labelled T2-T213: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 changed-sentence audit + T211-T213 venue topic and contribution type) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (203 automated tests, labelled T2-T214: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214 changed-sentence audit + T211-T213 venue topic and contribution type) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -5686,6 +5686,49 @@ assert v.abstract_from_index({'gauges': [1], 'River': [0], 'rise': [2]}) == 'Riv
 "
 }
 
+test_T214() {
+    # The venue's measured sentences are kept with --venue-cache: a second run
+    # reads the cache and reports the same thing; a change to any corpus file
+    # makes the cache stale, so it is measured again.
+    local tmp a b c
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+words = ["".join(c) for c in itertools.product("abcdefg", repeat=3)]
+for i in range(6):
+    sents = ["The %s stage kept the %s rank in the pool today." % (words[(i * 200 + j) % len(words)],
+                                                                  words[(i * 200 + j) % len(words)]) for j in range(200)]
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join(sents))
+(d / "pairs.tsv").write_text("id\told\tnew\nx\tThe station logged the river level at dawn.\tThe station logged the level of the river at dawn and at dusk on every day of the long season for the survey team and the regional office and the two partner universities.\n")
+PYEOF
+    a=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    b=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/venue" --venue-cache "$tmp/vc.json" --json 2>/dev/null)
+    [ -s "$tmp/vc.json" ] || { rm -rf "$tmp"; return 1; }
+    local before
+    before=$(python3 -c "import os,sys; print(os.stat(sys.argv[1]).st_mtime_ns)" "$tmp/vc.json")
+    c=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/venue" --venue-cache "$tmp/vc.json" --json 2>/dev/null)
+    [ "$before" = "$(python3 -c "import os,sys; print(os.stat(sys.argv[1]).st_mtime_ns)" "$tmp/vc.json")" ] || { rm -rf "$tmp"; return 1; }
+    [ "$a" = "$b" ] && [ "$b" = "$c" ] || { rm -rf "$tmp"; return 1; }
+    python3 - "$tmp" <<'PYEOF' || { rm -rf "$tmp"; exit 1; }
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+key = json.loads((d / "vc.json").read_text())["key"]
+(d / "venue" / "doc0.txt").write_text((d / "venue" / "doc0.txt").read_text() + " The added stage kept the added rank in the pool today.")
+(d / "key_before").write_text(key)
+PYEOF
+    python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/venue" --venue-cache "$tmp/vc.json" --json >/dev/null 2>&1
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+assert json.loads((d / "vc.json").read_text())["key"] != (d / "key_before").read_text(), "a changed corpus reused the cache"
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -5753,6 +5796,7 @@ run_test "T210 changed sentences: prepositions, -ly adjectives, a comma for a se
 run_test "T211 venue topic fit: the nearest article and the percentile; an empty corpus or an empty title is refused" test_T211
 run_test "T212 venue topic fit: a seeded sample repeats; a tally with intervals; a half-coded sheet is refused" test_T212
 run_test "T213 venue topic fit: the corpus request carries no personal data; abstracts rebuilt in order" test_T213
+run_test "T214 changed sentences: the venue's measured sentences are cached and a changed corpus is measured again" test_T214
 run_test "T190 every path the README's structure block names exists on disk" test_T190
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192

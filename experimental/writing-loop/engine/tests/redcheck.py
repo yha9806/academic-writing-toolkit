@@ -476,6 +476,16 @@ MUTATIONS = [
      'test_overview.InboxActionTest.test_actions_for_another_manuscript_are_left_alone'),
     ('overview', 'lintel.py', '"rows": _rows(h, names) or None, "sections": secs([h["id"]])}', '"rows": _rows(h, names) or None}',
      'test_overview.PanelTest.test_overview_rides_on_the_detail_and_history_rows_name_their_sections'),
+    # 改句的门（spec 2026-09-22）：工作区检查、收尾判定、钩子注入与拦截，各拿掉一处。
+    ("gates", 'coverage.py', '    todo = [("工作区", s) for s in r["unresolved"]] + [("回复", s) for s in chat]', '    todo = []',
+     'test_coverage.RealCheckTest.test_an_uncommitted_rewrite_is_read_and_holds_the_turn_until_fixed_or_accepted'),
+    ("gates", 'coverage.py', 'if cached and cached.get("fingerprint") == fp and cached.get("head") == head',
+     'if cached and cached.get("head") == head',
+     'test_coverage.RealCheckTest.test_an_uncommitted_rewrite_is_read_and_holds_the_turn_until_fixed_or_accepted'),
+    ("gates", 'hooks/loop_hook.py', '    if r.get("cached") or not r.get("unresolved"):\n        return None', '    return None',
+     'test_hooks.RewriteGateTest.test_a_script_write_is_read_after_the_tool_and_only_once'),
+    ("gates", 'hooks/loop_hook.py', '    return {"decision": "block", "reason": reason}', '    return None',
+     'test_hooks.RewriteGateTest.test_the_stop_is_blocked_once_then_the_override_is_recorded'),
 ]
 
 

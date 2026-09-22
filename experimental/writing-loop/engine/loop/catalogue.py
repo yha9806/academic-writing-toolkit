@@ -176,6 +176,9 @@ def _sentence_changes_argv(ctx):
     corpus = get(ctx["cfg"], "target.venue_corpus.dir")
     if corpus:
         args += ["--baseline", str(Path(corpus).expanduser())]
+        if ctx.get("ws"):
+            # reading a corpus of PDFs takes seconds; the measured sentences are kept in the workspace cache
+            args += ["--venue-cache", str(Path(ctx["ws"]) / "cache" / "coverage" / "venue-sentences.json")]
     return args
 
 

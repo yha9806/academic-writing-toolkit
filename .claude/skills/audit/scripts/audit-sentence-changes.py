@@ -3,6 +3,7 @@
 
     python3 audit-sentence-changes.py --target <file or dir> --base <file or dir> [--baseline <dir>] [--json]
     python3 audit-sentence-changes.py --pairs <tsv with columns id, old, new> [--baseline <dir>] [--json]
+    (either form: --venue-cache <file> keeps the venue's measured sentences between runs)
 
 audit-prose-fingerprint.py and audit-prose-structure.py measure a whole document: rates per 1,000 words and
 distributions across sections. A dozen rewritten sentences barely move those rates, and neither audit reads a
@@ -40,7 +41,7 @@ audit-prose-structure.py gives. Because gains are counted, a noun such as "manua
 for an adjective only matters when the rewrite introduces it.
 
 Before splitting, LaTeX list items and figure or table captions are kept as prose (the fingerprint audit drops
-them), reference and citation commands and inline comments are removed, inline math becomes one placeholder word,
+them), blank lines and Markdown headings and list items end a sentence, reference and citation commands and inline comments are removed, inline math becomes one placeholder word,
 footnotes become parentheses, and headings are dropped. A pairs file is read with no quoting: a stray quotation
 mark stays text.
 
@@ -220,6 +221,7 @@ def pre_tex(text):
     body = re.split(r"\\begin\{document\}", text, maxsplit=1)
     text = body[1] if len(body) == 2 else text
     text = re.sub(r"(?<!\\)%.*", "", text)
+    text = re.sub(r"\n[ \t]*\n", BREAK, text)   # a sentence never runs across a blank line
     text = re.sub(r"\\(?:part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\s*(?:\[[^\]]*\])?"
                   r"\s*\{(?:[^{}]|\{[^{}]*\})*\}", BREAK, text)
     # A float becomes its caption; the table body and graphics are not sentences.
@@ -240,11 +242,22 @@ def pre_tex(text):
     return text
 
 
+def pre_md(text):
+    """Markdown headings, list items and blank lines end a unit of prose; without this a heading is read as the start
+    of the sentence after it."""
+    text = re.sub(r"(?m)^\s{0,3}#+.*$", BREAK, text)
+    text = re.sub(r"(?m)^\s*(?:[-*+]|\d+[.)])\s+", BREAK, text)
+    return re.sub(r"\n[ \t]*\n", BREAK, text)
+
+
 def read_text(fp, path):
     suffix = path.suffix.lower()
     if suffix == ".tex":
         raw = path.read_text(encoding="utf-8", errors="replace")
         return fp.strip_markup(pre_tex(raw), ".tex")
+    if suffix == ".md":
+        raw = path.read_text(encoding="utf-8", errors="replace")
+        return fp.strip_markup(pre_md(raw), ".md")
     return fp.load(path)
 
 
@@ -469,7 +482,31 @@ def read_pairs(path):
     return rows
 
 
-def venue_distribution(fp, baseline):
+def _venue_key(baseline):
+    """What the venue's distribution depends on: the corpus files (name, size, modification time) and the code that
+    measures them (this script and the fingerprint audit it reads prose with)."""
+    import hashlib
+    h = hashlib.sha256()
+    for f in (Path(__file__).resolve(), HERE / "audit-prose-fingerprint.py"):
+        h.update(f.read_bytes())
+    for f in sorted(p for p in Path(baseline).rglob("*") if p.is_file()):
+        st = f.stat()
+        h.update(f"{f.relative_to(baseline)}\0{st.st_size}\0{st.st_mtime_ns}\0".encode("utf-8"))
+    return h.hexdigest()
+
+
+def venue_distribution(fp, baseline, cache=None):
+    """The venue's sentences, measured. Reading a corpus of PDFs takes seconds; with --venue-cache the columns are kept
+    and reused while neither the corpus nor this code has changed."""
+    key = _venue_key(baseline) if cache else None
+    if cache:
+        try:
+            got = json.loads(Path(cache).read_text(encoding="utf-8"))
+            if got.get("key") == key:
+                return {"documents": got["documents"], "sentences": got["sentences"], "columns": got["columns"],
+                        "cached": True}
+        except (OSError, ValueError, KeyError):
+            pass
     docs = fp.collect(Path(baseline))
     kept, sents = 0, []
     for _, text, _ in docs:
@@ -483,6 +520,10 @@ def venue_distribution(fp, baseline):
         die(f"the baseline {baseline} gave {len(sents)} sentences from {kept} documents; percentiles need at least "
             f"{MIN_VENUE_SENTENCES} sentences from {MIN_VENUE_DOCUMENTS} documents")
     cols = {k: sorted(features(s)[k] for s in sents) for k in FEATURES}
+    if cache:
+        Path(cache).parent.mkdir(parents=True, exist_ok=True)
+        Path(cache).write_text(json.dumps({"key": key, "documents": kept, "sentences": len(sents), "columns": cols}),
+                               encoding="utf-8")
     return {"documents": kept, "sentences": len(sents), "columns": cols}
 
 
@@ -580,6 +621,7 @@ def main():
     ap.add_argument("--base")
     ap.add_argument("--pairs")
     ap.add_argument("--baseline")
+    ap.add_argument("--venue-cache", help="keep the venue's measured sentences here and reuse them while unchanged")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     global FP
@@ -606,7 +648,7 @@ def main():
             die(f"no prose in the base {a.base}: nothing to compare the draft with")
         changes, removed = pair_changes(target, base)
         compared = {"target_sentences": sum(map(len, target.values())), "base_sentences": sum(map(len, base.values()))}
-    venue = venue_distribution(fp, a.baseline) if a.baseline else None
+    venue = venue_distribution(fp, a.baseline, a.venue_cache) if a.baseline else None
     results = []
     for where, olds, news in changes:
         r = judge(olds, news, venue)

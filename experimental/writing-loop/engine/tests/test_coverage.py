@@ -699,6 +699,57 @@ class RealCheckTest(unittest.TestCase):
                 self.assertEqual(rec["verdict"], "ok", rec["summary"])
                 self.assertEqual(rec["clean_head"], git(repo, "rev-parse", "HEAD"))
 
+    def test_an_uncommitted_rewrite_is_read_and_holds_the_turn_until_fixed_or_accepted(self):
+        # About two thirds of one session's writes to a draft went through scripts run in a shell, which a gate on the
+        # editor tools never sees. The working tree is read instead, whatever wrote it, and before any commit.
+        with TempDir() as root:
+            repo, ws = setup(root, [({"sections/01_intro.tex": INTRO.replace("rare.", "few.")}, "v2", 1_700_000_100)])
+            cfg = C.load(ws)
+            with Probe(K.by_id("sentence-changes")):
+                V.compute(cfg, ws, do_run=True)   # the loop has read v2: it is the clean base
+            intro = Path(repo) / "sections/01_intro.tex"
+            plain = intro.read_text(encoding="utf-8")
+            intro.write_text(plain.replace("Inspections are few.",
+                                           "Inspections, which the county still schedules, are few: one per decade."),
+                             encoding="utf-8")
+            r = V.worktree_check(cfg, ws)
+            self.assertFalse(r["cached"])
+            self.assertEqual(len(r["unresolved"]), 1, r)
+            self.assertTrue({"colon", "clause", "adverb"} <= set(r["unresolved"][0]["flags"]), r["unresolved"])
+            self.assertTrue(V.worktree_check(cfg, ws)["cached"], "an unchanged draft is not read twice")
+            reason = V.stop_verdict(cfg, ws)
+            key = r["unresolved"][0]["key"]
+            self.assertIn(key, reason or "")
+            V.accepted_path(cfg).write_text(f"{key}\tthe county's schedule is the finding\tauthor\t…\n", encoding="utf-8")
+            self.assertIsNone(V.stop_verdict(cfg, ws), "an accepted sentence releases the turn")
+            intro.write_text(plain.replace("Inspections are few.",
+                                           "Inspections, which the county still schedules, are few: once per decade."),
+                             encoding="utf-8")
+            self.assertIsNotNone(V.stop_verdict(cfg, ws), "an acceptance does not outlive the wording it was given for")
+            intro.write_text(plain, encoding="utf-8")
+            self.assertIsNone(V.stop_verdict(cfg, ws))
+
+    def test_a_rewrite_shown_in_a_reply_is_read_and_a_quotation_is_not(self):
+        # A rewrite proposed in chat never touches a file. The reply is read at the end of the turn: a sentence that
+        # pairs with one of the draft's is audited like a proposal; a quoted source, an explanation in Chinese and
+        # the draft's own sentence are not rewrites.
+        survey = "The survey counted the bridges that had cracked piers in the northern district."
+        with TempDir() as root:
+            repo, ws = setup(root, [({"sections/01_intro.tex": INTRO + survey + "\n"}, "v2", 1_700_000_100)])
+            cfg = C.load(ws)
+            with Probe(K.by_id("sentence-changes")):
+                V.compute(cfg, ws, do_run=True)
+            bad = "The survey, which the county funds, counted bridges with cracked piers: all in the north."
+            reason = V.stop_verdict(cfg, ws, "建议改成：\n```\n" + bad + "\n```\n")
+            self.assertIn("回复", reason or "")
+            quote = "原文是「Models trained on one dataset rarely transfer to another without a large drop in accuracy.」"
+            self.assertIsNone(V.stop_verdict(cfg, ws, quote), "a quoted source does not pair with the draft")
+            self.assertIsNone(V.stop_verdict(cfg, ws, "这一句我没有改，理由是原文就这么写。"))
+            self.assertIsNone(V.stop_verdict(cfg, ws, "现稿：`" + survey + "`"), "the draft's own sentence is not a rewrite")
+            key = V.chat_rewrites(cfg, ws, "```\n" + bad + "\n```")[0]["key"]
+            V.accepted_path(cfg).write_text(f"{key}\tthe funding is the point\tauthor\t…\n", encoding="utf-8")
+            self.assertIsNone(V.stop_verdict(cfg, ws, "```\n" + bad + "\n```"))
+
     def test_the_changed_sentence_finding_leads_the_reminder_line(self):
         # Whole-document audits keep standing findings; the line names three, so the check that reads this round's
         # rewrites comes first or is never named.

@@ -11,8 +11,10 @@ up to date. That is the property this module exists for: a capability that sits 
 run on it has to be visible, in the terminal, on the notch, and in the line the agent reads every turn.
 """
 import datetime as dt
+import difflib
 import fnmatch
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -369,30 +371,33 @@ def _is_ancestor(cfg, a, b):
                           capture_output=True).returncode == 0
 
 
-def resolve_base(cfg, check, head, prev):
+def resolve_base(cfg, check, head, prev, worktree=False):
     """(ref, why) for a check that compares the draft with an earlier version.
 
     The base is the last commit at which this check flagged nothing (the record's clean_head), so every commit since
     then is read, not only the latest: a round of several commits cannot hide a rewrite in an early one. A flagged
     sentence keeps the base where it was, so it stays in the report until it is fixed or the author accepts it by
     moving draft.base_ref forward. draft.base_ref is a floor: a clean head older than it is ignored. With neither, the
-    commit before head."""
+    commit before head. For the working tree (worktree=True) the clean head may be head itself: uncommitted edits are
+    read against it."""
     pin = K.get(cfg, "draft.base_ref")
     pin_sha = _commit(cfg, pin) if pin else None
     clean = (prev or {}).get("clean_head")
-    if clean and clean != head and _commit(cfg, clean) and _is_ancestor(cfg, clean, head) \
+    if clean and (worktree or clean != head) and _commit(cfg, clean) and _is_ancestor(cfg, clean, head) \
             and (not pin_sha or _is_ancestor(cfg, pin_sha, clean)):
         return clean, "clean"
     if pin:
         return pin, "pin"
+    if worktree:
+        return head, "head"
     return check["base"](cfg, head), "parent"
 
 
-def _materialize_base(cfg, check, head, dest, inputs, prev=None, info=None):
+def _materialize_base(cfg, check, head, dest, inputs, prev=None, info=None, worktree=False):
     """The version before the edit, for a check that compares two: the draft files and the also-checked files at the
     base, under BASE_DIR. A base that does not resolve fails the check by name; comparing the draft with itself
     would report no change, which reads as a pass."""
-    ref, why = resolve_base(cfg, check, head, prev)
+    ref, why = resolve_base(cfg, check, head, prev, worktree)
     sha = _git(cfg["repo"], "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
     if not sha:
         return None, f"比对用的上一版 {ref} 在仓库里找不到（第一个提交之前没有上一版；或 draft.base_ref 写错）"
@@ -468,7 +473,7 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT):
     return rec
 
 
-BASE_WHY = {"clean": "上次无标出", "pin": "base_ref", "parent": "上一提交"}
+BASE_WHY = {"clean": "上次无标出", "pin": "base_ref", "parent": "上一提交", "head": "当前提交"}
 
 
 def _record_base(rec, prev, info, head):
@@ -766,3 +771,182 @@ def table(summary, ws):
     for u in summary["unwired"]:
         lines.append(f"  {u['script']}：{u['reason']}")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- the working tree, between commits
+
+ACCEPTED_DEFAULT = ".awt-accepted-rewrites.tsv"
+
+
+def sentence_key(text):
+    """A flagged sentence's identity in the accepted-rewrites ledger: its text, whitespace and case folded. Editing the
+    sentence changes the key, so an acceptance never outlives the wording it was given for."""
+    return hashlib.sha256(re.sub(r"\s+", " ", text or "").strip().lower().encode("utf-8")).hexdigest()[:16]
+
+
+def accepted_path(cfg):
+    return Path(cfg["repo"]) / (K.get(cfg, "draft.accepted_rewrites") or ACCEPTED_DEFAULT)
+
+
+def accepted(cfg):
+    """{key: (reason, who)} from the ledger: key<TAB>reason<TAB>who decided<TAB>the sentence (for the reader). A row
+    without a reason accepts nothing."""
+    out = {}
+    try:
+        lines = accepted_path(cfg).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return out
+    for ln in lines:
+        cells = ln.split("\t")
+        if len(cells) >= 3 and cells[0].strip() and cells[1].strip() and not ln.startswith("#"):
+            out[cells[0].strip()] = (cells[1].strip(), cells[2].strip())
+    return out
+
+
+def _worktree_paths(cfg, head):
+    repo = Path(cfg["repo"])
+    paths = sorted(set(draft_files(cfg, head)) | set(also_checked(cfg)))
+    return [p for p in paths if (repo / p).is_file()]
+
+
+def worktree_fingerprint(cfg, paths):
+    h = hashlib.sha256()
+    for p in paths:
+        h.update(p.encode("utf-8") + b"\0" + (Path(cfg["repo"]) / p).read_bytes() + b"\0")
+    return h.hexdigest()
+
+
+def worktree_check(cfg, ws, timeout=TIMEOUT):
+    """The changed-sentence audit on the working tree as it is now, committed or not, against the same base the loop
+    uses (the last commit at which the check flagged nothing). A rewrite written by any tool, a script included, is
+    read before anyone commits it. Cached on the draft's content: an unchanged draft is not read twice.
+
+    Returns {fingerprint, head, base, changed, flagged, unresolved: [{key, where, flags, added, new}], summary, error}."""
+    check = K.by_id("sentence-changes")
+    head = (_git(cfg["repo"], "rev-parse", "--verify", "--quiet", "HEAD") or "").strip()
+    if not head:
+        return {"error": "稿件仓没有提交，说不出对照哪一版", "unresolved": []}
+    paths = _worktree_paths(cfg, head)
+    fp = worktree_fingerprint(cfg, paths)
+    acc = accepted(cfg)
+    cache = runs_dir(ws).parent / "worktree.json"
+    try:
+        cached = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cached = None
+    prev = load_run(ws, check["id"])
+    base_ref, _ = resolve_base(cfg, check, head, prev, worktree=True)
+    if cached and cached.get("fingerprint") == fp and cached.get("head") == head \
+            and (cached.get("base") or {}).get("ref") == base_ref:
+        cached["unresolved"] = [s for s in cached.get("flagged_sentences", []) if s["key"] not in acc]
+        cached["cached"] = True
+        return cached
+    out = {"fingerprint": fp, "head": head, "flagged_sentences": [], "cached": False}
+    with tempfile.TemporaryDirectory(prefix="loop-worktree-") as tmp:
+        for p in paths:
+            dest = Path(tmp) / p
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes((Path(cfg["repo"]) / p).read_bytes())
+        info = {}
+        _, err = _materialize_base(cfg, check, head, tmp, {}, prev, info, worktree=True)
+        if err:
+            out.update({"error": err, "unresolved": []})
+            return out
+        argv = check["argv"]({"cfg": cfg, "ws": str(ws), "tmp": tmp, "inputs": {}, "head": head})
+        try:
+            r = subprocess.run(argv, cwd=tmp, capture_output=True, text=True, timeout=timeout)
+        except (subprocess.TimeoutExpired, OSError) as e:
+            out.update({"error": f"改句检查跑不起来：{type(e).__name__}", "unresolved": []})
+            return out
+    verdict, summary = interpret(check["id"], r.returncode, r.stdout, r.stderr)
+    if verdict == "failed":
+        out.update({"error": summary, "unresolved": []})
+        return out
+    data = json.loads(r.stdout)
+    flagged = [{"key": sentence_key(s["new"]), "where": s.get("where"), "flags": s["flags"],
+                "added": s.get("added") or {}, "new": s["new"]} for s in data["sentences"] if s["flags"]]
+    out.update({"base": info, "changed": data["changed"], "flagged": len(flagged), "flagged_sentences": flagged,
+                "summary": summary + (f"（工作区，对照 {info['commit'][:7]}）" if info else "（工作区）")})
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    out["unresolved"] = [s for s in flagged if s["key"] not in acc]
+    return out
+
+
+def stop_verdict(cfg, ws, reply=None):
+    """None when the turn may end; otherwise the reason it may not: a flagged rewrite in the working tree, or shown in
+    this turn's reply, that is neither fixed nor accepted in the ledger. A check that cannot run is a reason too: an
+    audit that did not run is not a clean one."""
+    r = worktree_check(cfg, ws)
+    if r.get("error"):
+        return f"改句检查没能跑：{r['error']}。修好再结束，或在回复里说明为什么这一轮不需要它。"
+    chat = chat_rewrites(cfg, ws, reply) if reply else []
+    todo = [("工作区", s) for s in r["unresolved"]] + [("回复", s) for s in chat]
+    if not todo:
+        return None
+    lines = [f"- {where} [{s['key']}] {'、'.join(s['flags'])}：{s['new'][:120]}" for where, s in todo[:8]]
+    return (f"有 {len(todo)} 句改句被标出、还没处理（{r.get('summary', '')}）：\n" + "\n".join(lines)
+            + f"\n改掉它们，或在 {accepted_path(cfg)} 每句写一行：键<TAB>理由<TAB>谁定的<TAB>句子。句子一改，这一行就失效。")
+
+
+SPAN = re.compile(r"```(?:[a-z]*\n)?(.*?)```|`([^`\n]{20,})`|“([^”]{20,})”|「([^」]{20,})」|\"([^\"\n]{20,})\"|^>\s?(.+)$",
+                  re.S | re.M)
+
+
+def chat_rewrites(cfg, ws, reply, timeout=TIMEOUT):
+    """Rewrites of the draft shown in a reply: English sentences inside quotes, code or a block quote that pair with a
+    sentence of the working-tree draft (word similarity at least 0.4) without being that sentence. They go through the
+    same audit as a proposal. Quotations of sources and explanations in another language do not pair and are left
+    alone. Returns [{key, flags, added, new, old}] for the flagged ones not accepted in the ledger."""
+    spans = []
+    for m in SPAN.finditer(reply or ""):
+        text = next(g for g in m.groups() if g)
+        for s in re.split(r"(?<=[.!?])\s+(?=[A-Z])", re.sub(r"\s+", " ", text)):
+            if len(re.findall(r"[A-Za-z]{2,}", s)) >= 8 and len(re.findall(r"[一-鿿]", s)) == 0:
+                spans.append(s.strip())
+    if not spans:
+        return []
+    head = (_git(cfg["repo"], "rev-parse", "--verify", "--quiet", "HEAD") or "").strip()
+    check = K.by_id("sentence-changes")
+    script = check["argv"]({"cfg": cfg, "ws": str(ws), "tmp": "", "inputs": {}, "head": head})
+    spec = importlib.util.spec_from_file_location("sentence_changes", script[1])
+    sc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sc)
+    sc.FP = sc.fingerprint()
+    draft = [s for p in _worktree_paths(cfg, head) for s in sc.sentences(sc.read_text(sc.FP, Path(cfg["repo"]) / p) or "")]
+    norm = {re.sub(r"\s+", " ", s).strip().lower() for s in draft}
+    rows = []
+    for s in spans:
+        new = sc.prose(s)
+        if not new or new.lower() in norm:
+            continue
+        best, score = None, 0.0
+        for d in draft:
+            r = difflib.SequenceMatcher(None, new.split(), d.split(), autojunk=False).ratio()
+            if r > score:
+                best, score = d, r
+        if best and score >= 0.4:
+            rows.append((best, new))
+    if not rows:
+        return []
+    with tempfile.TemporaryDirectory(prefix="loop-chat-") as tmp:
+        pairs = Path(tmp) / "pairs.tsv"
+        pairs.write_text("id\told\tnew\n" + "".join(f"r{i}\t{o}\t{n}\n" for i, (o, n) in enumerate(rows)),
+                         encoding="utf-8")
+        argv = script[:2] + ["--pairs", str(pairs), "--json"]
+        for opt in ("--baseline", "--venue-cache"):
+            if opt in script:
+                argv += [opt, script[script.index(opt) + 1]]
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+        except (subprocess.TimeoutExpired, OSError):
+            return [{"key": "", "flags": ["not-run"], "added": {}, "new": "改句检查跑不起来", "old": ""}]
+    if r.returncode not in (0, 1):
+        return [{"key": "", "flags": ["not-run"], "added": {}, "new": (r.stderr or "").strip()[-160:], "old": ""}]
+    acc = accepted(cfg)
+    out = []
+    for s in json.loads(r.stdout)["sentences"]:
+        key = sentence_key(s["new"])
+        if s["flags"] and key not in acc:
+            out.append({"key": key, "flags": s["flags"], "added": s.get("added") or {}, "new": s["new"], "old": s["old"]})
+    return out

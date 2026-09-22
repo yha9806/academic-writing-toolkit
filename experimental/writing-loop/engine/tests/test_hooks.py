@@ -422,3 +422,115 @@ class BrokenNotchModuleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+SURVEY = "The survey counted the bridges that had cracked piers in the northern district."
+BAD = "The survey, which the county still funds, counted bridges with cracked piers: all in the north."
+
+
+def stop_payload(cwd, **extra):
+    base = {"session_id": "s1", "transcript_path": "/dev/null", "cwd": str(cwd), "hook_event_name": "Stop",
+            "stop_hook_active": False, "last_assistant_message": "done"}
+    base.update(extra)
+    return base
+
+
+def setup_gated(root, on=True):
+    """A draft with a sentence long enough to rewrite, committed, and the rewrite gates switched on (or not)."""
+    repo, ws, _ = setup(root)
+    draft = Path(repo) / "drafts/DRAFT-v1.md"
+    draft.write_text(draft_md("A title", "One sentence. Two sentence.", [SURVEY + " Intro two."]), encoding="utf-8")
+    git(repo, "add", "drafts/DRAFT-v1.md")
+    git(repo, "commit", "-q", "-m", "v2")
+    cfg = C.load(ws)
+    cfg["gates"] = {"rewrites": on}
+    C.save(ws, cfg)
+    regs, _bad = LH.registry(str(Path(root) / "registry"))
+    return repo, ws, regs, draft
+
+
+class RewriteGateTest(unittest.TestCase):
+    """A rewrite written by a script in a shell never passes an editor-tool gate; the working tree is read instead,
+    after the tool, and the turn does not end while a flagged rewrite is unhandled."""
+
+    def test_a_script_write_is_read_after_the_tool_and_only_once(self):
+        with TempDir() as root:
+            repo, ws, regs, draft = setup_gated(root)
+            draft.write_text(draft.read_text(encoding="utf-8").replace(SURVEY, BAD), encoding="utf-8")
+            out = LH.handle(tool_payload("PostToolUse", repo, "Bash", {"command": "python3 edit.py"}), regs, spawn=Spy())
+            ctx = (out or {}).get("hookSpecificOutput", {}).get("additionalContext", "")
+            self.assertIn("标出", ctx)
+            self.assertIn("colon", ctx)
+            self.assertIsNone(LH.handle(tool_payload("PostToolUse", repo, "Bash", {"command": "ls"}), regs, spawn=Spy()),
+                              "an unchanged draft is not read again")
+
+    def test_the_stop_is_blocked_once_then_the_override_is_recorded(self):
+        with TempDir() as root:
+            repo, ws, regs, draft = setup_gated(root)
+            draft.write_text(draft.read_text(encoding="utf-8").replace(SURVEY, BAD), encoding="utf-8")
+            out = LH.handle(stop_payload(repo), regs, spawn=Spy())
+            self.assertEqual((out or {}).get("decision"), "block", out)
+            self.assertIn("colon", out["reason"])
+            self.assertIsNone(LH.handle(stop_payload(repo, stop_hook_active=True), regs, spawn=Spy()))
+            kinds = [e["kind"] for e in HL.load(ws).get("events", [])]
+            self.assertIn("stop_gate_overridden", kinds)
+
+    def test_a_missing_reply_field_is_recorded_and_the_working_tree_still_counts(self):
+        with TempDir() as root:
+            repo, ws, regs, draft = setup_gated(root)
+            draft.write_text(draft.read_text(encoding="utf-8").replace(SURVEY, BAD), encoding="utf-8")
+            payload = stop_payload(repo)
+            del payload["last_assistant_message"]
+            out = LH.handle(payload, regs, spawn=Spy())
+            self.assertEqual((out or {}).get("decision"), "block", out)
+            errors = [e["detail"] for e in HL.load(ws).get("events", []) if e["kind"] == "hook_error"]
+            self.assertTrue(any("last_assistant_message" in d for d in errors), errors)
+
+    def test_a_rewrite_in_the_reply_blocks_and_a_clean_turn_ends(self):
+        with TempDir() as root:
+            repo, ws, regs, draft = setup_gated(root)
+            out = LH.handle(stop_payload(repo, last_assistant_message="改成：\n```\n" + BAD + "\n```"), regs, spawn=Spy())
+            self.assertEqual((out or {}).get("decision"), "block", out)
+            self.assertIsNone(LH.handle(stop_payload(repo, last_assistant_message="说明，没有改句。"), regs, spawn=Spy()))
+
+    def test_with_the_gates_off_nothing_is_blocked(self):
+        with TempDir() as root:
+            repo, ws, regs, draft = setup_gated(root, on=False)
+            draft.write_text(draft.read_text(encoding="utf-8").replace(SURVEY, BAD), encoding="utf-8")
+            self.assertIsNone(LH.handle(stop_payload(repo), regs, spawn=Spy()))
+            self.assertIsNone(LH.handle(tool_payload("PostToolUse", repo, "Bash", {"command": "x"}), regs, spawn=Spy()))
+
+
+class BrokenCoverageModuleTest(unittest.TestCase):
+    """The rewrite gate imports coverage inside the call. When coverage cannot be imported, the human/ guard still
+    refuses, and the Stop gate says it is down rather than letting the turn end as if checked."""
+
+    def copy_with_broken_coverage(self, root):
+        import shutil
+        wl = Path(root) / "wl"
+        skip = shutil.ignore_patterns("__pycache__")
+        shutil.copytree(HOOKS, wl / "hooks", ignore=skip)
+        shutil.copytree(HOOKS.parent / "engine" / "loop", wl / "engine" / "loop", ignore=skip)
+        (wl / "engine" / "loop" / "coverage.py").write_text("raise ImportError('broken on purpose')\n", encoding="utf-8")
+        # A Stop starts `loop update` detached; in this copy it exits at once, or it would still be writing into the
+        # temporary directory while the test removes it (seen as an intermittent failure under load).
+        (wl / "engine" / "loop" / "__main__.py").write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
+        return wl
+
+    def run_hook(self, wl, root, payload):
+        env = dict(os.environ, AWT_LOOP_REGISTRY=str(Path(root) / "registry"), PYTHONDONTWRITEBYTECODE="1")
+        return subprocess.run([sys.executable, str(wl / "hooks" / "loop_hook.py")], input=json.dumps(payload),
+                              capture_output=True, text=True, env=env)
+
+    def test_the_guard_still_refuses_and_the_stop_gate_says_it_is_down(self):
+        with TempDir() as root:
+            repo, ws, regs, draft = setup_gated(root)
+            wl = self.copy_with_broken_coverage(root)
+            r = self.run_hook(wl, root, tool_payload("PreToolUse", repo, "Write",
+                                                     {"file_path": str(ws / "human" / "comments.jsonl"), "content": "x"}))
+            self.assertEqual(json.loads(r.stdout or "{}").get("hookSpecificOutput", {}).get("permissionDecision"), "deny",
+                             r.stderr)
+            r = self.run_hook(wl, root, stop_payload(repo))
+            out = json.loads(r.stdout or "{}")
+            self.assertEqual(out.get("decision"), "block", r.stderr)
+            self.assertIn("改句门自己坏了", out.get("reason", ""))
