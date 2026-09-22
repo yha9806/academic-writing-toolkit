@@ -275,11 +275,26 @@ class PanelTest(unittest.TestCase):
         self.assertEqual(d["history"][0]["sections"], ["I", "B"])
         self.assertEqual(d["overview"]["latest"]["tag"], "补区间")
         self.assertEqual(d["overview"]["latest"]["more"], "这一段 1 个改动集")
-        self.assertEqual([c["label"] for c in d["stats"]], ["句", "版"])     # 有总览时数据条换成总览的格
+        # 有总览时以总览的格为底；分镜 ⑥③ 起「拦下」一直在（缺口 4：先前有总览时它被换掉，哪里都看不到）
+        self.assertEqual([c["label"] for c in d["stats"]], ["句", "版", "拦下"])
         plain = L.build(s, now=T0)[0]["detail"]
         self.assertNotIn("overview", plain)
-        self.assertEqual([c["label"] for c in plain["stats"]], ["追到", "拦下", "缺依据"])
+        self.assertEqual([c["label"] for c in plain["stats"]], ["追到", "缺依据", "拦下"])   # 分镜 ⑥③ 的顺序
 
+
+
+class BuildLagTest(unittest.TestCase):
+    """缺口 8（分镜 ⑥③）：投稿构建之后稿件又有几个提交。数不出来就不写这一格，不写成 0。"""
+
+    def test_the_cell_says_how_many_commits_since_the_build(self):
+        from loop import overview as OVM
+        versions = [{"sentences": [1, 2, 3]}]
+        rep = {"source_commit": "abc1234def", "title_page_placeholders": 0, "ready_to_upload": True}
+        cells = {c["label"]: c for c in OVM.stats_strip(versions, 1, None, False, rep, behind=10)}
+        self.assertEqual((cells["构建落后"]["value"], cells["构建落后"]["tone"]), ("10", "orange"))
+        self.assertIn("abc1234", cells["构建落后"]["hint"])
+        self.assertNotIn("构建落后", {c["label"] for c in OVM.stats_strip(versions, 1, None, False, rep, behind=None)})
+        self.assertIsNone({c["label"]: c for c in OVM.stats_strip(versions, 1, None, False, rep, behind=0)}["构建落后"]["tone"])
 
 if __name__ == "__main__":
     unittest.main()

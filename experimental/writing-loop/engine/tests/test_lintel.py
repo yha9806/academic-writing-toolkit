@@ -46,10 +46,12 @@ def only(acts):
 
 
 class CoverageStatTest(unittest.TestCase):
-    """The card's data strip says how many checks have not looked at the draft as it is now (spec 2026-09-21 D4)."""
+    """The card's data strip says how many checks have not looked at the draft as it is now (spec 2026-09-21 D4).
+    Since the strip of storyboard ⑥③ the cell is 有发现 (checks that found something, gap 1); the to-do, the checks AWT
+    cannot run here and the waivers are in its hover hint, never dropped."""
 
     def stat(self, act):
-        return [x for x in act["detail"]["stats"] if x["label"].startswith("检查")]
+        return [x for x in act["detail"]["stats"] if x["label"].startswith("检查") or x["label"] == "有发现"]
 
     def test_no_coverage_given_adds_nothing(self):
         self.assertEqual(self.stat(only(L.build(summary(), now=NOW))), [])
@@ -62,23 +64,23 @@ class CoverageStatTest(unittest.TestCase):
         rows = [{"id": "a", "name": "甲", "status": "过期"}, {"id": "b", "name": "乙", "status": "最新"},
                 {"id": "c", "name": "丙", "status": "不适用", "instead": None}]
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
-        self.assertEqual(got, [{"label": "检查待办", "value": "1", "tone": "orange"}],
-                         "the stale check counts; a check the toolkit cannot run on this draft is a gap, not a task")
+        self.assertEqual((got[0]["value"], got[0]["tone"]), ("0", "orange"), "nothing found, but a stale check: orange")
+        self.assertIn("检查待办 1：甲", got[0]["hint"],
+                      "the stale check counts; a check the toolkit cannot run on this draft is a gap, not a task")
         rows = [{"id": "b", "name": "乙", "status": "最新"}]
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
-        self.assertEqual(got, [{"label": "检查待办", "value": "0"}], "no None reaches the host")
+        self.assertEqual(got, [{"label": "有发现", "value": "0"}], "no None reaches the host")
 
     def test_a_check_the_toolkit_cannot_run_here_is_counted_as_a_gap(self):
         rows = [{"id": "b", "name": "乙", "status": "最新"}, {"id": "c", "name": "丙", "status": "不适用", "instead": None}]
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
-        self.assertIn({"label": "AWT 读不了", "value": "1"}, [x for x in only(L.build(summary(), now=NOW, coverage={
-            "rows": rows, "target": {}}))["detail"]["stats"]])
+        self.assertIn("AWT 读不了 1", got[0]["hint"])
         self.assertEqual(got[0]["value"], "0")
 
     def test_a_waiver_is_counted_on_the_card(self):
         rows = [{"id": "b", "name": "乙", "status": "已豁免", "detail": "作者：不做"}]
-        stats = only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}}))["detail"]["stats"]
-        self.assertIn({"label": "豁免", "value": "1"}, stats)
+        got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": rows, "target": {}})))
+        self.assertIn("豁免 1", got[0]["hint"])
 
     def test_a_summary_of_the_wrong_shape_is_not_read_as_clean(self):
         got = self.stat(only(L.build(summary(), now=NOW, coverage={"rows": 5})))
@@ -246,7 +248,7 @@ class OneActivityTest(unittest.TestCase):
         self.assertNotIn("chart", d)
         self.assertEqual(d["strip"]["cells"], [L.IDENTITY, L.UNTRACED])
         self.assertEqual([(k["name"], k["count"]) for k in d["strip"]["legend"]], [("追到", 1), ("对不上", 0), ("别处", 1)])
-        self.assertEqual([c["label"] for c in d["stats"]], ["追到", "拦下", "缺依据"])
+        self.assertEqual([c["label"] for c in d["stats"]], ["追到", "缺依据", "拦下"])   # 分镜 ⑥③ 的顺序
         self.assertEqual(d["listTitle"], "ws · 15 句 · 已追到")
 
     def test_consecutive_untraced_changesets_fold_in_groups_of_sixteen(self):
@@ -386,6 +388,89 @@ class TurnStateTest(unittest.TestCase):
         self.assertEqual(a["pillSeen"], {"pulse": False, "agoSince": L._iso(NOW - 60)})
         self.assertNotIn("pillSeen", only(L.build(summary(), now=NOW)))           # no capsule, nothing to keep
         self.assertNotIn("pillSeen", only(L.build(with_change(), now=NOW, problems=["x"])))
+
+
+class PanelGapsTest(unittest.TestCase):
+    """功能对照表的缺口 1–8（lintel docs/design/2026-09-22-awt-backend-frontend-map.md，分镜 ⑥③–⑥⑤）。"""
+
+    def cells(self, **kw):
+        return {c["label"]: c for c in only(L.build(with_change(), now=NOW, **kw))["detail"]["stats"]}
+
+    def test_refused_writes_are_counted_as_writes_not_notice_lines(self):
+        # 缺口 4：提醒只有一行，但被拦下了 6 次
+        denials = [{"at": f"2026-01-02T03:0{i}:00Z", "detail": f"Write → human/x{i}"} for i in range(6)]
+        c = self.cells(notices=["拦下写入：共 6 次"], denials=denials)["拦下"]
+        self.assertEqual((c["value"], c["tone"]), ("6", "orange"))
+        self.assertIn("human/x5", c["hint"])
+        self.assertEqual(self.cells()["拦下"], {"label": "拦下", "value": "0"})
+
+    def test_checks_that_found_something_are_on_the_strip_with_their_names_in_the_hint(self):
+        c = self.cells(coverage=COV)["有发现"]
+        self.assertEqual((c["value"], c["tone"]), ("1", "orange"))
+        self.assertIn("检查甲", c["hint"])
+
+    def test_the_weakest_reader_item_has_a_cell_and_every_item_in_the_hint(self):
+        rd = {"t": NOW, "summary": "M1.recall 7/9，M2.recall 4/9", "verdict": "findings"}
+        c = self.cells(readers=rd)["读者·最弱"]
+        self.assertEqual(c["value"], "4/9")
+        self.assertIn("M1 7/9 · M2 4/9", c["hint"])
+
+    def test_a_gate_override_shows_and_nothing_shows_when_there_is_none(self):
+        self.assertNotIn("门放行", self.cells())
+        c = self.cells(overrides=[{"at": "2026-01-02T03:04:05Z", "detail": "2 句标出未处理"}])["门放行"]
+        self.assertEqual((c["value"], c["tone"]), ("1", "orange"))
+
+    def test_undecided_risks_get_their_own_cell_once_coverage_can_list_them(self):
+        # 风险台账（IPM 会话 09-22，coverage.pending 由它提供）：还没有这个函数时不画这一格
+        from unittest import mock
+        with mock.patch.object(V, "pending", lambda s: [{"name": "风险甲"}, {"name": "门乙"}], create=True):
+            c = self.cells(coverage=COV)["未决"]
+        self.assertEqual((c["value"], c["tone"], c["hint"]), ("2", "orange", "风险甲；门乙"))
+        if not hasattr(V, "pending"):
+            self.assertNotIn("未决", self.cells(coverage=COV))
+
+    def test_more_than_eight_cells_move_the_least_needed_into_the_first_hint(self):
+        ov = {"stats": [{"label": "句", "value": "82"}, {"label": "版", "value": "15"}, {"label": "改动集 · 这一段", "value": "3"},
+                        {"label": "缺依据", "value": "2", "tone": "orange"}, {"label": "标题页待填", "value": "4", "tone": "orange"},
+                        {"label": "构建落后", "value": "10", "tone": "orange"}]}
+        cells = only(L.build(with_change(), now=NOW, overview=ov, coverage=COV, denials=[{"at": "t", "detail": "d"}],
+                             overrides=[{"at": "t", "detail": "d"}],
+                             readers={"t": NOW, "summary": "M1.recall 7/9"}))["detail"]["stats"]
+        labels = [c["label"] for c in cells]
+        self.assertEqual(len(cells), 8)
+        self.assertEqual(labels, ["句", "缺依据", "有发现", "门放行", "拦下", "读者·最弱", "构建落后", "标题页待填"])
+        self.assertIn("另有 版 15", cells[0]["hint"])
+
+    def test_the_stage_count_is_in_the_hint_of_versions(self):
+        ov = {"stats": [{"label": "句", "value": "82"}, {"label": "版", "value": "15"}, {"label": "改动集 · 这一段", "value": "3"}]}
+        cells = {c["label"]: c for c in only(L.build(with_change(), now=NOW, overview=ov))["detail"]["stats"]}
+        self.assertNotIn("改动集 · 这一段", cells)
+        self.assertEqual(cells["版"]["hint"], "改动集 · 这一段 3")
+
+    def test_a_folded_unmatched_group_opens_to_its_sentences(self):
+        # 缺口 2：先前每个改动集只有一行（提交号、句数与时刻、提交说明）
+        s = with_change(traced=False)
+        h = dict(s["history"][0], rows=[{"label": "A1", "old": "o", "new": "n"}], subject="s")
+        s["history"] = [h, dict(h, id="d00d1e2")]
+        fold = only(L.build(s, now=NOW))["detail"]["history"][0]
+        self.assertEqual([r["label"] for r in fold["rows"]], ["A1", "A1"])
+        self.assertTrue(fold["rows"][0]["where"].startswith("c0ffee1"))
+        self.assertEqual(fold["rows"][0]["new"], "n")
+
+    def test_more_than_sixteen_sentences_says_how_many_are_not_listed(self):
+        # 缺口 7
+        s = with_change(n=20)
+        s["history"][0]["rows"] = [{"label": f"X{i}", "old": "o", "new": "n"} for i in range(16)]
+        row = only(L.build(s, now=NOW))["detail"]["history"][0]
+        self.assertIn({"label": "还有", "text": "4 句没列出", "tone": "white55"}, row["lines"])
+
+    def test_the_basis_claude_wrote_and_how_firmly_it_was_traced_reach_the_card(self):
+        # 缺口 5、3
+        s = with_change(); s["latest_changeset"]["basis"] = "作者那条 · 台账第 3 行"; s["latest_changeset"]["strength"] = "session"
+        a = only(L.build(s, now=NOW))
+        pages = {p["title"]: p for p in a["body"]}
+        self.assertEqual(pages["依据"]["items"][0]["text"], "作者那条 · 台账第 3 行")
+        self.assertIn("追到你的话 · ○ 按会话", [i.get("text") for i in pages["改了"]["items"]])
 
 
 class IdentityTest(unittest.TestCase):

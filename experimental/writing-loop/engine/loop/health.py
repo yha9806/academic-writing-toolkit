@@ -110,6 +110,16 @@ def file_problems(ws):
     return problems
 
 
+def guard_denials(ws):
+    """Refused writes into human/ since the last ack, oldest first: the count the notch shows is these, not the notice lines."""
+    return _unacked(load(ws), "guard_denied")
+
+
+def gate_overrides(ws):
+    """Turns the rewrite gate let end with a flagged rewrite still unhandled (stop_hook_active), since the last ack."""
+    return _unacked(load(ws), "stop_gate_overridden")
+
+
 def file_notices(ws):
     """Things the author should know about that are not faults: refused writes since the last ack."""
     denied = _unacked(load(ws), "guard_denied")

@@ -449,8 +449,17 @@ def todo_block(cfg_ov, repo, ref, cache_dir, now, rep=None):
     return {"title": "待办", "hint": "只对着清单算，不打总分", "cells": cells[:4]}
 
 
-def stats_strip(versions, stage_cs, alignment, ledger, rep):
-    """数据条五格（分镜 ㊾，借许愿柳）：句 / 版 / 这一段改动集 / 缺依据 / 标题页待填。没有的格不写。"""
+def _build_behind(repo, ref, rep):
+    from . import gitio
+    try:
+        return gitio.count_between(repo, rep.get("source_commit"), ref) if rep else None
+    except Exception:  # noqa: BLE001 -- a cell that cannot be counted is left out, never shown as 0
+        return None
+
+
+def stats_strip(versions, stage_cs, alignment, ledger, rep, behind=None):
+    """数据条五格（分镜 ㊾，借许愿柳）：句 / 版 / 这一段改动集 / 缺依据 / 标题页待填。没有的格不写。
+    `behind`：投稿构建之后稿件又有几个提交（缺口 8，分镜 ⑥③）；构建报告没有提交号或历史改写过时为 None，不写这一格。"""
     out = [{"label": "句", "value": str(len(versions[-1]["sentences"]))},
            {"label": "版", "value": str(len(versions))},
            {"label": "改动集 · 这一段", "value": str(stage_cs)}]
@@ -463,6 +472,9 @@ def stats_strip(versions, stage_cs, alignment, ledger, rep):
         out.append({"label": "标题页待填" if ph else "投稿构建",
                     "value": str(ph) if ph else ("可上传" if ready else f"失败 {len(rep.get('failures') or [])}"),
                     "tone": None if ready else "orange"})
+    if rep and behind is not None:
+        out.append({"label": "构建落后", "value": str(behind), "tone": "orange" if behind else None,
+                    "hint": f"构建于 {str(rep.get('source_commit') or '?')[:7]}，之后稿件又有 {behind} 个提交"})
     return out[:8]
 
 
@@ -595,7 +607,8 @@ def build(cfg, now):
         "todo": todo_block(ov, repo, ref, Path(cfg["_ws"]) / "cache", now, rep),
     }
     return {"payload": payload, "touches": touches_all, "actions": actions, "stage_changesets": stage_cs,
-            "stats": stats_strip(versions, stage_cs, shown[-1].get("alignment"), bool(led), rep)}
+            "stats": stats_strip(versions, stage_cs, shown[-1].get("alignment"), bool(led), rep,
+                                 _build_behind(repo, ref, rep))}
 
 
 def apply_action(ovw, action, now=None):

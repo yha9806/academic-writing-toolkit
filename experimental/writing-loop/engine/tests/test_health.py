@@ -137,5 +137,23 @@ class DetachedTest(unittest.TestCase):
             self.assertTrue((ws / "index" / "sources.json").exists())
 
 
+
+class NotchCountsTest(unittest.TestCase):
+    """What the notch counts (lintel C7, gap 4): refused writes and gate overrides since the last ack, one per event."""
+
+    def test_refused_writes_and_overrides_are_counted_per_event_and_an_ack_clears_them(self):
+        with TempDir() as root:
+            (root / "cache").mkdir()
+            for i in range(3):
+                HL.record_event(root, "guard_denied", f"Write → human/x{i}", now=100 + i)
+            HL.record_event(root, "stop_gate_overridden", "1 句标出未处理", now=104)
+            self.assertEqual(len(HL.guard_denials(root)), 3)
+            self.assertEqual(len(HL.gate_overrides(root)), 1)
+            self.assertEqual(len(HL.file_notices(root)), 1)          # the notice is one line whatever the count
+            HL.ack(root, now=110)
+            HL.record_event(root, "guard_denied", "Write → human/y", now=120)
+            self.assertEqual([e["detail"] for e in HL.guard_denials(root)], ["Write → human/y"])
+            self.assertEqual(HL.gate_overrides(root), [])
+
 if __name__ == "__main__":
     unittest.main()

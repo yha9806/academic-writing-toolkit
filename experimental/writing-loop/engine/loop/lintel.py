@@ -189,7 +189,8 @@ def origin(lc):
 def _reason(lc):
     o = origin(lc)
     if o == "traced":
-        return "追到你的话"
+        how = STRENGTH.get(lc.get("strength"))
+        return "追到你的话" + (f" · {how}" if how else "")
     if o == "unmatched":
         return f"窗口里 {lc.get('messages_in_window', 0)} 条消息都对不上"
     return "窗口里没有你的消息"
@@ -228,6 +229,9 @@ def _body(lc):
         pages.append({"kind": "section", "title": "你说", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["verbatim"], 140)}]})
     if lc["reading"]:
         pages.append({"kind": "section", "title": "Claude 读成", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["reading"], 140)}]})
+    if lc.get("basis"):
+        # 缺口 5：Claude 在解释块里写的「依据」，先前从不上前端
+        pages.append({"kind": "section", "title": "依据", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["basis"], 140)}]})
     return pages
 
 
@@ -256,6 +260,24 @@ FOLD_MAX = 16
 FOLD_WORD = {"unmatched": "△ 对不上", "elsewhere": "别处"}
 
 
+def _fold_rows(run, names):
+    """缺口 2（分镜 ⑥④）：折叠的对不上 / 别处点开给逐句，和追到的一样；每句的定位前面加提交号与时刻。
+    精简历史里没有句子的改动集（旧索引）退回一行：提交号、句数与时刻、提交说明。"""
+    out = []
+    for r in run:
+        rows = _rows(r, names)
+        if not rows:
+            out.append({"label": r["id"][:7], "where": _clip(f"{r['n']} 句 · {_hm(r['time'])}", 256), "copy": r["id"],
+                        "new": _clip(detex(r.get("subject") or ""), 200) or "（没有提交信息）"})
+        for x in rows:
+            x = dict(x)
+            x["where"] = _clip(" · ".join(y for y in (r["id"][:7], _hm(r["time"]), x.get("where")) if y), 256)
+            out.append(x)
+        if len(out) >= ROWS_LOCATED:
+            break
+    return out[:ROWS_LOCATED]
+
+
 def _history(hist, names, touches=None):
     """The panel timeline (分镜 ㉚ ㊴): a traced change set is its own row (your words, the count as the badge, the commit
     as the dim trailing text, the sentence rows when opened); consecutive untraced ones of the same kind fold into one
@@ -281,6 +303,10 @@ def _history(hist, names, touches=None):
             where = touched(h, names)
             label = _fit(h["label"], LABEL_MAX) if h.get("label") else None
             lines = [{"label": "改到", "text": where, "tone": "white55"}] if (label and where) else []
+            if STRENGTH.get(h.get("strength")):
+                lines.append({"label": "追到", "text": STRENGTH[h["strength"]], "tone": "white55"})   # 缺口 3
+            if h["n"] > ROWS_LOCATED:
+                lines.append({"label": "还有", "text": f"{h['n'] - ROWS_LOCATED} 句没列出", "tone": "white55"})   # 缺口 7
             out.append({"id": h["id"], "tag": label or where or "改了", "badge": f"{h['n']} 句", "duration": h["id"][:7],
                         "at": _iso(h["time"]) if h["time"] else None, "expandable": True,
                         "lines": lines, "rows": _rows(h, names) or None, "sections": secs([h["id"]])})
@@ -290,15 +316,16 @@ def _history(hist, names, touches=None):
         run = []
         while i < len(hist) and not hist[i]["traced"] and origin(hist[i]) == kind_ and len(run) < FOLD_MAX:
             run.append(hist[i]); i += 1
-        out.append({"id": f"fold-{run[0]['id']}", "tag": f"{FOLD_WORD[kind_]} ×{len(run)}", "badge": f"{sum(r['n'] for r in run)} 句",
-                    "at": _iso(run[0]["time"]) if run[0]["time"] else None, "expandable": True, "lines": [],
-                    "rows": [{"label": r["id"][:7], "where": _clip(f"{r['n']} 句 · {_hm(r['time'])}", 256), "copy": r["id"],
-                              "new": _clip(detex(r.get("subject") or ""), 200) or "（没有提交信息）"} for r in run],
+        total = sum(r["n"] for r in run)
+        out.append({"id": f"fold-{run[0]['id']}", "tag": f"{FOLD_WORD[kind_]} ×{len(run)}", "badge": f"{total} 句",
+                    "at": _iso(run[0]["time"]) if run[0]["time"] else None, "expandable": True,
+                    "lines": [{"label": "还有", "text": f"{total - ROWS_LOCATED} 句没列出", "tone": "white55"}] if total > ROWS_LOCATED else [],
+                    "rows": _fold_rows(run, names),
                     "sections": secs([r["id"] for r in run])})
     return out
 
 
-def _detail(summary, lc, bad, notices, overview=None, coverage=NOT_GIVEN):
+def _detail(summary, lc, bad, notices, overview=None, coverage=NOT_GIVEN, denials=(), overrides=(), readers=None):
     """The panel (分镜 ㉚): timeline with the untraced folded, a progress strip one cell per change set (the author 09-21:
     progress by change set), and three cells — 追到 / 拦下 / 缺依据. No chart: the host's chart is a duration histogram."""
     hist = summary.get("history") or []
@@ -315,18 +342,16 @@ def _detail(summary, lc, bad, notices, overview=None, coverage=NOT_GIVEN):
         "listTitle": _clip(f"{summary['name']} · {head}", 64),
         "dot": IDENTITY,
         "history": history,
-        "historyNote": _clip(f"有空再看：拦下 {len(notices)} 次 · 缺依据 {bad} 条", 64),
+        # 缺口 4：拦下按次数算（health 的 guard_denied），不按提醒的行数（那一行总是 1）。没给次数的旧调用照旧数行。
+        "historyNote": _clip(f"有空再看：拦下 {len(denials) if denials else len(notices)} 次 · 缺依据 {bad} 条", 64),
         # 进度按改动集（作者 09-21），三色：追到靛蓝、对不上橙、别处灰。
         "strip": {"title": "改动集 · 旧 → 新",
                   "cells": [cell[k] for k in reversed(kinds)],
                   "legend": [{"name": "追到", "count": traced, "swatch": IDENTITY},
                              {"name": "对不上", "count": kinds.count("unmatched"), "swatch": UNMATCHED},
                              {"name": "别处", "count": kinds.count("elsewhere"), "swatch": UNTRACED}]},
-        "stats": [
-            {"label": "追到", "value": f"{traced}/{len(hist)}"},
-            {"label": "拦下", "value": str(len(notices)), "tone": "orange" if notices else None},
-            {"label": "缺依据", "value": str(bad), "tone": "orange" if bad else None},
-        ],
+        # 其余的格由 _strip 排（分镜 ⑥③）；没有总览时第一格是追到。
+        "stats": [{"label": "追到", "value": f"{traced}/{len(hist)}"}],
     }
     if overview and overview.get("payload"):
         # 点进去的第一层（分镜 ㊸）：总览；上面这张改动集列表退到第二层。最下一行 = 最近一轮，点它进第二层。
@@ -337,34 +362,93 @@ def _detail(summary, lc, bad, notices, overview=None, coverage=NOT_GIVEN):
             ov["latest"] = {"at": h.get("at"), "tag": h["tag"], "badge": (h.get("badge") or "").split(" ")[0] or None,
                             "where": where, "more": f"这一段 {overview.get('stage_changesets', 0)} 个改动集"}
         d["overview"] = ov
-        # 有总览时数据条换成总览的五格（分镜 ㊾）：句 / 版 / 这一段改动集 / 缺依据 / 标题页待填。
-        if overview.get("stats"):
-            d["stats"] = overview["stats"]
-    if coverage is not NOT_GIVEN:
-        # 检查覆盖（spec 2026-09-21 D4）：不在当前稿上的检查有几项。没算过也要说，不能留空当作都查过了。
-        d["stats"] = (list(d["stats"]) + _coverage_stats(coverage))[:8]
+    # 数据条（分镜 ⑥③）：有总览时以总览的格（分镜 ㊾）为底，再加有发现 / 拦下 / 读者 / 构建落后；最多 8 格。
+    # 没给拦下明细的旧调用，按提醒行数算（每行一次）。
+    denied = list(denials) or [{"at": None, "detail": n} for n in notices]
+    d["stats"] = _strip(d["stats"][0], bad, overview, coverage, denied, list(overrides), readers)
     return d
 
 
 
-def _coverage_stats(summary):
-    """检查待办 = what this draft's work can act on (a summary for an older HEAD counts); AWT 读不了 = checks the
-    toolkit has that cannot read this draft. Neither is ever left out as a way of saying zero."""
+#: 数据条放不下 8 格时，先把这几格挪进「句」的悬停（分镜 ⑥③ 的默认：数据条最多 8 格，挤掉的进悬停）。
+STRIP_DROP = ("版", "读者·最弱", "构建落后", "拦下")
+
+
+def _found_cell(summary):
+    """缺口 1：查出东西的检查。先前数据条只有「检查待办」（过期 / 没跑过），查出东西的不算进去。
+    悬停列名字与一句结果，再写检查待办、AWT 读不了与豁免（分镜 ⑥③：挤掉的进悬停）。"""
     from . import coverage as V
     if summary is None:
-        return [{"label": "检查", "value": "没算过", "tone": "orange"}]
+        return {"label": "检查", "value": "没算过", "tone": "orange"}
     try:
-        n = len(V.attention(summary)) + (1 if (summary.get("target") or {}).get("problems") else 0)
-        gap = len(V.gaps(summary))
+        found, todo = V.findings(summary), V.attention(summary)
+        gap, wv = V.gaps(summary), V.waived(summary)
+        target = 1 if (summary.get("target") or {}).get("problems") else 0
     except (KeyError, TypeError, AttributeError):
-        return [{"label": "检查", "value": "读不出", "tone": "orange"}]
-    out = [{"label": "检查待办", "value": str(n), "tone": "orange" if n else None}]
+        return {"label": "检查", "value": "读不出", "tone": "orange"}
+    bits = [f"{r['name']}：{' '.join(str(r.get('result') or '有发现').split())[:40]}" for r in found[:6]]
+    if len(found) > 6:
+        bits.append(f"另 {len(found) - 6} 项")
+    n_todo = len(todo) + target
+    if n_todo:
+        bits.append(f"检查待办 {n_todo}：" + "、".join(r["name"] for r in todo[:4]) + ("、目标档案" if target else ""))
     if gap:
-        out.append({"label": "AWT 读不了", "value": str(gap)})
-    wv = len(V.waived(summary))
+        bits.append(f"AWT 读不了 {len(gap)}")
     if wv:
-        out.append({"label": "豁免", "value": str(wv)})
-    return out
+        bits.append(f"豁免 {len(wv)}")
+    return {"label": "有发现", "value": str(len(found)), "tone": "orange" if found or n_todo else None,
+            "hint": _clip("；".join(bits), 20000) or None}
+
+
+def _strip(first, bad, overview, coverage, denials, overrides, readers):
+    """数据条（分镜 ⑥③，缺口 1、4、6、8）：句 / 版 / 缺依据 / 有发现 / 拦下 / 读者·最弱 / 构建落后 / 标题页待填，
+    另有两格只在不为 0 时出现：未决（作者还没定的风险与没过的门）、门放行（改句门拦过一次、这一轮仍带着标出句结束）。
+    最多 8 格，多出来的按 STRIP_DROP 挪进第一格的悬停。"""
+    from . import coverage as V
+    from . import turns as TN
+    ov = {c["label"]: c for c in (overview or {}).get("stats") or []}
+    if ov:
+        cells = [dict(c) for c in (ov.get("句"), ov.get("版"), ov.get("缺依据")) if c]
+        stage = ov.get("改动集 · 这一段")
+        for c in cells:
+            if c["label"] == "版" and stage:
+                c["hint"] = f"改动集 · 这一段 {stage['value']}"
+    else:
+        cells = [first, {"label": "缺依据", "value": str(bad), "tone": "orange" if bad else None}]
+    if coverage is not NOT_GIVEN:
+        cells.append(_found_cell(coverage))
+    pending = getattr(V, "pending", None)
+    try:
+        rows = pending(coverage) if pending and isinstance(coverage, dict) else []
+    except (KeyError, TypeError, AttributeError):
+        rows = []
+    if rows:
+        cells.append({"label": "未决", "value": str(len(rows)), "tone": "orange",
+                      "hint": _clip("；".join(r.get("name") or r.get("id") or "?" for r in rows), 20000)})
+    if overrides:
+        cells.append({"label": "门放行", "value": str(len(overrides)), "tone": "orange",
+                      "hint": _clip(f"最近一次 {overrides[-1].get('at')}：{overrides[-1].get('detail')}", 20000)})
+    last = "；".join(f"{d.get('at')} {d.get('detail')}" for d in denials[-3:])
+    cells.append({"label": "拦下", "value": str(len(denials)), "tone": "orange" if denials else None,
+                  "hint": _clip(f"模型想写 human/ 被拒 {len(denials)} 次，最近：{last}", 20000) if denials else None})
+    w = TN.weakest_reader(readers.get("summary")) if readers else None
+    if w:
+        items = " · ".join(f"{m} {k}/{n}" for m, k, n in TN.RECALL.findall(readers.get("summary") or ""))
+        cells.append({"label": "读者·最弱", "value": f"{w[1]}/{w[2]}", "hint": _clip(f"自由回忆：{items}（最弱 {w[0]}）", 20000)})
+    for k in ("构建落后", "标题页待填", "投稿构建"):
+        if ov.get(k):
+            cells.append(dict(ov[k]))
+    dropped = []
+    for label in STRIP_DROP:
+        if len(cells) <= 8:
+            break
+        c = next((c for c in cells if c["label"] == label), None)
+        if c:
+            cells.remove(c)
+            dropped.append(f"{c['label']} {c['value']}")
+    if dropped:
+        cells[0] = dict(cells[0], hint="；".join(x for x in (cells[0].get("hint"), "另有 " + " · ".join(dropped)) if x))
+    return [_prune(c) for c in cells[:8]]
 
 
 def _status_line(summary, bad, coverage):
@@ -395,10 +479,11 @@ STRENGTH = {"session": "○ 按会话", "sentence": "● 按句子"}
 
 
 def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_GIVEN, turn=None, readers=None,
-          built_at=None):
+          built_at=None, denials=(), overrides=()):
     """从索引摘要（`index.summarize`）生成活动：一个稿件一个，永远只有一个。
     `problems` 是引擎自己的毛病；`notices` 是该知道但不是故障的事（被拦下的写入）。
-    `turn` 是最近一轮（`turns.current`），`readers` 是最近一次读者组（`turns.readers_run`），`built_at` 是索引最近一次建成的时刻。
+    `turn` 是最近一轮（`turns.current`），`readers` 是最近一次读者组（`turns.readers_run`），`built_at` 是索引最近一次建成的时刻；
+    `denials` / `overrides` 是 health 里没确认过的拦下写入与改句门放行（`health.guard_denials` / `gate_overrides`）。
     一件事的先后（设计 B3，作者 09-22 定 B1 ②）：引擎出事 > 开工 > 本轮新出的无出处 > 在跑 > 只有读者组的落地 > 改动集 > 没有改动。"""
     from . import turns as TN
     ws = summary["name"]
@@ -537,7 +622,7 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         # 2026-09-21: hover-to-turn pages was awkward once the card could scroll; the three sections stack and the card scrolls
         # (the host keeps its paging for producers that want it).
         "body": _body(lc),
-        "detail": _detail(summary, lc, bad, notices, overview, coverage),
+        "detail": _detail(summary, lc, bad, notices, overview, coverage, denials, overrides, readers),
         "events": [{"id": i, "type": ty, "at": _iso(_event_at(ty, i, when_lc, start, ended, now))} for i, ty in events],
     }
     if pill:
