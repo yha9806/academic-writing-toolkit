@@ -121,15 +121,15 @@ def cmd_update(a):
                 t0 = time.time()
                 try:
                     cfg = C.load(ws)
-                    before = (X.load_summary(cfg) or {}).get("head") if TN else None
+                    before = _head_on_disk(ws) if TN else None
                     files, summary = X.build(cfg)
                     X.write(cfg, files)
-                    if TN and summary.get("head") and summary["head"] != before:
-                        TN.record(ws, f"head:{summary['head']}")   # the manuscript got a commit: a touch, whichever repo git ran in
                 except Exception as e:  # recorded, never swallowed: health shows it until a later success
                     HL.record_error(ws, f"{type(e).__name__}：{e}")
                     print(f"update 失败：{type(e).__name__}：{e}", file=sys.stderr)
                     return 1
+                if TN and summary.get("head") and (before or "")[:7] != summary["head"]:
+                    _record_head(ws, cfg, summary["head"], TN)
                 HL.record_ok(ws, a.reason, time.time() - t0)
                 _coverage_after_update(ws, cfg)
                 if not dirty.exists():
@@ -141,6 +141,35 @@ def cmd_update(a):
             break
     print(_summary_line(summary))
     return 0
+
+
+def _head_on_disk(ws):
+    """The manuscript HEAD the index on disk was built from. Only sources.json is read: an index this engine cannot
+    summarize any more must not stop the rebuild that replaces it. None if unreadable (the new head then counts as new)."""
+    try:
+        head = json.loads((ws / "index" / "sources.json").read_text(encoding="utf-8")).get("head")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return head if isinstance(head, str) else None
+
+
+def _record_head(ws, cfg, head, TN):
+    """The manuscript got a commit: a touch, whichever repo git ran in. It is recorded at the commit's own time, not now:
+    the rebuild that notices it ends 20-70 s after the commit, often after the turn's Stop, and a touch stamped after
+    the Stop would reopen a turn that had ended (grill 09-22 #1). A commit made before the author's message is then
+    not a touch of this turn at all (a reset to an old commit)."""
+    from . import gitio
+    from . import health as HL
+    try:
+        t = gitio.commit_time(cfg["repo"], head)
+    except Exception as e:  # noqa: BLE001 -- the notch signal must not fail the update
+        t, err = None, e
+    else:
+        err = None
+    if t is None:
+        HL.record_event(ws, "hook_error", f"刘海的轮次记录：读不到提交 {head} 的时刻（{err or 'git 没给'}），这次提交没记成碰稿")
+        return
+    TN.record(ws, f"head:{head}", now=t)
 
 
 def _coverage_after_update(ws, cfg):

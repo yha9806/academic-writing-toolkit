@@ -304,6 +304,15 @@ class TriggerTest(unittest.TestCase):
             LH.handle({"hook_event_name": "Stop", "cwd": str(root)}, regs, spawn=spy)
             self.assertEqual(spy.calls, ["stop"])
 
+    def test_an_api_error_ends_the_turn_as_unfinished(self):
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            spy = Spy()
+            out = LH.handle({"hook_event_name": "StopFailure", "cwd": str(repo), "error": "overloaded"}, regs, spawn=spy)
+            LH.handle({"hook_event_name": "StopFailure", "cwd": str(root), "error": "overloaded"}, regs, spawn=spy)
+            self.assertIsNone(out)
+            self.assertEqual(spy.calls, ["stop:error"])
+
     def test_missing_tool_input_is_recorded(self):
         with TempDir() as root:
             repo, ws, regs = setup(root)
@@ -492,6 +501,16 @@ class RewriteGateTest(unittest.TestCase):
             out = LH.handle(stop_payload(repo, last_assistant_message="改成：\n```\n" + BAD + "\n```"), regs, spawn=Spy())
             self.assertEqual((out or {}).get("decision"), "block", out)
             self.assertIsNone(LH.handle(stop_payload(repo, last_assistant_message="说明，没有改句。"), regs, spawn=Spy()))
+
+    def test_a_blocked_stop_is_recorded_as_blocked_and_the_override_as_a_stop(self):
+        # grill 09-22 #2: the stop used to be recorded before the gate, so the notch ended a turn the gate kept going
+        with TempDir() as root:
+            repo, ws, regs, draft = setup_gated(root)
+            draft.write_text(draft.read_text(encoding="utf-8").replace(SURVEY, BAD), encoding="utf-8")
+            spy = Spy()
+            LH.handle(stop_payload(repo), regs, spawn=spy)
+            LH.handle(stop_payload(repo, stop_hook_active=True), regs, spawn=spy)
+            self.assertEqual(spy.calls, ["stop:blocked", "stop"])
 
     def test_with_the_gates_off_nothing_is_blocked(self):
         with TempDir() as root:

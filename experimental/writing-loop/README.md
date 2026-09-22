@@ -39,11 +39,12 @@ A workspace is any directory holding `config.json` plus `human/`, `model/`, `ind
 
 ## Hooks (Claude Code)
 
-`hooks/loop_hook.py` is one script for four events; `hooks/settings.example.json` shows how to wire it. Workspaces it should act on are listed one per line in `~/.awt/loop-workspaces` (or `$AWT_LOOP_REGISTRY`).
+`hooks/loop_hook.py` is one script for five events; `hooks/settings.example.json` shows how to wire it. Workspaces it should act on are listed one per line in `~/.awt/loop-workspaces` (or `$AWT_LOOP_REGISTRY`).
 
 - **UserPromptSubmit**: in a session on a registered manuscript (cwd under the configured prefix, on the configured branch), the prompt is appended verbatim to `human/comments.jsonl`, and Claude is asked to end manuscript replies with a short explanation block (`〔循环〕` … `〔/循环〕`: what it read the message as, which sentences it changed, on what basis). The block is parsed from the transcript into `index/explanations.json`, next to the verbatim message. It is what Claude says, not a record of what happened.
 - **PreToolUse**: a model write into any registered workspace's `human/` is refused and recorded (the author's words are written by hooks or an interface, never by the model).
 - **PostToolUse**, **Stop**: a write to the draft or the ledger, a git command, or the end of a turn starts `loop update` detached. Overlapping requests are merged.
+- **StopFailure**: fired instead of Stop when an API error ended the turn (its output is ignored). The update it starts records the turn as ended but unfinished, so the notch stops showing it as running and does not show a landing card. A Stop the rewrite gate blocks is recorded as `stop:blocked`, which does not end the turn.
 
 Field names are the ones the runtime sends (read from the Claude Code binary, 2.1.252), not the documentation's. A payload that lacks the field its event needs is recorded in `health.json` as a hook error, so a renamed field shows up instead of silently doing nothing.
 

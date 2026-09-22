@@ -135,6 +135,13 @@ def log_touching(repo, ref, pathspecs):
     return out
 
 
+def commit_time(repo, sha):
+    """Committer time of sha in epoch seconds; None if git cannot tell."""
+    r = _run(repo, "log", "-1", "--format=%ct", sha, "--", check=False)
+    out = r.stdout.decode().strip()
+    return int(out) if r.returncode == 0 and out.isdigit() else None
+
+
 def parent(repo, sha):
     r = _run(repo, "rev-parse", f"{sha}^", check=False)
     return r.stdout.decode().strip() if r.returncode == 0 else None

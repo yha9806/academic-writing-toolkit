@@ -95,6 +95,34 @@ class TurnTest(unittest.TestCase):
             self.assertIsNone(t["ended"])
             self.assertTrue(TN.running(t, T0 + 30))
 
+    def test_a_commit_noticed_after_the_stop_does_not_reopen_the_turn(self):
+        # grill 09-22 #1: the rebuild that sees the commit ends 20-70 s later, after the Stop; its line carries the
+        # commit's own time, so it sorts before the Stop.
+        with TempDir() as root:
+            prompt(root, iso(T0))
+            TN.record(root, "write:drafts/DRAFT-v2.md", now=T0 + 10)
+            TN.record(root, "stop", now=T0 + 30)
+            TN.record(root, "head:abc1234", now=T0 + 20)                 # written last, stamped with the commit time
+            t = TN.current(root, CFG)
+            self.assertEqual(t["ended"], T0 + 30)
+            self.assertEqual([k for _, k in t["touches"]], ["draft", "head"])
+            self.assertFalse(TN.running(t, T0 + 120))
+
+    def test_a_blocked_stop_does_not_end_the_turn_and_an_api_error_does(self):
+        with TempDir() as root:
+            prompt(root, iso(T0))
+            TN.record(root, "write:drafts/DRAFT-v2.md", now=T0 + 10)
+            TN.record(root, "stop:blocked", now=T0 + 20)                 # the rewrite gate said no
+            t = TN.current(root, CFG)
+            self.assertIsNone(t["ended"])
+            self.assertTrue(TN.running(t, T0 + 200))
+            TN.record(root, "stop:error", now=T0 + 40)                   # StopFailure: an API error ended it
+            t = TN.current(root, CFG)
+            self.assertEqual((t["ended"], t["error"]), (T0 + 40, True))
+            self.assertFalse(TN.running(t, T0 + 50))
+            TN.record(root, "stop", now=T0 + 60)                         # a later clean stop is a clean end
+            self.assertEqual((TN.current(root, CFG)["ended"], TN.current(root, CFG)["error"]), (T0 + 60, False))
+
     def test_a_ledger_write_is_a_touch_and_an_hour_of_silence_is_not_running(self):
         with TempDir() as root:
             prompt(root, iso(T0))
@@ -147,6 +175,26 @@ class UpdateRecordsTest(unittest.TestCase):
             third = [r["reason"] for r in TN.read(ws)][len(first) + 1:]
             self.assertEqual(third[0], "git")
             self.assertTrue(third[1].startswith("head:"))
+
+    def test_the_head_line_carries_the_commits_time(self):
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            self.assertEqual(main(["update", str(ws), "--reason", "git"]), 0)
+            (repo / "note.txt").write_text("n")
+            git(repo, "add", "note.txt")
+            git(repo, "commit", "-q", "-m", "n", env={"GIT_COMMITTER_DATE": f"@{T0} +0000"})
+            self.assertEqual(main(["update", str(ws), "--reason", "git"]), 0)
+            head = [r for r in TN.read(ws) if r["reason"].startswith("head:")][-1]
+            self.assertEqual(head["t"], T0)
+
+    def test_an_index_this_engine_cannot_summarize_does_not_stop_the_rebuild(self):
+        # grill 09-22 #4: the head read before the build used to summarize the whole old index, inside the build's try
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            self.assertEqual(main(["update", str(ws), "--reason", "git"]), 0)
+            (ws / "index" / "changesets.json").write_text(json.dumps({"head": "x", "changesets": [{"old": 1}]}))
+            self.assertEqual(main(["update", str(ws), "--reason", "git"]), 0)
+            self.assertNotIn("old", (ws / "index" / "changesets.json").read_text())
 
 
 if __name__ == "__main__":

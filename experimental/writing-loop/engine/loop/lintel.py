@@ -502,7 +502,8 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
     is_running = TN.running(turn, now)
     # 落地（B2）：这一轮结束了，索引是在结束之后建的（追平），这一轮的时间窗里有这个改动集。
     in_window = lambda t: t is not None and start is not None and ended is not None and start <= t <= ended + 5
-    caught_up = ended is not None and built_at is not None and built_at >= ended
+    # 以 API 报错结束的一轮（StopFailure）不算落地：活没干完，只是停了。
+    caught_up = ended is not None and built_at is not None and built_at >= ended and not turn.get("error")
     landed = bool(lc and lc["traced"] and n and caught_up and in_window(when_lc))
     readers_landed = bool(readers and caught_up and in_window(readers.get("t")) and not in_window(when_lc)
                           and now - ended < LANDED_HOLD)

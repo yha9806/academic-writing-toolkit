@@ -442,12 +442,27 @@ def stop_gate(payload, ws, cfg, now):
 
 
 def on_stop(payload, regs, now, spawn):
+    """The gate is read before the stop is recorded: a Stop the gate blocks does not end the turn, and the notch must
+    not say it did (grill 09-22 #2). Either way an update runs, so the index is rebuilt at every Stop."""
     ws, cfg = session_ws(payload, regs)
-    if ws is not None:
-        spawn(ws, "stop")
+    if ws is None:
+        return None
+    out = None
+    try:
         ensure_producer(ws)
         if (cfg.get("gates") or {}).get("rewrites"):
-            return stop_gate(payload, ws, cfg, now)
+            out = stop_gate(payload, ws, cfg, now)
+    finally:
+        spawn(ws, "stop" if out is None else "stop:blocked")
+    return out
+
+
+def on_stop_failure(payload, regs, now, spawn):
+    """An API error ended the turn (Claude Code fires StopFailure instead of Stop; its output is ignored). The turn is
+    over, so the notch stops saying "running"; it was not finished, so no landing card. No gate: nothing can be blocked."""
+    ws, _cfg = session_ws(payload, regs)
+    if ws is not None:
+        spawn(ws, "stop:error")
     return None
 
 
@@ -462,6 +477,8 @@ def handle(payload, regs, spawn=spawn_update, now=None):
         return on_post_tool(payload, regs, now, spawn)
     if ev == "Stop":
         return on_stop(payload, regs, now, spawn)
+    if ev == "StopFailure":
+        return on_stop_failure(payload, regs, now, spawn)
     return None
 
 

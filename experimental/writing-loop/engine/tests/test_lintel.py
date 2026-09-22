@@ -302,8 +302,9 @@ class OneActivityTest(unittest.TestCase):
         self.assertNotEqual(a["events"][0]["id"], b["events"][0]["id"])
 
 
-def turn(start, touches=(), ended=None, key="p1", chars=12):
-    return {"start": start, "session": "s1", "key": key, "chars": chars, "touches": list(touches), "ended": ended}
+def turn(start, touches=(), ended=None, key="p1", chars=12, error=False):
+    return {"start": start, "session": "s1", "key": key, "chars": chars, "touches": list(touches), "ended": ended,
+            "error": error}
 
 
 COV = {"rows": [{"id": "a", "name": "检查甲", "status": V.OK, "verdict": "findings", "result": "r"},
@@ -372,6 +373,16 @@ class TurnStateTest(unittest.TestCase):
         c = only(L.build(s, now=NOW, turn=turn(NOW - 50, ended=NOW - 30), built_at=NOW - 20))
         self.assertEqual([e["type"] for e in c["events"]], ["changed"])
 
+    def test_a_turn_an_api_error_ended_is_over_but_does_not_land(self):
+        s = with_change()
+        tr = turn(NOW - 120, touches=[(NOW - 90, "draft")], ended=NOW - 30, error=True)
+        a = only(L.build(s, now=NOW, turn=tr, built_at=NOW - 20, coverage=COV))
+        self.assertFalse(a["running"])
+        self.assertEqual([e["type"] for e in a["events"]], ["changed"])
+        rd = {"t": NOW - 35, "summary": "M1.recall 7/9", "verdict": "findings"}
+        self.assertEqual(only(L.build(s, now=NOW, turn=turn(NOW - 50, ended=NOW - 30, error=True), readers=rd,
+                                      built_at=NOW - 20))["label"]["text"], "改了")
+
     def test_a_turn_that_only_ran_the_readers_lands_with_the_weakest_item(self):
         tr = turn(NOW - 50, ended=NOW - 30)
         rd = {"t": NOW - 35, "summary": "M1.recall 7/9，M2.recall 4/9", "verdict": "findings"}
@@ -421,7 +432,7 @@ class PanelGapsTest(unittest.TestCase):
         self.assertEqual((c["value"], c["tone"]), ("1", "orange"))
 
     def test_undecided_risks_get_their_own_cell_once_coverage_can_list_them(self):
-        # 风险台账（IPM 会话 09-22，coverage.pending 由它提供）：还没有这个函数时不画这一格
+        # 风险台账（spec 2026-09-22-risk-register，coverage.pending 由它提供）：还没有这个函数时不画这一格
         from unittest import mock
         with mock.patch.object(V, "pending", lambda s: [{"name": "风险甲"}, {"name": "门乙"}], create=True):
             c = self.cells(coverage=COV)["未决"]

@@ -7,7 +7,11 @@
   登记会话里不少 git 命令是在别的仓跑的。跑检查、派读者没有碰稿时的信号：读者组的结果是全部回来后一次存盘的，
   所以只在落地时认得出（`readers_landed`）。
 
-一轮 = 最近一条作者消息到它之后的 `stop`。stop 之后又有碰稿，说明那次 Stop 被拦下了（改句门），这一轮还没完，等下一次 stop。
+一轮 = 最近一条作者消息到它之后的 `stop`。钩子在改句门拦下 Stop 时记 `stop:blocked`（不算结束），API 报错结束一轮时
+（StopFailure）记 `stop:error`（算结束，但不弹落地）。stop 之后又有碰稿，仍当作那次 Stop 没放行（别的 Stop 钩子拦的），
+这一轮还没完，等下一次 stop。
+
+记录按时刻排序后再读：`head:` 行记的是提交自己的时刻，写进文件时往往已经在 stop 之后（grill 09-22 #1）。
 """
 import json
 import os
@@ -22,6 +26,7 @@ PREVIOUS_STOP = 2.0         # 消息时刻只到秒：消息那一秒之后 2 �
 TAIL = 262144               # comments.jsonl 只读尾部这么多字节
 
 ACTION = {"draft": "改正文", "ledger": "改台账", "head": "提交"}
+ENDS = {"stop": False, "stop:error": True}   # reason -> the turn ended on an API error
 
 
 def _path(ws):
@@ -117,20 +122,20 @@ def current(ws, cfg, now=None):
     p = last_prompt(ws)
     if p is None:
         return None
-    touches, ended = [], None
-    for r in read(ws):
+    touches, ended, error = [], None, False
+    for r in sorted(read(ws), key=lambda r: r["t"]):
         if r["t"] < p["t"]:
             continue
-        if r["reason"] == "stop":
+        if r["reason"] in ENDS:
             if r["t"] >= p["t"] + PREVIOUS_STOP:
-                ended = r["t"]
+                ended, error = r["t"], ENDS[r["reason"]]
             continue
         k = kind(r["reason"], cfg)
         if k:
             touches.append((r["t"], k))
-            ended = None      # a touch after a stop: that Stop was blocked, the turn goes on
+            ended, error = None, False   # a touch after a stop: that Stop was not let through, the turn goes on
     return {"start": p["t"], "session": p["session"], "key": p["id"], "chars": p["chars"],
-            "touches": touches, "ended": ended}
+            "touches": touches, "ended": ended, "error": error}
 
 
 def running(turn, now):

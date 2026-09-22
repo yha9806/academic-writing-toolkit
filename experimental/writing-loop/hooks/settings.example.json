@@ -13,6 +13,9 @@
   ],
   "Stop": [
    {"hooks": [{"type": "command", "command": "python3 <AWT>/experimental/writing-loop/hooks/loop_hook.py"}]}
+  ],
+  "StopFailure": [
+   {"hooks": [{"type": "command", "command": "python3 <AWT>/experimental/writing-loop/hooks/loop_hook.py"}]}
   ]
  }
 }
