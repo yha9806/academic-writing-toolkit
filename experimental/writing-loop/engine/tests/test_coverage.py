@@ -239,6 +239,10 @@ class NeverGreenTest(unittest.TestCase):
         self.assertEqual(V.interpret("x", 1, '{"issues": ["a"]}', "")[0], "findings")
         self.assertEqual(V.interpret("x", 0, '{"issues": []}', "")[0], "ok")
 
+    def test_a_notes_lint_result_is_summarised_by_file_not_by_its_first_line(self):
+        out = '{\n  "a_NOTES.md": [],\n  "b_NOTES.md": [{"severity": "warning", "code": "evidence-status-missing"}]\n}'
+        self.assertEqual(V.interpret("notes-lint", 0, out, ""), ("ok", "2 份笔记，错 0、提示 1"))
+
     def test_a_timeout_is_a_failure(self):
         with TempDir() as root:
             repo, ws = setup(root)
@@ -691,7 +695,7 @@ class TargetTest(unittest.TestCase):
             cfg = C.load(ws)
             make_transcripts(root, cfg["transcripts"]["cwd_prefix"], cfg["transcripts"]["git_branch"],
                              [{"type": "user", "uuid": "abcdef12-0000-4000-8000-000000000001", "timestamp": "2026-09-22T00:00:00Z",
-                               "message": {"role": "user", "content": "最后你来定稿，然后跑"}}])
+                               "message": {"role": "user", "content": "卡片交给你收尾，桥梁那段照旧"}}])
             card = Path(root) / "card.md"
             card.write_text("# card\n作者授权定稿：uuid abcdef12-0000-4000-8000-000000000001\nM1\n", encoding="utf-8")
             cfg["target"] = {"intent_card": str(card)}

@@ -320,6 +320,12 @@ def interpret(check_id, code, stdout, stderr):
             summary = f"越界 {len(out)} 项" + (f"：{', '.join(out)}" if out else "")
         elif "hard_finding_count" in data:
             summary = f"硬错 {data['hard_finding_count']}"
+        elif check_id == "notes-lint" and data and all(isinstance(v, list) for v in data.values()):
+            # {file: [issues]}: one entry per notes file. Without this the summary was the first line of the JSON,
+            # a lone "{".
+            errors = sum(1 for v in data.values() for i in v if isinstance(i, dict) and i.get("severity") == "error")
+            warnings = sum(len(v) for v in data.values()) - errors
+            summary = f"{len(data)} 份笔记，错 {errors}、提示 {warnings}"
         else:
             for key in ("issues", "findings", "problems", "errors"):
                 if isinstance(data.get(key), list):

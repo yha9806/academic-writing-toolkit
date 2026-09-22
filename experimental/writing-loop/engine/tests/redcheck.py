@@ -16,6 +16,9 @@ ROOT = ENGINE.parent  # experimental/writing-loop: engine/ and hooks/ are copied
 
 # (step, file, old, new, test id). A bare file name is under engine/loop; a path with "/" is under ROOT.
 MUTATIONS = [
+    ("cov", 'coverage.py', '        elif check_id == "notes-lint" and data and all(isinstance(v, list) for v in data.values()):',
+     '        elif False:',
+     'test_coverage.NeverGreenTest.test_a_notes_lint_result_is_summarised_by_file_not_by_its_first_line'),
     # 检查覆盖与接线（spec 2026-09-21）：每条关键判断拿掉，对应测试必须变红。
     ("cov", 'targets.py', '    if m and cfg.get("transcripts") and _approval_in_transcripts(cfg, m.group(1)):', '    if m:',
      'test_coverage.TargetTest.test_a_card_finalised_by_claude_on_the_authors_word_is_delegated_only_if_that_word_is_on_record'),
