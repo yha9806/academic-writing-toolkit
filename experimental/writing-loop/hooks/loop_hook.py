@@ -38,7 +38,6 @@ sys.path.insert(0, str(ENGINE))
 
 from loop import config as C  # noqa: E402
 from loop import health as HL  # noqa: E402
-from loop import lintel as LN  # noqa: E402
 
 REGISTRY = "~/.awt/loop-workspaces"
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
@@ -151,8 +150,17 @@ def spawn_producer(ws):
 
 def ensure_producer(ws, start=spawn_producer):
     """If lintel has registered this producer and no producer process is alive for ws, start one.
-    Unregistered: do nothing and create nothing (the notch display is off by default)."""
-    from loop.cli import _producer_alive
+    Unregistered: do nothing and create nothing (the notch display is off by default).
+
+    The notch module is imported here, not at the top: the hook command ends in `|| true`, so a notch module that
+    failed to import at the top would take the human/ guard down with it and look like a hook that allowed the write.
+    A failure here is recorded and the hook goes on."""
+    try:
+        from loop import lintel as LN
+        from loop.cli import _producer_alive
+    except Exception as e:  # noqa: BLE001 -- the notch is optional; the guard and the reminder are not
+        HL.record_event(ws, "hook_error", f"刘海模块读不进来：{type(e).__name__}：{e}")
+        return False
     if LN.registered(LN.lintel_home(), LN.PRODUCER) and not _producer_alive(ws / "cache" / "lintel.pid"):
         start(ws)
         return True

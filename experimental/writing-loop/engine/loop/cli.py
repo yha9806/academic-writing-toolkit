@@ -224,6 +224,7 @@ def cmd_lintel(a):
     ovw = OV.Overview(cfg)
     ws = Path(a.workspace)
     a.home = a.home or LN.lintel_home()
+    a.producer = a.producer or LN.PRODUCER
     pidfile = ws / "cache" / "lintel.pid"
     if not a.once:
         if not LN.registered(a.home, a.producer):
@@ -285,6 +286,7 @@ def cmd_inbox(a):
     from . import inbox as IB
     from . import lintel as LN
     home = a.home or LN.lintel_home()
+    a.producer = a.producer or LN.PRODUCER
     if not LN.registered(home, a.producer):
         print(f"lintel 里没有登记来源 {a.producer}：不读收件", file=sys.stderr)
         return 2
@@ -360,11 +362,10 @@ def main(argv=None):
     k.add_argument("workspace")
     k.set_defaults(fn=cmd_ack)
 
-    from . import lintel as _LN
     ib = sub.add_parser("inbox", help="register the folders the author dragged onto the lintel notch (候选 B)")
     ib.add_argument("--workspaces", required=True, help="where new workspaces are created (<root>/<repo name>)")
     ib.add_argument("--home", default=None)
-    ib.add_argument("--producer", default=_LN.PRODUCER)
+    ib.add_argument("--producer", default=None, help="default: the writing loop's producer id")
     ib.add_argument("--projects-dir", default=None, help="override the transcripts directory (tests)")
     ib.set_defaults(fn=cmd_inbox)
 
@@ -373,7 +374,7 @@ def main(argv=None):
     n.add_argument("--once", action="store_true")
     n.add_argument("--interval", type=float, default=10.0)
     n.add_argument("--home", default=None, help="lintel's directory (default: $LOOP_LINTEL_HOME or the standard one)")
-    n.add_argument("--producer", default=_LN.PRODUCER)
+    n.add_argument("--producer", default=None, help="default: the writing loop's producer id")
     n.add_argument("--rebuild", action="store_true", help="rebuild the index on every round instead of reading it")
     n.set_defaults(fn=cmd_lintel)
 

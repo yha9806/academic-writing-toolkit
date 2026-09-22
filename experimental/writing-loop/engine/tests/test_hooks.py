@@ -11,6 +11,7 @@ from pathlib import Path
 
 from loop import config as C
 from loop import health as HL
+from loop import lintel as LN
 
 from fixtures import TempDir, draft_md, git, make_repo, make_transcripts, workspace
 
@@ -322,7 +323,7 @@ class ProducerTest(unittest.TestCase):
                 self.assertFalse(LH.ensure_producer(ws, start=started.append))
                 self.assertFalse(home.exists())
                 home.mkdir()
-                (home / "registry.json").write_text(json.dumps({"producers": {LH.LN.PRODUCER: {}}}), encoding="utf-8")
+                (home / "registry.json").write_text(json.dumps({"producers": {LN.PRODUCER: {}}}), encoding="utf-8")
                 self.assertTrue(LH.ensure_producer(ws, start=started.append))
                 self.assertEqual(started, [ws])
             finally:
@@ -369,6 +370,54 @@ class RegistryAndProcessTest(unittest.TestCase):
             self.assertIn("〔循环〕", json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"])
             r = subprocess.run([sys.executable, str(HOOKS / "loop_hook.py")], input="not json", capture_output=True, text=True, env=env)
             self.assertEqual((r.returncode, r.stdout), (0, ""))
+
+
+class BrokenNotchModuleTest(unittest.TestCase):
+    """The notch module is optional. When it cannot even be imported, the hook still guards human/ and still asks for
+    the explanation block, and `loop` still starts; the failure is recorded. The hook command ends in `|| true`, so a
+    hook that crashed on import would look exactly like a hook that allowed the write."""
+
+    def copy_with_broken_notch(self, root):
+        import shutil
+        wl = Path(root) / "wl"
+        skip = shutil.ignore_patterns("__pycache__")
+        shutil.copytree(HOOKS, wl / "hooks", ignore=skip)
+        shutil.copytree(HOOKS.parent / "engine" / "loop", wl / "engine" / "loop", ignore=skip)
+        (wl / "engine" / "loop" / "lintel.py").write_text("raise ImportError('broken on purpose')\n", encoding="utf-8")
+        return wl
+
+    def run_hook(self, wl, root, payload):
+        env = dict(os.environ, AWT_LOOP_REGISTRY=str(Path(root) / "registry"))
+        return subprocess.run([sys.executable, str(wl / "hooks" / "loop_hook.py")], input=json.dumps(payload),
+                              capture_output=True, text=True, env=env)
+
+    def test_the_guard_still_refuses_a_write_into_human(self):
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            wl = self.copy_with_broken_notch(root)
+            r = self.run_hook(wl, root, tool_payload("PreToolUse", repo, "Write",
+                                                     {"file_path": str(ws / "human" / "comments.jsonl"), "content": "x"}))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(json.loads(r.stdout or "{}").get("hookSpecificOutput", {}).get("permissionDecision"), "deny",
+                             r.stderr)
+
+    def test_a_prompt_still_gets_the_reminder_and_the_failure_is_recorded(self):
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            wl = self.copy_with_broken_notch(root)
+            r = self.run_hook(wl, root, prompt_payload(repo))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("〔循环〕", json.loads(r.stdout or "{}").get("hookSpecificOutput", {}).get("additionalContext", ""),
+                          r.stderr)
+            errors = [e["detail"] for e in HL.load(ws).get("events", []) if e["kind"] == "hook_error"]
+            self.assertTrue(any("broken on purpose" in d for d in errors), errors)
+
+    def test_the_command_line_still_starts(self):
+        with TempDir() as root:
+            wl = self.copy_with_broken_notch(root)
+            r = subprocess.run([sys.executable, "-m", "loop", "update", "--help"], cwd=str(wl / "engine"),
+                               capture_output=True, text=True, env=dict(os.environ, PYTHONPATH=str(wl / "engine")))
+            self.assertEqual(r.returncode, 0, r.stderr)
 
 
 if __name__ == "__main__":
