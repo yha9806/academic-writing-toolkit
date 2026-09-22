@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (191 automated tests, labelled T2-T202: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (192 automated tests, labelled T2-T203: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -5293,6 +5293,39 @@ assert kinds == [('locator-not-in-artifact', '63.5'), ('scope-missing', '71.2')]
     [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
 }
 
+test_T203() {
+    # A baseline file whose text extracted as symbols is not a document of
+    # the baseline: it is named under baseline_garbled and not counted.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools, random
+d = pathlib.Path(sys.argv[1])
+toks = ["".join(c) for c in itertools.product("abcdefgh", repeat=3)]
+(d / "target.txt").write_text("".join("The %s stage scored the pool and kept the rank. " % w for w in toks[:220]))
+others = ["Sediment cores record winter runoff in annual layers that are counted twice. ",
+          "The compiler rewrites loops whose bounds are known and emits a specialised body. ",
+          "Participants rated photographs on a scale and then described what they noticed. ",
+          "Orbital decay below six hundred kilometres is dominated by atmospheric drag. ",
+          "Enzyme activity fell above forty degrees and did not recover on cooling. "]
+for i, body in enumerate(others):
+    (d / "base" / ("other%d.txt" % i)).write_text(body * 140)
+rnd = random.Random(7)
+junk = " ".join("".join(rnd.choice("!#%$&'()*+,-/0123456789:;<=>") for _ in range(4)) for _ in range(2500))
+(d / "base" / "garbled.txt").write_text(junk)
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py \
+            --target "$tmp/target.txt" --baseline "$tmp/base" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert [g['file'] for g in d['baseline_garbled']] == ['garbled.txt'], d['baseline_garbled']
+assert d['baseline_documents'] == 5, d['baseline_documents']
+"
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -5349,6 +5382,7 @@ run_test "T199 number ledger: a number with thousands separators is one number" 
 run_test "T200 number ledger: exact rounding is a relation, other digits are not" test_T200
 run_test "T201 number ledger: a copy that drifts while another copy holds" test_T201
 run_test "T202 number ledger: scopes and locators end at a digit boundary" test_T202
+run_test "T203 prose fingerprint: a baseline file that extracted as symbols is named, not counted" test_T203
 run_test "T190 every path the README's structure block names exists on disk" test_T190
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192
