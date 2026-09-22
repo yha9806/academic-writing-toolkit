@@ -229,6 +229,27 @@ the scope in other words; `technique` passed both.
    baseline says nothing, and reading it as a pass is the failure this scan
    was added for. Method and stop rules: `references/prose-polish-method.md`.
 
+   **G2. Rewritten sentences, one at a time (before anyone reads a proposal)**
+
+   The fingerprint and structure audits measure whole documents, so a handful
+   of rewrites cannot move them, and neither reads a proposal that has not been
+   applied. Every proposed rewrite goes through this first, as an `id, old,
+   new` TSV:
+
+   ```
+   python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs <rewrites.tsv> --baseline <venue-corpus-dir>
+   ```
+
+   It flags a rewrite that is longer than the sentence it replaces, or that
+   adds a colon, semicolon, dash, parenthesis, subordinate clause, -ly adverb
+   or two prepositional phrases, and one that grows past the venue's 90th
+   percentile of sentence length or density. A correction that stays faithful
+   to its source by piling qualifiers onto the old sentence is the usual cause;
+   split it or restructure it, and re-run until nothing is flagged or each
+   remaining flag is one you can defend. Show the author the rewrites only
+   after that. Once applied, the writing loop runs the same audit on each commit
+   against the version before it (`draft.base_ref`, or the previous commit).
+
 3. **Output the audit report** using the format below.
 
 ## Output Format

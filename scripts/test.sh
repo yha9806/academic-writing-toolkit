@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (192 automated tests, labelled T2-T203: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (195 automated tests, labelled T2-T206: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T206 changed-sentence audit) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -5326,6 +5326,102 @@ assert d['baseline_documents'] == 5, d['baseline_documents']
 "
 }
 
+test_T204() {
+    # A proposed rewrite is read against the sentence it replaces: one that grows
+    # and gains a colon and a relative clause is flagged; one that got shorter
+    # and plainer is not.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'a\tThe gauge reads the river level twice a day.\tThe gauge, which the survey installed in spring, reads the river level twice a day: once at dawn and once at dusk.\n' >> "$tmp/pairs.tsv"
+    printf 'b\tThe survey counted the bridges that had cracked piers in the northern district.\tThe survey counted bridges with cracked piers.\n' >> "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || return 1
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+by = {r['where']: r for r in d['sentences']}
+assert d['changed'] == 2 and d['flagged'] == 1, (d['changed'], d['flagged'])
+assert {'longer', 'colon', 'clause'} <= set(by['a']['flags']), by['a']['flags']
+assert by['b']['flags'] == [], by['b']['flags']
+"
+}
+
+test_T205() {
+    # Two versions of a draft: only the sentences that changed are read, a
+    # revision is paired with the sentence it replaced, a dot directory beside
+    # the draft is not part of it, and a draft identical to its base reports no
+    # change rather than failing.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base" "$tmp/draft/.awt-base"
+    printf '%s\n' 'Sediment cores record winter runoff in annual layers. The layers are counted twice by separate readers. Counting stops at the ash band.' > "$tmp/base/ch.md"
+    printf '%s\n' 'Sediment cores record winter runoff in annual layers. The layers are counted twice by separate readers; disagreements go to a third. Counting stops at the ash band. A second core confirms the count.' > "$tmp/draft/ch.md"
+    printf '%s\n' 'This sentence sits in a dot directory and is not part of the draft at all.' > "$tmp/draft/.awt-base/ch.md"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/draft" --base "$tmp/base" --json 2>/dev/null)
+    code=$?
+    [ "$code" -eq 1 ] || { rm -rf "$tmp"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+c = d['compared']
+assert (d['changed'], c['revised'], c['added']) == (2, 1, 1), c
+rev = next(r for r in d['sentences'] if r['kind'] == 'revised')
+assert rev['old'].startswith('The layers are counted twice'), rev['old']
+assert 'semicolon' in rev['flags'], rev['flags']
+assert not any('dot directory' in r['new'] for r in d['sentences'])
+" || { rm -rf "$tmp"; return 1; }
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/base" --base "$tmp/base" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 0 ] || return 1
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['changed'] == 0 and d['flagged'] == 0, d['compared']
+"
+}
+
+test_T206() {
+    # Against a venue corpus a rewrite is placed among the venue's sentences: one
+    # that grows past the venue's 90th percentile is flagged for that too. A
+    # corpus too small for percentiles is refused (exit 2), never read as a pass.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue" "$tmp/tiny"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+words = ["".join(c) for c in itertools.product("abcdefg", repeat=3)]
+for i in range(6):
+    sents = []
+    for j in range(200):
+        w = words[(i * 200 + j) % len(words)]
+        sents.append("The %s stage kept the %s rank in the pool today." % (w, w))
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join(sents))
+(d / "tiny" / "doc0.txt").write_text(" ".join(["The pool kept the rank of the stage today."] * 60))
+long_new = "The station logged the level of the river at dawn and at dusk on every day of the season " \
+           "for the survey team and the regional office and the two partner universities that funded the gauge."
+(d / "pairs.tsv").write_text("id\told\tnew\nx\tThe station logged the river level at dawn.\t%s\n" % long_new)
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    code=$?
+    [ "$code" -eq 1 ] || { rm -rf "$tmp"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['venue']['documents'] == 6 and d['venue']['sentences'] >= 1000, d['venue']
+flags = d['sentences'][0]['flags']
+assert 'long_for_venue' in flags and 'longer' in flags, flags
+" || { rm -rf "$tmp"; return 1; }
+    python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/tiny" --json >/dev/null 2>&1
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 2 ]
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -5383,6 +5479,9 @@ run_test "T200 number ledger: exact rounding is a relation, other digits are not
 run_test "T201 number ledger: a copy that drifts while another copy holds" test_T201
 run_test "T202 number ledger: scopes and locators end at a digit boundary" test_T202
 run_test "T203 prose fingerprint: a baseline file that extracted as symbols is named, not counted" test_T203
+run_test "T204 changed sentences: a proposed rewrite is read against the sentence it replaces" test_T204
+run_test "T205 changed sentences: only what changed between two versions is read, a dot directory is not the draft" test_T205
+run_test "T206 changed sentences: a rewrite is placed among the venue's sentences; a corpus too small is refused" test_T206
 run_test "T190 every path the README's structure block names exists on disk" test_T190
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192

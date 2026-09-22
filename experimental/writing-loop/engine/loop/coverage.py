@@ -318,6 +318,8 @@ def interpret(check_id, code, stdout, stderr):
         if "outliers" in data:
             out = data.get("outliers") or []
             summary = f"越界 {len(out)} 项" + (f"：{', '.join(out)}" if out else "")
+        elif "flagged" in data and "changed" in data:
+            summary = f"改动 {data['changed']} 句，标出 {data['flagged']} 句"
         elif "hard_finding_count" in data:
             summary = f"硬错 {data['hard_finding_count']}"
         elif check_id == "notes-lint" and data and all(isinstance(v, list) for v in data.values()):
@@ -351,7 +353,31 @@ def materialize(cfg, check, head, dest):
     tar = _git(cfg["repo"], "archive", head, "--", *paths, binary=True)
     if tar is None:
         return None, "git archive 失败"
-    return _extract(tar, dest, inputs)
+    got, err = _extract(tar, dest, inputs)
+    if err or not check.get("base"):
+        return got, err
+    return _materialize_base(cfg, check, head, dest, got)
+
+
+def _materialize_base(cfg, check, head, dest, inputs):
+    """The version before the edit, for a check that compares two: the draft files and the also-checked files at the
+    base ref, under BASE_DIR. A base that does not resolve fails the check by name; comparing the draft with itself
+    would report no change, which reads as a pass."""
+    ref = check["base"](cfg, head)
+    sha = _git(cfg["repo"], "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+    if not sha:
+        return None, f"比对用的上一版 {ref} 在仓库里找不到（第一个提交之前没有上一版；或 draft.base_ref 写错）"
+    paths = sorted(set(draft_files(cfg, sha)) | {p for p in also_checked(cfg)
+                                                  if _git(cfg["repo"], "cat-file", "-e", f"{sha}:{p}") is not None})
+    if not paths:
+        return None, f"上一版 {ref} 里没有草稿文件"
+    tar = _git(cfg["repo"], "archive", sha, "--", *paths, binary=True)
+    if tar is None:
+        return None, "上一版 git archive 失败"
+    base_dir = Path(dest) / K.BASE_DIR
+    base_dir.mkdir()
+    _, err = _extract(tar, base_dir, {})
+    return (None, err) if err else (inputs, None)
 
 
 def _extract(tar, dest, inputs):

@@ -17,6 +17,8 @@ Per check:
             and a change to any of them makes the check stale.
   outside   function(cfg) -> [absolute paths] read in place (a venue corpus, an intent card); their content hash is
             part of what a run is keyed on.
+  base      optional function(cfg, head) -> git ref: the draft at that ref is archived beside the draft, in BASE_DIR,
+            for a check that compares two versions.
   argv      function(ctx) -> argument list, run with cwd = the archived tree.
 """
 import os
@@ -155,6 +157,25 @@ def _none(cfg):
     return {}
 
 
+# Where a changed-sentence check finds the version before the edit, beside the archived draft. A dot directory, so a
+# check that reads the whole tree skips it.
+BASE_DIR = ".awt-base"
+
+
+def _base_ref(cfg, head):
+    """The version the changed-sentence check compares the draft with: draft.base_ref when the author has set one (the
+    start of an editing round, so every commit in the round is read against it), else the commit before head."""
+    return get(cfg, "draft.base_ref") or f"{head}~1"
+
+
+def _sentence_changes_argv(ctx):
+    args = _py(ctx, "audit/audit-sentence-changes.py") + ["--target", ".", "--base", BASE_DIR, "--json"]
+    corpus = get(ctx["cfg"], "target.venue_corpus.dir")
+    if corpus:
+        args += ["--baseline", str(Path(corpus).expanduser())]
+    return args
+
+
 def _no_outside(cfg):
     return []
 
@@ -199,6 +220,10 @@ CHECKS = [
      "argv": lambda ctx: _py(ctx, "audit/audit-prose-structure.py") + [
          "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "inputs.literature")).expanduser()), "--json"]
          + [x for g in (get(ctx["cfg"], "inputs.literature_exclude") or []) for x in ("--exclude", g)]},
+    {"id": "sentence-changes", "name": "改句结构", "kind": "script", "scripts": ["audit/audit-sentence-changes.py"],
+     "formats": ["latex", "markdown"], "instead": {},
+     "scope": {"kind": "all"}, "needs": [], "config_keys": ["draft.base_ref", "target.venue"],
+     "inputs": _none, "outside": _venue_outside, "base": _base_ref, "argv": _sentence_changes_argv},
     {"id": "verify-refs", "name": "参考文献条目", "kind": "script", "scripts": ["verify-refs/verify-refs.py"],
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "none"}, "needs": ["inputs.bib"],

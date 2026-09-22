@@ -640,6 +640,34 @@ class RealCheckTest(unittest.TestCase):
                 self.assertIn(rec["exit"], (0, 1))
 
 
+    def test_the_changed_sentence_audit_reads_the_draft_against_the_version_before_it(self):
+        with TempDir() as root:
+            edited = INTRO.replace("Inspections are rare.", "Inspections are rare: most bridges wait a decade.")
+            repo, ws = setup(root, [({"sections/01_intro.tex": edited}, "v2", 1_700_000_100)])
+            cfg = C.load(ws)
+            with Probe(K.by_id("sentence-changes")):
+                r = status(V.compute(cfg, ws, do_run=True), "sentence-changes")
+                rec = V.load_run(ws, "sentence-changes")
+                self.assertEqual(rec["exit"], 1, rec)
+                self.assertEqual(rec["result"]["changed"], 1, rec["result"]["compared"])
+                self.assertIn("colon", rec["result"]["sentences"][0]["flags"])
+                self.assertIn("改动 1 句，标出 1 句", rec["summary"])
+                self.assertIn(r["status"], (V.OK,), r)
+
+    def test_a_base_that_does_not_exist_fails_the_changed_sentence_audit_by_name(self):
+        with TempDir() as root:
+            repo, ws = setup(root)  # one commit: there is no version before it
+            cfg = C.load(ws)
+            with Probe(K.by_id("sentence-changes")):
+                r = status(V.compute(cfg, ws, do_run=True), "sentence-changes")
+                self.assertEqual(r["status"], V.FAILED, r)
+                self.assertIn("上一版", V.load_run(ws, "sentence-changes")["summary"])
+            cfg["draft"]["base_ref"] = "no-such-ref"
+            C.save(ws, cfg)
+            with Probe(K.by_id("sentence-changes")):
+                self.assertEqual(status(V.compute(C.load(ws), ws, do_run=True), "sentence-changes")["status"], V.FAILED)
+
+
 def manifest(venue, n, files=True):
     recs = [{"arxiv_id": f"2101.{i:05d}", **({"file": f"2101.{i:05d}.pdf"} if files else {})} for i in range(n)]
     return {"venue": venue, "admitted": n, "accounting_closes": True, "records": recs}
