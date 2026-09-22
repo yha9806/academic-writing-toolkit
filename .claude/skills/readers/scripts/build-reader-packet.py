@@ -111,7 +111,25 @@ def bib_entries(text):
 CITE = re.compile(r"\\(citet|citep|cite|citeauthor|citeyear)\*?(?:\[[^\]]*\])*\{([^}]*)\}")
 
 
+def drop_command(t, name):
+    """Remove \\name{...} with its whole balanced argument; a figure's alt text (\\Description) is for screen readers,
+    and a reader of the page never sees it."""
+    out, i, tag = [], 0, "\\" + name + "{"
+    while True:
+        j = t.find(tag, i)
+        if j < 0:
+            return "".join(out) + t[i:]
+        out.append(t[i:j])
+        k, depth = j + len(tag), 1
+        while k < len(t) and depth:
+            depth += {"{": 1, "}": -1}.get(t[k], 0)
+            k += 1
+        i = k
+
+
 def readable(text, bib, unknown):
+    """What a reader of the typeset page sees, as plain text. Applied to a whole paragraph: an environment or a
+    figure's alt text often spans several indexed sentences, and cleaning each alone leaves its markup behind."""
     def cite(m):
         cmd, keys = m.group(1), [k.strip() for k in m.group(2).split(",") if k.strip()]
         parts = []
@@ -123,6 +141,12 @@ def readable(text, bib, unknown):
             return "; ".join(re.sub(r", (\d{4})$", r" (\1)", p) for p in parts)
         return "(" + "; ".join(parts) + ")"
     t = CITE.sub(cite, text)
+    t = drop_command(t, "Description")
+    t = re.sub(r"\\(?:input|include|includegraphics)\*?(?:\[[^\]]*\])?\{[^}]*\}", "", t)
+    t = re.sub(r"\\caption\{", "Figure caption: {", t)
+    t = re.sub(r"\\begin\{[^}]*\}(?:\[[^\]]*\])*", " ", t)
+    t = re.sub(r"\\end\{[^}]*\}", " ", t)
+    t = re.sub(r"\\item\[([^\]]*)\]", r"\1", t)
     t = re.sub(r"~", " ", t)
     t = re.sub(r"\\(?:S)?\\?(?:ref|eqref|autoref|cref|Cref)\{[^}]*\}", "§x", t)
     t = re.sub(r"\\S\s*§x", "§x", t)
@@ -243,7 +267,7 @@ def main(argv=None):
     bib, unknown = bib_entries(bibtext), set()
     rendered = []
     for i, para in enumerate(paras, 1):
-        text = " ".join(readable(t, bib, unknown) for t, _, _ in para)
+        text = readable(" ".join(t for t, _, _ in para), bib, unknown)
         rendered.append({"p": i, "text": text, "sids": [s for _, s, _ in para if s], "hashes": [h for _, _, h in para]})
     manuscript = "\n\n".join(f"[P{r['p']}] {r['text']}" for r in rendered)
     questions = read_questions(a.questions or (source.get("questions_file") and str(Path(source["questions_file"]).expanduser())))

@@ -81,6 +81,27 @@ class ReadersTest(unittest.TestCase):
             self.assertIn('"span": Which bridges does the survey cover?', prompt)
             self.assertIn("outside_knowledge", prompt)
 
+    def test_the_packet_shows_what_the_page_shows_not_the_markup_or_the_alt_text(self):
+        # Environments and a figure's alt text span several indexed sentences; cleaned one sentence at a time they
+        # reached the readers as an environment's name and options, and as a second copy of the figure in alt-text prose.
+        with TempDir() as root:
+            repo, ws = setup(root)
+            intro = INTRO + (r"""
+\paragraph{Asks.} \begin{enumerate}[label=(\alph*),nosep]
+\item[Q1.] Which spans crack first? \item[Q2.] How often are they read? \end{enumerate}
+
+\begin{figure}[htbp] \input{art/gauges} \Description{Alt text. A drawing of three gauges.
+Each gauge has a dial.} \caption{Gauges on the north span.} \label{fig:gauges} \end{figure}
+""")
+            commit(repo, {"sections/01_intro.tex": intro}, "v2", 1_700_000_100)
+            reindex(ws)
+            out, _ = self.build(root, ws)
+            text = (out / "manuscript.txt").read_text(encoding="utf-8")
+            for debris in ("enumerate", "label=", "nosep", "figure", "[htbp]", "art/gauges", "Alt text", "dial"):
+                self.assertNotIn(debris, text)
+            self.assertIn("Q1. Which spans crack first?", text)
+            self.assertIn("Figure caption: Gauges on the north span.", text)
+
     def test_personas_and_questions_can_come_from_the_workspace(self):
         with TempDir() as root:
             repo, ws = setup(root)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (186 automated tests, labelled T2-T195: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (189 automated tests, labelled T2-T200: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T200 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -5144,6 +5144,100 @@ assert 'printed-artifact-mismatch' in kinds, kinds
     [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
 }
 
+test_T198() {
+    # A ledger row's artifact is a source, not prose. With the table read as
+    # prose, cutting the only sentence that reports a number left the row
+    # looking current, because the table itself still carried the number.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    mkdir -p "$tmp/tables"
+    cat > "$tmp/tables/rates.tex" <<'EOF'
+\begin{tabular}{lr} top-1 & 30.2 \\ \end{tabular}
+EOF
+    printf '30.2\t30.2\t-\ttables/rates.tex\ttop-1 & 30.2\n' >> "$tmp/numbers.tsv"
+    cat > "$tmp/sections/06_results.tex" <<'EOF'
+\section{Results}
+The pooled share is $63.5\%$ across all four conditions.
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+stale=[f for f in d['findings'] if f['kind']=='number-not-in-manuscript']
+assert [f['number'] for f in stale] == ['30.2'], d['findings']
+assert not any(f['location'].startswith('tables/') for f in d['findings']), d['findings']
+" || return 1
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T199() {
+    # 2{,}048 is one number. Read digit by digit it was "614", which no
+    # sentence reports, so a row for 2,048 could never bind and the coverage
+    # list named a number the manuscript does not contain.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    cat > "$tmp/sections/06_results.tex" <<'EOF'
+\section{Results}
+The pooled share is $63.5\%$ across all four conditions.
+The pool holds $2{,}048$ distractors and 3,071 images in all.
+EOF
+    printf 'pool,2048\n' >> "$tmp/results/variance.csv"
+    printf '2,048\t2048\t-\tresults/variance.csv\tpool,2048\n' >> "$tmp/numbers.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['hard_finding_count'] == 0, d['findings']
+nums=[f['number'] for f in d['findings'] if f['kind']=='unledgered-number']
+assert '3,071' in nums and '048' not in nums and '071' not in nums, nums
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+}
+
+test_T200() {
+    # The text prints an artifact's 17.36 as 17.4: exact rounding to the
+    # printed precision is a recorded relation, and a digit that rounding
+    # cannot produce (17.3) is still a mismatch.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    number_fixture "$tmp"
+    cat > "$tmp/sections/06_results.tex" <<'EOF'
+\section{Results}
+The pooled share is $63.5\%$ across all four conditions.
+Siblings take $17.4\%$ of slots, and the ratio is 12.3 times.
+EOF
+    printf 'siblings,17.36\nratio,12.3456\n' >> "$tmp/results/variance.csv"
+    printf '17.4\t17.36\t-\tresults/variance.csv\tsiblings,17.36\n' >> "$tmp/numbers.tsv"
+    printf '12.3\t12.3456\t-\tresults/variance.csv\tratio,12.3456\n' >> "$tmp/numbers.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    status=$?
+    sed -i.bak 's/^17.4	17.36/17.3	17.36/' "$tmp/numbers.tsv"
+    sed -i.bak 's/17\.4\\%/17.3\\%/' "$tmp/sections/06_results.tex"
+    bad=$(python3 .claude/skills/audit/scripts/audit-number-ledger.py --base-dir "$tmp" \
+          --ledger "$tmp/numbers.tsv" --json 2>&1)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['hard_finding_count'] == 0, d['findings']
+" || return 1
+    [ "$status" = "0" ] || { echo "expected exit 0, got $status"; return 1; }
+    echo "$bad" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert [f['number'] for f in d['findings'] if f['kind']=='printed-artifact-mismatch'] == ['17.3'], d['findings']
+" || return 1
+}
+
 run_test "T138 claim positioning recognises Harvard author-year in Markdown" test_T138
 run_test "T142 claim ledger: a snippet that is not in the archived source" test_T142
 run_test "T143 claim ledger: a claim that is no longer in the manuscript" test_T143
@@ -5195,6 +5289,9 @@ run_test "T186 public-content audit: the count is the files read, none skipped f
 run_test "T187 public-content audit: the real tree's count clears an independent floor" test_T187
 run_test "T188 the scripts/ audits fail closed on an empty base-dir" test_T188
 run_test "T189 every numbered mention of the skill catalogue matches the skills on disk" test_T189
+run_test "T198 number ledger: an artifact file is a source, never prose" test_T198
+run_test "T199 number ledger: a number with thousands separators is one number" test_T199
+run_test "T200 number ledger: exact rounding is a relation, other digits are not" test_T200
 run_test "T190 every path the README's structure block names exists on disk" test_T190
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192
