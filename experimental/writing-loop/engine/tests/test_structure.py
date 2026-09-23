@@ -50,6 +50,27 @@ class StructureTest(unittest.TestCase):
             per = got["per_file"]
             self.assertGreater(per["intro.tex"]["opens_with_sub"], per["methods.tex"]["opens_with_sub"])
 
+    def test_a_short_file_is_listed_and_the_densest_section_is_named(self):
+        # Per-file figures are descriptive (the baseline's range is built from whole papers, and a paper's value is an
+        # average of its sections), so no section is an outlier on its own. What the loop needs is where the structure
+        # is densest, and every file accounted for: a file below the sentence floor used to vanish from per_file.
+        with TempDir() as root:
+            base = corpus(root)
+            target = Path(root) / "draft"
+            target.mkdir()
+            (target / "intro.tex").write_text("\\section{Intro}\n" + CONDITIONAL * 10, encoding="utf-8")
+            (target / "methods.tex").write_text("\\section{Methods}\n" + PLAIN * 10, encoding="utf-8")
+            (target / "note.tex").write_text("\\section{Note}\n" + PLAIN, encoding="utf-8")
+            (target / "stub.tex").write_text("% folded into another section\n", encoding="utf-8")
+            got = json.loads(run("--target", target, "--baseline", base, "--json").stdout)
+            per = got["per_file"]
+            self.assertEqual(set(per), {"intro.tex", "methods.tex", "note.tex", "stub.tex"})
+            self.assertEqual(per["stub.tex"], {"short": True, "sentences": 0}, "a file with no prose is listed")
+            self.assertTrue(per["note.tex"]["short"])
+            self.assertFalse(per["intro.tex"]["short"])
+            self.assertEqual(got["densest"]["file"], "intro.tex")
+            self.assertEqual(got["densest"]["metric"], "sub_per_comma")
+
     def test_a_target_like_its_baseline_passes(self):
         with TempDir() as root:
             base = corpus(root)

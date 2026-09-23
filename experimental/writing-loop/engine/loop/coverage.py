@@ -314,6 +314,11 @@ def _peaks_summary(data):
             role = _ROLE_LABEL.get(p.get("role"), p.get("role") or "")
             bits.append(f"{_DEVICE_LABEL.get(key, key)}峰值在 {p.get('file')}（{role}，"
                         f"{'反了' if p['verdict'] == 'backwards' else '值得看'}）")
+    d = data.get("densest")
+    if isinstance(d, dict) and d.get("file") and isinstance(d.get("value"), (int, float)):
+        # The structure audit names the section whose clauses have the fewest commas to breathe at. Descriptive: no
+        # section is an outlier against a baseline built from whole papers.
+        bits.append(f"从句/逗号最高 {d['file']}（{d['value']:.2f}，只作描述）")
     return f"；逐节 {len(pf)} 个文件" + ("：" + "；".join(bits) if bits else "")
 
 
@@ -629,6 +634,21 @@ def due(r):
     return r["kind"] == "script" and (r["status"] in (NEVER, STALE) or (r["status"] == FAILED and r.get("due")))
 
 
+def _readers_scope(cfg, sentences):
+    """Which sections the reader panel reads, and how much of the draft that is. Said on every turn: the panel reads
+    the abstract and introduction by default, and nothing else about the writing measured the body section by
+    section, so the body could go unread without anyone noticing."""
+    # K.by_id raises when a check is not catalogued (tests run with a catalogue of their own); no panel, no line.
+    check = next((c for c in K.CHECKS if c["id"] == "readers"), None)
+    if check is None:
+        return None
+    prefixes = K.get(cfg, check["scope"]["config"]) or check["scope"]["default"]
+    if sentences is None:
+        return {"sections": list(prefixes), "sentences": None, "of": None}
+    inside = sum(1 for s in sentences if in_sections(s.get("section"), prefixes))
+    return {"sections": list(prefixes), "sentences": inside, "of": len(sentences)}
+
+
 def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     """Rows for every check, running the due script checks first when do_run. Writes cache/coverage/summary.json."""
     sentences, index_head = current_sentences(ws)
@@ -658,6 +678,7 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
                "target": TG.describe(cfg),
                "experiments": TG.experiments(cfg),
                "risks": TG.risks(cfg),
+               "readers_scope": _readers_scope(cfg, sentences),
                "unwired": [{"script": k, "reason": v} for k, v in sorted(K.UNWIRED.items())]}
     d = Path(ws) / "cache" / "coverage"
     d.mkdir(parents=True, exist_ok=True)
@@ -787,6 +808,24 @@ def _name(r):
     return r["name"] + (f"（{_short(d)}）" if r["status"] in (STALE, MISSING, FAILED) and d else "")
 
 
+def _per_section_bits(summary):
+    """「<检查>逐节没算」, or 「<检查>：<what was flagged>」, from each row's result as interpret wrote it."""
+    out = []
+    for r in summary.get("rows") or []:
+        res = r.get("result") or ""
+        i = res.find("逐节")
+        if i == -1:
+            continue
+        seg = res[i:]
+        if seg.startswith("逐节没算"):
+            out.append(f"{r.get('name', r.get('id'))}逐节没算")
+            continue
+        flagged = seg.split("：", 1)[1] if "：" in seg else ""
+        if flagged:
+            out.append(f"{r.get('name', r.get('id'))}：{flagged}")
+    return out
+
+
 def reminder_line(summary, ws):
     """One line for the agent's context, or None when there is nothing to say."""
     if summary is None:
@@ -809,6 +848,16 @@ def reminder_line(summary, ws):
         xs = [_name(r) for r in rows if r["status"] == status]
         if xs:
             bits.append(f"{status} " + "、".join(xs))
+    # Per-section results, whatever the verdict: the list below keeps only a result's first clause, and a check whose
+    # whole-paper average passed is not on it at all, so what the style and structure audits say section by section
+    # (or that they could not say it) would otherwise never reach the agent.
+    per = _per_section_bits(summary)
+    if per:
+        bits.append("逐节 " + "；".join(per))
+    rs = summary.get("readers_scope")
+    if isinstance(rs, dict) and rs.get("sections"):
+        share = f"（全文 {rs['of']} 句里的 {rs['sentences']} 句）" if rs.get("of") else ""
+        bits.append(f"读者组只读 {'、'.join(rs['sections'])}{share}")
     # A check that reads what changed since the last round names what this round did; standing findings of the
     # whole-document audits would otherwise push it out of the first three.
     compares = {c["id"] for c in K.CHECKS if c.get("base")}

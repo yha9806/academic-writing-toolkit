@@ -255,6 +255,14 @@ class NeverGreenTest(unittest.TestCase):
         done = '{"outliers": [], "per_section_cv": {"hedge_per_1k": 0.4}, "per_section_note": null}'
         self.assertNotIn("逐节没算", V.interpret("fingerprint-venue", 0, done, "")[1])
 
+    def test_the_densest_section_of_the_structure_run_is_named_as_description(self):
+        run = ('{"outliers": ["sub_per_comma"], "per_file": {"sections/03_background.tex": {"short": false}, '
+               '"sections/02_method.tex": {"short": false}, "sections/04_stub.tex": {"short": true}}, '
+               '"densest": {"metric": "sub_per_comma", "file": "sections/03_background.tex", "value": 0.57}}')
+        summary = V.interpret("structure-venue", 1, run, "")[1]
+        self.assertIn("逐节 3 个文件", summary)
+        self.assertIn("从句/逗号最高 sections/03_background.tex（0.57，只作描述）", summary)
+
     def test_both_style_checks_ask_for_per_section_rates(self):
         # The loop runs the fingerprint on a directory; without --per-file no section is ever measured alone.
         ctx = {"cfg": {"target": {"venue_corpus": {"dir": "/corpus"}}, "inputs": {"literature": "/lit"}}}
@@ -607,6 +615,36 @@ class ShownTest(unittest.TestCase):
                 self.assertIn("有发现 探针（1 条）", V.reminder_line(s, ws), "a check that found something is said")
                 self.assertIn("有发现 1 项", V.todo_cell(s)["sub"])
             self.assertIn("还没有算过", V.reminder_line(None, ws))
+
+    def test_per_section_findings_reach_the_line_whatever_the_verdict(self):
+        # The line keeps only the first clause of each result, so a per-section note appended after 「；」 never reached
+        # the agent; and a check whose whole-paper average passed was not on the line at all.
+        rows = [{"id": "f", "name": "文风·对照目标刊物", "status": V.OK, "verdict": "findings",
+                 "result": "越界 1 项：contrast_per_1k；逐节 7 个文件：分号峰值在 04_methods.tex（方法节，反了）"},
+                {"id": "g", "name": "文风·对照参考文献", "status": V.OK, "verdict": "ok",
+                 "result": "越界 0 项；逐节没算（只有全文平均）"},
+                {"id": "s", "name": "句子结构·对照目标刊物", "status": V.OK, "verdict": "ok",
+                 "result": "越界 0 项；逐节 7 个文件"}]
+        line = V.reminder_line({"head": "abc", "rows": rows, "target": {}}, "ws")
+        self.assertIn("分号峰值在 04_methods.tex（方法节，反了）", line)
+        self.assertIn("文风·对照参考文献逐节没算", line)
+        self.assertNotIn("句子结构·对照目标刊物：", line, "a per-section run with nothing flagged adds nothing")
+
+    def test_the_line_says_which_sections_the_reader_panel_reads(self):
+        # The reader panel reads the abstract and introduction by default. Nothing said so, and every other signal
+        # about the writing pointed at the same two sections, so the body was never read by anyone.
+        s = {"head": "abc", "rows": [], "target": {},
+             "readers_scope": {"sections": ["A", "I"], "sentences": 57, "of": 400}}
+        self.assertIn("读者组只读 A、I（全文 400 句里的 57 句）", V.reminder_line(s, "ws"))
+
+    def test_the_summary_records_the_reader_panel_scope(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            s = V.compute(C.load(ws), ws)
+            rs = s["readers_scope"]
+            self.assertEqual(rs["sections"], ["A", "I"])
+            self.assertLessEqual(rs["sentences"], rs["of"])
+            self.assertGreater(rs["of"], 0)
 
     def test_the_line_never_cuts_a_config_key_or_a_word(self):
         rows = [{"id": "n", "name": "数字台账", "status": V.MISSING, "detail": "配置里缺 inputs.number_ledger"},
