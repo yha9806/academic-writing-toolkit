@@ -22,6 +22,14 @@ WEAK = {"unverified", "title_only"}
 _PLACEHOLDER = re.compile(r"[A-Z]\d?%|Δ\w|[A-Z]\d? range|meets/misses|lowers/does not lower")
 
 
+def _literal(node):
+    """ast.literal_eval, plus the empty set(): literal_eval reads set() only from Python 3.9."""
+    if (isinstance(node, ast.Call) and getattr(node.func, "id", None) == "set"
+            and not node.args and not node.keywords):
+        return set()
+    return ast.literal_eval(node)
+
+
 def load_keymaps(cfg, commit):
     src = gitio.show(cfg["repo"], commit, cfg["ledger"]["keymap_from"])
     maps = {"KEYMAP": {}, "NARR": {}, "PLACE": set()}
@@ -29,7 +37,7 @@ def load_keymaps(cfg, commit):
         return maps
     for node in ast.parse(src).body:
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and getattr(node.targets[0], "id", None) in maps:
-            maps[node.targets[0].id] = ast.literal_eval(node.value)
+            maps[node.targets[0].id] = _literal(node.value)
     maps["PLACE"] = set(maps["PLACE"])
     return maps
 
