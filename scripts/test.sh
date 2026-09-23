@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (208 automated tests, labelled T2-T219: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T211-T213 venue topic and contribution type) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (210 automated tests, labelled T2-T219: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -4453,6 +4453,134 @@ PYEOF
     [[ "$rc" -eq 0 ]]
 }
 
+# --- T196-T197: a venue whose name contains an ampersand -------------------
+
+test_T196() {
+    # The registrar's CSL JSON can carry the container-title HTML-escaped, so a
+    # journal named "X & Y" comes back as "X &amp; Y". Compared verbatim, every
+    # candidate was rejected as some other journal's paper and the run ended
+    # VENUE_CORPUS_TOO_SMALL: closed, but for a reason that was not true.
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" 2>/dev/null <<'PYEOF'
+import importlib.util, json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "vb", ".claude/skills/audit/scripts/build-venue-baseline.py")
+vb = importlib.util.module_from_spec(spec); spec.loader.exec_module(vb)
+
+VENUE = "Journal of Synthetic Studies & Examples"
+ESCAPED = "Journal of Synthetic Studies &amp; Examples"
+served = {"container-title": ESCAPED}
+def registrar(url, accept=None, timeout=90):
+    assert url.startswith("https://doi.org/"), "only the DOI lookup may be reached: %s" % url
+    return json.dumps(served).encode("utf-8")
+vb.fetch = registrar
+recs = [{"arxiv_id": "2401.%05dv1" % i, "title": "T%d" % i, "year": 2023,
+         "primary_category": "cs.IR", "journal_ref": VENUE,
+         "doi": "10.9999/synthetic.%d" % i} for i in range(20)]
+vb.query_arxiv = lambda venue, delay: [dict(r) for r in recs]
+sys.argv = ["vb", "--venue", VENUE, "--dry-run", "--delay", "0",
+            "--manifest", str(d / "m.json")]
+rc = 0
+try:
+    vb.main()
+except SystemExit as e:
+    rc = e.code or 0
+m = json.loads((d / "m.json").read_text())
+assert m["rejected"]["container_title_mismatch"] == 0, (
+    "an escaped ampersand is not another journal: %r"
+    % [r.get("container_title") for r in m["rejected_records"].get("container_title_mismatch", [])][:2])
+assert rc == 0, "twenty verified records should succeed, rc=%s" % rc
+assert m["admitted"] == 20, m["admitted"]
+assert {r["container_title"] for r in m["records"]} == {VENUE}, \
+    "the manifest records the unescaped title"
+# The registrar may send the title as a one-element list; same answer.
+served = {"container-title": [ESCAPED]}
+assert vb.container_title("10.9999/synthetic.0", 0) == VENUE
+PYEOF
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 0 ]]
+}
+
+test_T197() {
+    # journal_ref is typed by authors, and they spell a journal whose name
+    # contains "&" both ways. The phrase search matches only the spelling it is
+    # given, so querying one spelling returned part of the frame and the
+    # manifest described it as the whole. Both spellings are queried, a record
+    # found by both is one candidate, and the manifest records both queries.
+    local tmp rc
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" 2>/dev/null <<'PYEOF'
+import importlib.util, json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location(
+    "vb", ".claude/skills/audit/scripts/build-venue-baseline.py")
+vb = importlib.util.module_from_spec(spec); spec.loader.exec_module(vb)
+
+AMP = "Journal of Synthetic Studies & Examples"
+WORD = "Journal of Synthetic Studies and Examples"
+def rec(i):
+    return {"arxiv_id": "2401.%05dv1" % i, "title": "T%d" % i, "year": 2023,
+            "published": "2023-%02d-01T00:00:00Z" % (i % 12 + 1),
+            "primary_category": "cs.IR", "journal_ref": "x",
+            "doi": "10.9999/synthetic.%d" % i}
+# Twenty-five under each spelling, five of them under both. Either spelling
+# alone clears the corpus floor, so querying only one is caught by the list of
+# queries, not by the floor.
+RD = "Synthetic R&D Letters"
+by_phrase = {AMP: [rec(i) for i in range(0, 25)],
+             WORD: [rec(i) for i in range(20, 45)],
+             RD: [rec(i) for i in range(50, 70)]}
+calls = []
+def query(venue, delay):
+    calls.append(venue)
+    return [dict(r) for r in by_phrase.get(venue, [])]
+vb.query_arxiv = query
+# --venue is the registrar's spelling and membership stays an exact match on
+# it; the other spelling only widens what arXiv is asked for. So the reverse
+# direction is a journal registered with "and" that some authors type as "&".
+registered = [None]
+vb.container_title = lambda doi, delay: registered[0]
+
+def run(venue, name):
+    del calls[:]
+    registered[0] = venue
+    sys.argv = ["vb", "--venue", venue, "--dry-run", "--delay", "0",
+                "--manifest", str(d / name)]
+    try:
+        vb.main()
+    except SystemExit as e:
+        assert (e.code or 0) == 0, "rc=%s" % e.code
+    return json.loads((d / name).read_text())
+
+for given, other in ((AMP, WORD), (WORD, AMP)):
+    m = run(given, "m.json")
+    assert sorted(calls) == sorted([given, other]), \
+        "given %r, queried %r" % (given, calls)
+    assert calls[0] == given, "the spelling given is queried first"
+    ids = [r["arxiv_id"] for r in m["records"]]
+    for group in m["rejected_records"].values():
+        ids += [r["arxiv_id"] for r in group]
+    assert len(ids) == len(set(ids)), "a record found by both spellings is one candidate"
+    assert m["candidates"] == 45 == len(ids), (m["candidates"], len(ids))
+    assert sorted(m["query"]) == sorted('jr:"%s"' % p for p in (given, other)), m["query"]
+    # Each spelling comes back newest first; merged, --max must still cut the
+    # oldest rather than whichever spelling happened to be queried second.
+    pubs = [r["published"] for r in m["records"]]
+    assert pubs == sorted(pubs, reverse=True), "merged candidates are newest first"
+
+# "&" inside a word is not a conjunction: "R&D" is not "RandD".
+m = run(RD, "rd.json")
+assert calls == [RD], calls
+assert m["query"] == ['jr:"%s"' % RD], m["query"]
+PYEOF
+    rc=$?
+    rm -rf "$tmp"
+    [[ "$rc" -eq 0 ]]
+}
+
 run_test "T127 prose fingerprint separates even from bunched use" test_T127
 run_test "T128 prose fingerprint withholds percentiles on a thin baseline" test_T128
 run_test "T129 claim positioning flags advertised terms with no source" test_T129
@@ -5947,6 +6075,8 @@ run_test "T192 every writing-loop mutation turns its named test red" test_T192
 run_test "T193 experimental/ is audited and carries no home-directory paths" test_T193
 run_test "T194 claim ledger: an accepted method credit is not a missing row in the full scan" test_T194
 run_test "T195 claim ledger: a key may be credited for several procedures, only a named one covers" test_T195
+run_test "T196 an escaped ampersand in the registrar's title is not another journal" test_T196
+run_test "T197 both spellings of a venue's ampersand are queried, once each" test_T197
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then
