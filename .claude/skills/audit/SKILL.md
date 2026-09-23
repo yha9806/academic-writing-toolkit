@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Check thesis chapters for consistency before submission — contradictory numbers, terminology drift, and broken cross-references.
+description: Check thesis chapters for consistency before submission — contradictory numbers, terminology drift, and broken cross-references — and read every rewritten or proposed sentence against the one it replaces before anyone sees the rewrite.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
@@ -16,6 +16,18 @@ skill directory link back to the toolkit): `Scripts/python.exe` on Windows,
 (Windows) or `python3` (macOS/Linux) actually runs and has the helper's dependencies.
 Replace the example's `python3` with that executable. In PowerShell, prefix a
 quoted executable with `&`; keep commands on one line and quote file paths.
+
+## A manuscript registered with the writing loop
+
+Run `loop coverage <workspace> --run` first (`experimental/writing-loop/bin/loop`). It
+derives every check's inputs from the workspace (the tracked draft files at HEAD,
+the bibliography, the ledgers, the target venue's corpus) instead of the thesis
+defaults below, runs the ones the latest edits made due, and lists the checks
+that cannot run on this manuscript and why. Its table covers the script checks
+only: categories A, B and C below are read by the model, leave no run record, and
+are listed under the table as such. Report any check it shows as not current,
+missing a prerequisite, not applicable or failed, and never report a check it did
+not run as clean.
 
 ## Purpose
 
@@ -157,10 +169,12 @@ the scope in other words; `technique` passed both.
    reading. Every finding here is a proxy; a finding is a reason to open the
    source, not a verdict.
 
-   **G. Prose fingerprint (measurement only; skip when no baseline exists)**
+   **G. Prose fingerprint (measurement only)**
 
-   Only when the project holds a baseline corpus of its *own* reference
-   PDFs (`literature/`, twenty or more, the author's own papers excluded):
+   With no baseline corpus, report G as **not audited** and say which corpus is
+   missing. Do not leave it out of the report: an absent section reads as a
+   pass. The bibliography baseline needs the project's *own* reference PDFs
+   (`literature/`, twenty or more, the author's own papers excluded):
 
    ```
    python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target chapters --baseline literature --exclude '<author-surname>*'
@@ -214,6 +228,72 @@ the scope in other words; `technique` passed both.
    `preconditions_checked` beside them: `outliers: []` on an unverified
    baseline says nothing, and reading it as a pass is the failure this scan
    was added for. Method and stop rules: `references/prose-polish-method.md`.
+
+   **G2. Rewritten sentences, one at a time (before anyone reads a proposal)**
+
+   The fingerprint and structure audits measure whole documents, so a handful
+   of rewrites cannot move them, and neither reads a proposal that has not been
+   applied. Every proposed rewrite, and every sentence a correction adds, goes
+   through this first, as an `id, old, new` TSV (leave `old` empty for an
+   added sentence; the file is read without quoting):
+
+   ```
+   python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs <rewrites.tsv> --baseline <venue-corpus-dir>
+   ```
+
+   For a rewrite it names what was added: three or more words, a comma (when
+   punctuation as a whole grew), a colon, semicolon, dash or parenthesis, a
+   subordinate clause (counted as gained, so trading "because" for "which"
+   counts), an adverb or a modifier (counted net, so a term swap does not),
+   two prepositional phrases, a subordinate opener, or a merge of sentences.
+   A split is judged as the old sentence against all its pieces. An added
+   sentence is flagged for any colon, semicolon, dash or worded parenthesis
+   and for density above the venue's 75th percentile. Modifiers are a
+   stand-in for a part-of-speech tagger; the report's `limits` line says what
+   it cannot see. A correction that stays faithful to its source by piling
+   qualifiers onto the old sentence is the usual cause; split it or restructure
+   it, and re-run until nothing is flagged or each remaining flag is one you
+   can defend. Show the author the rewrites only after that.
+
+   Keep the file after the author has read it, with two more columns:
+   `verdict` (accepted, or rejected; revised counts as rejected; empty while
+   not judged) and `reason`. Run the audit on it again and it sets the flags
+   against the verdicts and names the script by its hash. The thresholds were
+   fitted on one round; a later round's verdicts, judged by the version frozen
+   before that round, are their only test.
+
+   Once applied, the writing loop runs the same audit on each commit against
+   the last commit at which it flagged nothing, so a round of several commits
+   is read as a whole; the run record and the summary name that base. A
+   flagged sentence keeps the base where it was until the sentence is fixed,
+   or until the author accepts it by moving `draft.base_ref` forward.
+
+   **G3. Topic and contribution type against the venue (before choosing it)**
+
+   The venue corpus of `build-venue-baseline.py` answers whether the
+   manuscript reads like the venue. It is built from preprints, which skew to
+   the subfields whose authors post them, so it cannot say whether the venue
+   publishes this topic or this kind of contribution. That takes every
+   article the venue published in a window, from the registrar:
+
+   ```
+   python3 .claude/skills/audit/scripts/venue-topic-fit.py fetch --issn <ISSN> --from 2024-01-01 --out <corpus.json>
+   python3 .claude/skills/audit/scripts/venue-topic-fit.py neighbors --corpus <corpus.json> --title "<title>" --abstract <abstract.txt>
+   python3 .claude/skills/audit/scripts/venue-topic-fit.py sample --corpus <corpus.json> --n 100 --seed <int> --out <sheet.tsv>
+   python3 .claude/skills/audit/scripts/venue-topic-fit.py tally --sheet <sheet.tsv>
+   ```
+
+   `neighbors` gives the nearest articles and where the manuscript's own
+   nearest-neighbour similarity falls among the articles': a low percentile
+   means its wording sits at the edge of what the venue publishes. Read the
+   nearest articles before drawing anything from the number. `sample` draws
+   titles to code by contribution type (M method, E evaluation or analysis of
+   existing systems, D dataset or benchmark, S study of people or science,
+   R review; mark a doubtful code with `?`); `tally` gives shares with 95%
+   intervals. The coder is whoever codes the sheet, and the report should
+   name them. Three limits go into any report of it: coding from titles is
+   coarse; TF-IDF measures shared words, not fit; and every article in the
+   corpus was accepted, so nothing here is an acceptance rate.
 
 3. **Output the audit report** using the format below.
 

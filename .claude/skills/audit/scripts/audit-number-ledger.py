@@ -41,14 +41,27 @@ the verbatim string in the artifact, so the binding can be re-read.
                              counts of sections and sample sizes all land here,
                              so this is a coverage list, not a finding.
 
-`scope` is matched literally, and that is its limit. On the real manuscript,
+An optional sixth column, `copies`, is how many prose sentences report the
+number. Without it the only test was "does the value appear somewhere", so a
+number printed in the abstract and the introduction could drift in one of them
+and still pass on the other copy:
+
+  copies-changed             the number of sentences reporting it is not the
+                             count the ledger records
+
+`scope` is matched literally, and that is its limit. A scope ending in a digit
+must not continue into another digit (K=1 is not found inside K=10), and a
+locator ending in a digit must not continue into another digit or a decimal
+point (0.635 is not found inside 0.6357). On the real manuscript,
 the first scope token tried flagged two sentences that carry the scope in
 other words; a token those sentences actually contain passed both. Pick
 a token the correct sentences actually contain, or the column produces noise
 rather than a guard. A scope of `-` switches the check off for that row.
 
 What this does NOT do: decide whether the artifact is the right one, or whether
-a number is correctly derived from it. It checks that the value printed in the
+a number is correctly derived from it. Nor does it see two numbers swap places
+inside one sentence ("from 2.1 to 30.5" for "from 30.5 to 2.1"): every value
+and every scope is still present. Only a reader catches that. It checks that the value printed in the
 prose is the value written in a file, under the scope the ledger records.
 
 Exit: 1 on a hard finding, 2 when no row was checked at all unless
@@ -61,10 +74,13 @@ import sys
 from pathlib import Path
 
 COLUMNS = ["printed", "in_artifact", "scope", "artifact", "locator"]
+OPTIONAL = ["copies"]
 # A reported number: a decimal, a percentage or an integer of two digits or
 # more. Single digits are almost always prose ("the three requirements") and
 # would drown the coverage list.
-REPORTED = re.compile(r"(?<![\w.])(\d+\.\d+|\d{2,})(?![\w.])")
+# A number written with thousands separators (1,614; LaTeX 1{,}614) is one number: read digit by digit it became
+# "614", a value the manuscript never reports.
+REPORTED = re.compile(r"(?<![\w.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|\d{2,})(?![\w.])")
 
 
 def clean_tex(text):
@@ -72,7 +88,7 @@ def clean_tex(text):
     text = re.sub(r"\\(?:label|ref|eqref|cite|citep|citet|input|include)\*?\{[^}]*\}", " ", text)
     text = re.sub(r"\\(?:section|subsection|subsubsection|paragraph)\*?\{[^}]*\}", " ", text)
     text = re.sub(r"\\(?:emph|textbf|textit|texttt|text)\{([^}]*)\}", r"\1", text)
-    text = text.replace("~", " ").replace("\\%", "%").replace("$", "")
+    text = text.replace("~", " ").replace("\\%", "%").replace("$", "").replace("{,}", ",")
     return re.sub(r"\s+", " ", text)
 
 
@@ -105,13 +121,14 @@ def read_ledger(path):
     lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
     if not lines:
         return rows
-    if lines[0].split("\t")[:len(COLUMNS)] != COLUMNS:
-        sys.exit(f"LEDGER_COLUMNS: expected {COLUMNS}, found {lines[0].split(chr(9))}")
+    header = lines[0].split("\t")
+    if header[:len(COLUMNS)] != COLUMNS or any(h not in OPTIONAL for h in header[len(COLUMNS):]):
+        sys.exit(f"LEDGER_COLUMNS: expected {COLUMNS} (+ optional {OPTIONAL}), found {header}")
     for n, line in enumerate(lines[1:], 2):
         parts = line.split("\t")
         if len(parts) < len(COLUMNS):
             sys.exit(f"LEDGER_COLUMNS: line {n} has {len(parts)} columns, expected {len(COLUMNS)}")
-        row = dict(zip(COLUMNS, parts))
+        row = dict(zip(header, parts))
         row["line"] = n
         rows.append(row)
     return rows
@@ -134,6 +151,10 @@ def main(argv=None):
 
     prose = sentences(base)
     rows = read_ledger(ledger_path)
+    # An artifact is where a number comes from, not where the prose reports it. A table file read as prose kept a
+    # number "reported" after the sentence carrying it was cut, and put every cell on the coverage list.
+    sources = {(base / r["artifact"]).resolve() for r in rows}
+    prose = [(f, s) for f, s in prose if (base / f).resolve() not in sources]
     findings, pairs = [], []
     ledgered_numbers = set()
 
@@ -149,11 +170,22 @@ def main(argv=None):
             relation = "identical"
         else:
             try:
-                printed_value, artifact_value = float(number), float(in_artifact)
-                if artifact_value and abs(printed_value - artifact_value * 100) < 1e-6:
+                bare = number.replace(",", "")
+                printed_value = float(bare)
+                artifact_value = float(in_artifact.replace("{,}", "").replace(",", ""))
+                # The prose prints the artifact's value to fewer decimals. Only exact rounding to the printed
+                # precision counts: 23.47 printed as 23.5 is a relation, printed as 23.4 is a finding.
+                places = len(bare.split(".")[1]) if "." in bare else 0
+                if printed_value == artifact_value:
+                    relation = "the same value, written with thousands separators"
+                elif artifact_value and abs(printed_value - artifact_value * 100) < 1e-6:
                     relation = "printed as a percentage of the artifact's proportion"
                 elif printed_value and abs(artifact_value - printed_value * 100) < 1e-6:
                     relation = "printed as a proportion of the artifact's percentage"
+                elif abs(round(artifact_value, places) - printed_value) < 1e-9:
+                    relation = f"the artifact's value rounded to {places} decimal place(s)"
+                elif abs(round(artifact_value * 100, places) - printed_value) < 1e-9:
+                    relation = f"the artifact's proportion as a percentage rounded to {places} decimal place(s)"
             except ValueError:
                 pass
         if relation is None:
@@ -169,20 +201,28 @@ def main(argv=None):
                              "detail": f"artifact not found: {row['artifact']}"})
         else:
             text = norm(artifact.read_text(encoding="utf-8", errors="replace"))
-            if norm(row["locator"]) not in text:
+            locator = norm(row["locator"])
+            if not re.search(re.escape(locator) + (r"(?![\d.])" if locator[-1:].isdigit() else ""), text):
                 findings.append({"kind": "locator-not-in-artifact", "location": where, "number": number,
                                  "detail": f'"{row["locator"][:70]}" is not verbatim in {row["artifact"]}'})
         if in_artifact not in row["locator"]:
             findings.append({"kind": "value-not-in-locator", "location": where, "number": number,
                              "detail": f'the locator "{row["locator"][:60]}" does not carry {in_artifact}'})
 
-        reporting = [(f, s) for f, s in prose if re.search(rf"(?<![\w.]){re.escape(number)}(?![\w.])", s)]
+        reporting = [(f, s) for f, s in prose if re.search(rf"(?<![\w.,]){re.escape(number)}(?![\w.])", s)]
         if not reporting:
             findings.append({"kind": "number-not-in-manuscript", "location": where, "number": number,
                              "detail": f"{number} is no longer reported anywhere in the manuscript"})
-        elif scope and scope != "-":
+        if reporting and (row.get("copies") or "").strip() not in ("", "-"):
+            want = int(row["copies"])
+            if len(reporting) != want:
+                findings.append({"kind": "copies-changed", "location": where, "number": number,
+                                 "detail": f"{number} is reported in {len(reporting)} sentence(s), the ledger records "
+                                           f"{want}: a copy was changed, added or cut"})
+        if reporting and scope and scope != "-":
+            scope_rx = re.escape(norm(scope)) + (r"(?!\d)" if norm(scope)[-1:].isdigit() else "")
             for f, s in reporting:
-                if norm(scope) not in norm(s):
+                if not re.search(scope_rx, norm(s)):
                     findings.append({"kind": "scope-missing", "location": f, "number": number,
                                      "detail": f'reports {number} without "{scope}", which it is only true within: {s[:90]}'})
         pairs.append({"printed": number, "in_artifact": in_artifact, "relation": relation,
@@ -199,7 +239,7 @@ def main(argv=None):
                              "detail": f"reported with no ledger row: {s[:90]}"})
 
     hard_kinds = {"locator-not-in-artifact", "value-not-in-locator", "printed-artifact-mismatch",
-                  "number-not-in-manuscript", "artifact-missing", "scope-missing"}
+                  "number-not-in-manuscript", "artifact-missing", "scope-missing", "copies-changed"}
     hard = [f for f in findings if f["kind"] in hard_kinds]
     nothing = not rows
     payload = {
@@ -227,7 +267,8 @@ def main(argv=None):
         print(f"coverage: {len(rows)} of {covered} reported number(s) carry a row; "
               f"{unledgered} do not, and nothing here checks them")
         for kind in ["locator-not-in-artifact", "value-not-in-locator", "printed-artifact-mismatch",
-                     "number-not-in-manuscript", "artifact-missing", "scope-missing", "unledgered-number"]:
+                     "number-not-in-manuscript", "artifact-missing", "scope-missing", "copies-changed",
+                     "unledgered-number"]:
             group = [f for f in findings if f["kind"] == kind]
             if not group:
                 continue

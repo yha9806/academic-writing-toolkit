@@ -1,0 +1,21 @@
+{
+ "hooks": {
+  "UserPromptSubmit": [
+   {"hooks": [{"type": "command", "command": "python3 <AWT>/experimental/writing-loop/hooks/loop_hook.py"}]}
+  ],
+  "PreToolUse": [
+   {"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+    "hooks": [{"type": "command", "command": "python3 <AWT>/experimental/writing-loop/hooks/loop_hook.py"}]}
+  ],
+  "PostToolUse": [
+   {"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+    "hooks": [{"type": "command", "command": "python3 <AWT>/experimental/writing-loop/hooks/loop_hook.py"}]}
+  ],
+  "Stop": [
+   {"hooks": [{"type": "command", "command": "python3 <AWT>/experimental/writing-loop/hooks/loop_hook.py"}]}
+  ],
+  "StopFailure": [
+   {"hooks": [{"type": "command", "command": "python3 <AWT>/experimental/writing-loop/hooks/loop_hook.py"}]}
+  ]
+ }
+}

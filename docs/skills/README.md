@@ -30,5 +30,6 @@ On-demand reference documents: `references/argument-checklist.md`,
 | `/audit` | [06-audit.md](06-audit.md) |
 | `/export` | [08-export.md](08-export.md) |
 | `/verify-refs` | [11-verify-refs.md](11-verify-refs.md) |
+| `/readers` | (guide pending; see the SKILL.md) |
 
 The shared data contract is the notes file in `literature/reading_notes/`: status, source citation, relevance, detailed notes, and thesis connections.

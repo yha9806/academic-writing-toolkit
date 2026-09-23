@@ -1,6 +1,6 @@
 # Setup: Codex skills
 
-AWT provides eight skills for local Codex use. They are advisory: the host
+AWT provides nine skills for local Codex use. They are advisory: the host
 does not enforce what they say.
 
 ## Skills in a checkout or linked workspace
@@ -64,7 +64,7 @@ python scripts/install-codex-skills.py --verify
 ```
 
 An unchanged installation keeps its existing skill files and receipt. An
-update stages and exercises all eight skills before replacing them, carries
+update stages and exercises all nine skills before replacing them, carries
 over the `agents/` and `assets/` folders a host has written into an installed
 skill, and backs up the previous folders. Other skill names are left alone.
 
@@ -87,7 +87,7 @@ replace locally edited AWT skills, inspect the listed collisions and run:
 python scripts/install-codex-skills.py --install-deps --replace-existing
 ```
 
-This option authorises replacement of the eight listed names, including an
+This option authorises replacement of the nine listed names, including an
 unrelated skill with one of those names. Their whole previous folders are
 saved first. Symlink/junction targets are refused even with this option.
 
@@ -149,6 +149,7 @@ explicit-only invocation policy.
 | map | Show literature coverage and writing progress |
 | integrate | Integrate reading notes into chapter drafts |
 | review | External review or an own-work review in a fresh-context clean room |
+| readers | Reader panel: what first-time readers carried away, against the author's intended points |
 | audit | Consistency, claim-positioning and citation-fidelity checks |
 | verify-refs | Offline BibTeX checks; online metadata checks only when requested |
 | export | Explicitly requested Word and ZIP conversion |

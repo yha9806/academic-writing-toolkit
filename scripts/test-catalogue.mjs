@@ -35,6 +35,7 @@ const EXCLUSIVE = {
   audit: 'consistency',
   'verify-refs': 'bibtex',
   export: 'docx',
+  readers: 'reader panel',
 }
 
 function descriptions() {

@@ -22,6 +22,7 @@ from typing import List, Tuple
 PUBLIC_ROOTS = [
     "README.md", "CLAUDE.md", "AGENTS.md", "GEMINI.md", "Makefile",
     "docs", "examples", ".claude/skills", ".cursor", "templates", "scripts", "tests",
+    "experimental",
     "plugins/academic-writing-toolkit",
 ]
 

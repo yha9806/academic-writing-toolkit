@@ -66,6 +66,18 @@ STOP_HEADINGS = re.compile(r"\n\s*(?:References|REFERENCES|Bibliography|Works Ci
 
 
 # --- extraction --------------------------------------------------------------
+
+# Share of whitespace tokens that are words. Measured 2026-09-22 on 81 real papers: lowest 0.579 (a table-heavy
+# paper), median 0.886; a PDF whose fonts extracted as symbols scored 0.036.
+MIN_WORD_SHARE = 0.30
+_WORD = re.compile(r"^[(\[\"'\u201c\u2018]?[A-Za-z][A-Za-z'\u2019\-]*[.,;:!?)\]\"'\u201d\u2019]*$")
+
+
+def word_share(text: str) -> float:
+    tokens = text.split()
+    return sum(1 for x in tokens if _WORD.match(x)) / len(tokens) if tokens else 0.0
+
+
 def read_pdf(path: Path) -> Optional[str]:
     if not shutil.which("pdftotext"):
         return None
@@ -100,6 +112,9 @@ def strip_markup(text: str, suffix: str) -> str:
         text = re.sub(r"\\begin\{(?:tabular|table|figure|itemize|enumerate|description|equation|align)\*?\}"
                       r".*?\\end\{(?:tabular|table|figure|itemize|enumerate|description|equation|align)\*?\}",
                       " ", text, flags=re.S)
+        # An environment's name is not prose: \begin{center} used to leave the word "center" behind, and a
+        # colon before it ("character by character: center") was counted as an explanatory colon.
+        text = re.sub(r"\\(?:begin|end)\{[^}]*\}", " ", text)
         text = re.sub(r"\\[a-zA-Z]+\*?", " ", text)
         text = re.sub(r"[{}$&~\\]", " ", text)
     elif suffix == ".md":
@@ -371,6 +386,7 @@ def main() -> int:
     suspect: List[Dict[str, object]] = []
     target_grams = ngram_hashes(text)
     too_short: List[Dict] = []
+    garbled: List[Dict] = []
     base_pipelines: Dict[str, int] = {}
     if args.baseline:
         bdir = Path(args.baseline)
@@ -388,6 +404,14 @@ def main() -> int:
                 skipped.append(p.name)
                 continue
             words = len(t.split())
+            share = word_share(t)
+            if share < MIN_WORD_SHARE:
+                # A PDF whose fonts extract as symbols still yields thousands of
+                # "words". Counted as a baseline document, one such file set the
+                # lower bound of three ranges while the structure audit, which
+                # needs sentences, skipped it.
+                garbled.append({"file": p.name, "word_share": round(share, 3)})
+                continue
             if words < 1500:
                 # A document also leaves the baseline by being too short to
                 # measure, and that exit had no name. `baseline_skipped` held
@@ -426,6 +450,7 @@ def main() -> int:
               "baseline_sufficient": len(base_rows) >= args.min_baseline,
               "baseline_skipped": skipped,
               "baseline_too_short": too_short,
+              "baseline_garbled": garbled,
               "target_pipeline": target_pipelines,
               "baseline_pipeline_mix": base_pipelines,
               "pipeline_mismatch": bool(base_pipelines)

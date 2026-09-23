@@ -16,7 +16,7 @@ The core promise is simple: **agents may help operate the workflow; the author k
 > **Latest tag: [v0.6.0-rc.2](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.6.0-rc.2), a pre-release**,
 > and the last state of AWT as a
 > [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness)
-> distribution: the eight skills plus a guard plugin with typed denials. That
+> distribution: the skills as they stood at that tag, plus a guard plugin with typed denials. That
 > distribution is retired from `main` as of 2026-09-20; the
 > [decision record](docs/specs/2026-09-20-retire-dsh-line-design.md) carries
 > the evidence. In short: its enforcement claims were CI-proven (E0), its one
@@ -86,7 +86,7 @@ workspace. On Windows, setup keeps
 Git's flattened link files intact and adds ignored `awt-local-*` directory
 junctions to the same canonical skills.
 
-To use the eight skills across your local Codex projects, install them in
+To use the nine skills across your local Codex projects, install them in
 user scope from a source checkout (Python 3.9+, Node.js ^22.12 or >=24):
 
 ```bash
@@ -168,7 +168,7 @@ for the per-skill verdicts; retired skills live under [`archive/skills/`](archiv
 |---|---|---|
 | **Read and ground** | `/read`, `/note`, `/map` | page-anchored notes with an evidence-status firewall, coverage matrix, progress dashboard |
 | **Write without losing the sources** | `/integrate` | notes woven into chapters with attribution; sources read only in part are refused as support |
-| **Review and ship** | `/review`, `/audit`, `/verify-refs`, `/export` | `file:line` review findings, the five audits, BibTeX checks, Word/ZIP exports |
+| **Review and ship** | `/review`, `/readers`, `/audit`, `/verify-refs`, `/export` | `file:line` review findings, what a reader panel carried away against the author's intended points, the five audits, BibTeX checks, Word/ZIP exports |
 
 The [`/review` instructions](.claude/skills/review/SKILL.md) distinguish external
 review of another author's submitted work from own-work review of the user's
@@ -267,7 +267,7 @@ The explicit `--online` mode can query Crossref, Semantic Scholar, and arXiv. CI
 
 ```text
 my-writing-project/
-├── .claude/skills/          canonical eight-skill catalogue (single source)
+├── .claude/skills/          canonical nine-skill catalogue (single source)
 ├── .agents/skills/          1:1 links — Codex and other Agent-Skills hosts read here
 ├── scaffold/                awt init: a clean thesis workspace linked to the catalogue
 ├── references/              on-demand reference documents
