@@ -3553,7 +3553,7 @@ test_T192() {
     # test cannot see the fault it claims to guard.
     local out rc
     out=$(python3 experimental/writing-loop/engine/tests/redcheck.py 2>&1); rc=$?
-    [ "$rc" -eq 0 ] || { echo "$out" | tail -5; return 1; }
+    [ "$rc" -eq 0 ] || { echo "$out" | grep -E '没变红|基线就不通过|无法注入'; echo "$out" | tail -2; return 1; }
     echo "$out" | grep -qE '^\[[0-9.]+\] ' || return 1
 }
 
