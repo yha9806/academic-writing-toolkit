@@ -554,6 +554,8 @@ MUTATIONS = [
      'test_coverage.RiskRegisterTest.test_open_items_lead_the_line_and_stay_out_of_the_check_counts'),
     ("risks", 'coverage.py', '    small = below(summary)\n', '    small = []\n',
      'test_coverage.RiskRegisterTest.test_evidence_below_its_comparators_is_said_even_after_a_decision'),
+    ("cov", 'coverage.py', '                summary += "；逐节没算（只有全文平均）"', '                pass',
+     'test_coverage.NeverGreenTest.test_a_style_run_that_never_computed_per_section_rates_says_so'),
     ("risks", 'targets.py', '                out["problems"].append(f"{item[\'kind\']} {item[\'id\']} 的「规模」读不懂',
      '                (lambda *a: None)(f"{item[\'kind\']} {item[\'id\']} 的「规模」读不懂',
      'test_coverage.RiskRegisterTest.test_an_unreadable_scale_line_is_shown_not_dropped'),

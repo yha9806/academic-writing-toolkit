@@ -243,6 +243,18 @@ class NeverGreenTest(unittest.TestCase):
         out = '{\n  "a_NOTES.md": [],\n  "b_NOTES.md": [{"severity": "warning", "code": "evidence-status-missing"}]\n}'
         self.assertEqual(V.interpret("notes-lint", 0, out, ""), ("ok", "2 份笔记，错 0、提示 1"))
 
+    def test_a_style_run_that_never_computed_per_section_rates_says_so(self):
+        # The fingerprint script leaves per-section rates uncomputed when its target is a directory, and says the
+        # absence is a hole in the reading. The summary used to show only 「越界 0 项」, so a whole-paper average in
+        # range read as clean while single sections could be far outside it.
+        hole = ('{"outliers": [], "per_section_cv": null, "per_section_note": "NOT COMPUTED: per-section rates need a '
+                'single .tex or .md target and --target is a directory."}')
+        verdict, summary = V.interpret("fingerprint-venue", 0, hole, "")
+        self.assertEqual(verdict, "ok", "the whole-paper average still decides the verdict")
+        self.assertIn("逐节没算", summary)
+        done = '{"outliers": [], "per_section_cv": {"hedge_per_1k": 0.4}, "per_section_note": null}'
+        self.assertNotIn("逐节没算", V.interpret("fingerprint-venue", 0, done, "")[1])
+
     def test_a_timeout_is_a_failure(self):
         with TempDir() as root:
             repo, ws = setup(root)

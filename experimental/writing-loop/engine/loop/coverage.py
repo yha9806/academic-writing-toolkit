@@ -323,6 +323,10 @@ def interpret(check_id, code, stdout, stderr):
         if "outliers" in data:
             out = data.get("outliers") or []
             summary = f"越界 {len(out)} 项" + (f"：{', '.join(out)}" if out else "")
+            # The script leaves per-section rates uncomputed for a directory target and calls that a hole, not a
+            # clean result: a whole-paper average in range can hide one section far outside it. Say it.
+            if str(data.get("per_section_note") or "").startswith("NOT COMPUTED"):
+                summary += "；逐节没算（只有全文平均）"
         elif "flagged" in data and "changed" in data:
             summary = f"改动 {data['changed']} 句，标出 {data['flagged']} 句"
         elif "total" in data and "unit" in data and isinstance(data.get("chapters"), list):
