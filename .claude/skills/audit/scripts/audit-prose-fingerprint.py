@@ -342,6 +342,68 @@ KEY_ORDER = [
     ("first_person_verb_diversity", "we+verb diversity"),
 ]
 
+# --per-file: a directory target measured file by file. The whole-paper numbers above are unchanged; this adds where
+# each rhetorical device peaks. A section's rate is NOT compared with the baseline's range: that range is built from
+# whole-paper averages, and a paper's average is never above its highest section, so every lively discussion section
+# would read as out of range and every flat method section as fine. What needs no baseline is the shape (the global
+# prose rules): plain sections (methods, limitations) near zero, the voice in the discussion and conclusion. A peak in
+# a plain section is backwards; in related work or the dataset section it is worth a look.
+DEVICE_KEYS = [("contrast_per_1k", "corrective diptych"),
+               ("explanatory_colon_per_1k", "explanatory colon"),
+               ("semicolon_per_1k", "semicolon")]
+MIN_SECTION_WORDS = 800
+ROLES = [("abstract", r"abstract"), ("introduction", r"intro"), ("related", r"related|background|prior"),
+         ("limitations", r"limit"), ("method", r"method|pipeline|approach|procedure|protocol"),
+         ("dataset", r"dataset|data|corpus|benchmark|collection"),
+         ("results", r"result|finding|experiment|evaluat"), ("discussion", r"discuss"), ("conclusion", r"conclu")]
+PLAIN_ROLES = {"method", "limitations"}
+LOOK_ROLES = {"related", "dataset"}
+
+
+def role_of(name: str) -> Optional[str]:
+    """The section a file holds, guessed from its name only; None when the name says nothing."""
+    stem = Path(name).stem.lower()
+    for role, pat in ROLES:
+        if re.search(pat, stem):
+            return role
+    return None
+
+
+def per_file(target: Path) -> Dict[str, dict]:
+    """Every .tex/.md/.txt file under a directory target, short ones included (and marked), measured alone."""
+    out = {}
+    for p in sorted(target.rglob("*")):
+        if not p.is_file() or p.suffix.lower() not in TEXT_SUFFIXES:
+            continue
+        t = load(p)
+        if not t:
+            # A file with no prose after markup is removed (a stub kept so the main file need not change) is listed,
+            # not dropped: a reader cannot otherwise tell an empty file from one that was never read.
+            out[str(p.relative_to(target))] = {"words": 0, "short": True, "role": role_of(p.name),
+                                               "metrics": {k: None for k, _ in DEVICE_KEYS}}
+            continue
+        m = measure(t)
+        out[str(p.relative_to(target))] = {
+            "words": int(m["words"]), "short": m["words"] < MIN_SECTION_WORDS, "role": role_of(p.name),
+            "metrics": {k: m.get(k) for k, _ in DEVICE_KEYS}}
+    return out
+
+
+def peaks(files: Dict[str, dict]) -> Dict[str, dict]:
+    """Where each device peaks among the files long enough to judge."""
+    judged = {n: f for n, f in files.items() if not f["short"]}
+    out = {}
+    for key, _ in DEVICE_KEYS:
+        vals = {n: f["metrics"][key] for n, f in judged.items() if f["metrics"].get(key) is not None}
+        if len(vals) < 2 or max(vals.values()) <= 0:
+            continue
+        top = max(vals, key=vals.get)
+        role = judged[top]["role"]
+        out[key] = {"file": top, "value": vals[top], "role": role,
+                    "verdict": ("backwards" if role in PLAIN_ROLES else "look" if role in LOOK_ROLES
+                                else "ok" if role else "unknown")}
+    return out
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(
@@ -366,6 +428,9 @@ def main() -> int:
                     help="report percentiles even when that scan finds one. Use only "
                          "when the overlap is intended and you can say why")
     ap.add_argument("--json", action="store_true", dest="emit_json")
+    ap.add_argument("--per-file", action="store_true", dest="per_file",
+                    help="with a directory target, also measure each file alone and report where each "
+                         "rhetorical device peaks (see DEVICE_KEYS)")
     args = ap.parse_args()
 
     target = Path(args.target)
@@ -513,6 +578,20 @@ def main() -> int:
                 "A low cross-section CV means the device runs at the same rate in the "
                 "dutiful sections as in the discussion. That evenness is the signature; "
                 "the fix is to redistribute, not merely to reduce.")
+    if args.per_file and target.is_dir():
+        files = per_file(target)
+        judged = [f for f in files.values() if not f["short"]]
+        report["per_file"] = files
+        report["peaks"] = peaks(files)
+        if len(judged) >= 3:
+            report["per_section_cv"] = {k: cv([f["metrics"][k] for f in judged if f["metrics"].get(k) is not None])
+                                        for k, _ in DEVICE_KEYS}
+            report["per_section_note"] = None
+        else:
+            report["per_section_cv"] = None
+            report["per_section_note"] = (
+                "NOT COMPUTED: {} file(s) have at least {} words; three are needed for a "
+                "cross-section spread.".format(len(judged), MIN_SECTION_WORDS))
     # When the target is read one way and the baseline another, every
     # percentile above compares two readings, not two documents. The tool
     # cannot remove the asymmetry -- a published PDF has no source to strip --
@@ -592,7 +671,17 @@ def main() -> int:
                 if e["outside_range"]:
                     line += "  *"
             print(line)
-        if "per_section_cv" in report and report["per_section_cv"] is not None:
+        if report.get("per_file"):
+            print("\nper file, /1k: " + ", ".join(label for _, label in DEVICE_KEYS) + "  (* too short to judge)")
+            for name, f in report["per_file"].items():
+                vals = "".join("{:>9.2f}".format(f["metrics"][k] or 0.0) for k, _ in DEVICE_KEYS)
+                print("  {:<44}{}{}".format(name[:44], vals, "  *" if f["short"] else ""))
+            for key, pk in report.get("peaks", {}).items():
+                if pk["verdict"] in ("backwards", "look"):
+                    print("  {} peaks in {} ({}): {}".format(
+                        key, pk["file"], pk["role"],
+                        "backwards, this section should be plain" if pk["verdict"] == "backwards" else "worth a look"))
+        if isinstance(report.get("per_section_cv"), float):
             print("\nper-section corrective-diptych rate  (cross-section CV {:.2f})".format(
                 report["per_section_cv"]))
             for name, r in report["per_section_contrast_per_1k"].items():

@@ -298,6 +298,25 @@ def save_run(ws, rec):
     tmp.replace(d / f"{rec['id']}.json")
 
 
+_DEVICE_LABEL = {"contrast_per_1k": "对比句式", "explanatory_colon_per_1k": "解释性冒号", "semicolon_per_1k": "分号"}
+_ROLE_LABEL = {"method": "方法节", "limitations": "局限节", "related": "相关工作", "dataset": "数据集节"}
+
+
+def _peaks_summary(data):
+    """With --per-file: how many files were measured alone, and each device whose peak sits in a section that should
+    be plain (backwards) or deserves a look. A peak in the discussion, results or conclusion is not a finding."""
+    pf = data.get("per_file")
+    if not isinstance(pf, dict) or not pf:
+        return ""
+    bits = []
+    for key, p in (data.get("peaks") or {}).items():
+        if isinstance(p, dict) and p.get("verdict") in ("backwards", "look"):
+            role = _ROLE_LABEL.get(p.get("role"), p.get("role") or "")
+            bits.append(f"{_DEVICE_LABEL.get(key, key)}峰值在 {p.get('file')}（{role}，"
+                        f"{'反了' if p['verdict'] == 'backwards' else '值得看'}）")
+    return f"；逐节 {len(pf)} 个文件" + ("：" + "；".join(bits) if bits else "")
+
+
 def interpret(check_id, code, stdout, stderr):
     """(verdict, summary). verdict: ok | findings | failed. Exit 2 is never a pass: it means nothing was examined or
     a precondition failed, and the check says so on stderr."""
@@ -327,6 +346,7 @@ def interpret(check_id, code, stdout, stderr):
             # clean result: a whole-paper average in range can hide one section far outside it. Say it.
             if str(data.get("per_section_note") or "").startswith("NOT COMPUTED"):
                 summary += "；逐节没算（只有全文平均）"
+            summary += _peaks_summary(data)
         elif "flagged" in data and "changed" in data:
             summary = f"改动 {data['changed']} 句，标出 {data['flagged']} 句"
         elif "total" in data and "unit" in data and isinstance(data.get("chapters"), list):

@@ -255,6 +255,26 @@ class NeverGreenTest(unittest.TestCase):
         done = '{"outliers": [], "per_section_cv": {"hedge_per_1k": 0.4}, "per_section_note": null}'
         self.assertNotIn("逐节没算", V.interpret("fingerprint-venue", 0, done, "")[1])
 
+    def test_both_style_checks_ask_for_per_section_rates(self):
+        # The loop runs the fingerprint on a directory; without --per-file no section is ever measured alone.
+        ctx = {"cfg": {"target": {"venue_corpus": {"dir": "/corpus"}}, "inputs": {"literature": "/lit"}}}
+        for cid in ("fingerprint-venue", "fingerprint-bibliography"):
+            self.assertIn("--per-file", K.by_id(cid)["argv"](ctx), cid)
+
+    def test_a_per_section_peak_in_a_plain_section_is_named(self):
+        # With --per-file the script names the section where each device peaks. A peak in a section that should be
+        # plain (methods, limitations) is the backwards shape and is said; one in the discussion is not a finding.
+        run = ('{"outliers": [], "per_section_cv": {"contrast_per_1k": 1.2}, "per_section_note": null, '
+               '"per_file": {"02_method.tex": {}, "05_discussion.tex": {}, "06_note.tex": {"short": true}}, '
+               '"peaks": {"contrast_per_1k": {"file": "02_method.tex", "role": "method", "verdict": "backwards"}, '
+               '"semicolon_per_1k": {"file": "05_discussion.tex", "role": "discussion", "verdict": "ok"}}}')
+        verdict, summary = V.interpret("fingerprint-venue", 0, run, "")
+        self.assertEqual(verdict, "ok")
+        self.assertIn("对比句式峰值在 02_method.tex（方法节，反了）", summary)
+        self.assertNotIn("分号", summary, "a peak where the voice belongs is not a finding")
+        self.assertIn("逐节 3 个文件", summary)
+        self.assertNotIn("逐节没算", summary)
+
     def test_a_timeout_is_a_failure(self):
         with TempDir() as root:
             repo, ws = setup(root)
