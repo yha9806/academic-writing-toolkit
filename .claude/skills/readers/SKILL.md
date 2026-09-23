@@ -22,7 +22,9 @@ report.
 1. **Intent card.** The author's statement of who the reader is and the two to four points (M1, M2, ...) the reader
    should carry away. The writing loop names it in `target.intent_card`. If it lives outside the workspace's
    `human/` folder it is a draft, and the report says so. Do not write it for the author; draft it only when asked,
-   and label it a draft.
+   and label it a draft. The template at `experimental/writing-loop/templates/intent-card.md` has further sections
+   (advantage sentence, narrative order, experiment roles, the scan and its acceptance checks); this skill reads
+   only the reader and the points.
 2. **Directed questions** (optional, recommended): one per suspected misreading or per point you need confirmed,
    as `id<TAB>question` lines. Free-text summaries overstate misreadings; a directed question confirms one.
    Always consider one about reuse and one about which field the work belongs to.
