@@ -212,6 +212,12 @@ class GuardTest(unittest.TestCase):
                                                                    {"command": f"cp a {tilde}/x"}), regs)))
             finally:
                 os.environ["HOME"] = old
+            # A path through a symlink names the same directory. Built here rather than left to the platform:
+            # macOS's temporary directory sits behind /var -> /private/var, Linux's /tmp does not.
+            alias = Path(root) / "alias"
+            alias.symlink_to(ws, target_is_directory=True)
+            self.assertTrue(self.denied(LH.handle(tool_payload("PreToolUse", repo, "Bash",
+                                                               {"command": f"echo x >> {alias}/human/comments.jsonl"}), regs)))
 
     def test_reading_human_is_allowed_but_redirecting_into_it_is_not(self):
         with TempDir() as root:
