@@ -28,8 +28,13 @@ below looks for.
 
 ## 优势句 · Advantage sentence
 
-The sentence that the abstract and the first paragraph of the introduction open with: what this paper gives its
-reader that the nearest work does not. Give the uuid of the message in which the author approved it, or mark it ◌.
+The sentence the abstract opens with: what this paper gives its reader that the nearest work does not. Give the
+uuid of the message in which the author approved it, or mark it ◌.
+
+The first paragraph of the introduction makes the same claim in its own words and goes further. It does not restate
+the abstract sentence by sentence. In the round this template comes from, the abstract and the introduction were
+both made to open with this sentence, and in the next reader panel most readers said the introduction's first
+paragraph repeated the abstract. Those readers were AI readers, so treat this as a warning, not a measurement.
 
 ## 讲法顺序 · Narrative order
 
@@ -58,9 +63,10 @@ this time.
 
 Done by hand before each round of rewrites goes to the author. It is not an automatic check.
 
-- **What to scan**: every new or rewritten sentence in the sentence-pairs TSV. Once per paper, also scan the
-  abstract, introduction and conclusion as they stand; this is the baseline. In the first round this was used on,
-  the baseline found more to change than the new sentences did.
+- **What to scan**: every new or rewritten sentence in the sentence-pairs TSV. Once per paper, also scan the whole
+  paper as it stands, section by section, including the appendix; this is the baseline. A scan of the abstract and
+  introduction alone says nothing about the body. In the first round this was used on, the baseline found more to
+  change than the new sentences did.
 - **Types**: a concession; a hedge that carries no information; process narration; the paper arguing against
   itself; content with no role in the argument; framing changed after seeing the results; an undefined term.
 - **Output**: `defensive-scan.tsv`, next to the pairs TSV, with one row for every new or rewritten sentence. Columns:
@@ -86,6 +92,6 @@ including whether it found something that was then changed.
 
 | # | What | How | Judged by |
 |---|---|---|---|
-| V1 | The paper follows the advantage sentence and the narrative order | Label each paragraph of the abstract and the introduction with its step. For each results subsection and for the conclusion, write which point M it serves. List what fits nowhere | Draft by the model, the author judges |
+| V1 | The paper follows the advantage sentence and the narrative order | Label each paragraph of the abstract and the introduction with its step, and check that the introduction's first paragraph does not restate the abstract sentence by sentence. For every section of the body, each results subsection and the conclusion, write which point M it serves. List what fits nowhere | Draft by the model, the author judges |
 | V2 | The experiment roles have landed | "Where it goes" in the roles table matches the draft, and a search for the process-history passages finds nothing in the main text. Write the search command under the roles table | Mechanical |
 | V3 | The conclusion does not argue against itself | Run the conclusion through the scan: no concession, and nowhere does the paper argue against itself | Draft by the model, the author judges |
