@@ -17,7 +17,7 @@ BASE = ["Gauges draw the bridge in tidy ink. Counties state what the bridge carr
 
 def iso(t):
     import datetime
-    return datetime.datetime.fromtimestamp(t, datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
 def build(root, pars2, messages, body=""):

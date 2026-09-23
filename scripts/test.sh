@@ -3542,8 +3542,8 @@ test_T191() {
     # would be a vacuous pass.
     local out
     out=$(cd experimental/writing-loop/engine/tests && PYTHONPATH="..:." python3 -m unittest -q 2>&1)
-    echo "$out" | grep -qE '^Ran [1-9][0-9]* tests?' || return 1
-    echo "$out" | grep -q '^OK' || return 1
+    echo "$out" | grep -qE '^Ran [1-9][0-9]* tests?' || { echo "$out" | tail -40; return 1; }
+    echo "$out" | grep -q '^OK' || { echo "$out" | grep -E '^(ERROR|FAIL):' | head -40; echo "$out" | tail -40; return 1; }
     ! echo "$out" | grep -q 'skipped'
 }
 
