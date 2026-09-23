@@ -1019,6 +1019,17 @@ class RiskRegisterTest(unittest.TestCase):
             self.assertIn("12 < 同类 40", line)
             self.assertNotIn("最少", line, "one comparator is not a range")
 
+    def test_an_unreadable_scale_line_is_shown_not_dropped(self):
+        # A 规模 line that is not 「我们 n · 同类 n」 used to vanish: no scale, no problem, nothing on the line.
+        with TempDir() as root:
+            text = REGISTER.replace("我们 12 · 同类 40、95 · 单位 查询", "有出入 3 · 共 9 · 单位 条")
+            cfg, ws, _ = self.ws_with(root, text)
+            s = V.compute(cfg, ws)
+            self.assertTrue(any("规模" in p and "读不懂" in p and "R1" in p for p in s["risks"]["problems"]),
+                            s["risks"]["problems"])
+            self.assertIn("读不懂", V.reminder_line(s, ws))
+            self.assertEqual(s["risks"]["below"], [])
+
     def test_editing_the_register_makes_the_summary_stale(self):
         with TempDir() as root:
             cfg, ws, path = self.ws_with(root, REGISTER)
