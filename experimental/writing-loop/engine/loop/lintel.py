@@ -206,7 +206,7 @@ def _headline(lc):
 def _body(lc):
     """The expanded card (分镜 ㊱ ㊲, the author 09-21): the first page answers why · where · how many — a headline
     (Claude's label, or what kind of change this is), the reason, then at most three word-diff rows (the host draws only
-    the changed words); whole sentences stay in the panel. Then 你说 (only if traced) and Claude 读成 (only if written).
+    the changed words); whole sentences stay in the panel. Then 依据 when Claude wrote one; 你说 and Claude 读成 are wishing-willow's (one conversation layer, #28).
     No page says 「追不到」 or 「没有写」— an absent thing is not drawn."""
     if not lc:
         return []
@@ -225,10 +225,7 @@ def _body(lc):
     if lc["n"] > DIFF_ROWS:
         items.append({"kind": "para", "tone": "white55", "text": f"…还有 {lc['n'] - DIFF_ROWS} 句，在面板里"})
     pages = [{"kind": "section", "title": "改了", "items": items}]
-    if lc["traced"] and lc["verbatim"]:
-        pages.append({"kind": "section", "title": "你说", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["verbatim"], 140)}]})
-    if lc["reading"]:
-        pages.append({"kind": "section", "title": "Claude 读成", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["reading"], 140)}]})
+    # 「你说」「Claude 读成」不再画：对话层只有一份，由许愿柳说（#28，作者 09-24 认可）。
     if lc.get("basis"):
         # 缺口 5：Claude 在解释块里写的「依据」，先前从不上前端
         pages.append({"kind": "section", "title": "依据", "items": [{"kind": "para", "tone": "white85", "text": _clip(lc["basis"], 140)}]})
@@ -478,8 +475,65 @@ def _checks_line(coverage):
 STRENGTH = {"session": "○ 按会话", "sentence": "● 按句子"}
 
 
+#: 有环时胶囊写「稿名 · 等你 N」：宿主胶囊宽封顶 120pt，环形小图标与内边距之外约放 7.5 个汉字宽，稿名先截。
+RING_PILL_MAX = 7.5
+RING_SIGHT = {"看得见": "seen", "推出来": "inferred", "只有提交": "commits"}
+RING_LABELS = {"title": "这一轮", "current": "当前", "latest": "最近动静", "unhung": "没挂上环节", "closed": "已关的门", "waiting": "等你"}
+
+
+def _ring(coverage, *, name, last_comment_at, last_change_at):
+    """The manuscript ring as lintel draws it (plan step 4a; `ring.ring` computes it): each stage's state, sight and
+    the few words in its box. A stage an item waits on is 等你 when an item is the author's to decide, 过期 when only
+    a check or the reader panel is out of date. A ring that cannot be computed says so; it is never dropped."""
+    from . import ring as RG
+    try:
+        r = RG.ring(coverage, last_comment_at=_iso(last_comment_at) if last_comment_at else None,
+                    last_change_at=_iso(last_change_at) if last_change_at else None, name=name)
+    except Exception as e:  # noqa: BLE001 -- the card still goes up; the ring says it could not be computed
+        return {"name": _clip(name, 64), "since": "", "segments": [], "unhung": [], "waiting": 0, "closed": [],
+                "labels": RING_LABELS, "error": f"环算不出来：{type(e).__name__}：{_clip(str(e), 200)}"}
+    def item(x):
+        out = {"id": _clip(str(x.get("id")), 32), "text": _clip(x.get("text") or "", 20000), "you": bool(x.get("you"))}
+        if x.get("moved"):
+            out["moved"] = _clip(str(x["moved"]), 16)
+        return out
+    segs = []
+    for g in r["segments"]:
+        mine = sum(1 for x in g["items"] if x.get("you"))
+        state = {"hanging": "waiting" if mine else "stale", "unseen": "unseen", "done": "done", "open": "open"}[g["state"]]
+        note = {"waiting": f"等你 {mine}", "stale": "过期", "done": "做过", "open": "还没到", "unseen": "看不见"}[state]
+        segs.append({"key": g["key"], "name": g["name"], "state": state, "sight": RING_SIGHT[g["seen"]], "sightNote": g["seen"],
+                     "note": note, "items": [item(x) for x in g["items"][:32]]})
+    out = {"name": _clip(name, 64), "since": r["sinceNote"], "segments": segs, "unhung": [item(x) for x in r["unhung"][:32]],
+           "waiting": r["waiting"], "labels": RING_LABELS,
+           "closed": [{"date": c["date"][:16], "items": [_clip(x, 64) for x in c["items"][:64]]} for c in r["closed"][:32]]}
+    for k, v in (("current", r["current"]), ("latest", r["latest"]), ("reached", r.get("reached"))):
+        if v:
+            out[k] = v
+    if r.get("latest_at"):
+        out["latestAt"] = _iso(RG._utc(r["latest_at"]).timestamp())
+    return out
+
+
+#: lintel 收的嵌套条数上限。
+WITHIN_MAX = 16
+
+
+def _within(note):
+    """The wishing-willow sessions this draft is nested in (the author 09-24: the loop is an extension of the
+    conversation, not a second app beside it), read from the note the hook keeps for willow (`outlet`): primary
+    sessions first, at most WITHIN_MAX. lintel draws the draft inside one of them that is open, alone otherwise."""
+    sessions = note.get("sessions") if isinstance(note, dict) else None
+    if not isinstance(sessions, dict):
+        return []
+    rows = [(sid, v.get("role")) for sid, v in sessions.items() if isinstance(sid, str) and sid and isinstance(v, dict)
+            and v.get("role") in ("primary", "history")]
+    rows.sort(key=lambda r: r[1] != "primary")   # stable: the note's order within each role
+    return [{"producer": "willow", "id": sid[:128], "role": role} for sid, role in rows[:WITHIN_MAX]]
+
+
 def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_GIVEN, turn=None, readers=None,
-          built_at=None, denials=(), overrides=()):
+          built_at=None, denials=(), overrides=(), note=None):
     """从索引摘要（`index.summarize`）生成活动：一个稿件一个，永远只有一个。
     `problems` 是引擎自己的毛病；`notices` 是该知道但不是故障的事（被拦下的写入）。
     `turn` 是最近一轮（`turns.current`），`readers` 是最近一次读者组（`turns.readers_run`），`built_at` 是索引最近一次建成的时刻；
@@ -568,10 +622,10 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         tone, center, rank, flagged = "white", "done", "none", False
         key, when = f"change:{lc['id']}:traced", when_lc
         count, tag, pill = n, f"{n} 句", str(n)
-        popup = [("你说", lc["verbatim"] or "（没有原话）", "primary", 1),
-                 ("改了", sections(lc), "primary", 1)]
-        if lc["reading"]:
-            popup.append(("读成", lc["reading"], "secondary", 2))
+        # 「你说」「读成」归许愿柳（#28）：弹卡只说改了哪些节，有依据再说依据。
+        popup = [("改了", sections(lc), "primary", 1)]
+        if lc.get("basis"):
+            popup.append(("依据", lc["basis"], "secondary", 2))
         events.append((f"changed:{lc['id']}", "changed"))
         if landed:
             # 落地弹卡（分镜 ⑤⑧）：两行，改了什么（几句 · 追得牢不牢 · 哪几节）/ 检查此刻的现状。身份仍是这个改动集（M2）。
@@ -626,6 +680,20 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         "detail": _detail(summary, lc, bad, notices, overview, coverage, denials, overrides, readers),
         "events": [{"id": i, "type": ty, "at": _iso(_event_at(ty, i, when_lc, start, ended, now))} for i, ty in events],
     }
+    ring = None
+    if coverage is not NOT_GIVEN and coverage is not None:
+        ring = _ring(coverage, name=ws, last_comment_at=start, last_change_at=when_lc)
+        a["ring"] = ring
+    if ring is not None and not ring.get("error") and not (problems or clock or flagged):
+        # 胶囊写这一篇、等你几件（spec V2，第 4 步）：看过也留着——等你的事没裁完就一直在。
+        # 警报（跑挂了、无出处、在跑的跑表）照旧用自己的胶囊。
+        n_wait = ring["waiting"]
+        tail = f" · 等你 {n_wait}" if n_wait else ""
+        pill, tone = _fit(ws, RING_PILL_MAX - width(tail)) + tail, "white"
+        a["pillUntilSeen"] = False
+    within = _within(note)
+    if within:
+        a["within"] = within
     if pill:
         a["pill"] = {"pulse": False, "title": pill, "tint": tone}
     if clock and not problems:

@@ -298,22 +298,118 @@ ENVELOPE = re.compile(r"\s*(?:<(?:task-notification|ci-monitor-event|system-remi
                       r"local-command-stdout|cross-session-message)\b|\[SYSTEM NOTIFICATION)", re.I)
 
 
-def reminder_text(ws, cfg):
+def willow_rule():
+    """(rule, path) for which records are not the author's words, from the wishing-willow plugin, or (None, None).
+
+    The rule is kept once, by the plugin (plugin/hooks/envelopes.json); this hook only reads it. Two copies had drifted
+    before: the plugin never learnt `!` shell input, which this file had. WILLOW_ENVELOPES names the file for a test."""
+    cands = []
+    if os.environ.get("WILLOW_ENVELOPES"):
+        cands.append(Path(os.environ["WILLOW_ENVELOPES"]))
+    else:
+        try:
+            reg = json.loads((Path.home() / ".claude" / "plugins" / "installed_plugins.json").read_text(encoding="utf-8"))
+            for e in (reg.get("plugins") or {}).get("willow@wishing-willow") or []:
+                cands.append(Path(e["installPath"]) / "hooks" / "envelopes.json")
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+    for c in cands:
+        try:
+            r = json.loads(c.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(r, dict) and isinstance(r.get("tags"), list) and isinstance(r.get("prefixes"), list):
+            return r, str(c)
+    return None, None
+
+
+def is_envelope(prompt, rule):
+    """Not the author's words: with the plugin's rule, a record that is nothing but listed blocks (each removed whole)
+    or starts with a listed prefix; text left over is the author's. Without it, the built-in ENVELOPE above."""
+    if rule is None:
+        return bool(ENVELOPE.match(prompt))
+    t = prompt.strip()
+    if not t:
+        return False
+    if any(t.startswith(x) for x in rule["prefixes"]):
+        return True
+    if not t.startswith("<") or not rule["tags"]:
+        return False
+    block = re.compile(r"<(%s)\b[^>]*>[\s\S]*?</\1>" % "|".join(re.escape(x) for x in rule["tags"]), re.I)
+    prev = None
+    while prev != t:
+        prev, t = t, block.sub("", t)
+    return t.strip() == ""
+
+
+def reminder_text(ws, cfg, line=None):
     """The explanation block the author asked for, plus one line on which checks have not looked at the draft as it
     is now. The line is read from the summary `loop update` wrote; nothing is computed here, so the hook stays fast.
     An unreadable summary is said, not skipped: silence would read as "all checked"."""
     text = REMINDER.format(name=cfg["name"])
-    line = coverage_line(ws, cfg)
+    line = coverage_line(ws, cfg) if line is None else line
+    if willow_rule()[0] is None:
+        # Said, not silent: without the plugin's rule the built-in copy decides what reaches human/, and it may lag.
+        line = (line + "；" if line else "") + "哪些不是作者说的：没找到许愿柳的规则文件，用的是写作循环内置的旧规则"
     return text + ("\n" + line if line else "")
+
+
+HISTORY_HEAD = "稿件「{name}」（这个会话是它的历史来源，不记录原话）"
 
 
 def coverage_line(ws, cfg):
     try:
         from loop import coverage as V
-        line = V.reminder_line(V.load_summary(ws, cfg), ws)
+        line = V.live_line(ws, cfg)
     except Exception as e:  # noqa: BLE001 -- any failure here must still reach the agent as text
         line = f"覆盖：摘要读不出（{type(e).__name__}），不能当作都查过了"
     return line
+
+
+def willow_speaks():
+    """Whether the installed wishing-willow speaks for other sources ("inbox": 1 in its rule file)."""
+    rule = willow_rule()[0]
+    return isinstance(rule, dict) and rule.get("inbox") == 1
+
+
+def refresh_note(ws, cfg, now):
+    """After a write that can change the coverage line (the draft, the ledger, a git command), rewrite willow's note
+    at once: the update it starts runs detached, and the next prompt must not hear the line from before the write."""
+    if not willow_speaks():
+        return
+    try:
+        from loop import outlet as O
+        O.refresh(ws, coverage_line(ws, cfg))
+    except Exception as e:  # noqa: BLE001 -- said; the next prompt corrects the line in any case
+        HL.record_event(ws, "hook_error", f"许愿柳的留言没刷新（{type(e).__name__}：{e}），下一条消息时会更正", now=now)
+
+
+def _said(text):
+    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}} if text else None
+
+
+def through_willow(ws, cfg, payload, role, line, now):
+    """One outlet: None when this hook says everything itself (the installed wishing-willow does not speak for other
+    sources, this is the session's first prompt, or leaving the note failed); otherwise what the hook must still add,
+    "" when willow's note already reads as the line does now. The note (engine/loop/outlet.py) lists the sessions this
+    manuscript has; the two UserPromptSubmit hooks run in parallel, so willow reads the note as it was before this
+    prompt, and a line that has changed since (an edit outside Claude) is corrected here rather than left standing."""
+    if not willow_speaks():
+        return None
+    head = HISTORY_HEAD.format(name=cfg["name"])
+    try:
+        from loop import outlet as O
+        first, said = O.enrol(ws, cfg, payload.get("session_id"), role, payload.get("prompt_id"),
+                              full=REMINDER.format(name=cfg["name"]), line=line, history_head=head)
+    except Exception as e:  # noqa: BLE001 -- the author must still be told; the hook then says it itself
+        HL.record_event(ws, "hook_error", f"留言没写进许愿柳（{type(e).__name__}：{e}），写作循环这一轮自己说", now=now)
+        return None
+    if first:
+        return None
+    want = ((head + line) if line else "") if role == "history" else (line or "")
+    if (said or "") == want:
+        return ""
+    return f"写作循环 · {cfg['name']}：更正许愿柳刚转达的那一行，以这一行为准——" + (want or "现在没有要说的")
 
 
 def on_prompt(payload, regs, now):
@@ -323,17 +419,20 @@ def on_prompt(payload, regs, now):
         if hws is None:
             return None
         line = coverage_line(hws, hcfg)
+        extra = through_willow(hws, hcfg, payload, "history", line, now)
+        if extra is not None:
+            return _said(extra)
         if not line:
             return None
-        return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                       "additionalContext": f"稿件「{hcfg['name']}」（这个会话是它的历史来源，不记录原话）" + line}}
+        return _said(HISTORY_HEAD.format(name=hcfg["name"]) + line)
     prompt = payload.get("prompt")
     if not isinstance(prompt, str):
         HL.record_event(ws, "hook_error", "UserPromptSubmit 的载荷里没有字符串字段 prompt（运行时字段名变了？）", now=now)
         return None
-    reminder = {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                       "additionalContext": reminder_text(ws, cfg)}}
-    if ENVELOPE.match(prompt):
+    line = coverage_line(ws, cfg)
+    extra = through_willow(ws, cfg, payload, "primary", line, now)
+    reminder = _said(reminder_text(ws, cfg, line)) if extra is None else _said(extra)
+    if is_envelope(prompt, willow_rule()[0]):
         return reminder  # the turn it starts can still edit the draft
     (ws / "human").mkdir(parents=True, exist_ok=True)
     rec = {"at": _iso(now), "session_id": payload.get("session_id"), "prompt_id": payload.get("prompt_id"),
@@ -389,8 +488,10 @@ def on_post_tool(payload, regs, now, spawn):
             if _is_draft(rel, cfg["draft"]["glob"]) or rel == led.get("path") or \
                     (led.get("evidence_dir") and rel.startswith(led["evidence_dir"].rstrip("/") + "/")):
                 spawn(ws, f"write:{rel}")
+                refresh_note(ws, cfg, now)
     elif tool == "Bash" and GIT_RE.search(ti.get("command") or ""):
         spawn(ws, "git")
+        refresh_note(ws, cfg, now)
     if (cfg.get("gates") or {}).get("rewrites") and (tool in WRITE_TOOLS or tool == "Bash"):
         ctx = rewrite_context(ws, cfg, now)
         if ctx:

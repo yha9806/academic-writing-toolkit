@@ -685,7 +685,35 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     tmp = d / f".summary.{os.getpid()}.tmp"
     tmp.write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(d / "summary.json")
+    refresh_outlet(ws, cfg)
     return summary
+
+
+def live_line(ws, cfg):
+    """The per-turn line as it reads now: the paper's state (state.py), then the summary on disk, judged against the
+    current fingerprint and HEAD. The hook and the note left for wishing-willow (outlet.py) both go through here, so
+    the two read the same; the path is resolved, so a summary computed from `/var/…` and a hook that knows the
+    workspace as `/private/var/…` agree. The paper's state leads and is never cut: checks that have all looked at the
+    draft say nothing about whether its claims stand, and a line of coverage alone read as "nothing is wrong"."""
+    ws = Path(ws).resolve()
+    cov = reminder_line(load_summary(ws, cfg), ws)
+    try:
+        from . import state as S
+        paper = S.line(S.compute(cfg, ws))
+    except Exception as e:  # noqa: BLE001 -- a state that cannot be computed is said, never taken for "all fine"
+        paper = f"论文状态：算不出（{type(e).__name__}），不能当作没问题"
+    return paper + ("。" + cov if cov else "")
+
+
+def refresh_outlet(ws, cfg):
+    """Keep the note left for wishing-willow saying the line as it now reads. Never fails the caller; a failure is
+    recorded, and the hook corrects the line on the next prompt."""
+    try:
+        from . import outlet as O
+        O.refresh(ws, live_line(ws, cfg))
+    except Exception as e:  # noqa: BLE001
+        from . import health as HL
+        HL.record_event(ws, "hook_error", f"许愿柳的留言没刷新（{type(e).__name__}：{e}），下一条消息时会更正")
 
 
 STATUSES = (OK, STALE, NEVER, MISSING, NOT_APPLICABLE, WAIVED, FAILED)

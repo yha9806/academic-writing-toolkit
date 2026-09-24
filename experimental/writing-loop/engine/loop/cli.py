@@ -181,6 +181,7 @@ def _coverage_after_update(ws, cfg):
         V.compute(cfg, ws, do_run=True)
     except Exception as e:  # recorded, never swallowed
         (Path(ws) / "cache" / "coverage" / "summary.json").unlink(missing_ok=True)
+        V.refresh_outlet(ws, cfg)  # the note must not keep saying the removed summary's line
         HL.record_event(ws, "coverage_error", f"{type(e).__name__}：{e}")
         print(f"coverage 失败：{type(e).__name__}：{e}", file=sys.stderr)
 
@@ -202,6 +203,26 @@ def cmd_coverage(a):
         if s["ran"]:
             print("这次跑了：" + "、".join(s["ran"]))
     return 1 if (V.attention(s) or (s.get("target") or {}).get("problems")) else 0
+
+
+def cmd_state(a):
+    """Whether the paper's claims stand: the claims ledger against the whole draft. Exit 0 only at 待作者终审."""
+    from . import state as S
+    try:
+        cfg = C.load(a.workspace)
+    except (OSError, ValueError) as e:
+        print(f"state：读不出工作区配置：{e}", file=sys.stderr)
+        return 2
+    st = S.compute(cfg, a.workspace)
+    if a.json:
+        out = dict(st)
+        out["claims"] = [dict({k: v for k, v in c.items() if k not in ("over", "must")},
+                              over=[r for r, _ in c["over"]], must=[r for r, _ in c["must"]])
+                         for c in st.get("claims") or []]
+        print(json.dumps(out, ensure_ascii=False, indent=1))
+    else:
+        print(S.table(st))
+    return 0 if st.get("verdict") == S.AUTHOR else 1
 
 
 def cmd_health(a):
@@ -313,10 +334,12 @@ def cmd_lintel(a):
             turn, readers = TN.current(ws, cfg), TN.readers_run(ws)
         except Exception as e:  # noqa: BLE001
             problems.append(f"轮次：{type(e).__name__}：{e}")
+        from . import outlet as OUT
         acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov,
                         coverage=V.load_summary(a.workspace, cfg), turn=turn, readers=readers,
                         built_at=(HL.load(a.workspace).get("last_ok") or {}).get("t"),
-                        denials=HL.guard_denials(a.workspace), overrides=HL.gate_overrides(a.workspace))
+                        denials=HL.guard_denials(a.workspace), overrides=HL.gate_overrides(a.workspace),
+                        note=OUT.read(a.workspace))
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:
@@ -401,6 +424,11 @@ def main(argv=None):
     v.add_argument("--only", help="comma-separated check ids to run")
     v.add_argument("--json", action="store_true")
     v.set_defaults(fn=cmd_coverage)
+
+    st = sub.add_parser("state", help="whether the paper's claims stand: the claims ledger against the whole draft")
+    st.add_argument("workspace")
+    st.add_argument("--json", action="store_true")
+    st.set_defaults(fn=cmd_state)
 
     b = sub.add_parser("bench", help="time event -> updated index through the hook path (spec T15)")
     b.add_argument("--runs", type=int, default=10)

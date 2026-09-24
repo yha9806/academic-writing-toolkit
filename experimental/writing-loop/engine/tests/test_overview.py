@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -179,8 +180,10 @@ class TodoTest(unittest.TestCase):
         with TempDir() as t:
             cfg, _ = build_ws(t)
             cells = O.build(cfg, T0 + 12 * DAY)["payload"]["todo"]["cells"]
-        self.assertEqual(cells[0]["text"], "没有登记清单")
-        self.assertEqual(cells[0]["value"], "没登记")
+        self.assertEqual(cells[0]["title"], "论文", "the paper comes before the list and the checks")
+        lst = next(c for c in cells if c["title"] == "清单")
+        self.assertEqual(lst["text"], "没有登记清单")
+        self.assertEqual(lst["value"], "没登记")
         self.assertNotIn("%", json.dumps(cells, ensure_ascii=False))
 
     def test_the_last_todo_row_is_coverage_and_it_refreshes_when_a_check_runs(self):
@@ -205,11 +208,29 @@ class TodoTest(unittest.TestCase):
             self.assertIsNot(first, again, "a new coverage summary must rebuild the overview, not reuse it")
             self.assertEqual(again["payload"]["todo"]["cells"][-1]["value"], "全部最新")
 
+    def test_the_paper_cell_follows_the_claims_ledger(self):
+        with TempDir() as t:
+            cfg, _ = build_ws(t)
+            ledger = Path(t) / "claims.md"
+            ledger.write_text("## 主张 C1 x\n- 证据：e\n- 强度：弱\n- 允许的说法：a\n", encoding="utf-8")
+            cfg["claims"] = str(ledger)
+            on_disk = Path(cfg["_ws"]) / "config.json"
+            raw = json.loads(on_disk.read_text(encoding="utf-8"))
+            on_disk.write_text(json.dumps(dict(raw, claims=str(ledger)), ensure_ascii=False), encoding="utf-8")
+            ovw = O.Overview(cfg)
+            first = ovw.get(T0 + 12 * DAY)
+            self.assertEqual(first["payload"]["todo"]["cells"][0]["value"], "未就绪")
+            ledger.write_text("## 主张 C1 x\n- 证据：e\n- 强度：强\n- 允许的说法：a\n", encoding="utf-8")
+            os.utime(ledger, ns=(1, 1))
+            again = ovw.get(T0 + 12 * DAY)
+            self.assertIsNot(first, again, "a changed ledger must rebuild the panel")
+            self.assertEqual(again["payload"]["todo"]["cells"][0]["value"], "待作者终审")
+
     def test_issues_that_cannot_be_asked_say_so_instead_of_zero(self):
         with TempDir() as t:
             cfg, _ = build_ws(t, issues={"remote": "origin"})   # the fixture repo has no GitHub remote
             cells = O.build(cfg, T0 + 12 * DAY)["payload"]["todo"]["cells"]
-        self.assertEqual(cells[0]["text"], "取不到")
+        self.assertEqual(next(c for c in cells if c["title"] == "稿件仓 issue")["text"], "取不到")
 
     def test_the_build_report_says_what_blocks_the_upload(self):
         with TempDir() as t:
@@ -217,10 +238,11 @@ class TodoTest(unittest.TestCase):
                                          "source_commit": "abcdef123"})
             got = O.build(cfg, T0 + 12 * DAY)
             cells = got["payload"]["todo"]["cells"]
-        self.assertEqual(cells[1]["text"], "失败 0 项 · 标题页 2 处待填")
-        self.assertEqual(cells[1]["value"], "待填 2")
-        self.assertEqual(cells[1]["sub"], "所以还不能上传 · 构建于 abcdef1")
-        self.assertEqual(cells[1]["tone"], "orange")
+        build = next(c for c in cells if c["title"] == "投稿构建")
+        self.assertEqual(build["text"], "失败 0 项 · 标题页 2 处待填")
+        self.assertEqual(build["value"], "待填 2")
+        self.assertEqual(build["sub"], "所以还不能上传 · 构建于 abcdef1")
+        self.assertEqual(build["tone"], "orange")
         self.assertEqual(got["stats"][-1], {"label": "标题页待填", "value": "2", "tone": "orange"})
 
 
