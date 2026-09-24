@@ -202,7 +202,8 @@ class TodoTest(unittest.TestCase):
             K.CHECKS[:] = [K.by_id("claim-positioning")]
             self.addCleanup(lambda s=saved: K.CHECKS.__setitem__(slice(None), s))
             s = V.compute(dict(cfg, genre="note"), cfg["_ws"])
-            s["rows"][0].update(status="最新", detail="")
+            for r in s["rows"]:  # the check and the scan-coverage row (this fixture's rules keep no words)
+                r.update(status="最新", detail="")
             (cov / "summary.json").write_text(json.dumps(s, ensure_ascii=False), encoding="utf-8")
             again = ovw.get(T0 + 12 * DAY)
             self.assertIsNot(first, again, "a new coverage summary must rebuild the overview, not reuse it")

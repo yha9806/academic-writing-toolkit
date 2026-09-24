@@ -652,22 +652,60 @@ def _readers_scope(cfg, sentences):
 SCAN_MIN_WORDS = 20  # an unmatched heading with fewer words (a stub, a heading-only line) is shown, not failed
 
 
+_INPUT = re.compile(r"\\(?:input|include)\{([^{}]+)\}")
+
+
 def scan_coverage(cfg, head):
     """How much of the draft at head the section rules keep (text.section_coverage over the draft's files joined), or
     None when there is no head or no draft to read. A heading renamed after the config was written leaves the index in
-    silence; this is where that silence becomes a row."""
+    silence; this is where that silence becomes a row. Also said: files the draft \\input's that the config does not
+    list (their text is in the PDF and nowhere in the index), and an ignore list that is not a list of regexes."""
     if not head:
         return None
     paths = draft_files(cfg, head)
     if not paths:
         return None
+    from . import gitio
     from . import text as T
-    joined = "\n\n".join(_git(cfg["repo"], "show", f"{head}:{p}") or "" for p in paths)
-    ignore = list(cfg["draft"].get("ignore_headings") or [])
-    cov = T.section_coverage(joined, cfg["draft"]["sections"], draft_format(cfg), ignore=ignore)
-    cov["head"] = head
-    cov["min_words"] = SCAN_MIN_WORDS
+    errors = []
+    ignore = cfg["draft"].get("ignore_headings") or []
+    if not isinstance(ignore, list) or not all(isinstance(x, str) for x in ignore):
+        errors.append("draft.ignore_headings 要写成正则的列表")
+        ignore = []
+    else:
+        for x in ignore:
+            try:
+                re.compile(x)
+            except re.error as e:
+                errors.append(f"draft.ignore_headings 里的正则编不过：{x}（{e}）")
+        ignore = [x for x in ignore if _compiles(x)]
+    with gitio.batch(cfg["repo"]):
+        texts = [gitio.show(cfg["repo"], head, p) or "" for p in paths]
+    joined = "\n\n".join(texts)
+    fmt = draft_format(cfg)
+    cov = T.section_coverage(joined, cfg["draft"]["sections"], fmt, ignore=ignore)
+    unlisted = []
+    if fmt == "latex":
+        files = set(gitio.ls_tree(cfg["repo"], head, "."))
+        inputs = cfg.get("inputs") or {}
+        specs = [s for k in ("also_checked", "also_scanned") for s in (inputs.get(k) or []) if isinstance(s, str)] \
+            if all(isinstance(inputs.get(k) or [], list) for k in ("also_checked", "also_scanned")) else []
+        accounted = set(paths) | {n for _, ns in T.resolve_listed(specs, files) for n in ns}
+        for target in _INPUT.findall(T._TEX_COMMENT.sub("", joined)):
+            name = target.strip()
+            name = name if name.endswith(".tex") else name + ".tex"
+            if name in files and name not in accounted and name not in unlisted:
+                unlisted.append(name)
+    cov.update(head=head, min_words=SCAN_MIN_WORDS, errors=errors, unlisted=unlisted)
     return cov
+
+
+def _compiles(rx):
+    try:
+        re.compile(rx)
+        return True
+    except re.error:
+        return False
 
 
 def scan_row(cov):
@@ -679,12 +717,16 @@ def scan_row(cov):
     named = lambda ms: "、".join(f"「{m['heading']}」{m['words']} 词" for m in ms[:5]) + ("…" if len(ms) > 5 else "")
     base = {"id": "_scan", "name": "扫描覆盖", "kind": "internal", "last_commit": (cov.get("head") or "")[:7]}
     parts = [f"扫描范围内 {cov['kept']} 词，占 {share}"]
+    bad = list(cov.get("errors") or [])
+    if cov.get("unlisted"):
+        bad.append("稿子 \\input 了、配置没列的文件：" + "、".join(cov["unlisted"][:5]) + ("…" if len(cov["unlisted"]) > 5 else "")
+                   + "（正文进 draft.glob；图、表、宏定义进 inputs.also_scanned）")
     if cov["ignored"]:
         parts.append(f"按配置不扫 {cov['ignored']} 词")
     if big:
-        return {**base, "status": FAILED, "due": False,
-                "detail": f"{len(big)} 个标题不在扫描范围：{named(big)}（在 draft.sections 加规则，或写进 draft.ignore_headings）；"
-                          + "；".join(parts)}
+        bad.insert(0, f"{len(big)} 个标题不在扫描范围：{named(big)}（在 draft.sections 加规则，或写进 draft.ignore_headings）")
+    if bad:
+        return {**base, "status": FAILED, "due": False, "detail": "；".join(bad + parts)}
     if small:
         parts.append(f"很短、没算失败的标题：{named(small)}")
     return {**base, "status": OK, "detail": "；".join(parts)}
@@ -782,6 +824,9 @@ def fingerprint(cfg, ws):
     rows = [[c["id"], script_hash(c), config_hash(c, cfg), [_stat_sig(p) for p in c["outside"](cfg)]]
             for c in K.all_checks(cfg)]
     rows.append(["_waivers", sorted(waivers(ws).items())])
+    d = cfg.get("draft") or {}
+    rows.append(["_scan", d.get("glob"), d.get("sections"), d.get("ignore_headings"),
+                 (cfg.get("inputs") or {}).get("also_checked"), (cfg.get("inputs") or {}).get("also_scanned")])
     if cfg.get("risks"):
         rows.append(["_risks", _stat_sig(Path(cfg["risks"]).expanduser())])
     return _sha(json.dumps(rows, ensure_ascii=False, default=str))

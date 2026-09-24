@@ -67,24 +67,47 @@ def latex_sections(tex):
 _TEX_KEYARG = re.compile(r"\\(?:cite[a-z]*|ref|eqref|autoref|[cC]ref|label|input|include|includegraphics|url|href)\*?"
                          r"(?:\[[^\]]*\])*\{[^{}]*\}")
 _WORD = re.compile(r"(?<![\\A-Za-z0-9])[A-Za-z][A-Za-z'\-]*")
+_CJK = re.compile(r"[\u3400-\u9fff\uf900-\ufaff]")
+BEFORE_FIRST = "(第一个标题之前)"
+_MD_TOP = re.compile(r"^## ", re.M)
+_TEX_DOC = re.compile(r"\\begin\{document\}")
 
 
 def prose_words(body):
-    """Words of prose in a section body: letter-led tokens, not command names, citation keys or labels."""
+    """Words of prose in a section body: letter-led tokens, not command names, citation keys or labels; each CJK
+    character counts as one word."""
     body = _TEX_COMMENT.sub("", body)
     body = _TEX_KEYARG.sub(" ", body)
-    return len(_WORD.findall(body))
+    return len(_WORD.findall(body)) + len(_CJK.findall(body))
+
+
+def _before_first(md, fmt):
+    """The text a reader meets before the first heading the section cutter knows: a markdown draft's lines above its
+    first level-2 heading; a LaTeX draft's body between \\begin{document} (or the start) and the first sectioning
+    command, without the abstract, which is cut on its own."""
+    if fmt == "latex":
+        tex = _TEX_COMMENT.sub("", md)
+        m = _TEX_DOC.search(tex)
+        body = tex[m.end():] if m else tex
+        body = _TEX_ABSTRACT.sub("", body)
+        h = _TEX_HEADING.search(body)
+        return body[: h.start()] if h else body
+    m = _MD_TOP.search(md)
+    return md[: m.start()] if m else md
 
 
 def section_coverage(md, section_rules, fmt="markdown", ignore=()):
     """How much of the draft the section rules keep. sentences_of skips a heading no rule matches without a word;
     this counts what that skipped: words under kept headings, under headings the config chose to ignore, and under
-    headings nothing names, listed with their word counts in draft order."""
+    headings nothing names, listed with their word counts in draft order. Text before the first heading counts as a
+    heading named BEFORE_FIRST, so a draft cut by headings the cutter does not know reads as unkept, not as empty."""
     kept = ignored = dropped = 0
     missing = []
-    for heading, body in (latex_sections(md) if fmt == "latex" else markdown_sections(md)):
+    parts = [(BEFORE_FIRST, _before_first(md, fmt))]
+    parts += latex_sections(md) if fmt == "latex" else markdown_sections(md)
+    for heading, body in parts:
         n = prose_words(body)
-        if any(re.search(r["match"], heading) for r in section_rules):
+        if heading != BEFORE_FIRST and any(re.search(r["match"], heading) for r in section_rules):
             kept += n
         elif any(re.search(p, heading) for p in ignore):
             ignored += n
@@ -95,21 +118,66 @@ def section_coverage(md, section_rules, fmt="markdown", ignore=()):
     return {"kept": kept, "ignored": ignored, "dropped": dropped, "missing": missing}
 
 
+_TEX_BREAK = re.compile(r"\\\\\*?(?:\[[^\]]*\])?")
+_TEX_ESCAPED = re.compile(r"\\([%&_#$])")
+_HOLD = {c: chr(0xE000 + i) for i, c in enumerate("%&_#$")}  # private-use stand-ins while & and ~ are spaced out
 _TEX_CMD = re.compile(r"\\[A-Za-z@]+\*?")
 _TEX_SYMBOL = re.compile(r"\\[^A-Za-z\s]")
 
 
 def tex_plain(tex):
-    """The words a reader of a LaTeX figure or table source would see, joined into plain text: comments dropped,
-    line breaks and cell separators as spaces, command names and delimiters removed, their text kept. For scanning
-    wordings, not for display: coordinates and option keys stay as noise."""
-    t = _TEX_COMMENT.sub("", tex)
-    t = t.replace("\\\\", " ").replace("&", " ")
+    """The words a reader of a LaTeX figure or table source would see, joined into plain text. Order matters: a line
+    break (with its optional spacing) goes first, so a comment right after it is still a comment; escaped characters
+    are kept as characters, ties (~) and cell separators become spaces, command names and delimiters are removed and
+    their text kept. For scanning wordings, not for display: coordinates and option keys stay as noise."""
+    t = _TEX_BREAK.sub(" ", tex)
+    t = _TEX_COMMENT.sub("", t)
     t = _TEX_KEYARG.sub(" ", t)
+    t = _TEX_ESCAPED.sub(lambda m: _HOLD[m.group(1)], t)
+    t = t.replace("&", " ").replace("~", " ")
     t = _TEX_CMD.sub(" ", t)
     t = _TEX_SYMBOL.sub(" ", t)
     t = re.sub(r"[{}\[\]]", " ", t)
+    for c, h in _HOLD.items():
+        t = t.replace(h, c)
     return re.sub(r"\s+", " ", t).strip()
+
+
+def glob_match(path, pattern):
+    """Path globbing with directory semantics: * and ? stay within one path segment, ** spans segments (and, as
+    **/, may match none). fnmatch lets * cross '/', so figures/*.tex would also take figures/old/x.tex."""
+    out, i = "", 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out, i = out + "(?:.*/)?", i + 3
+        elif pattern.startswith("**", i):
+            out, i = out + ".*", i + 2
+        elif pattern[i] == "*":
+            out, i = out + "[^/]*", i + 1
+        elif pattern[i] == "?":
+            out, i = out + "[^/]", i + 1
+        else:
+            out, i = out + re.escape(pattern[i]), i + 1
+    return re.fullmatch(out, path) is not None
+
+
+TEXT_SUFFIXES = (".tex", ".md", ".txt")
+
+
+def resolve_listed(specs, files):
+    """[(spec, [paths])] for a config list of paths, directories and globs against the files present: a glob matches
+    with glob_match; a path present is itself; otherwise a directory yields its text files (never a tree listing)."""
+    out = []
+    for spec in specs:
+        if any(ch in spec for ch in "*?["):
+            names = sorted(n for n in files if glob_match(n, spec))
+        elif spec in files:
+            names = [spec]
+        else:
+            d = spec.rstrip("/") + "/"
+            names = sorted(n for n in files if n.startswith(d) and n.endswith(TEXT_SUFFIXES))
+        out.append((spec, names))
+    return out
 
 
 def sentences_of(md, section_rules, fmt="markdown"):

@@ -17,8 +17,9 @@ scanned for wordings the claims ledger forbids.
 
 ## Goals
 
-1. Coverage is measured and shown every turn: words under matched headings, words under headings no rule matches, and the
-   unmatched headings by name.
+1. Coverage is measured on every `loop update` and shown in `loop coverage`: words under matched headings, under ignored
+   headings, under headings no rule matches (by name), and text before the first heading. The per-turn line shows the row
+   only when it fails: an always-on share would become wallpaper.
 2. A heading that carries prose and is neither matched nor explicitly ignored fails the coverage row. Ignoring a heading is
    a decision written in the config (`draft.ignore_headings`), not a silence.
 3. The overreach scan also reads `inputs.also_checked` and a new `inputs.also_scanned` list (paths or globs, e.g. figure
@@ -40,6 +41,29 @@ scanned for wordings the claims ledger forbids.
   word counts. The share (matched / (matched + unmatched)) is shown beside it.
 - Extra-text extraction for `.tex`: drop comments, turn `\\` and `&` into spaces, drop command names and brace/bracket
   delimiters, keep their text; split into sentences with the existing splitter.
+
+## Review round 1 (2026-09-25, independent reviewer; all ten findings reproduced before fixing)
+
+- A directory in `also_scanned` was read as a tree listing and scanned nothing, silently: directories now expand to their
+  text files; an entry that yields nothing is said.
+- `tex_plain` missed `~`, `\\[2pt]`, `\%`, `\&` spellings and kept a comment after `\\`: breaks go first, escapes kept.
+- Globs used fnmatch (`*` crossed `/`, no `**`); draft files were rescanned: `text.glob_match` and `resolve_listed`,
+  draft files excluded.
+- False passes: text before the first heading counted nowhere (a markdown draft with only `#` headings read as empty);
+  CJK counted zero; an `\input` file listed nowhere passed. Now: a pseudo-heading `(第一个标题之前)`, CJK characters
+  count, and an input not in `draft.glob`, `also_checked` or `also_scanned` fails the row.
+- A string or an invalid regex in `ignore_headings` either ignored everything or crashed `compute`: validated, and a
+  bad entry fails the row.
+- The summary fingerprint ignored `draft.sections` / `ignore_headings`: added.
+- Extra files were read per turn with one `git show` each: one cat-file process, cached by commit and list
+  (on one workspace, 74 ms without extras, 192 ms on a new commit, 80 ms cached).
+- The notch landing line said 「检查都过了」 while a check failed (true of any failed check, not only this row): it now
+  says 失败 first.
+- Labels read like `file:line`: now `file#n` (n-th sentence). A missing extra file is its own blocker
+  (额外扫描读不到), not 「清单读不懂」.
+- Tests did not pin behaviour: ten mutants (tex_plain collapsed, extras at HEAD, threshold 45, fnmatch, no draft
+  exclusion, no directory expansion, no pre-heading text, no input check, no fingerprint entry, comments before breaks)
+  each now fail a named test.
 
 ## Acceptance
 
