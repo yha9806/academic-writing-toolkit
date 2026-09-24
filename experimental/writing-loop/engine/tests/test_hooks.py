@@ -588,3 +588,169 @@ class BrokenCoverageModuleTest(unittest.TestCase):
             out = json.loads(r.stdout or "{}")
             self.assertEqual(out.get("decision"), "block", r.stderr)
             self.assertIn("改句门自己坏了", out.get("reason", ""))
+
+
+def willow_outlet(root, inbox=True):
+    """A wishing-willow rule file and state directory under root, as the env vars that name them."""
+    rule = Path(root) / "willow-envelopes.json"
+    r = {"tags": ["task-notification"], "prefixes": []}
+    if inbox:
+        r["inbox"] = 1
+    rule.write_text(json.dumps(r), encoding="utf-8")
+    state = Path(root) / "willow-state"
+    return {"WILLOW_ENVELOPES": str(rule), "WILLOW_STATE_DIR": str(state)}, state
+
+
+def notes(state):
+    d = Path(state) / "inbox"
+    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("awt-loop.*.json"))] if d.is_dir() else []
+
+
+def ctx_of(out):
+    return (out or {}).get("hookSpecificOutput", {}).get("additionalContext", "")
+
+
+class OutletTest(unittest.TestCase):
+    """One outlet (spec C2). A wishing-willow that speaks for other sources ("inbox": 1) says what this loop would
+    say; the hook leaves it a note and stays quiet. The two UserPromptSubmit hooks run in parallel, so a note written
+    during a prompt is not read for it: the first prompt of a session is said here, and `since` tells willow so."""
+
+    def test_a_session_already_noted_is_said_by_willow_not_here(self):
+        from unittest import mock
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            env, state = willow_outlet(root)
+            with mock.patch.dict(os.environ, env):
+                first = LH.handle(prompt_payload(repo, prompt_id="p1"), regs)
+                self.assertIn("〔循环〕", ctx_of(first), "willow cannot have read a note written during this prompt")
+                [n] = notes(state)
+                self.assertEqual(n["sessions"]["s1"], {"role": "primary", "since": "p1"})
+                self.assertIn("〔循环〕", n["full"])
+                self.assertEqual(n["always"], LH.coverage_line(ws, C.load(ws)))
+                self.assertIsNone(LH.handle(prompt_payload(repo, prompt_id="p2"), regs), "noted: willow says it")
+                self.assertIsNone(LH.handle(prompt_payload(repo, prompt_id="p3", prompt="<task-notification>x</task-notification>"), regs))
+                self.assertEqual(notes(state)[0]["sessions"]["s1"]["since"], "p1")
+            recs = (ws / "human" / "comments.jsonl").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(recs), 2, "the author's words are still recorded here; the envelope is not")
+
+    def test_without_the_outlet_key_this_hook_speaks_for_itself(self):
+        from unittest import mock
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            env, state = willow_outlet(root, inbox=False)
+            with mock.patch.dict(os.environ, env):
+                for pid in ("p1", "p2"):
+                    self.assertIn("〔循环〕", ctx_of(LH.handle(prompt_payload(repo, prompt_id=pid), regs)))
+            self.assertEqual(notes(state), [], "no note is left for a willow that would not say it")
+
+    def test_a_history_session_is_noted_as_history(self):
+        from unittest import mock
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            other = Path(root) / "other"
+            other.mkdir()
+            git(other, "init", "-q", "-b", "old-branch")
+            git(other, "commit", "-q", "--allow-empty", "-m", "x")
+            cfg = C.load(ws)
+            cfg["transcripts"]["also"] = [{"git_branch": "old-branch", "cwd_prefix": str(other)}]
+            C.save(ws, cfg)
+            regs, _ = LH.registry(str(Path(root) / "registry"))
+            env, state = willow_outlet(root)
+            with mock.patch.dict(os.environ, env):
+                self.assertIn("历史来源", ctx_of(LH.handle(prompt_payload(other, prompt_id="p1"), regs)))
+                [n] = notes(state)
+                self.assertEqual(n["sessions"]["s1"]["role"], "history")
+                self.assertIn("历史来源", n["history"])
+                self.assertIsNone(LH.handle(prompt_payload(other, prompt_id="p2"), regs))
+            self.assertFalse((ws / "human" / "comments.jsonl").exists())
+
+    def test_a_note_whose_line_is_out_of_date_is_corrected_here(self):
+        """The coverage line is judged current when it is read (fingerprint and HEAD). If what willow is about to
+        say is not what the line reads now (the author edited outside Claude, an update is still running), the hook
+        says the line itself, as a correction, and rewrites the note: at worst one extra line, never a stale one."""
+        from unittest import mock
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            env, state = willow_outlet(root)
+            with mock.patch.dict(os.environ, env):
+                LH.handle(prompt_payload(repo, prompt_id="p1"), regs)
+                p = next((state / "inbox").glob("awt-loop.*.json"))
+                n = json.loads(p.read_text(encoding="utf-8"))
+                n["always"] = "覆盖：都查过了（旧的一行）"
+                p.write_text(json.dumps(n, ensure_ascii=False), encoding="utf-8")
+                out = ctx_of(LH.handle(prompt_payload(repo, prompt_id="p2"), regs))
+                live = LH.coverage_line(ws, C.load(ws))
+                self.assertIn("更正", out)
+                self.assertIn(live, out)
+                self.assertNotIn("〔循环〕", out, "only the line, the block is willow's to say")
+                self.assertEqual(notes(state)[0]["always"], live)
+
+    def test_a_commit_refreshes_the_line_before_the_next_prompt(self):
+        from unittest import mock
+        from loop import coverage as V
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            env, state = willow_outlet(root)
+            with mock.patch.dict(os.environ, env):
+                cfg = C.load(ws)
+                V.compute(cfg, ws)
+                LH.handle(prompt_payload(repo, prompt_id="p1"), regs)
+                before = notes(state)[0]["always"]
+                (Path(repo) / "drafts" / "DRAFT-v1.md").write_text(MD + "\nThree sentence.\n", encoding="utf-8")
+                git(repo, "commit", "-qam", "v2")
+                LH.handle(tool_payload("PostToolUse", repo, "Bash", {"command": "git commit -am v2"}), regs, spawn=Spy())
+                after = notes(state)[0]["always"]
+                self.assertNotEqual(after, before, "HEAD moved: the line says the summary is not current")
+                self.assertEqual(after, LH.coverage_line(ws, cfg))
+                self.assertIsNone(LH.handle(prompt_payload(repo, prompt_id="p2"), regs), "no correction needed")
+
+    def test_compute_refreshes_a_note_and_never_starts_one(self):
+        from unittest import mock
+        from loop import coverage as V
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            env, state = willow_outlet(root)
+            with mock.patch.dict(os.environ, env):
+                cfg = C.load(ws)
+                V.compute(cfg, ws)
+                self.assertEqual(notes(state), [], "compute does not start a note: only a session does")
+                LH.handle(prompt_payload(repo, prompt_id="p1"), regs)
+                n = json.loads(next((state / "inbox").glob("awt-loop.*.json")).read_text(encoding="utf-8"))
+                n["always"] = "覆盖：旧"
+                next((state / "inbox").glob("awt-loop.*.json")).write_text(json.dumps(n, ensure_ascii=False), encoding="utf-8")
+                V.compute(cfg, ws)
+                self.assertEqual(notes(state)[0]["always"], LH.coverage_line(ws, cfg))
+                # `loop coverage` run by hand may name the workspace another way than the registry does. Built here
+                # rather than left to the platform: macOS's temporary directory sits behind /var -> /private/var.
+                alias = Path(root) / "alias"
+                alias.symlink_to(ws, target_is_directory=True)
+                V.compute(cfg, alias)
+                self.assertIsNone(LH.handle(prompt_payload(repo, prompt_id="p2"), regs),
+                                  "the note written through another spelling of the path reads as the hook's line")
+
+    def test_when_the_outlet_breaks_this_hook_speaks_and_says_why(self):
+        from unittest import mock
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            env, state = willow_outlet(root)
+            from loop import outlet as O
+            with mock.patch.dict(os.environ, env), mock.patch.object(O, "enrol", side_effect=RuntimeError("boom")):
+                for pid in ("p1", "p2"):
+                    self.assertIn("〔循环〕", ctx_of(LH.handle(prompt_payload(repo, prompt_id=pid), regs)))
+            events = [e for e in HL.load(ws).get("events", []) if e["kind"] == "hook_error"]
+            self.assertTrue(any("许愿柳" in e["detail"] for e in events), events)
+
+    def test_an_update_that_removes_the_summary_also_rewrites_the_note(self):
+        from unittest import mock
+        from loop import cli as CL
+        from loop import coverage as V
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            env, state = willow_outlet(root)
+            with mock.patch.dict(os.environ, env):
+                cfg = C.load(ws)
+                V.compute(cfg, ws)
+                LH.handle(prompt_payload(repo, prompt_id="p1"), regs)
+                with mock.patch.object(V, "compute", side_effect=RuntimeError("boom")):
+                    CL._coverage_after_update(ws, cfg)
+                self.assertIn("还没有算过", notes(state)[0]["always"], "the note does not outlive the summary it quoted")

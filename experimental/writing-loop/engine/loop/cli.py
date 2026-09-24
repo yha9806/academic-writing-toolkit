@@ -181,6 +181,7 @@ def _coverage_after_update(ws, cfg):
         V.compute(cfg, ws, do_run=True)
     except Exception as e:  # recorded, never swallowed
         (Path(ws) / "cache" / "coverage" / "summary.json").unlink(missing_ok=True)
+        V.refresh_outlet(ws, cfg)  # the note must not keep saying the removed summary's line
         HL.record_event(ws, "coverage_error", f"{type(e).__name__}：{e}")
         print(f"coverage 失败：{type(e).__name__}：{e}", file=sys.stderr)
 
