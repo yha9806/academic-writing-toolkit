@@ -1,6 +1,6 @@
 # Scan coverage: say what the loop did not read
 
-Status: draft (the author asked on 2026-09-24 to start the fixes and to grill each step; this spec was not shown before work began)
+Status: implemented (two independent review rounds, 21 findings reproduced and fixed, each with a red-first test and a killed mutant; read-only probes on four live workspaces). Not shown to the author before work began: the author asked on 2026-09-24 to start and to grill each step.
 
 ## Problem
 
