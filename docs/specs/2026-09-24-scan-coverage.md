@@ -5,9 +5,9 @@ Status: draft (the author asked on 2026-09-24 to start the fixes and to grill ea
 ## Problem
 
 A workspace names the sections to track by heading regex (`draft.sections`). `text.sentences_of` skips any heading no rule
-matches, silently. When a manuscript's headings are renamed, whole sections leave the sentence index, and every check that
-reads the index (the paper-state overreach scan, the per-turn sentence gate, the claims' required wordings) stops reading
-them. Nothing reports it: the index says how many sentences it holds, never how many the draft has. On one real workspace
+matches, silently. When a manuscript's headings are renamed, whole sections leave the sentence index, and the checks that
+read the index (the paper-state overreach scan and the claims' required wordings) stop reading them. The per-turn sentence
+gate reads the draft files whole and is not affected. Nothing reports it: the index says how many sentences it holds, never how many the draft has. On one real workspace
 a restructure left 31% of the body's words (by `prose_words`) outside the index, and the problems an outside reviewer found
 sat in that part.
 
