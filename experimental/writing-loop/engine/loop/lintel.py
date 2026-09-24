@@ -511,8 +511,25 @@ def _ring(coverage, *, name, last_comment_at, last_change_at):
     return out
 
 
+#: lintel 收的嵌套条数上限。
+WITHIN_MAX = 16
+
+
+def _within(note):
+    """The wishing-willow sessions this draft is nested in (the author 09-24: the loop is an extension of the
+    conversation, not a second app beside it), read from the note the hook keeps for willow (`outlet`): primary
+    sessions first, at most WITHIN_MAX. lintel draws the draft inside one of them that is open, alone otherwise."""
+    sessions = note.get("sessions") if isinstance(note, dict) else None
+    if not isinstance(sessions, dict):
+        return []
+    rows = [(sid, v.get("role")) for sid, v in sessions.items() if isinstance(sid, str) and sid and isinstance(v, dict)
+            and v.get("role") in ("primary", "history")]
+    rows.sort(key=lambda r: r[1] != "primary")   # stable: the note's order within each role
+    return [{"producer": "willow", "id": sid[:128], "role": role} for sid, role in rows[:WITHIN_MAX]]
+
+
 def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_GIVEN, turn=None, readers=None,
-          built_at=None, denials=(), overrides=()):
+          built_at=None, denials=(), overrides=(), note=None):
     """从索引摘要（`index.summarize`）生成活动：一个稿件一个，永远只有一个。
     `problems` 是引擎自己的毛病；`notices` 是该知道但不是故障的事（被拦下的写入）。
     `turn` 是最近一轮（`turns.current`），`readers` 是最近一次读者组（`turns.readers_run`），`built_at` 是索引最近一次建成的时刻；
@@ -670,6 +687,9 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         tail = f" · 等你 {n_wait}" if n_wait else ""
         pill, tone = _fit(ws, RING_PILL_MAX - width(tail)) + tail, "white"
         a["pillUntilSeen"] = False
+    within = _within(note)
+    if within:
+        a["within"] = within
     if pill:
         a["pill"] = {"pulse": False, "title": pill, "tint": tone}
     if clock and not problems:

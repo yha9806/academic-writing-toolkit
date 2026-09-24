@@ -379,6 +379,33 @@ class RingExportTest(unittest.TestCase):
         self.assertIn("算不出", bad["error"])
 
 
+class NestedInConversationTest(unittest.TestCase):
+    """The draft is nested in the conversations editing it (the author 09-24: the loop and wishing-willow looked like two
+    parallel apps): the activity names the wishing-willow sessions from the note the hook keeps for willow, the primary
+    ones first. lintel draws the draft inside an open one and alone when none is open."""
+
+    NOTE = {"sessions": {"s-old": {"role": "history", "since": "p0"}, "s-main": {"role": "primary", "since": "p1"},
+                         "s-main2": {"role": "primary", "since": "p2"}}}
+
+    def test_the_sessions_of_the_note_primary_first(self):
+        a = only(L.build(with_change(), now=NOW, note=self.NOTE))
+        self.assertEqual(a["within"], [{"producer": "willow", "id": "s-main", "role": "primary"},
+                                       {"producer": "willow", "id": "s-main2", "role": "primary"},
+                                       {"producer": "willow", "id": "s-old", "role": "history"}])
+
+    def test_no_note_or_a_bad_one_names_no_conversation(self):
+        # a role lintel does not know would get the whole activity rejected (the draft gone from the notch): dropped here
+        for note in (None, {}, {"sessions": []}, {"sessions": {"s": "primary"}}, "x",
+                     {"sessions": {"s": {"role": "owner"}}}, {"sessions": {"s": {"since": "p1"}}}):
+            self.assertNotIn("within", only(L.build(with_change(), now=NOW, note=note)), note)
+
+    def test_at_most_sixteen_the_primary_ones_kept(self):
+        many = {"sessions": {**{f"h{i}": {"role": "history"} for i in range(20)}, "p": {"role": "primary"}}}
+        w = only(L.build(with_change(), now=NOW, note=many))["within"]
+        self.assertEqual(len(w), 16)
+        self.assertEqual(w[0]["id"], "p")
+
+
 class TurnStateTest(unittest.TestCase):
     """设计 B3 与作者 09-22 的裁定：开工每条都弹、在跑按 ② 口径、落地弹两行、看过后胶囊留括号加几时前。"""
 

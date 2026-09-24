@@ -467,6 +467,13 @@ MUTATIONS = [
      'test_ring.RingTest.test_closed_gates_are_listed_by_date_with_the_authors_message'),
     ('ring', 'ring.py', '.setdefault((d.get("uuid") or "")[:8], [])', '.setdefault(str(d.get("id")), [])',
      'test_ring.RingTest.test_closed_gates_are_listed_by_date_with_the_authors_message'),
+    # Nested in the conversation (the author 09-24): the draft names the willow sessions editing it, primary first.
+    ('ring', 'lintel.py', '    rows.sort(key=lambda r: r[1] != "primary")   # stable: the note\'s order within each role', '    pass',
+     'test_lintel.NestedInConversationTest.test_the_sessions_of_the_note_primary_first'),
+    ('ring', 'lintel.py', '            and v.get("role") in ("primary", "history")]', '            ]',
+     'test_lintel.NestedInConversationTest.test_no_note_or_a_bad_one_names_no_conversation'),
+    ('ring', 'lintel.py', '    if within:\n        a["within"] = within', '    if within:\n        pass',
+     'test_lintel.NestedInConversationTest.test_the_sessions_of_the_note_primary_first'),
     # One outlet (spec C2): wishing-willow says what the loop would say; each judgement taken out must turn a test red.
     ('outlet', 'hooks/loop_hook.py', '    if first:\n        return None\n    want', '    if False:\n        return None\n    want',
      'test_hooks.OutletTest.test_a_session_already_noted_is_said_by_willow_not_here'),

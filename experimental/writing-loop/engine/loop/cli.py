@@ -314,10 +314,12 @@ def cmd_lintel(a):
             turn, readers = TN.current(ws, cfg), TN.readers_run(ws)
         except Exception as e:  # noqa: BLE001
             problems.append(f"轮次：{type(e).__name__}：{e}")
+        from . import outlet as OUT
         acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov,
                         coverage=V.load_summary(a.workspace, cfg), turn=turn, readers=readers,
                         built_at=(HL.load(a.workspace).get("last_ok") or {}).get("t"),
-                        denials=HL.guard_denials(a.workspace), overrides=HL.gate_overrides(a.workspace))
+                        denials=HL.guard_denials(a.workspace), overrides=HL.gate_overrides(a.workspace),
+                        note=OUT.read(a.workspace))
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:
