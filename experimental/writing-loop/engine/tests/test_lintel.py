@@ -340,7 +340,7 @@ class RingExportTest(unittest.TestCase):
         self.assertEqual((seg["design"]["state"], seg["design"]["note"], seg["design"]["sight"]), ("waiting", "等你 1", "inferred"))
         self.assertEqual((seg["review"]["state"], seg["review"]["note"]), ("waiting", "等你 1"))
         self.assertEqual((seg["readers"]["state"], seg["readers"]["note"]), ("stale", "过期"), "the panel ran before the change")
-        self.assertEqual((seg["land"]["state"], seg["land"]["sight"], seg["land"]["sightNote"]), ("unseen", "commits", "只看得到提交"))
+        self.assertEqual((seg["land"]["state"], seg["land"]["sight"], seg["land"]["sightNote"]), ("unseen", "commits", "只有提交"))
         self.assertEqual(seg["design"]["items"][0], {"id": "A2", "text": "风险 A2 合成标题 A2", "you": True})
         self.assertEqual(seg["readers"]["items"][0]["you"], False)
         self.assertEqual(r["current"], "design")

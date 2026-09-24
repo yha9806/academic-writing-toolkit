@@ -7,7 +7,7 @@ register keeps dates, not times, and the ring says so). Nothing here is guessed 
 
   - 你的意见, 改稿, 检查, 读者组 are seen (the author's comments, change sets, the coverage summary, reader results);
   - 设计 and 你核对 are inferred (the intent card is never read; a review is only known by the decision it closed);
-  - 落稿 is only a commit: whether it followed the review cannot be told.
+  - 落稿 is only a commit (只有提交): whether it followed the review cannot be told.
 
 Open register items hang on the stage their gate names (the first part of 由哪个门决定, by word); a gate id or a
 gate no word matches is listed apart. Each hung item says whether it is the author's to decide (a register item) or only
@@ -20,7 +20,8 @@ from . import coverage as V
 
 SEEN = "看得见"
 INFERRED = "推出来"
-COMMITS_ONLY = "只看得到提交"
+# 「只有提交」：刘海上一格 56pt 宽，六个字放不下又不许缩字（HIG 最小 10pt；09-24 grill 实拍被截成「只看得到…」）。
+COMMITS_ONLY = "只有提交"
 
 STAGES = [("comment", "你的意见", SEEN), ("design", "设计", INFERRED), ("rewrite", "改稿", SEEN), ("check", "检查", SEEN),
           ("readers", "读者组", SEEN), ("review", "你核对", INFERRED), ("land", "落稿", COMMITS_ONLY)]

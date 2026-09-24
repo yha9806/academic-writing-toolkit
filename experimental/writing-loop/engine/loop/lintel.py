@@ -477,7 +477,7 @@ STRENGTH = {"session": "○ 按会话", "sentence": "● 按句子"}
 
 #: 有环时胶囊写「稿名 · 等你 N」：宿主胶囊宽封顶 120pt，环形小图标与内边距之外约放 7.5 个汉字宽，稿名先截。
 RING_PILL_MAX = 7.5
-RING_SIGHT = {"看得见": "seen", "推出来": "inferred", "只看得到提交": "commits"}
+RING_SIGHT = {"看得见": "seen", "推出来": "inferred", "只有提交": "commits"}
 RING_LABELS = {"title": "这一轮", "current": "当前", "latest": "最近动静", "unhung": "没挂上环节", "closed": "已关的门", "waiting": "等你"}
 
 
