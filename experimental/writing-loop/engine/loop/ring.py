@@ -10,7 +10,8 @@ register keeps dates, not times, and the ring says so). Nothing here is guessed 
   - 落稿 is only a commit: whether it followed the review cannot be told.
 
 Open register items hang on the stage their gate names (the first part of 由哪个门决定, by word); a gate id or a
-gate no word matches is listed apart. Checks that are not current hang on 检查; a reader panel older than the last
+gate no word matches is listed apart. Each hung item says whether it is the author's to decide (a register item) or only
+out of date (a check, the reader panel). Checks that are not current hang on 检查; a reader panel older than the last
 rewrite hangs on 读者组. This module only reads a summary and two times; the caller supplies both.
 """
 import datetime as dt
@@ -71,7 +72,7 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
     unhung = []
     for x in open_:
         entry = {"id": x.get("id"), "text": f"{x.get('kind', '')} {x.get('id')} {x.get('title', '')}".strip(),
-                 "detail": x.get("detail") or ""}
+                 "detail": x.get("detail") or "", "you": True}
         key = stage_of(x.get("gate"))
         (items[key] if key else unhung).append(entry)
     rows = (summary or {}).get("rows") or []
@@ -79,13 +80,14 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
         if r.get("id") == "readers":
             continue
         if r.get("status") in NOT_CURRENT:
-            items["check"].append({"id": r.get("id"), "text": f"{r.get('name', r.get('id'))} {r.get('status')}", "detail": r.get("detail") or ""})
+            items["check"].append({"id": r.get("id"), "text": f"{r.get('name', r.get('id'))} {r.get('status')}", "detail": r.get("detail") or "",
+                                   "you": False})
     readers = next((r for r in rows if r.get("id") == "readers"), None)
     if readers is not None:
         at = readers.get("last_at")
         if readers.get("status") in NOT_CURRENT or _before(at, last_change_at):
             items["readers"].append({"id": "readers", "text": "读者组 · 过期：稿子改过了，要重读" if at else "读者组 · 还没跑",
-                                     "detail": readers.get("detail") or ""})
+                                     "detail": readers.get("detail") or "", "you": False})
 
     happened = {
         "comment": _after(last_comment_at, since),
@@ -112,13 +114,18 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
     check_at = max((r.get("last_at") for r in rows if r.get("id") != "readers" and _utc(r.get("last_at"))), key=_utc, default=None)
     moves = [(k, t) for k, t in (("comment", last_comment_at), ("rewrite", last_change_at), ("check", check_at),
                                  ("readers", readers.get("last_at") if readers else None)) if _utc(t)]
-    latest = max(moves, key=lambda kt: _utc(kt[1]))[0] if moves else None
+    last = max(moves, key=lambda kt: _utc(kt[1])) if moves else None
+    latest, latest_at = (last[0], last[1]) if last else (None, None)
 
+    # Gates one message closed are said once: 「W1、W2、W3、W4（288498c5）」, not the same uuid four times (a real
+    # register closed four in one message, and the panel line ran out of width).
     by_date = {}
     for d in decided:
         if d.get("decided_on"):
-            by_date.setdefault(d["decided_on"], []).append(f"{d.get('id')}（{(d.get('uuid') or '')[:8]}）" if d.get("uuid") else d.get("id"))
-    closed = [{"date": k, "items": v} for k, v in sorted(by_date.items(), reverse=True)]
+            by_date.setdefault(d["decided_on"], {}).setdefault((d.get("uuid") or "")[:8], []).append(str(d.get("id")))
+    closed = [{"date": k, "items": [f"{'、'.join(ids)}（{u}）" if u else "、".join(ids) for u, ids in v.items()]}
+              for k, v in sorted(by_date.items(), reverse=True)]
     return {"title": name, "since": since,
             "sinceNote": f"这一轮从 {since} 算起（台账只记日期，精确到日）" if since else "还没有核对页关过门：从头算起",
-            "current": current, "latest": latest, "segments": segments, "unhung": unhung, "waiting": len(open_), "closed": closed}
+            "current": current, "latest": latest, "latest_at": latest_at, "segments": segments, "unhung": unhung,
+            "waiting": len(open_), "closed": closed}

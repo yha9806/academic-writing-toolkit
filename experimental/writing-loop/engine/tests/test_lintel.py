@@ -125,8 +125,11 @@ class OneActivityTest(unittest.TestCase):
         self.assertFalse(a["flagged"])
         self.assertEqual(a["rank"], "none")   # 设计 2026-09-22-awt-live M4：event 在协议里是「只停几秒」
         self.assertEqual([e["type"] for e in a["events"]], ["changed"])
-        self.assertEqual([p["label"] for p in a["popup"]], ["你说", "改了", "读成"])
-        self.assertEqual(a["popup"][0]["text"], "改 §3.2 那句 betaVal")
+        # 「你说」「读成」由许愿柳说（对话层只有一份，#28）；写作循环留「改了」，有依据时加「依据」
+        self.assertEqual([p["label"] for p in a["popup"]], ["改了"])
+        self.assertNotIn("改 §3.2 那句 betaVal", json.dumps(a["popup"], ensure_ascii=False))
+        s = with_change(); s["latest_changeset"]["basis"] = "你 09-24 的第二条"
+        self.assertEqual([p["label"] for p in only(L.build(s, now=NOW))["popup"]], ["改了", "依据"])
         self.assertEqual(a["pill"]["title"], "15")
 
     def test_an_untraced_change_is_time_sensitive(self):
@@ -179,9 +182,9 @@ class OneActivityTest(unittest.TestCase):
         self.assertEqual(a["body"], [])
 
     def test_expanded_card_shows_your_words_the_reading_and_the_rows(self):
-        # 分镜 ㊱（作者 09-21）：第一页 = 理由 · 原因 · 三行逐词；页序 改了 → 你说 → 读成；整句留面板
+        # 分镜 ㊱（作者 09-21）：第一页 = 理由 · 原因 · 三行逐词；整句留面板。「你说」「Claude 读成」归许愿柳（#28）
         a = only(L.build(with_change(n=15, label="betaVal 说反"), now=NOW))
-        self.assertEqual([b["title"] for b in a["body"]], ["改了", "你说", "Claude 读成"])
+        self.assertEqual([b["title"] for b in a["body"]], ["改了"])
         items = a["body"][0]["items"]
         self.assertEqual((items[0]["text"], items[0]["tone"]), ("betaVal 说反", "white"))
         self.assertEqual(items[1]["text"], "追到你的话")
@@ -196,7 +199,7 @@ class OneActivityTest(unittest.TestCase):
         # 没有 Claude 标签：不画理由行（会和页标题「改了」重），第一条就是原因行
         self.assertEqual(only(L.build(with_change(label=None), now=NOW))["body"][0]["items"][0]["text"], "追到你的话")
         self.assertEqual([b["title"] for b in only(L.build(with_change(traced=False), now=NOW))["body"]], ["改了"])
-        self.assertEqual([b["title"] for b in only(L.build(with_change(reading=None), now=NOW))["body"]], ["改了", "你说"])
+        self.assertEqual([b["title"] for b in only(L.build(with_change(reading=None), now=NOW))["body"]], ["改了"])
         s = with_change(n=2, label="改"); s["latest_changeset"]["rows"][1]["kind"] = "added"; s["latest_changeset"]["rows"][1]["old"] = ""
         added = only(L.build(s, now=NOW))["body"][0]["items"][3]     # 理由行 + 原因行 + 两条 diff
         self.assertEqual((added["label"], added["new"]), ("X1 新增", "new 1")); self.assertNotIn("old", added)
@@ -309,6 +312,71 @@ def turn(start, touches=(), ended=None, key="p1", chars=12, error=False):
 
 COV = {"rows": [{"id": "a", "name": "检查甲", "status": V.OK, "verdict": "findings", "result": "r"},
                 {"id": "b", "name": "检查乙", "status": V.OK, "verdict": "ok", "result": "r"}]}
+
+
+def risk(rid, gate, kind="风险"):
+    return {"kind": kind, "id": rid, "title": f"合成标题 {rid}", "gate": gate, "source": "合成", "status": "未决"}
+
+
+# NOW is 2026-09-18T02:53Z: the round starts the day before; the reader panel ran an hour before the change set (NOW - 60).
+RING_COV = {"rows": [{"id": "readers", "name": "读者组", "status": V.OK, "last_at": L._iso(NOW - 3600)},
+                     {"id": "a", "name": "检查甲", "status": V.OK, "verdict": "ok", "result": "r"}],
+            "risks": {"open": [risk("A2", "作者写完意图卡；核对页"), risk("A1", "改稿核对页"), risk("A5", "G2")],
+                      "decided": [dict(risk("B1", "改稿核对页"), decided_on="2026-09-17", decision="合成", uuid="bbbb2222" + "0" * 28)],
+                      "below": [], "problems": []}}
+
+
+class RingExportTest(unittest.TestCase):
+    """The manuscript ring goes to the notch (plan step 4a): the words and states lintel draws, the pill says the draft
+    and how many things wait on the author, and the ring stays after it is seen (spec V2)."""
+
+    def build(self, s=None, **kw):
+        return only(L.build(s or with_change(), now=NOW, coverage=RING_COV, turn=turn(NOW - 7200, ended=NOW - 7000), **kw))
+
+    def test_seven_stages_with_states_sight_and_the_words_in_each_box(self):
+        r = self.build()["ring"]
+        self.assertEqual([x["key"] for x in r["segments"]], ["comment", "design", "rewrite", "check", "readers", "review", "land"])
+        seg = {x["key"]: x for x in r["segments"]}
+        self.assertEqual((seg["design"]["state"], seg["design"]["note"], seg["design"]["sight"]), ("waiting", "等你 1", "inferred"))
+        self.assertEqual((seg["review"]["state"], seg["review"]["note"]), ("waiting", "等你 1"))
+        self.assertEqual((seg["readers"]["state"], seg["readers"]["note"]), ("stale", "过期"), "the panel ran before the change")
+        self.assertEqual((seg["land"]["state"], seg["land"]["sight"], seg["land"]["sightNote"]), ("unseen", "commits", "只看得到提交"))
+        self.assertEqual(seg["design"]["items"][0], {"id": "A2", "text": "风险 A2 合成标题 A2", "you": True})
+        self.assertEqual(seg["readers"]["items"][0]["you"], False)
+        self.assertEqual(r["current"], "design")
+        self.assertEqual([x["id"] for x in r["unhung"]], ["A5"])
+        self.assertEqual((r["waiting"], r["closed"]), (3, [{"date": "2026-09-17", "items": ["B1（bbbb2222）"]}]))
+        self.assertIn("2026-09-17", r["since"])
+        self.assertEqual(set(r["labels"]), {"title", "current", "latest", "unhung", "closed", "waiting"})
+
+    def test_the_latest_move_is_the_change_or_the_message_whichever_came_last(self):
+        r = self.build()["ring"]
+        self.assertEqual(r["latest"], "rewrite", "the change set (NOW - 60) is after the message (NOW - 7200)")
+        self.assertEqual(r["latestAt"], L._iso(NOW - 60))
+
+    def test_the_pill_says_the_draft_and_what_waits_on_you_and_stays_after_seen(self):
+        a = self.build()
+        self.assertEqual(a["pill"]["title"], "ws · 等你 3")
+        self.assertFalse(a["pillUntilSeen"])
+        self.assertNotIn("pillSeen", a)
+        self.assertLessEqual(L.width(a["pill"]["title"]), L.RING_PILL_MAX)
+        long = only(L.build(summary(name="a-rather-long-draft-name"), now=NOW, coverage=RING_COV))
+        self.assertLessEqual(L.width(long["pill"]["title"]), L.RING_PILL_MAX, long["pill"])
+        self.assertTrue(long["pill"]["title"].endswith("· 等你 3"), "the name is cut, the count never is")
+
+    def test_alerts_keep_their_own_pill(self):
+        s = with_change(traced=False); s["latest_changeset"]["messages_in_window"] = 3
+        self.assertEqual(self.build(s)["pill"]["title"], "15 △")
+        self.assertEqual(self.build(problems=["索引：读不出"])["pill"]["title"], "1 ⚠")
+        running = only(L.build(with_change(), now=NOW, coverage=RING_COV, turn=turn(NOW - 100, touches=[(NOW - 80, "draft")])))
+        self.assertIn("clockSince", running["pill"])
+
+    def test_no_coverage_no_ring_and_a_ring_that_cannot_be_computed_says_so(self):
+        self.assertNotIn("ring", only(L.build(with_change(), now=NOW)))
+        self.assertNotIn("ring", only(L.build(with_change(), now=NOW, coverage=None)))
+        bad = only(L.build(with_change(), now=NOW, coverage={"rows": 5}))["ring"]
+        self.assertEqual(bad["segments"], [])
+        self.assertIn("算不出", bad["error"])
 
 
 class TurnStateTest(unittest.TestCase):

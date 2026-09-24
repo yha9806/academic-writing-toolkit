@@ -91,6 +91,19 @@ class RingTest(unittest.TestCase):
         self.assertEqual(seg(r, "readers")["items"], [], "the panel ran after the rewrite")
         self.assertEqual(r["latest"], "readers")
 
+    def test_register_items_are_the_authors_to_decide_and_stale_checks_are_not(self):
+        """The host paints what waits on the author apart from what is only out of date: each hung item says which."""
+        s = summary(open_=[risk("风险", "C1", "作者写完意图卡")], rows=[row("fingerprint", V.STALE, name="文风")])
+        r = R.ring(s, last_comment_at="2026-09-24T10:00:00Z", last_change_at="2026-09-24T11:00:00Z")
+        self.assertEqual([i["you"] for i in seg(r, "design")["items"]], [True])
+        self.assertEqual([i["you"] for i in seg(r, "check")["items"]], [False])
+
+    def test_the_latest_activity_carries_its_time(self):
+        s = summary(rows=[row("readers", V.OK, last_at="2026-09-24T12:30:00Z")])
+        r = R.ring(s, last_comment_at="2026-09-24T08:00:00Z", last_change_at="2026-09-24T13:20:00+01:00")
+        self.assertEqual(r["latest_at"], "2026-09-24T12:30:00Z")
+        self.assertIsNone(R.ring(summary())["latest_at"])
+
     def test_what_the_engine_cannot_see_is_said_not_guessed(self):
         r = R.ring(summary())
         self.assertEqual([s["key"] for s in r["segments"]], ["comment", "design", "rewrite", "check", "readers", "review", "land"])
@@ -105,7 +118,12 @@ class RingTest(unittest.TestCase):
                              risk("风险", "B2", "改稿核对页", "2026-09-23", "bbbb2222" + "0" * 28)])
         closed = R.ring(s)["closed"]
         self.assertEqual([c["date"] for c in closed], ["2026-09-23", "2026-09-22"], "newest first")
-        self.assertEqual(closed[0]["items"], ["B1（bbbb2222）", "B2（bbbb2222）"])
+        self.assertEqual(closed[0]["items"], ["B1、B2（bbbb2222）"], "one message closed both: said once")
+        mixed = R.ring(summary(decided=[risk("风险", "B1", "改稿核对页", "2026-09-23", "bbbb2222" + "0" * 28),
+                                        risk("门", "G3", "G3", "2026-09-23", "cccc3333" + "0" * 28),
+                                        risk("风险", "B2", "改稿核对页", "2026-09-23", "bbbb2222" + "0" * 28),
+                                        {k: v for k, v in risk("风险", "B3", "改稿核对页", "2026-09-23").items() if k != "uuid"}]))["closed"]
+        self.assertEqual(mixed[0]["items"], ["B1、B2（bbbb2222）", "G3（cccc3333）", "B3"], "in the order first seen; no uuid, no bracket")
 
 
 if __name__ == "__main__":
