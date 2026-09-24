@@ -205,6 +205,26 @@ def cmd_coverage(a):
     return 1 if (V.attention(s) or (s.get("target") or {}).get("problems")) else 0
 
 
+def cmd_state(a):
+    """Whether the paper's claims stand: the claims ledger against the whole draft. Exit 0 only at 待作者终审."""
+    from . import state as S
+    try:
+        cfg = C.load(a.workspace)
+    except (OSError, ValueError) as e:
+        print(f"state：读不出工作区配置：{e}", file=sys.stderr)
+        return 2
+    st = S.compute(cfg, a.workspace)
+    if a.json:
+        out = dict(st)
+        out["claims"] = [dict({k: v for k, v in c.items() if k not in ("over", "must")},
+                              over=[r for r, _ in c["over"]], must=[r for r, _ in c["must"]])
+                         for c in st.get("claims") or []]
+        print(json.dumps(out, ensure_ascii=False, indent=1))
+    else:
+        print(S.table(st))
+    return 0 if st.get("verdict") == S.AUTHOR else 1
+
+
 def cmd_health(a):
     from . import health as HL
     cfg = C.load(a.workspace)
@@ -404,6 +424,11 @@ def main(argv=None):
     v.add_argument("--only", help="comma-separated check ids to run")
     v.add_argument("--json", action="store_true")
     v.set_defaults(fn=cmd_coverage)
+
+    st = sub.add_parser("state", help="whether the paper's claims stand: the claims ledger against the whole draft")
+    st.add_argument("workspace")
+    st.add_argument("--json", action="store_true")
+    st.set_defaults(fn=cmd_state)
 
     b = sub.add_parser("bench", help="time event -> updated index through the hook path (spec T15)")
     b.add_argument("--runs", type=int, default=10)

@@ -31,6 +31,7 @@ bin/loop health <workspace>          # what is known to be wrong: failed updates
 bin/loop ack <workspace>             # the author has seen the refused writes and hook errors so far (records are kept)
 bin/loop bench                       # event -> updated index, through the hook path, on a throwaway workspace
 bin/loop lintel <workspace>          # resident notch producer: reads index/, syncs cards, keeps the heartbeat
+bin/loop state <workspace>           # whether the paper's claims stand (exit 0 only at 待作者终审)
 ```
 
 Rebuilds reuse two caches under `cache/`: per-transition alignments (keyed by the sentences and the engine code) and a per-file record of which session files hold the branch. `rebuild --check` gives the same bytes with or without them, and an unreadable cache file is recomputed rather than trusted.
@@ -96,10 +97,34 @@ one in the register as well:
 - Revising the card never removes a section the author approved. If one has to change, the reply to the author says
   which one and why.
 
+## Paper state: whether the claims stand, not whether the checks ran
+
+Coverage says whether every check has looked at the draft as it is now. That is not the same as the paper being in
+order: a draft can be current everywhere and still say a result more strongly than its evidence carries, or wait on an
+analysis nobody has run. When the per-turn line reported coverage alone, a paper in that condition read as "nothing
+is wrong". So the line now starts with the paper's state, read from a claims ledger the workspace config names as
+`claims` (template: [`templates/claims.md`](templates/claims.md)):
+
+- **主张** items: each claim, where the evidence is, its strength (强 / 中 / 弱 / 未立 / 推论 / 范围), the strongest
+  wording the evidence allows, optional regexes for wordings that go beyond it (`越界`) or must be present
+  (`必须出现`), and the work items it waits on (`缺`).
+- **待做** items: work that changes a claim, typed 分析 / 出处 / 交付 / 写作 / 决定, so an analysis or a source to find
+  sits in the same queue as rewriting. Closing one takes a date and the evidence (`已做 YYYY-MM-DD …`) or the reason
+  (`不做 YYYY-MM-DD …`).
+- `阶段：…` at the top names where the paper is (for example 主轴 → 分析 → 正文 → 讨论 → 引言摘要 → 终检).
+
+The verdict is 未就绪 while any claim is weak or unestablished, any sentence **of the whole draft** (not just what
+changed) matches a `越界` pattern, a required wording is missing, the ledger cannot be read, or a work item is open.
+Otherwise it is 待作者终审. There is no green: whether the paper can be submitted is the author's decision. The line
+names the next open items in the ledger's order, and the overview's first 待办 cell shows the same verdict. Without
+a ledger the line says the loop does not know whether the claims stand.
+
 ## What it does not do
 
 - It reads committed versions only. Uncommitted edits in the working tree are not seen.
 - Trigger inference is a heuristic. A change set whose rows point to more than one trigger, or mix a trigger with "not traceable", is marked *mixed* rather than resolved.
+- The paper state is only as good as the ledger. `越界` patterns are regexes the author or agent writes; a claim put
+  another way gets past them. The state says what the ledger records; it does not judge a claim itself.
 - The ledger check is string matching against saved source text. It shows that a quoted span exists in the source, not that the sentence represents the source faithfully.
 - Messages and card text are currently in Chinese.
 - There is no Windows support yet: `bin/loop` is a POSIX shell script and health.json locking uses `fcntl`.

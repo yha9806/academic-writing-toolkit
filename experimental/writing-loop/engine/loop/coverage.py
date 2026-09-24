@@ -690,11 +690,19 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
 
 
 def live_line(ws, cfg):
-    """The per-turn line as it reads now: the summary on disk, judged against the current fingerprint and HEAD. The
-    hook and the note left for wishing-willow (outlet.py) both go through here, so the two read the same; the path is
-    resolved, so a summary computed from `/var/…` and a hook that knows the workspace as `/private/var/…` agree."""
+    """The per-turn line as it reads now: the paper's state (state.py), then the summary on disk, judged against the
+    current fingerprint and HEAD. The hook and the note left for wishing-willow (outlet.py) both go through here, so
+    the two read the same; the path is resolved, so a summary computed from `/var/…` and a hook that knows the
+    workspace as `/private/var/…` agree. The paper's state leads and is never cut: checks that have all looked at the
+    draft say nothing about whether its claims stand, and a line of coverage alone read as "nothing is wrong"."""
     ws = Path(ws).resolve()
-    return reminder_line(load_summary(ws, cfg), ws)
+    cov = reminder_line(load_summary(ws, cfg), ws)
+    try:
+        from . import state as S
+        paper = S.line(S.compute(cfg, ws))
+    except Exception as e:  # noqa: BLE001 -- a state that cannot be computed is said, never taken for "all fine"
+        paper = f"论文状态：算不出（{type(e).__name__}），不能当作没问题"
+    return paper + ("。" + cov if cov else "")
 
 
 def refresh_outlet(ws, cfg):

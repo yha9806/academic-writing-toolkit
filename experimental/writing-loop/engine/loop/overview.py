@@ -445,6 +445,13 @@ def todo_block(cfg_ov, repo, ref, cache_dir, now, rep=None):
         full = C.load(ws)
     except (OSError, ValueError):
         full = {"repo": repo, "ref": ref}
+    try:
+        from . import state as S
+        paper = S.cell(S.compute(full, ws))
+    except Exception as e:  # noqa: BLE001 -- said, never shown as a clean paper
+        paper = {"title": "论文", "text": f"算不出（{type(e).__name__}）", "value": "算不出", "tone": "orange",
+                 "sub": "不能当作没问题"}
+    cells.insert(0, paper)  # 论文状态在检查之前：检查都跑过不等于主张立住了
     cells.append(V.todo_cell(V.load_summary(ws, full)))  # 检查覆盖（D4）
     return {"title": "待办", "hint": "只对着清单算，不打总分", "cells": cells[:4]}
 
@@ -491,8 +498,11 @@ class Overview:
     def _files(self):
         d = Path(self.cfg["_ws"]) / "index"
         # The coverage summary changes without the index changing (a check ran); it is part of what the panel shows.
+        # The claims ledger changes without the draft changing (an item closed, a claim downgraded); the panel's first
+        # cell reads it.
+        claims = [Path(os.path.expanduser(self.cfg["claims"]))] if self.cfg.get("claims") else []
         return [d / "sentences.json", d / "changesets.json", d / "checks.json", d / "explanations.json",
-                Path(self.cfg["_ws"]) / "cache" / "coverage" / "summary.json"]
+                Path(self.cfg["_ws"]) / "cache" / "coverage" / "summary.json"] + claims
 
     def credits_path(self):
         ov = self.cfg.get("overview") or {}
