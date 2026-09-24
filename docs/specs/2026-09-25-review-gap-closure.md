@@ -157,7 +157,11 @@ labels that tell "how far the round got" from "where it waits".
 ## 6. Known limits
 
 - The qualifier list and the carrier patterns catch what someone wrote down. A qualifier phrased another way is
-  removed without a flag.
+  removed without a flag. Measured on the change that started this (in the private workspace): of five introduction
+  sentences removed without a successor, the removal check flags two, both only because they held a digit; the
+  sentence that stated the problem held no number, no qualifier and no required wording, and is not flagged. The
+  removal check protects what the ledger names; the problem sentence is protected only once `必须出现 @ A, I1` (4.2,
+  second bullet) names it.
 - The blank reader and the noise floor make the panel more honest about what it cannot see; they do not make a
   sixteen-reader panel precise.
 - The injected set checks the judge on known cases; a judge can pass it and still misgrade a new kind of answer.

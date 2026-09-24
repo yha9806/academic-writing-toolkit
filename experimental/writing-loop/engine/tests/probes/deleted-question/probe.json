@@ -1,0 +1,6 @@
+{
+ "failure": "The research question was deleted from the abstract; every check passed (spec 2026-09-25 §1, failure 2).",
+ "check": "sentence-changes",
+ "argv": ["--target", "{draft}", "--base", "base", "--carriers", "carriers.txt", "--json"],
+ "expect_flag": "removed"
+}

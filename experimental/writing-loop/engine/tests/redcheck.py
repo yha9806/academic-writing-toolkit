@@ -718,6 +718,15 @@ MUTATIONS = [
      'test_overview.TodoTest.test_the_paper_cell_follows_the_claims_ledger'),
     ("state", 'overview.py', '    cells.insert(0, paper)', '    pass',
      'test_state.StateTest.test_the_overview_puts_the_paper_before_the_checks'),
+    # 删句不再免费（spec 2026-09-25 §4.2）：三条承载规则各有一个探针，接线与删句的键各有一个端到端测试。
+    ("gap", 'skill:audit/scripts/audit-sentence-changes.py', '    out = [f"pattern {rx.pattern}" for rx in carriers if rx.search(sentence)]', '    out = []', 'test_probes.ProbeTest.test_each_probe_is_flagged_on_the_bad_draft_and_not_on_its_twin'),
+    ("gap", 'skill:audit/scripts/audit-sentence-changes.py', '    if REMOVED_NUMBER.search(sentence):', '    if False:', 'test_probes.ProbeTest.test_each_probe_is_flagged_on_the_bad_draft_and_not_on_its_twin'),
+    ("gap", 'skill:audit/scripts/audit-sentence-changes.py', '    q = REMOVED_QUALIFIER.search(sentence)', '    q = None', 'test_probes.ProbeTest.test_each_probe_is_flagged_on_the_bad_draft_and_not_on_its_twin'),
+    ("gap", 'skill:audit/scripts/audit-sentence-changes.py', '        what = carried(old, carriers)', '        what = []', 'test_probes.ProbeTest.test_the_deleted_research_question_is_caught'),
+    ("gap", 'catalogue.py', '    carriers = _carriers_file(ctx)', '    carriers = None', 'test_removals.RemovalTest.test_a_removed_sentence_that_carried_a_required_wording_holds_the_turn_until_accepted'),
+    ("gap", 'coverage.py', '    return s.get("new") or ("删去：" + (s.get("old") or ""))', '    return s.get("new") or ""', 'test_removals.RemovalTest.test_a_removed_sentence_that_carried_a_required_wording_holds_the_turn_until_accepted'),
+    ("gap", 'catalogue.py', '    out = Path(ctx["tmp"]) / ".loop-carriers" / "required.txt"', '    out = Path(ctx["tmp"]) / "loop-carriers" / "required.txt"', 'test_removals.RemovalTest.test_the_carriers_file_is_not_read_as_prose'),
+    ("gap", 'coverage.py', '            if gone:', '            if False:', 'test_removals.RemovalTest.test_without_a_ledger_pattern_a_plain_removal_is_counted_not_flagged'),
 ]
 
 
