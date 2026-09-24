@@ -298,12 +298,59 @@ ENVELOPE = re.compile(r"\s*(?:<(?:task-notification|ci-monitor-event|system-remi
                       r"local-command-stdout|cross-session-message)\b|\[SYSTEM NOTIFICATION)", re.I)
 
 
+def willow_rule():
+    """(rule, path) for which records are not the author's words, from the wishing-willow plugin, or (None, None).
+
+    The rule is kept once, by the plugin (plugin/hooks/envelopes.json); this hook only reads it. Two copies had drifted
+    before: the plugin never learnt `!` shell input, which this file had. WILLOW_ENVELOPES names the file for a test."""
+    cands = []
+    if os.environ.get("WILLOW_ENVELOPES"):
+        cands.append(Path(os.environ["WILLOW_ENVELOPES"]))
+    else:
+        try:
+            reg = json.loads((Path.home() / ".claude" / "plugins" / "installed_plugins.json").read_text(encoding="utf-8"))
+            for e in (reg.get("plugins") or {}).get("willow@wishing-willow") or []:
+                cands.append(Path(e["installPath"]) / "hooks" / "envelopes.json")
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+    for c in cands:
+        try:
+            r = json.loads(c.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(r, dict) and isinstance(r.get("tags"), list) and isinstance(r.get("prefixes"), list):
+            return r, str(c)
+    return None, None
+
+
+def is_envelope(prompt, rule):
+    """Not the author's words: with the plugin's rule, a record that is nothing but listed blocks (each removed whole)
+    or starts with a listed prefix; text left over is the author's. Without it, the built-in ENVELOPE above."""
+    if rule is None:
+        return bool(ENVELOPE.match(prompt))
+    t = prompt.strip()
+    if not t:
+        return False
+    if any(t.startswith(x) for x in rule["prefixes"]):
+        return True
+    if not t.startswith("<") or not rule["tags"]:
+        return False
+    block = re.compile(r"<(%s)\b[^>]*>[\s\S]*?</\1>" % "|".join(re.escape(x) for x in rule["tags"]), re.I)
+    prev = None
+    while prev != t:
+        prev, t = t, block.sub("", t)
+    return t.strip() == ""
+
+
 def reminder_text(ws, cfg):
     """The explanation block the author asked for, plus one line on which checks have not looked at the draft as it
     is now. The line is read from the summary `loop update` wrote; nothing is computed here, so the hook stays fast.
     An unreadable summary is said, not skipped: silence would read as "all checked"."""
     text = REMINDER.format(name=cfg["name"])
     line = coverage_line(ws, cfg)
+    if willow_rule()[0] is None:
+        # Said, not silent: without the plugin's rule the built-in copy decides what reaches human/, and it may lag.
+        line = (line + "；" if line else "") + "哪些不是作者说的：没找到许愿柳的规则文件，用的是写作循环内置的旧规则"
     return text + ("\n" + line if line else "")
 
 
@@ -333,7 +380,7 @@ def on_prompt(payload, regs, now):
         return None
     reminder = {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
                                        "additionalContext": reminder_text(ws, cfg)}}
-    if ENVELOPE.match(prompt):
+    if is_envelope(prompt, willow_rule()[0]):
         return reminder  # the turn it starts can still edit the draft
     (ws / "human").mkdir(parents=True, exist_ok=True)
     rec = {"at": _iso(now), "session_id": payload.get("session_id"), "prompt_id": payload.get("prompt_id"),

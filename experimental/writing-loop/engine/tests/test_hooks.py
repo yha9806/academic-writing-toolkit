@@ -182,6 +182,35 @@ class PromptTest(unittest.TestCase):
             self.assertEqual([r["prompt"] for r in recs], [quoted])
 
 
+    def test_the_envelope_rule_is_read_from_the_willow_plugin(self):
+        """Which records are not the author's words is decided by one rule file, kept by the wishing-willow plugin;
+        two copies had drifted. A record is an envelope only when nothing is left once the listed blocks are removed:
+        text after them is the author's, and is recorded."""
+        from unittest import mock
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            rule = Path(root) / "envelopes.json"
+            rule.write_text(json.dumps({"tags": ["fake-envelope"], "prefixes": ["[FAKE"]}), encoding="utf-8")
+            with mock.patch.dict(os.environ, {"WILLOW_ENVELOPES": str(rule)}):
+                for text in ("<fake-envelope>x</fake-envelope>", "[FAKE] y"):
+                    LH.handle(prompt_payload(repo, prompt=text), regs)
+                self.assertFalse((ws / "human" / "comments.jsonl").exists(), "the rule file's envelopes stay out")
+                said = "<fake-envelope>x</fake-envelope> 这一句是作者自己说的"
+                out = LH.handle(prompt_payload(repo, prompt=said), regs)
+                self.assertNotIn("内置", out["hookSpecificOutput"]["additionalContext"])
+            recs = [json.loads(line) for line in (ws / "human" / "comments.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual([r["prompt"] for r in recs], [said])
+
+    def test_without_the_willow_rule_file_the_built_in_rule_is_used_and_said(self):
+        from unittest import mock
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            with mock.patch.dict(os.environ, {"WILLOW_ENVELOPES": str(Path(root) / "missing.json")}):
+                out = LH.handle(prompt_payload(repo, prompt="<bash-input>ls</bash-input><bash-stdout>a</bash-stdout>"), regs)
+            self.assertIn("内置", out["hookSpecificOutput"]["additionalContext"], "a missing rule file is said, not silent")
+            self.assertFalse((ws / "human" / "comments.jsonl").exists(), "the built-in rule still knows shell input")
+
+
 class GuardTest(unittest.TestCase):
     def denied(self, out):
         return out is not None and out["hookSpecificOutput"]["permissionDecision"] == "deny"
