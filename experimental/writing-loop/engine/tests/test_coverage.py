@@ -243,6 +243,46 @@ class NeverGreenTest(unittest.TestCase):
         out = '{\n  "a_NOTES.md": [],\n  "b_NOTES.md": [{"severity": "warning", "code": "evidence-status-missing"}]\n}'
         self.assertEqual(V.interpret("notes-lint", 0, out, ""), ("ok", "2 份笔记，错 0、提示 1"))
 
+    def test_a_style_run_that_never_computed_per_section_rates_says_so(self):
+        # The fingerprint script leaves per-section rates uncomputed when its target is a directory, and says the
+        # absence is a hole in the reading. The summary used to show only 「越界 0 项」, so a whole-paper average in
+        # range read as clean while single sections could be far outside it.
+        hole = ('{"outliers": [], "per_section_cv": null, "per_section_note": "NOT COMPUTED: per-section rates need a '
+                'single .tex or .md target and --target is a directory."}')
+        verdict, summary = V.interpret("fingerprint-venue", 0, hole, "")
+        self.assertEqual(verdict, "ok", "the whole-paper average still decides the verdict")
+        self.assertIn("逐节没算", summary)
+        done = '{"outliers": [], "per_section_cv": {"hedge_per_1k": 0.4}, "per_section_note": null}'
+        self.assertNotIn("逐节没算", V.interpret("fingerprint-venue", 0, done, "")[1])
+
+    def test_the_densest_section_of_the_structure_run_is_named_as_description(self):
+        run = ('{"outliers": ["sub_per_comma"], "per_file": {"sections/03_background.tex": {"short": false}, '
+               '"sections/02_method.tex": {"short": false}, "sections/04_stub.tex": {"short": true}}, '
+               '"densest": {"metric": "sub_per_comma", "file": "sections/03_background.tex", "value": 0.57}}')
+        summary = V.interpret("structure-venue", 1, run, "")[1]
+        self.assertIn("逐节 3 个文件", summary)
+        self.assertIn("从句/逗号最高 sections/03_background.tex（0.57，只作描述）", summary)
+
+    def test_both_style_checks_ask_for_per_section_rates(self):
+        # The loop runs the fingerprint on a directory; without --per-file no section is ever measured alone.
+        ctx = {"cfg": {"target": {"venue_corpus": {"dir": "/corpus"}}, "inputs": {"literature": "/lit"}}}
+        for cid in ("fingerprint-venue", "fingerprint-bibliography"):
+            self.assertIn("--per-file", K.by_id(cid)["argv"](ctx), cid)
+
+    def test_a_per_section_peak_in_a_plain_section_is_named(self):
+        # With --per-file the script names the section where each device peaks. A peak in a section that should be
+        # plain (methods, limitations) is the backwards shape and is said; one in the discussion is not a finding.
+        run = ('{"outliers": [], "per_section_cv": {"contrast_per_1k": 1.2}, "per_section_note": null, '
+               '"per_file": {"02_method.tex": {}, "05_discussion.tex": {}, "06_note.tex": {"short": true}}, '
+               '"peaks": {"contrast_per_1k": {"file": "02_method.tex", "role": "method", "verdict": "backwards"}, '
+               '"semicolon_per_1k": {"file": "05_discussion.tex", "role": "discussion", "verdict": "ok"}}}')
+        verdict, summary = V.interpret("fingerprint-venue", 0, run, "")
+        self.assertEqual(verdict, "ok")
+        self.assertIn("对比句式峰值在 02_method.tex（方法节，反了）", summary)
+        self.assertNotIn("分号", summary, "a peak where the voice belongs is not a finding")
+        self.assertIn("逐节 3 个文件", summary)
+        self.assertNotIn("逐节没算", summary)
+
     def test_a_timeout_is_a_failure(self):
         with TempDir() as root:
             repo, ws = setup(root)
@@ -575,6 +615,36 @@ class ShownTest(unittest.TestCase):
                 self.assertIn("有发现 探针（1 条）", V.reminder_line(s, ws), "a check that found something is said")
                 self.assertIn("有发现 1 项", V.todo_cell(s)["sub"])
             self.assertIn("还没有算过", V.reminder_line(None, ws))
+
+    def test_per_section_findings_reach_the_line_whatever_the_verdict(self):
+        # The line keeps only the first clause of each result, so a per-section note appended after 「；」 never reached
+        # the agent; and a check whose whole-paper average passed was not on the line at all.
+        rows = [{"id": "f", "name": "文风·对照目标刊物", "status": V.OK, "verdict": "findings",
+                 "result": "越界 1 项：contrast_per_1k；逐节 7 个文件：分号峰值在 04_methods.tex（方法节，反了）"},
+                {"id": "g", "name": "文风·对照参考文献", "status": V.OK, "verdict": "ok",
+                 "result": "越界 0 项；逐节没算（只有全文平均）"},
+                {"id": "s", "name": "句子结构·对照目标刊物", "status": V.OK, "verdict": "ok",
+                 "result": "越界 0 项；逐节 7 个文件"}]
+        line = V.reminder_line({"head": "abc", "rows": rows, "target": {}}, "ws")
+        self.assertIn("分号峰值在 04_methods.tex（方法节，反了）", line)
+        self.assertIn("文风·对照参考文献逐节没算", line)
+        self.assertNotIn("句子结构·对照目标刊物：", line, "a per-section run with nothing flagged adds nothing")
+
+    def test_the_line_says_which_sections_the_reader_panel_reads(self):
+        # The reader panel reads the abstract and introduction by default. Nothing said so, and every other signal
+        # about the writing pointed at the same two sections, so the body was never read by anyone.
+        s = {"head": "abc", "rows": [], "target": {},
+             "readers_scope": {"sections": ["A", "I"], "sentences": 57, "of": 400}}
+        self.assertIn("读者组只读 A、I（全文 400 句里的 57 句）", V.reminder_line(s, "ws"))
+
+    def test_the_summary_records_the_reader_panel_scope(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            s = V.compute(C.load(ws), ws)
+            rs = s["readers_scope"]
+            self.assertEqual(rs["sections"], ["A", "I"])
+            self.assertLessEqual(rs["sentences"], rs["of"])
+            self.assertGreater(rs["of"], 0)
 
     def test_the_line_never_cuts_a_config_key_or_a_word(self):
         rows = [{"id": "n", "name": "数字台账", "status": V.MISSING, "detail": "配置里缺 inputs.number_ledger"},
@@ -1018,6 +1088,17 @@ class RiskRegisterTest(unittest.TestCase):
             line = V.reminder_line(V.compute(cfg3, ws3), ws3)
             self.assertIn("12 < 同类 40", line)
             self.assertNotIn("最少", line, "one comparator is not a range")
+
+    def test_an_unreadable_scale_line_is_shown_not_dropped(self):
+        # A 规模 line that is not 「我们 n · 同类 n」 used to vanish: no scale, no problem, nothing on the line.
+        with TempDir() as root:
+            text = REGISTER.replace("我们 12 · 同类 40、95 · 单位 查询", "有出入 3 · 共 9 · 单位 条")
+            cfg, ws, _ = self.ws_with(root, text)
+            s = V.compute(cfg, ws)
+            self.assertTrue(any("规模" in p and "读不懂" in p and "R1" in p for p in s["risks"]["problems"]),
+                            s["risks"]["problems"])
+            self.assertIn("读不懂", V.reminder_line(s, ws))
+            self.assertEqual(s["risks"]["below"], [])
 
     def test_editing_the_register_makes_the_summary_stale(self):
         with TempDir() as root:

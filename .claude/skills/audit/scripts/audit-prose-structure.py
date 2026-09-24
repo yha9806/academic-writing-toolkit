@@ -112,7 +112,9 @@ def read_target(load, target):
     parts = {}
     for p in files:
         t = load(p)
-        if t:
+        # None: not a text file this reader handles. "" : a text file with no prose (a stub kept so the main file
+        # need not change), kept so that per_file lists it instead of losing it.
+        if t is not None:
             parts[str(p.relative_to(target)) if target.is_dir() else p.name] = t
     return " ".join(parts.values()), parts
 
@@ -167,9 +169,22 @@ def main(argv=None):
     for name, t in parts.items():
         m = measure(t)
         if m:
-            per_file[name] = {k: m[k] for k in ("sentences", "median_len", "sub_per_comma", "opens_with_sub")}
+            per_file[name] = {"short": False, **{k: m[k] for k in ("sentences", "median_len", "sub_per_comma",
+                                                                    "opens_with_sub")}}
+        else:
+            # Below the sentence floor: listed and marked, not dropped, so an unmeasured file is not mistaken for
+            # one that was never read.
+            per_file[name] = {"short": True,
+                              "sentences": sum(1 for s in spans(t) if 4 <= len(s.split()) <= 120)}
+    # Where the structure is densest. Descriptive, like the rest of per_file: the baseline's range is built from
+    # whole papers and a paper's value is an average of its sections, so no single section is an outlier on its own.
+    judged = {n: f for n, f in per_file.items() if not f["short"] and f.get("sub_per_comma") is not None}
+    densest = None
+    if len(judged) >= 2:
+        top = max(judged, key=lambda n: judged[n]["sub_per_comma"])
+        densest = {"metric": "sub_per_comma", "file": top, "value": judged[top]["sub_per_comma"]}
     report = {"target": str(target), "target_sentences": tm["sentences"], "target_words": tm["words"],
-              "per_file": per_file,
+              "per_file": per_file, "densest": densest,
               "baseline_documents": len(rows), "baseline_skipped": skipped, "baseline_excluded": excluded,
               "metrics": metrics, "outliers": outliers}
     if a.json:
@@ -188,8 +203,13 @@ def main(argv=None):
         if len(per_file) > 1:
             print("per file (descriptive): sentences / median length / clauses per comma / opens with a subordinator")
             for name, m in per_file.items():
+                if m["short"]:
+                    print(f"  {name:<40}{m['sentences']:>5}   too few sentences to measure")
+                    continue
                 print(f"  {name:<40}{m['sentences']:>5}{m['median_len']:>6.0f}{m['sub_per_comma']:>8.3f}"
                       f"{m['opens_with_sub']:>8.3f}")
+            if densest:
+                print(f"  densest (clauses per comma): {densest['file']} {densest['value']:.3f} (descriptive)")
     return 1 if outliers else 0
 
 

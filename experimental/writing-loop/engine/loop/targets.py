@@ -321,6 +321,11 @@ def risks(cfg):
                 item["scale"] = sc
                 if sc["below"]:
                     out["below"].append({"id": item["id"], "kind": item["kind"], **sc})
+            else:
+                # Unread is said, like every other unreadable part of the register: a 规模 line in another form
+                # used to vanish without a word, so a comparison the author wrote down was never shown.
+                out["problems"].append(f"{item['kind']} {item['id']} 的「规模」读不懂（要写成「我们 n · 同类 n、n · 单位 …」）："
+                                       f"{fields['规模'][:40]}")
         missing = [f for f in RISK_NEEDS if not fields.get(f)]
         status = fields.get("状态", "")
         if missing:

@@ -117,12 +117,13 @@ def _numbers_inputs(cfg):
 def _fingerprint_venue_argv(ctx):
     corpus = get(ctx["cfg"], "target.venue_corpus.dir")
     return _py(ctx, "audit/audit-prose-fingerprint.py") + ["--target", ".", "--baseline", str(Path(corpus).expanduser()),
-                                                           "--json"]
+                                                           "--json", "--per-file"]
 
 
 def _fingerprint_bib_argv(ctx):
     args = _py(ctx, "audit/audit-prose-fingerprint.py") + [
-        "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "inputs.literature")).expanduser()), "--json"]
+        "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "inputs.literature")).expanduser()), "--json",
+        "--per-file"]
     for g in get(ctx["cfg"], "inputs.literature_exclude") or []:
         args += ["--exclude", g]
     return args

@@ -78,6 +78,23 @@ names as `risks` (a path to a Markdown file). Each item is a level-two heading w
   not change the numbers.
 - A missing field, an unreadable status, a register that cannot be read or holds no item: each is shown, never
   taken for "no risks". Editing the register marks the coverage summary stale.
+- The parser reads only the five fields shown above. Any other line in an item (a `进展：` note, say) stays in the
+  file for people to read, but it is not parsed and does not appear on the per-turn line.
+
+### Writing decisions go in the register
+
+The intent card (template: [`templates/intent-card.md`](templates/intent-card.md)) holds decisions about the writing:
+the advantage sentence, the narrative order, the role of each experiment. The engine does not read those sections.
+So a decision that lives only in the card can be dropped when the card is revised, and nothing will say so. Put each
+one in the register as well:
+
+- A writing decision gets an item whether the author has approved it or it is still pending, for example
+  `## 风险 W1 Advantage sentence not settled`. Its 消除它的证据 names the section of the card and the check that shows
+  the decision has landed (V1–V3 in the template). Its 由哪个门决定 names the page on which the author reviews the
+  rewrite.
+- Like any other item, it is decided only by the author's message uuid.
+- Revising the card never removes a section the author approved. If one has to change, the reply to the author says
+  which one and why.
 
 ## What it does not do
 

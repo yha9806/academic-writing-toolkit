@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (210 automated tests, labelled T2-T219: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (211 automated tests, labelled T2-T220: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -5981,6 +5981,44 @@ PYEOF
     [ "$rc" -eq 2 ]
 }
 
+test_T220() {
+    # A directory target used to get only the whole-paper average: per-section rates were never computed, so one
+    # section far from the rest was averaged away. --per-file measures each file, names the section where each
+    # device peaks, and says when the peak sits in a section that should be plain (methods, limitations). A file
+    # too short to judge is listed but kept out of the peaks. Synthetic prose only.
+    local tmp
+    tmp=$(mktemp -d)
+    python3 - "$tmp" <<'PYEOF'
+import sys
+from pathlib import Path
+d = Path(sys.argv[1]); (d / "sections").mkdir()
+plain = ("The pool holds four hundred images drawn from two collections. Each query names one technique. "
+         "We report recall at ten for every retriever and every pool. The counts are listed in the table. ")
+dense = ("The score reflects the source of the page rather than its content. "
+         "It is the layout, not the drawing, that the retriever reads. ")
+(d / "sections" / "02_method.tex").write_text(r"\section{Method}" + " ".join([plain, dense] * 40), encoding="utf-8")
+(d / "sections" / "03_results.tex").write_text(r"\section{Results}" + plain * 60, encoding="utf-8")
+(d / "sections" / "05_discussion.tex").write_text(r"\section{Discussion}" + plain * 60, encoding="utf-8")
+(d / "sections" / "06_note.tex").write_text(r"\section{Note}" + dense * 3, encoding="utf-8")
+(d / "sections" / "04_stub.tex").write_text("%% folded into another section; kept so main.tex need not change\n", encoding="utf-8")
+PYEOF
+    local out
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/sections" --per-file --json 2>&1) || true
+    rm -rf "$tmp"
+    python3 - "$out" <<'PYEOF'
+import json, sys
+r = json.loads(sys.argv[1])
+pf = r.get("per_file") or {}
+assert set(pf) == {"02_method.tex", "03_results.tex", "04_stub.tex", "05_discussion.tex", "06_note.tex"}, sorted(pf)
+assert pf["04_stub.tex"]["words"] == 0 and pf["04_stub.tex"]["short"] is True, "a file with no prose is listed, not dropped"
+assert pf["06_note.tex"]["short"] is True and pf["02_method.tex"]["short"] is False, pf
+peak = (r.get("peaks") or {}).get("contrast_per_1k") or {}
+assert peak.get("file") == "02_method.tex" and peak.get("role") == "method" and peak.get("verdict") == "backwards", peak
+assert "06_note.tex" not in json.dumps(r.get("peaks")), "a file too short to judge must stay out of the peaks"
+assert r.get("per_section_note") is None and isinstance(r.get("per_section_cv"), dict), (r.get("per_section_note"), r.get("per_section_cv"))
+PYEOF
+}
+
 test_T219() {
     # The fingerprint reads LaTeX prose without environment names: a
     # \begin{center} left the word "center" in the text, and a colon before
@@ -6069,6 +6107,7 @@ run_test "T216 prose view: a LaTeX draft becomes Markdown chapters the chapter c
 run_test "T217 spelling consistency: a convention written both ways is reported at the rarer form" test_T217
 run_test "T218 citation reconciliation: cited-not-defined and defined-not-cited, across \\input" test_T218
 run_test "T219 fingerprint: LaTeX environment names are not prose" test_T219
+run_test "T220 fingerprint: --per-file names the section where a device peaks, and a plain section that peaks is backwards" test_T220
 run_test "T190 every path the README's structure block names exists on disk" test_T190
 run_test "T191 writing-loop engine tests pass (hermetic fixtures only)" test_T191
 run_test "T192 every writing-loop mutation turns its named test red" test_T192
