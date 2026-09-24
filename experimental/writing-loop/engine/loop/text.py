@@ -63,6 +63,55 @@ def latex_sections(tex):
     return out
 
 
+# Arguments that name things rather than say them: citation keys, labels, file paths. Their contents are not words.
+_TEX_KEYARG = re.compile(r"\\(?:cite[a-z]*|ref|eqref|autoref|[cC]ref|label|input|include|includegraphics|url|href)\*?"
+                         r"(?:\[[^\]]*\])*\{[^{}]*\}")
+_WORD = re.compile(r"(?<![\\A-Za-z0-9])[A-Za-z][A-Za-z'\-]*")
+
+
+def prose_words(body):
+    """Words of prose in a section body: letter-led tokens, not command names, citation keys or labels."""
+    body = _TEX_COMMENT.sub("", body)
+    body = _TEX_KEYARG.sub(" ", body)
+    return len(_WORD.findall(body))
+
+
+def section_coverage(md, section_rules, fmt="markdown", ignore=()):
+    """How much of the draft the section rules keep. sentences_of skips a heading no rule matches without a word;
+    this counts what that skipped: words under kept headings, under headings the config chose to ignore, and under
+    headings nothing names, listed with their word counts in draft order."""
+    kept = ignored = dropped = 0
+    missing = []
+    for heading, body in (latex_sections(md) if fmt == "latex" else markdown_sections(md)):
+        n = prose_words(body)
+        if any(re.search(r["match"], heading) for r in section_rules):
+            kept += n
+        elif any(re.search(p, heading) for p in ignore):
+            ignored += n
+        else:
+            dropped += n
+            if n:
+                missing.append({"heading": heading, "words": n})
+    return {"kept": kept, "ignored": ignored, "dropped": dropped, "missing": missing}
+
+
+_TEX_CMD = re.compile(r"\\[A-Za-z@]+\*?")
+_TEX_SYMBOL = re.compile(r"\\[^A-Za-z\s]")
+
+
+def tex_plain(tex):
+    """The words a reader of a LaTeX figure or table source would see, joined into plain text: comments dropped,
+    line breaks and cell separators as spaces, command names and delimiters removed, their text kept. For scanning
+    wordings, not for display: coordinates and option keys stay as noise."""
+    t = _TEX_COMMENT.sub("", tex)
+    t = t.replace("\\\\", " ").replace("&", " ")
+    t = _TEX_KEYARG.sub(" ", t)
+    t = _TEX_CMD.sub(" ", t)
+    t = _TEX_SYMBOL.sub(" ", t)
+    t = re.sub(r"[{}\[\]]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def sentences_of(md, section_rules, fmt="markdown"):
     """Cut a markdown (or, with fmt="latex", a LaTeX) draft into sentences.
 

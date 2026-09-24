@@ -649,6 +649,47 @@ def _readers_scope(cfg, sentences):
     return {"sections": list(prefixes), "sentences": inside, "of": len(sentences)}
 
 
+SCAN_MIN_WORDS = 20  # an unmatched heading with fewer words (a stub, a heading-only line) is shown, not failed
+
+
+def scan_coverage(cfg, head):
+    """How much of the draft at head the section rules keep (text.section_coverage over the draft's files joined), or
+    None when there is no head or no draft to read. A heading renamed after the config was written leaves the index in
+    silence; this is where that silence becomes a row."""
+    if not head:
+        return None
+    paths = draft_files(cfg, head)
+    if not paths:
+        return None
+    from . import text as T
+    joined = "\n\n".join(_git(cfg["repo"], "show", f"{head}:{p}") or "" for p in paths)
+    ignore = list(cfg["draft"].get("ignore_headings") or [])
+    cov = T.section_coverage(joined, cfg["draft"]["sections"], draft_format(cfg), ignore=ignore)
+    cov["head"] = head
+    cov["min_words"] = SCAN_MIN_WORDS
+    return cov
+
+
+def scan_row(cov):
+    """The coverage as a row: failed while a heading carrying prose is neither matched nor ignored in the config."""
+    big = [m for m in cov["missing"] if m["words"] >= cov["min_words"]]
+    small = [m for m in cov["missing"] if m["words"] < cov["min_words"]]
+    seen = cov["kept"] + cov["dropped"]
+    share = f"{cov['kept'] / seen:.0%}" if seen else "—"
+    named = lambda ms: "、".join(f"「{m['heading']}」{m['words']} 词" for m in ms[:5]) + ("…" if len(ms) > 5 else "")
+    base = {"id": "_scan", "name": "扫描覆盖", "kind": "internal", "last_commit": (cov.get("head") or "")[:7]}
+    parts = [f"扫描范围内 {cov['kept']} 词，占 {share}"]
+    if cov["ignored"]:
+        parts.append(f"按配置不扫 {cov['ignored']} 词")
+    if big:
+        return {**base, "status": FAILED, "due": False,
+                "detail": f"{len(big)} 个标题不在扫描范围：{named(big)}（在 draft.sections 加规则，或写进 draft.ignore_headings）；"
+                          + "；".join(parts)}
+    if small:
+        parts.append(f"很短、没算失败的标题：{named(small)}")
+    return {**base, "status": OK, "detail": "；".join(parts)}
+
+
 def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     """Rows for every check, running the due script checks first when do_run. Writes cache/coverage/summary.json."""
     sentences, index_head = current_sentences(ws)
@@ -666,6 +707,9 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
                 run(check, cfg, ws, head, sentences, now=now)
                 ran.append(check["id"])
     rows = [row(c, cfg, ws, head, sentences, index_head) for c in checks]
+    scan = scan_coverage(cfg, head)
+    if scan is not None:
+        rows.append(scan_row(scan))
     counts = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
@@ -679,6 +723,7 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
                "experiments": TG.experiments(cfg),
                "risks": TG.risks(cfg),
                "readers_scope": _readers_scope(cfg, sentences),
+               "scan_coverage": scan,
                "unwired": [{"script": k, "reason": v} for k, v in sorted(K.UNWIRED.items())]}
     d = Path(ws) / "cache" / "coverage"
     d.mkdir(parents=True, exist_ok=True)

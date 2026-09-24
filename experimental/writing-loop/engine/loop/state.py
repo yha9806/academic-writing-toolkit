@@ -31,6 +31,8 @@ The ledger is Markdown, like the risk register:
 The whole draft is scanned, not what changed: a claim corrected in one section and left as it was in the abstract is
 the failure this exists for. Whatever cannot be read is said and counts against readiness, never skipped.
 """
+import fnmatch
+import posixpath
 import re
 from pathlib import Path
 
@@ -133,12 +135,46 @@ def parse(raw):
     return stage, claims, todo, problems
 
 
-def scan(claims, sentences):
-    """Sentences anywhere in the draft that say a claim more strongly than allowed, and required wordings absent."""
+def extra_sentences(cfg, head, problems):
+    """Text submitted with the draft but not tracked sentence by sentence (inputs.also_checked, e.g. a supplement) and
+    text inside figure and table sources (inputs.also_scanned, paths or globs), read at the index's commit. Scanned
+    for wordings a claim forbids; never used to satisfy a required wording. A listed file that is not there is said."""
+    from . import catalogue as K
+    from . import gitio
+    from . import text as T
+    listed = list(K.get(cfg, "inputs.also_checked") or []) + list(K.get(cfg, "inputs.also_scanned") or [])
+    if not listed or not head:
+        return []
+    repo, out, seen = cfg["repo"], [], set()
+    for spec in listed:
+        if any(ch in spec for ch in "*?["):
+            names = [n for n in gitio.ls_tree(repo, head, posixpath.dirname(spec) or ".") if fnmatch.fnmatch(n, spec)]
+            if not names:
+                problems.append(f"额外扫描的路径在 {head[:7]} 上什么也没匹配到：{spec}")
+        else:
+            names = [spec]
+        for path in names:
+            if path in seen:
+                continue
+            seen.add(path)
+            raw = gitio.show(repo, head, path)
+            if raw is None:
+                problems.append(f"额外扫描的文件在 {head[:7]} 上不存在：{path}")
+                continue
+            plain = T.tex_plain(raw) if path.endswith(".tex") else re.sub(r"\s+", " ", raw)
+            for i, s in enumerate(T.split_sentences(plain), 1):
+                out.append({"label": f"{path}:{i}", "text": s})
+    return out
+
+
+def scan(claims, sentences, extra=()):
+    """Sentences anywhere in the draft that say a claim more strongly than allowed, and required wordings absent.
+    extra: text outside the index (supplement, figure and table sources), searched for forbidden wordings only."""
     over, absent = [], []
     for c in claims:
         for raw, rx in c["over"]:
-            labels = [s.get("label") or s.get("sid") or "?" for s in sentences if rx.search(s.get("text") or "")]
+            labels = [s.get("label") or s.get("sid") or "?" for s in list(sentences) + list(extra)
+                      if rx.search(s.get("text") or "")]
             if labels:
                 over.append({"claim": c["id"], "pattern": raw, "labels": labels})
         for raw, rx in c["must"]:
@@ -187,7 +223,8 @@ def compute(cfg, ws):
     if sentences is None:
         st["problems"].append("句子索引没建（loop update），整篇的越界扫描没做")
     else:
-        st["over"], st["absent"] = scan(st["claims"], sentences)
+        extra = extra_sentences(cfg, st["index_head"], st["problems"])
+        st["over"], st["absent"] = scan(st["claims"], sentences, extra)
     return judge(st)
 
 
