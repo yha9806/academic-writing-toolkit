@@ -1024,6 +1024,19 @@ class RiskRegisterTest(unittest.TestCase):
                 self.assertTrue(all(r["status"] != V.PENDING for r in V.attention(s)))
                 self.assertIn("门 G0", V.table(s, ws))
 
+    def test_an_open_item_keeps_the_date_of_its_last_progress_line(self):
+        """How long an item has hung, for the notch (lintel 09-24): the last 进展 line in file order, a year dropped so
+        dates compare; an item with no 进展 line has none, never a guessed one."""
+        text = REGISTER.replace("由哪个门决定：门 G0\n状态：未决", "由哪个门决定：门 G0\n进展：09-20 合成一\n进展：09-22 合成二\n状态：未决", 1)
+        text = text.replace("- **状态**：未决", "- **进展**：2026-09-21 合成三\n- **状态**：未决", 1)
+        with TempDir() as root:
+            cfg, ws, _ = self.ws_with(root, text)
+            got = {i["id"]: i.get("moved") for i in V.compute(cfg, ws)["risks"]["open"]}
+            self.assertEqual(got, {"G0": "09-22", "R1": "09-21"})
+        with TempDir() as root:
+            cfg, ws, _ = self.ws_with(root, REGISTER)
+            self.assertNotIn("moved", V.compute(cfg, ws)["risks"]["open"][0])
+
     def test_open_items_survive_a_long_line(self):
         with TempDir() as root:
             cfg, ws, _ = self.ws_with(root, REGISTER)

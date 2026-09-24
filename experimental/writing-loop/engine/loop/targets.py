@@ -266,6 +266,8 @@ RISK_FIELD = re.compile(r"^\s*(?:[-*]\s*)?(?:\*\*)?(来源|消除它的证据|�
 RISK_NEEDS = ("来源", "消除它的证据", "由哪个门决定", "状态")
 RISK_DECIDED = re.compile(r"^已决\s+(\d{4}-\d{2}-\d{2})\s*(.*?)(?:\s*[—–-]+\s*作者\s*[:：]?\s*uuid\s+([0-9a-f-]{8,}))?\s*$")
 NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+# 「进展：09-24 …」: the date an item last moved, as the register writes it (a year is dropped so the dates compare).
+RISK_MOVED = re.compile(r"^\s*(?:[-*]\s*)?(?:\*\*)?进展(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*(?:\d{4}-)?(\d{2}-\d{2})", re.M)
 
 
 def _scale(text):
@@ -315,6 +317,11 @@ def risks(cfg):
             fields.setdefault(m.group(1), m.group(2))
         item = {"kind": h.group(1), "id": h.group(2), "title": h.group(3), "gate": fields.get("由哪个门决定", ""),
                 "source": fields.get("来源", ""), "status": fields.get("状态", "")}
+        # The last 进展 line in file order (the register appends them): how long the item has hung (lintel 09-24: one
+        # stale open item pinned the ring's current stage at 设计 while the draft was ready to upload).
+        moved = RISK_MOVED.findall(body)
+        if moved:
+            item["moved"] = moved[-1]
         if fields.get("规模"):
             sc = _scale(fields["规模"])
             if sc:

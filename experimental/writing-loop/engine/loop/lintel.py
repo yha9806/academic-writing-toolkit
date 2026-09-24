@@ -492,7 +492,11 @@ def _ring(coverage, *, name, last_comment_at, last_change_at):
     except Exception as e:  # noqa: BLE001 -- the card still goes up; the ring says it could not be computed
         return {"name": _clip(name, 64), "since": "", "segments": [], "unhung": [], "waiting": 0, "closed": [],
                 "labels": RING_LABELS, "error": f"环算不出来：{type(e).__name__}：{_clip(str(e), 200)}"}
-    item = lambda x: {"id": _clip(str(x.get("id")), 32), "text": _clip(x.get("text") or "", 20000), "you": bool(x.get("you"))}
+    def item(x):
+        out = {"id": _clip(str(x.get("id")), 32), "text": _clip(x.get("text") or "", 20000), "you": bool(x.get("you"))}
+        if x.get("moved"):
+            out["moved"] = _clip(str(x["moved"]), 16)
+        return out
     segs = []
     for g in r["segments"]:
         mine = sum(1 for x in g["items"] if x.get("you"))
@@ -503,7 +507,7 @@ def _ring(coverage, *, name, last_comment_at, last_change_at):
     out = {"name": _clip(name, 64), "since": r["sinceNote"], "segments": segs, "unhung": [item(x) for x in r["unhung"][:32]],
            "waiting": r["waiting"], "labels": RING_LABELS,
            "closed": [{"date": c["date"][:16], "items": [_clip(x, 64) for x in c["items"][:64]]} for c in r["closed"][:32]]}
-    for k, v in (("current", r["current"]), ("latest", r["latest"])):
+    for k, v in (("current", r["current"]), ("latest", r["latest"]), ("reached", r.get("reached"))):
         if v:
             out[k] = v
     if r.get("latest_at"):

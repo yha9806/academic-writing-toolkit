@@ -74,6 +74,8 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
     for x in open_:
         entry = {"id": x.get("id"), "text": f"{x.get('kind', '')} {x.get('id')} {x.get('title', '')}".strip(),
                  "detail": x.get("detail") or "", "you": True}
+        if x.get("moved"):
+            entry["moved"] = x["moved"]
         key = stage_of(x.get("gate"))
         (items[key] if key else unhung).append(entry)
     rows = (summary or {}).get("rows") or []
@@ -117,6 +119,12 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
                                  ("readers", readers.get("last_at") if readers else None)) if _utc(t)]
     last = max(moves, key=lambda kt: _utc(kt[1])) if moves else None
     latest, latest_at = (last[0], last[1]) if last else (None, None)
+    # How far the round got: the furthest stage that moved within it. Neither `current` (the first stage something
+    # waits on) nor `latest` (a comment restarts it) says this; the author asked 09-24 why a draft ready to upload
+    # still read 设计. A stage reached and then left behind by a later rewrite still counts: the round did get there.
+    order = [k for k, _, _ in STAGES]
+    within = [k for k, t in moves if _after(t, since)]
+    reached = max(within, key=order.index) if within else None
 
     # Gates one message closed are said once: 「W1、W2、W3、W4（288498c5）」, not the same uuid four times (a real
     # register closed four in one message, and the panel line ran out of width).
@@ -128,5 +136,5 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
               for k, v in sorted(by_date.items(), reverse=True)]
     return {"title": name, "since": since,
             "sinceNote": f"这一轮从 {since} 算起（台账只记日期，精确到日）" if since else "还没有核对页关过门：从头算起",
-            "current": current, "latest": latest, "latest_at": latest_at, "segments": segments, "unhung": unhung,
+            "current": current, "latest": latest, "latest_at": latest_at, "reached": reached, "segments": segments, "unhung": unhung,
             "waiting": len(open_), "closed": closed}

@@ -125,6 +125,25 @@ class RingTest(unittest.TestCase):
                                         {k: v for k, v in risk("风险", "B3", "改稿核对页", "2026-09-23").items() if k != "uuid"}]))["closed"]
         self.assertEqual(mixed[0]["items"], ["B1、B2（bbbb2222）", "G3（cccc3333）", "B3"], "in the order first seen; no uuid, no bracket")
 
+    def test_how_far_the_round_got_is_the_furthest_stage_that_moved_in_it(self):
+        """Neither current (a stale open item pins it at 设计) nor latest (a comment restarts it) says how far the round
+        got; reached does (the author 09-24: a draft ready to upload still read 设计)."""
+        s = summary(open_=[risk("风险", "D1", "作者写完意图卡")], decided=[risk("风险", "B1", "改稿核对页", "2026-09-24")],
+                    rows=[row("a", V.OK, "2026-09-24T12:00:00Z")])
+        r = R.ring(s, last_comment_at="2026-09-24T20:00:00Z", last_change_at="2026-09-24T11:00:00Z")
+        self.assertEqual(r["current"], "design")
+        self.assertEqual(r["latest"], "comment")
+        self.assertEqual(r["reached"], "check", "a check ran after the rewrite within the round")
+        old = R.ring(s, last_comment_at="2026-09-24T20:00:00Z", last_change_at="2026-09-23T11:00:00Z")
+        self.assertEqual(old["reached"], "check", "a rewrite before the round does not count, the check within it does")
+        self.assertIsNone(R.ring(summary(decided=[risk("风险", "B1", "改稿核对页", "2026-09-25")]),
+                                 last_comment_at="2026-09-24T20:00:00Z")["reached"], "nothing moved within the round")
+
+    def test_an_open_item_carries_the_date_it_last_moved(self):
+        x = dict(risk("风险", "E1", "改稿核对页"), moved="09-22")
+        r = R.ring(summary(open_=[x, risk("风险", "E2", "改稿核对页")]))
+        self.assertEqual([i.get("moved") for i in seg(r, "review")["items"]], ["09-22", None])
+
 
 if __name__ == "__main__":
     unittest.main()

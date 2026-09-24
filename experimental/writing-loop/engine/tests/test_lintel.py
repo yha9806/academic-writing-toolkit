@@ -354,6 +354,16 @@ class RingExportTest(unittest.TestCase):
         self.assertEqual(r["latest"], "rewrite", "the change set (NOW - 60) is after the message (NOW - 7200)")
         self.assertEqual(r["latestAt"], L._iso(NOW - 60))
 
+    def test_how_far_the_round_got_and_how_long_an_item_hung_go_to_the_notch(self):
+        r = self.build()["ring"]
+        self.assertEqual(r["reached"], "readers", "the panel ran within the round, after the message")
+        cov = json.loads(json.dumps(RING_COV))
+        cov["risks"]["open"][0]["moved"] = "09-17"
+        r = only(L.build(with_change(), now=NOW, coverage=cov, turn=turn(NOW - 7200, ended=NOW - 7000)))["ring"]
+        seg = {x["key"]: x for x in r["segments"]}
+        self.assertEqual(seg["design"]["items"][0]["moved"], "09-17")
+        self.assertNotIn("moved", seg["review"]["items"][0], "no date is invented for an item without one")
+
     def test_the_pill_says_the_draft_and_what_waits_on_you_and_stays_after_seen(self):
         a = self.build()
         self.assertEqual(a["pill"]["title"], "ws · 等你 3")
