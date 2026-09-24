@@ -354,9 +354,10 @@ def interpret(check_id, code, stdout, stderr):
             summary += _peaks_summary(data)
         elif "flagged" in data and "changed" in data:
             summary = f"改动 {data['changed']} 句，标出 {data['flagged']} 句"
-            gone = (data.get("compared") or {}).get("removed")
+            compared = data.get("compared") or {}
+            gone = compared.get("removed")
             if gone:
-                summary += f"；删 {gone} 句（{(data.get('compared') or {}).get('removed_flagged', 0)} 句带着东西）"
+                summary += f"；删 {gone} 句（{compared.get('removed_flagged', 0)} 句带着东西）"
         elif "total" in data and "unit" in data and isinstance(data.get("chapters"), list):
             summary = f"{data['total']} 词（{len(data['chapters'])} 个文件）"
         elif "hard_finding_count" in data:
