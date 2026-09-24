@@ -465,11 +465,16 @@ def _checks_line(coverage):
         return "检查没算过"
     try:
         found = V.findings(coverage)
-        failed = [r for r in coverage.get("rows") or [] if r.get("status") == V.FAILED]
+        rows = coverage.get("rows") or []
+        failed = [r for r in rows if r.get("status") == V.FAILED]
+        unsure = [r for r in rows if r.get("status") in (V.STALE, V.NEVER, V.MISSING)]
     except (KeyError, TypeError, AttributeError):
         return "检查读不出"
     if failed:  # a failed check is not a pass, whatever the findings count says
         return f"失败 {len(failed)}：" + "、".join(r["name"] for r in failed[:3]) + ("…" if len(failed) > 3 else "")
+    if not found and (unsure or coverage.get("stale_head")):  # nothing found by checks that did not all look
+        return f"没看全 {len(unsure)}：" + "、".join(r["name"] for r in unsure[:3]) + ("…" if len(unsure) > 3 else "") \
+            if unsure else "检查算于旧版本"
     if not found:
         return "检查都过了"
     return f"有发现 {len(found)}：" + "、".join(r["name"] for r in found[:3]) + ("…" if len(found) > 3 else "")

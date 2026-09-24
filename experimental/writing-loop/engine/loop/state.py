@@ -168,11 +168,12 @@ def extra_sentences(cfg, head, problems, ws=None):
     if cache is not None:
         try:
             got = json.loads(cache.read_text(encoding="utf-8"))
-            if got.get("key") == key:
+            if isinstance(got, dict) and got.get("key") == key and isinstance(got.get("sentences"), list) \
+                    and isinstance(got.get("problems"), list):
                 problems.extend(got["problems"])
                 return got["sentences"]
-        except (OSError, ValueError, KeyError):
-            pass
+        except (OSError, ValueError):
+            pass  # an unreadable cache is rebuilt, never trusted
     repo = cfg["repo"]
     files = set(gitio.ls_tree(repo, head, "."))
     drafts = set(V.draft_files(cfg, head))

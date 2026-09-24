@@ -116,8 +116,9 @@ def blob_id(repo, commit, path):
 
 
 def ls_tree(repo, commit, path):
-    r = _run(repo, "ls-tree", "-r", "--name-only", commit, "--", path, check=False)
-    return [x for x in r.stdout.decode("utf-8", "replace").splitlines() if x]
+    """Paths under path at commit, NUL-separated so a name with non-ASCII characters is not quoted and escaped."""
+    r = _run(repo, "ls-tree", "-r", "-z", "--name-only", commit, "--", path, check=False)
+    return [x for x in r.stdout.decode("utf-8", "replace").split("\0") if x]
 
 
 def log_touching(repo, ref, pathspecs):

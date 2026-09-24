@@ -99,15 +99,14 @@ def _before_first(md, fmt):
 def section_coverage(md, section_rules, fmt="markdown", ignore=()):
     """How much of the draft the section rules keep. sentences_of skips a heading no rule matches without a word;
     this counts what that skipped: words under kept headings, under headings the config chose to ignore, and under
-    headings nothing names, listed with their word counts in draft order. Text before the first heading counts as a
-    heading named BEFORE_FIRST, so a draft cut by headings the cutter does not know reads as unkept, not as empty."""
+    headings nothing names, listed with their word counts in draft order. Text before the first heading (a title page,
+    authors, keywords) is counted apart, as before_first: it is front matter in a normal draft, and the whole draft in
+    one the cutter cannot cut, which the caller tells apart by kept == 0."""
     kept = ignored = dropped = 0
     missing = []
-    parts = [(BEFORE_FIRST, _before_first(md, fmt))]
-    parts += latex_sections(md) if fmt == "latex" else markdown_sections(md)
-    for heading, body in parts:
+    for heading, body in (latex_sections(md) if fmt == "latex" else markdown_sections(md)):
         n = prose_words(body)
-        if heading != BEFORE_FIRST and any(re.search(r["match"], heading) for r in section_rules):
+        if any(re.search(r["match"], heading) for r in section_rules):
             kept += n
         elif any(re.search(p, heading) for p in ignore):
             ignored += n
@@ -115,13 +114,15 @@ def section_coverage(md, section_rules, fmt="markdown", ignore=()):
             dropped += n
             if n:
                 missing.append({"heading": heading, "words": n})
-    return {"kept": kept, "ignored": ignored, "dropped": dropped, "missing": missing}
+    return {"kept": kept, "ignored": ignored, "dropped": dropped, "missing": missing,
+            "before_first": prose_words(_before_first(md, fmt))}
 
 
-_TEX_BREAK = re.compile(r"\\\\\*?(?:\[[^\]]*\])?")
+_TEX_BREAK = re.compile(r"\\\\\*?(?:\s*\[[^\]]*\])?")
 _TEX_ESCAPED = re.compile(r"\\([%&_#$])")
 _HOLD = {c: chr(0xE000 + i) for i, c in enumerate("%&_#$")}  # private-use stand-ins while & and ~ are spaced out
 _TEX_CMD = re.compile(r"\\[A-Za-z@]+\*?")
+_TEX_SPACING = re.compile(r"\\(?:[hv]space|kern|[hv]skip|rule)\*?(?:\{[^{}]*\})+")
 _TEX_SYMBOL = re.compile(r"\\[^A-Za-z\s]")
 
 
@@ -133,6 +134,9 @@ def tex_plain(tex):
     t = _TEX_BREAK.sub(" ", tex)
     t = _TEX_COMMENT.sub("", t)
     t = _TEX_KEYARG.sub(" ", t)
+    t = _TEX_SPACING.sub(" ", t)
+    t = t.replace("\\-", "")  # a discretionary hyphen joins the word
+    t = re.sub(r"\\\s", " ", t)  # control space
     t = _TEX_ESCAPED.sub(lambda m: _HOLD[m.group(1)], t)
     t = t.replace("&", " ").replace("~", " ")
     t = _TEX_CMD.sub(" ", t)
@@ -156,12 +160,17 @@ def glob_match(path, pattern):
             out, i = out + "[^/]*", i + 1
         elif pattern[i] == "?":
             out, i = out + "[^/]", i + 1
+        elif pattern[i] == "[" and "]" in pattern[i + 2:]:
+            j = pattern.index("]", i + 2)
+            body = pattern[i + 1:j]
+            body = "^" + body[1:] if body.startswith("!") else body
+            out, i = out + "[" + body.replace("\\", "\\\\") + "]", j + 1
         else:
             out, i = out + re.escape(pattern[i]), i + 1
     return re.fullmatch(out, path) is not None
 
 
-TEXT_SUFFIXES = (".tex", ".md", ".txt")
+TEXT_SUFFIXES = (".tex", ".md", ".txt", ".tikz", ".pgf")
 
 
 def resolve_listed(specs, files):
@@ -170,7 +179,7 @@ def resolve_listed(specs, files):
     out = []
     for spec in specs:
         if any(ch in spec for ch in "*?["):
-            names = sorted(n for n in files if glob_match(n, spec))
+            names = sorted(n for n in files if glob_match(n, spec) and n.endswith(TEXT_SUFFIXES))
         elif spec in files:
             names = [spec]
         else:

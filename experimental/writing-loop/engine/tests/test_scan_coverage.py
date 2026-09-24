@@ -254,7 +254,10 @@ class GrillFindingsTest(unittest.TestCase):
         md = "# Survey\n\n" + " ".join(["gauge"] * 30) + "\n\n# Method\n\nMore words here.\n"
         cov = T.section_coverage(md, [{"match": "^Abstract$", "prefix": "A", "kind": "prose"}], "markdown")
         self.assertEqual(cov["kept"], 0)
-        self.assertEqual(cov["missing"][0]["heading"], T.BEFORE_FIRST)
+        self.assertGreaterEqual(cov["before_first"], 20)
+        row = V.scan_row({**cov, "min_words": V.SCAN_MIN_WORDS})
+        self.assertEqual(row["status"], V.FAILED)
+        self.assertIn("一个词也没保留", row["detail"])
 
     def test_cjk_text_counts(self):
         self.assertEqual(T.prose_words("桥梁读数两座"), 6)
@@ -285,6 +288,115 @@ class GrillFindingsTest(unittest.TestCase):
             before = V.fingerprint(cfg, ws)
             cfg["draft"]["ignore_headings"] = ["^How the Gauges"]
             self.assertNotEqual(V.fingerprint(cfg, ws), before)
+
+
+class GrillRoundTwoTest(unittest.TestCase):
+    """Second review round: each case was reproduced on the round-one fix before this change."""
+    RULES_ALL = RULES + [{"match": r"^How the Gauges", "prefix": "M", "kind": "prose"}]
+
+    def row_for(self, files, glob=None, **kw):
+        with TempDir() as root:
+            ws, cfg = setup(root, files=files, rules=self.RULES_ALL, **kw)
+            if glob:
+                cfg["draft"]["glob"] = glob
+                C.save(ws, cfg)
+                cfg = C.load(ws)
+            return scan_row(V.compute(cfg, ws))
+
+    def test_inputs_in_every_spelling_are_resolved(self):
+        base = {"sections/01_intro.tex": INTRO, "sections/02_method.tex": METHOD, "figures/fig_span.tex": FIG,
+                "figures/fig_span.tikz": FIG, "figures/inner.tex": FIG}
+        for line in [r"\input{./figures/fig_span}", r"\input figures/fig_span.tex", r"\input{figures/fig_span.tikz}",
+                     r"\subfile{figures/fig_span}", r"\import{figures/}{fig_span}"]:
+            main = MAIN.replace(r"\end{document}", line + "\n" + r"\end{document}")
+            row = self.row_for({**base, "main.tex": main})
+            self.assertEqual(row["status"], V.FAILED, line)
+            self.assertIn("不在任何扫描列表里", row["detail"], line)
+
+    def test_an_input_is_resolved_from_the_main_files_directory(self):
+        main = MAIN.replace("sections/", "../sections/").replace(r"\end{document}", r"\input{figs/fig}" + "\n" + r"\end{document}")
+        files = {"paper/main.tex": main, "sections/01_intro.tex": INTRO, "sections/02_method.tex": METHOD, "paper/figs/fig.tex": FIG}
+        row = self.row_for(files, glob=["paper/main.tex", "sections/01_intro.tex", "sections/02_method.tex"])
+        self.assertIn("paper/figs/fig.tex", row["detail"])
+
+    def test_a_nested_input_inside_a_scanned_file_is_followed(self):
+        outer = FIG + r"\input{figures/inner}" + "\n"
+        main = MAIN.replace(r"\end{document}", r"\input{figures/fig_span}" + "\n" + r"\end{document}")
+        files = {"main.tex": main, "sections/01_intro.tex": INTRO, "sections/02_method.tex": METHOD,
+                 "figures/fig_span.tex": outer, "tables/inner.tex": FIG, "figures/inner.tex": FIG}
+        row = self.row_for(files, also_scanned=["figures/fig_span.tex"])
+        self.assertIn("figures/inner.tex", row["detail"])
+
+    def test_journal_front_matter_before_the_first_heading_does_not_fail(self):
+        front = (r"\title{A Survey of Two Bridges and Their Gauges Read at Dawn}" + "\n" +
+                 r"\author{A. Surveyor and B. Surveyor, Department of Bridges, Some University, Some City}" + "\n" +
+                 r"\keywords{bridges, gauges, surveying, dawn readings, loggers, cards}" + "\n" + r"\maketitle" + "\n")
+        main = MAIN.replace(r"\begin{abstract}", front + r"\begin{abstract}")
+        row = self.row_for({"main.tex": main, "sections/01_intro.tex": INTRO, "sections/02_method.tex": METHOD})
+        self.assertEqual(row["status"], V.OK, row["detail"])
+        self.assertIn("第一个标题之前", row["detail"])
+
+    def test_a_file_with_a_chinese_name_is_scanned(self):
+        body = METHOD.replace("Only the span length differs between the two bridges.\n", "")
+        files = {"main.tex": MAIN, "sections/01_intro.tex": INTRO, "sections/02_method.tex": body, "figures/图一.tex": FIG}
+        with TempDir() as root:
+            ws, cfg = setup(root, files=files, rules=self.RULES_ALL, also_scanned=["figures/*.tex"])
+            [o] = S.compute(cfg, ws)["over"]
+            self.assertEqual(o["labels"], ["figures/图一.tex#1"])
+
+    def test_the_landing_line_does_not_call_unchecked_work_passed(self):
+        from loop import lintel as L
+        self.assertTrue(L._checks_line({"rows": [{"name": "拼写", "status": V.STALE}]}).startswith("没看全 1"))
+        self.assertEqual(L._checks_line({"rows": [], "stale_head": "abc"}), "检查算于旧版本")
+        self.assertTrue(L._checks_line({"rows": [{"name": "扫描覆盖", "status": V.FAILED}]}).startswith("失败 1"))
+
+    def test_inputs_of_the_wrong_shape_fail_the_row_without_raising(self):
+        for bad in (["supplement.tex"], "supplement.tex"):
+            with TempDir() as root:
+                ws, cfg = setup(root, rules=self.RULES_ALL)
+                cfg["inputs"] = bad
+                row = scan_row(V.compute(cfg, ws))
+                self.assertEqual(row["status"], V.FAILED)
+                self.assertIn("inputs", row["detail"])
+                S.compute(cfg, ws)
+                V.fingerprint(cfg, ws)
+
+    def test_more_latex_spellings(self):
+        for spelled in [r"only the span\ length differs", r"only the span\\ [2pt] length differs",
+                        r"only the sp\-an length differs", r"only the\hspace{1em} span length differs"]:
+            self.assertIn("only the span length differs", T.tex_plain(spelled), spelled)
+
+    def test_globs_skip_binary_files_and_take_character_classes(self):
+        files = {"figures/a.tex", "figures/a.pdf", "figures/b.png", "tables/t1.tex", "tables/t3.tex"}
+        [(_, names)] = T.resolve_listed(["figures/**"], files)
+        self.assertEqual(names, ["figures/a.tex"])
+        [(_, names)] = T.resolve_listed(["tables/t[12].tex"], files)
+        self.assertEqual(names, ["tables/t1.tex"])
+
+    def test_an_ignore_pattern_that_matches_everything_is_refused(self):
+        for bad in ([""], ["^"], [".*"]):
+            with TempDir() as root:
+                ws, cfg = setup(root, ignore=bad)
+                row = scan_row(V.compute(cfg, ws))
+                self.assertEqual(row["status"], V.FAILED, bad)
+
+    def test_the_share_counts_ignored_words(self):
+        with TempDir() as root:
+            ws, cfg = setup(root, ignore=[r"^How the Gauges"])
+            s = V.compute(cfg, ws)
+            cov, row = s["scan_coverage"], scan_row(s)
+            share = round(100 * cov["kept"] / (cov["kept"] + cov["dropped"] + cov["ignored"]))
+            self.assertLess(share, 50)  # 23 kept of 74 under headings
+            self.assertIn(f"{share}%", row["detail"])
+
+    def test_a_malformed_cache_is_rebuilt(self):
+        with TempDir() as root:
+            ws, cfg = setup(root, rules=self.RULES_ALL, also_scanned=["figures/*.tex"])
+            cache = Path(ws) / "cache" / "coverage" / "extra_scan.json"
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text("[]", encoding="utf-8")
+            [o] = S.compute(cfg, ws)["over"]
+            self.assertEqual(len(o["labels"]), 2)  # the method sentence and the figure
 
 
 if __name__ == "__main__":

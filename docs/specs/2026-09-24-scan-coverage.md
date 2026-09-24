@@ -65,6 +65,27 @@ scanned for wordings the claims ledger forbids.
   exclusion, no directory expansion, no pre-heading text, no input check, no fingerprint entry, comments before breaks)
   each now fail a named test.
 
+## Review round 2 (2026-09-25; eleven findings, all reproduced before fixing)
+
+- `\input` resolution: paths are resolved from the main file's directory (then the including file's), `./` and `..`
+  normalised, an existing extension kept, `\input x` without braces, `\subfile` and `\import{dir}{x}` read, and inputs
+  inside pulled-in files followed (depth 6). Files listed in `also_checked` / `also_scanned` count as accounted for.
+- Regression from round 1: the pseudo-heading made ordinary front matter (title, authors, keywords; 40-65 words in
+  common journal templates) fail the row. Text before the first heading is now shown, not failed; the row fails
+  instead when the rules keep no word of a draft that has prose.
+- `ls-tree` quoted non-ASCII names, so a figure with a Chinese file name was skipped silently: `-z`.
+- The notch landing line called stale, never-run or missing-prerequisite checks passed: now 没看全 / 检查算于旧版本.
+- `inputs` of the wrong shape crashed `compute` and the fingerprint: validated, reported in the row.
+- `tex_plain`: control space, `\\ [2pt]`, `\-`, `\hspace{..}` handled.
+- Globs took binary files (a figure folder with PDFs): globs keep text suffixes only (`.tex .md .txt .tikz .pgf`).
+- `[...]` character classes in globs work again.
+- An ignore pattern that matches the empty string (`""`, `^`, `.*`) is refused; the share counts ignored words.
+- The unlisted-input message says the files are in no scan list (they may be listed as number artifacts).
+- A malformed cache file is rebuilt instead of raising.
+Each fix has a test that fails on the round-1 code and a mutant that the test kills. On live workspaces: one fails
+until its figure and table sources are listed in `also_scanned`; one reports two untracked sections (191 and 96
+words) that its owner has to name or ignore; a probe workspace whose rules keep no word now says so.
+
 ## Acceptance
 
 - Probe (red first): a synthetic two-section LaTeX draft whose config matches one heading must fail the coverage row and

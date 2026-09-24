@@ -652,19 +652,44 @@ def _readers_scope(cfg, sentences):
 SCAN_MIN_WORDS = 20  # an unmatched heading with fewer words (a stub, a heading-only line) is shown, not failed
 
 
-_INPUT = re.compile(r"\\(?:input|include)\{([^{}]+)\}")
+_INPUTS = re.compile(r"\\(?:input|include|subfile)\s*\{([^{}]+)\}|\\input\s+([^\s{}\\]+)"
+                     r"|\\(?:sub)?import\*?\{([^{}]*)\}\{([^{}]+)\}")
+INPUT_DEPTH = 6
+
+
+def _input_targets(tex, here, files):
+    """Files a LaTeX text pulls in, resolved the way a compile run from the main file's directory would find them:
+    \\input{x}, \\input x, \\include, \\subfile, \\import{dir}{x}; ./ and .. normalised; .tex added only
+    when the name has no extension. A name not found from the main file's directory is tried from the including
+    file's own directory (subfiles, subimport). Only paths present in the tree are returned."""
+    import posixpath
+    from . import text as T
+    out = []
+    for a, b, d, f in _INPUTS.findall(T._TEX_COMMENT.sub("", tex)):
+        name = (a or b or (posixpath.join(d, f) if f else "")).strip()
+        if not name:
+            continue
+        if not posixpath.splitext(name)[1]:
+            name += ".tex"
+        for base in here:
+            cand = posixpath.normpath(posixpath.join(base, name) if base else name)
+            if cand in files:
+                out.append(cand)
+                break
+    return out
 
 
 def scan_coverage(cfg, head):
     """How much of the draft at head the section rules keep (text.section_coverage over the draft's files joined), or
     None when there is no head or no draft to read. A heading renamed after the config was written leaves the index in
-    silence; this is where that silence becomes a row. Also said: files the draft \\input's that the config does not
-    list (their text is in the PDF and nowhere in the index), and an ignore list that is not a list of regexes."""
+    silence; this is where that silence becomes a row. Also said: files the draft pulls in (at any depth) that no list
+    in the config accounts for, and config values of the wrong shape."""
     if not head:
         return None
     paths = draft_files(cfg, head)
     if not paths:
         return None
+    import posixpath
     from . import gitio
     from . import text as T
     errors = []
@@ -672,59 +697,76 @@ def scan_coverage(cfg, head):
     if not isinstance(ignore, list) or not all(isinstance(x, str) for x in ignore):
         errors.append("draft.ignore_headings 要写成正则的列表")
         ignore = []
-    else:
-        for x in ignore:
-            try:
-                re.compile(x)
-            except re.error as e:
-                errors.append(f"draft.ignore_headings 里的正则编不过：{x}（{e}）")
-        ignore = [x for x in ignore if _compiles(x)]
+    good = []
+    for x in ignore:
+        try:
+            rx = re.compile(x)
+        except re.error as e:
+            errors.append(f"draft.ignore_headings 里的正则编不过：{x}（{e}）")
+            continue
+        if rx.search(""):
+            errors.append(f"draft.ignore_headings 里的「{x}」连空标题都匹配，会把所有标题都不扫")
+            continue
+        good.append(x)
+    inputs = cfg.get("inputs") if cfg.get("inputs") is not None else {}
+    if not isinstance(inputs, dict):
+        errors.append("inputs 要写成对象（键值表）")
+        inputs = {}
+    specs = []
+    for k in ("also_checked", "also_scanned"):
+        v = inputs.get(k) or []
+        if isinstance(v, list) and all(isinstance(s, str) for s in v):
+            specs += v
+        else:
+            errors.append(f"inputs.{k} 要写成路径的列表")
     with gitio.batch(cfg["repo"]):
-        texts = [gitio.show(cfg["repo"], head, p) or "" for p in paths]
-    joined = "\n\n".join(texts)
-    fmt = draft_format(cfg)
-    cov = T.section_coverage(joined, cfg["draft"]["sections"], fmt, ignore=ignore)
-    unlisted = []
-    if fmt == "latex":
-        files = set(gitio.ls_tree(cfg["repo"], head, "."))
-        inputs = cfg.get("inputs") or {}
-        specs = [s for k in ("also_checked", "also_scanned") for s in (inputs.get(k) or []) if isinstance(s, str)] \
-            if all(isinstance(inputs.get(k) or [], list) for k in ("also_checked", "also_scanned")) else []
-        accounted = set(paths) | {n for _, ns in T.resolve_listed(specs, files) for n in ns}
-        for target in _INPUT.findall(T._TEX_COMMENT.sub("", joined)):
-            name = target.strip()
-            name = name if name.endswith(".tex") else name + ".tex"
-            if name in files and name not in accounted and name not in unlisted:
-                unlisted.append(name)
+        texts = {p: gitio.show(cfg["repo"], head, p) or "" for p in paths}
+        joined = "\n\n".join(texts[p] for p in paths)
+        fmt = draft_format(cfg)
+        cov = T.section_coverage(joined, cfg["draft"]["sections"], fmt, ignore=good)
+        unlisted = []
+        if fmt == "latex":
+            files = set(gitio.ls_tree(cfg["repo"], head, "."))
+            accounted = set(paths) | {n for _, ns in T.resolve_listed(specs, files) for n in ns}
+            root = posixpath.dirname(paths[0])
+            queue, seen = [(p, texts[p], 0) for p in paths], set(paths)
+            while queue:
+                path, tex, depth = queue.pop(0)
+                for target in _input_targets(tex, [root, posixpath.dirname(path)], files):
+                    if target in seen:
+                        continue
+                    seen.add(target)
+                    if target not in accounted:
+                        unlisted.append(target)
+                    if depth < INPUT_DEPTH and target.endswith(T.TEXT_SUFFIXES):
+                        queue.append((target, gitio.show(cfg["repo"], head, target) or "", depth + 1))
     cov.update(head=head, min_words=SCAN_MIN_WORDS, errors=errors, unlisted=unlisted)
     return cov
 
 
-def _compiles(rx):
-    try:
-        re.compile(rx)
-        return True
-    except re.error:
-        return False
-
-
 def scan_row(cov):
-    """The coverage as a row: failed while a heading carrying prose is neither matched nor ignored in the config."""
+    """The coverage as a row: failed while a heading carrying prose is neither matched nor ignored, while the rules keep
+    nothing of a draft that has prose, while the draft pulls in a file no list accounts for, or while the config is
+    of the wrong shape."""
     big = [m for m in cov["missing"] if m["words"] >= cov["min_words"]]
     small = [m for m in cov["missing"] if m["words"] < cov["min_words"]]
-    seen = cov["kept"] + cov["dropped"]
-    share = f"{cov['kept'] / seen:.0%}" if seen else "—"
+    whole = cov["kept"] + cov["dropped"] + cov["ignored"]
+    share = f"{cov['kept'] / whole:.0%}" if whole else "—"
     named = lambda ms: "、".join(f"「{m['heading']}」{m['words']} 词" for m in ms[:5]) + ("…" if len(ms) > 5 else "")
     base = {"id": "_scan", "name": "扫描覆盖", "kind": "internal", "last_commit": (cov.get("head") or "")[:7]}
-    parts = [f"扫描范围内 {cov['kept']} 词，占 {share}"]
-    bad = list(cov.get("errors") or [])
-    if cov.get("unlisted"):
-        bad.append("稿子 \\input 了、配置没列的文件：" + "、".join(cov["unlisted"][:5]) + ("…" if len(cov["unlisted"]) > 5 else "")
-                   + "（正文进 draft.glob；图、表、宏定义进 inputs.also_scanned）")
+    parts = [f"扫描范围内 {cov['kept']} 词，占各标题下正文的 {share}"]
     if cov["ignored"]:
         parts.append(f"按配置不扫 {cov['ignored']} 词")
+    if cov.get("before_first"):
+        parts.append(f"第一个标题之前 {cov['before_first']} 词（题名、作者、关键词之类，不算失败）")
+    bad = list(cov.get("errors") or [])
     if big:
         bad.insert(0, f"{len(big)} 个标题不在扫描范围：{named(big)}（在 draft.sections 加规则，或写进 draft.ignore_headings）")
+    if cov["kept"] == 0 and max(cov.get("before_first") or 0, cov["dropped"]) >= cov["min_words"]:
+        bad.insert(0, "节规则在这份稿子里一个词也没保留（标题格式或 draft.format 和稿子对不上？）")
+    if cov.get("unlisted"):
+        bad.append("稿子引入了、但不在任何扫描列表里的文件：" + "、".join(cov["unlisted"][:5])
+                   + ("…" if len(cov["unlisted"]) > 5 else "") + "（正文进 draft.glob；图、表、宏定义进 inputs.also_scanned）")
     if bad:
         return {**base, "status": FAILED, "due": False, "detail": "；".join(bad + parts)}
     if small:
@@ -825,8 +867,9 @@ def fingerprint(cfg, ws):
             for c in K.all_checks(cfg)]
     rows.append(["_waivers", sorted(waivers(ws).items())])
     d = cfg.get("draft") or {}
-    rows.append(["_scan", d.get("glob"), d.get("sections"), d.get("ignore_headings"),
-                 (cfg.get("inputs") or {}).get("also_checked"), (cfg.get("inputs") or {}).get("also_scanned")])
+    inp = cfg.get("inputs") if isinstance(cfg.get("inputs"), dict) else {}
+    rows.append(["_scan", d.get("glob"), d.get("format"), d.get("sections"), d.get("ignore_headings"),
+                 inp.get("also_checked"), inp.get("also_scanned")])
     if cfg.get("risks"):
         rows.append(["_risks", _stat_sig(Path(cfg["risks"]).expanduser())])
     return _sha(json.dumps(rows, ensure_ascii=False, default=str))
