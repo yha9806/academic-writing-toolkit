@@ -1,6 +1,6 @@
 # Generated copies and float reviews: tables and figures the loop never looked at
 
-Status: implemented (2026-09-25): two independent review rounds (round 1 on the generator check, round 2 on both;
+Status: implemented (2026-09-25): three independent review rounds (round 1 on the generator check, rounds 2 and 3 on both;
 every finding reproduced, fixed, each with a test that fails on the reviewed code); every rule has a test and a mutant that the test kills; run
 read-only on one real manuscript. Not author-approved before work began: the author asked on 2026-09-25 to continue the
 remaining toolkit items with a grill at each step. Items 31.3–31.6 of the same list (claims strength, statistics
@@ -129,6 +129,31 @@ were all unreviewed anyway); each test was sharpened until its mutant died.
 
 Not changed, written down: macros defined outside the preamble, `\graphicspath`, packages and classes are not
 followed; the float search is textual, so an environment built by a macro that is not a `\newenvironment` is not seen.
+
+## Review round 3 (2026-09-25; sixteen findings, five of them regressions round 2 introduced; all reproduced first)
+
+- Regressions. The `\iffalse` strip ran from a `\let\ifanon\iffalse` in the preamble to the first `\fi` in the body
+  and dropped a live float (a false pass): only an `\iffalse` that starts a line opens a dead block now, it ends at
+  its matching `\fi` with TeX's and `\newif`'s conditionals counted, and with no match nothing is dropped. Every line
+  break had become part of the fingerprint, so re-wrapping a caption reopened it: the text is now read as TeX reads it
+  (a line break a space, a `%` at the end of a line joins, a blank line a paragraph break). Inline `\addplot table`
+  data was reported as a missing file. A caption on the sheet lost its `\%`. A `filecontents` block holding
+  `\begin{document}` moved the preamble.
+- Design: every edit to the preamble or a file it pulls in reopened every float at once, and a new `\etal` looked the
+  same as a font change; the reviewer judged that people would re-stamp without looking. The preamble is now one item
+  of its own (`preamble:<main>`), reviewed once; floats no longer carry it. A macro-named or missing `\input` in the
+  preamble fails the check, as the docstring already claimed.
+- Still false reviewed after round 2, now followed: a table `\pgfplotstableread` fills in the body and `\addplot
+  table {\macro}` uses; a `\captionof` inside `center` with its image above a blank line; `\includesvg`. Noise:
+  `\graphicspath` made every figure a missing file; its directories are tried now.
+- Generator check: a script started through bash that calls the python on PATH, and `env -u NAME python3`, reached an
+  editable install; the python3 and python on the run's PATH are now always searched, and env's options are skipped.
+  Refused although legitimate: `env NAME=value {repo}/.venv/bin/python` (a python in a `bin/` directory is allowed in
+  any position), a TMPDIR inside the repository (the run's own directories are exempt), a relative `.pth` line to a
+  directory that does not exist (site.py ignores it, so does the search).
+- Not changed, written down: an image named inside a `\newcommand` is not followed (macro expansion is out of scope);
+  the reader is textual, so a conditional built another way than `\iffalse` at the start of a line is typeset text to
+  it.
 
 ## On one real manuscript
 

@@ -42,9 +42,10 @@ of the committed copy being read back.
 The working tree can still reach a run through the interpreter: PYTHONPATH,
 user site-packages and an editable install that points into the repository.
 The first two are removed from the environment; the third is looked for in
-the .pth and editable-finder files of each interpreter the command runs (its
-first word, or what /usr/bin/env is asked for, found on PATH), absolute and
-relative paths both, and a hit fails the generator. Uncommitted changes under the export paths are then reported as
+the .pth and editable-finder files of each interpreter the run can reach (the
+python the command runs, through /usr/bin/env, nice or timeout, and every
+python3 and python on its PATH, since a script it starts may call them),
+absolute and relative paths both, and a hit fails the generator. Uncommitted changes under the export paths are then reported as
 not used, which is only true after these steps.
 
 Copies are read before any generator runs and read again after; a copy that
@@ -187,38 +188,68 @@ def editable_hits(python, repo, env):
             # .pth line that is not an import is a path, relative to the .pth's own directory as site.py reads it.
             paths = re.findall(r"/[^\s'\"\],;)]+", text)
             if f.suffix == ".pth":
+                # site.py adds a relative line only when the directory exists
                 paths += [str(p / l.strip()) for l in text.splitlines()
-                          if l.strip() and not l.startswith(("#", "import ", "import\t"))]
+                          if l.strip() and not l.startswith(("#", "import ", "import\t")) and (p / l.strip()).is_dir()]
             if any(inside(m, [real]) for m in paths):
                 hits.append(str(f))
     return hits
 
 
+def is_interpreter(word):
+    """A python in a bin/ directory: where a virtual environment keeps it."""
+    return os.path.basename(word).startswith("python") and os.path.basename(os.path.dirname(word)) == "bin"
+
+
+def program(argv):
+    """The program a command line runs once /usr/bin/env, nice and timeout are looked through: env's own options,
+    including -u NAME and -C DIR, and NAME=value assignments are skipped."""
+    i = 0
+    while i < len(argv):
+        base = os.path.basename(argv[i])
+        if base == "env":
+            i += 1
+            while i < len(argv) and (argv[i].startswith("-") or "=" in argv[i]):
+                i += 2 if argv[i] in ("-u", "-C", "-S", "--unset", "--chdir", "--split-string") else 1
+            continue
+        if base in ("nice", "timeout", "nohup", "time"):
+            i += 1
+            while i < len(argv) and argv[i].startswith("-"):
+                i += 2 if argv[i] in ("-n", "-s", "-k", "--signal", "--kill-after", "--adjustment") else 1
+            if base == "timeout" and i < len(argv):
+                i += 1  # the duration
+            continue
+        return argv[i]
+    return ""
+
+
 def interpreters(argv, env):
-    """The Python interpreters a command line runs: its first word, or the program /usr/bin/env is asked for,
-    resolved on the run's PATH."""
-    words = argv[:1]
-    if argv and os.path.basename(argv[0]) == "env":
-        words = [next((a for a in argv[1:] if not a.startswith("-") and "=" not in a), "")]
+    """The Python interpreters a run can reach: the program its command line runs when that is a python, and every
+    python3 and python on the run's PATH, since a script the command starts may call either."""
     out = []
+    first = program(argv)
+    words = ([first] if os.path.basename(first).startswith("python") else []) + ["python3", "python"]
     for w in words:
-        if os.path.basename(w).startswith("python"):
-            found = w if os.sep in w else shutil.which(w, path=env.get("PATH"))
-            if found:
-                out.append(found)
+        found = w if os.sep in w else shutil.which(w, path=env.get("PATH"))
+        if found and found not in out:
+            out.append(found)
     return out
 
 
-def names_working_tree(argv, repo):
-    """The words of a command line that point into the repository's working tree. The interpreter may live there
-    (a virtual environment usually does); a script, a module path or an argument may not."""
+def names_working_tree(argv, repo, roots=()):
+    """The words of a command line that point into the repository's working tree. An interpreter may live there (a
+    virtual environment usually does); a script, a module path or an argument may not. Paths inside the run's own
+    archive and output directories are the run's, wherever TMPDIR puts them."""
     real = os.path.realpath(repo)
     bad = []
-    for k, a in enumerate(argv):
-        if k == 0 and os.path.basename(a).startswith("python") and os.path.basename(os.path.dirname(a)) == "bin":
+    for a in argv:
+        if is_interpreter(a):
             continue
         for m in re.findall(r"(?:~|/)[^\s'\";:,]*", a):
-            if inside(os.path.expanduser(m), [real]) or m.startswith(repo):
+            path = os.path.expanduser(m)
+            if roots and inside(path, roots):
+                continue
+            if inside(path, [real]) or m.startswith(repo):
                 bad.append(a)
                 break
     return bad
@@ -259,7 +290,7 @@ def run_generator(g, base, timeout):
         info["dirty"] = dirty(repo, specs)
         subst = lambda s: os.path.expanduser(s).replace("{repo}", repo).replace("{tree}", tree).replace("{out}", out)
         argv = [subst(a) for a in run]
-        bad = names_working_tree(argv, repo)
+        bad = names_working_tree(argv, repo, [os.path.realpath(tree), os.path.realpath(out)])
         if bad:
             return info, {}, ("the command names the working tree of the repository (" + ", ".join(bad[:2]) + "); "
                               "only an interpreter in its bin/ may live there")

@@ -142,7 +142,8 @@ class FloatReviewsInTheLoop(unittest.TestCase):
             self.assertIn("图表 2 个：看过这一版 0", rec["summary"])
             self.assertEqual(sorted(f["id"] for f in rec["result"]["floats"]), ["fig:span", "tab:night"],
                              "the table lives only in an also-checked file")
-            rows = "".join(f"{f['id']}\t{f['fingerprint']}\tA. Reader\t2026-01-01\tok\t\n" for f in rec["result"]["floats"])
+            items = rec["result"]["floats"] + rec["result"]["preambles"]
+            rows = "".join(f"{f['id']}\t{f['fingerprint']}\tA. Reader\t2026-01-01\tok\t\n" for f in items)
             (repo / "reviews.tsv").write_text("label\tfingerprint\treviewer\tdate\tverdict\tnote\n" + rows,
                                               encoding="utf-8")
             git(repo, "commit", "-qam", "reviewed")
