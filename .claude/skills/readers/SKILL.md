@@ -34,11 +34,13 @@ report.
 1. Build the packet. From a loop workspace (records which sentences, at which commit, the panel reads):
 
    ```
-   python3 .claude/skills/readers/scripts/build-reader-packet.py --workspace <workspace> --out <dir> [--questions q.tsv]
+   python3 .claude/skills/readers/scripts/build-reader-packet.py --workspace <workspace> --out <dir> [--questions q.tsv] --aux <main.aux>
    ```
 
    Or from any file: `--text <file> [--bib refs.bib]`. Citations stay in author-year form; they are never replaced by
-   a placeholder.
+   a placeholder. Give `--aux` (the compiled draft's `.aux`) so cross-references show the numbers the page shows;
+   without it they read "(number omitted)" and the prompt tells readers so. A placeholder the page does not have
+   draws readers' complaints: in one panel most of "what got in the way" was about it.
 
 2. Open the readers as sub-agents: two personas (`prompt_R1.txt`, `prompt_R2.txt`) × two models (a small and a
    larger one) × samples per cell. Eight (two samples) is the floor and shows only large differences; use sixteen

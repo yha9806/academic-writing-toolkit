@@ -727,6 +727,10 @@ MUTATIONS = [
     ("gap", 'coverage.py', '    return s.get("new") or ("删去：" + (s.get("old") or ""))', '    return s.get("new") or ""', 'test_removals.RemovalTest.test_a_removed_sentence_that_carried_a_required_wording_holds_the_turn_until_accepted'),
     ("gap", 'catalogue.py', '    out = Path(ctx["tmp"]) / ".loop-carriers" / "required.txt"', '    out = Path(ctx["tmp"]) / "loop-carriers" / "required.txt"', 'test_removals.RemovalTest.test_the_carriers_file_is_not_read_as_prose'),
     ("gap", 'coverage.py', '            if gone:', '            if False:', 'test_removals.RemovalTest.test_without_a_ledger_pattern_a_plain_removal_is_counted_not_flagged'),
+    # 读者包的交叉引用（spec 2026-09-25 §4.3）：编号从 .aux 取；取不到时写明省略，提示里注明属于包的局限。
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '        return ("§" if section else "") + OMITTED', '        return "§x"', 'test_readers.ReadersTest.test_without_an_aux_every_reference_says_its_number_is_omitted'),
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '    refs = {"labels": aux_labels(a.aux) if a.aux else {}, "resolved": 0, "omitted": 0}', '    refs = {"labels": {}, "resolved": 0, "omitted": 0}', 'test_readers.ReadersTest.test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it'),
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '                 if refs["omitted"] else "")', '                 if False else "")', 'test_readers.ReadersTest.test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it'),
 ]
 
 

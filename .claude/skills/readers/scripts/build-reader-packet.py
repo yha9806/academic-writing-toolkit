@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build what a panel of readers reads: numbered paragraphs, one prompt per persona, and a record of the version.
 
-    python3 build-reader-packet.py --workspace <loop workspace> --out <dir> [--sections A,I] [--questions q.tsv]
-    python3 build-reader-packet.py --text <file> --out <dir> [--bib refs.bib] [--questions q.tsv]
+    python3 build-reader-packet.py --workspace <loop workspace> --out <dir> [--sections A,I] [--questions q.tsv] [--aux main.aux]
+    python3 build-reader-packet.py --text <file> --out <dir> [--bib refs.bib] [--questions q.tsv] [--aux main.aux]
 
 With --workspace the paragraphs come from the writing loop's index (the tracked draft at its head, the sections
 named in the workspace's target.readers.sections unless --sections is given), and packet.json records which
@@ -10,8 +10,11 @@ sentences, at which commit, against which intent card, so `loop coverage` can te
 panel's reading stale. With --text any file is split on blank lines.
 
 LaTeX is made readable, not summarised: a citation becomes the author-year form a reader of the published paper
-would see (from --bib, or the workspace's inputs.bib), never "[cite]"; a cross-reference becomes "§x"; figures and
-their descriptions are dropped. Directed questions (--questions: one `id<TAB>question` per line) are asked of every
+would see (from --bib, or the workspace's inputs.bib), never "[cite]"; a cross-reference shows the number the page
+shows, read from the compiled --aux ("§3.2", "Figure 2", "Table 4"), and one the .aux does not have becomes
+"(number omitted)", which the prompt tells readers is the packet's limit, not the manuscript's. It used to become "§x"
+everywhere, and most readers of one panel spent "what got in the way" on that placeholder. Figures and their
+descriptions are dropped. Directed questions (--questions: one `id<TAB>question` per line) are asked of every
 reader after the free questions.
 
 Output in --out: manuscript.txt, prompt_<persona>.txt per persona, packet.json.
@@ -61,7 +64,7 @@ After the last paragraph report:
 - "reuse": what, if anything, you could apply to your own work after reading this
 - "writing_got_in_way": anything about how it is written that got in your way (or "nothing")
 {directed_block}- "outside_knowledge": any knowledge you used that is not in the text (or "none"). Report this last.
-
+{refs_note}
 Output ONLY one JSON object with the keys packet, paragraphs, remember, why_accept, closest_prior_work, reuse,
 writing_got_in_way{directed_keys}, outside_knowledge, where packet is exactly "{packet_id}" and paragraphs is a list of
 {{"p": 1, "believe": "...", "expect": "...", "reread": [], "guessed": []}}. No other text.
@@ -156,7 +159,49 @@ def drop_env_args(t):
         i = k
 
 
-def readable(text, bib, unknown):
+# \S\ref{..}, \S~\ref{..} (the ~ is a space by then), \ref, \eqref, \autoref, \cref, \Cref.
+REF = re.compile(r"(\\S\s*)?\\(ref|eqref|autoref|cref|Cref)\{([^}]*)\}")
+# What \autoref and \cref print before the number, by the label's conventional prefix.
+REF_KIND = {"sec": "Section", "subsec": "Section", "ssec": "Section", "fig": "Figure", "tab": "Table", "eq": "Equation",
+            "app": "Appendix", "alg": "Algorithm", "lst": "Listing"}
+OMITTED = "(number omitted)"
+
+
+def aux_labels(path):
+    """{label: number as printed} from a compiled .aux (`\newlabel{key}{{number}{page}...}`)."""
+    try:
+        raw = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        die(f"cannot read --aux {path}: {e}")
+    out = {}
+    for m in re.finditer(r"\\newlabel\{([^}]*)\}\{\{((?:[^{}]|\{[^{}]*\})*)\}", raw):
+        num = re.sub(r"\\[a-zA-Z@]+\s*", "", m.group(2)).replace("{", "").replace("}", "").strip()
+        if num:
+            out[m.group(1)] = num
+    return out
+
+
+def reference(m, refs):
+    """One cross-reference as the page shows it; counted in refs (resolved or omitted)."""
+    section, cmd, keys = m.group(1), m.group(2), [k.strip() for k in m.group(3).split(",") if k.strip()]
+    labels = refs.get("labels") or {}
+    nums = [labels.get(k) for k in keys]
+    if not keys or any(n is None for n in nums):
+        refs["omitted"] = refs.get("omitted", 0) + 1
+        return ("§" if section else "") + OMITTED
+    refs["resolved"] = refs.get("resolved", 0) + 1
+    shown = ", ".join(nums)
+    if section:
+        return "§" + shown
+    if cmd == "eqref":
+        return f"({shown})"
+    if cmd in ("autoref", "cref", "Cref"):
+        kind = REF_KIND.get(keys[0].split(":")[0].lower())
+        return f"{kind} {shown}" if kind else shown
+    return shown
+
+
+def readable(text, bib, unknown, refs=None):
     """What a reader of the typeset page sees, as plain text. Applied to a whole paragraph: an environment or a
     figure's alt text often spans several indexed sentences, and cleaning each alone leaves its markup behind."""
     def cite(m):
@@ -178,8 +223,7 @@ def readable(text, bib, unknown):
     t = re.sub(r"\\end\{[^}]*\}", " ", t)
     t = re.sub(r"\\item\[([^\]]*)\]", r"\1", t)
     t = re.sub(r"~", " ", t)
-    t = re.sub(r"\\(?:S)?\\?(?:ref|eqref|autoref|cref|Cref)\{[^}]*\}", "§x", t)
-    t = re.sub(r"\\S\s*§x", "§x", t)
+    t = REF.sub(lambda m: reference(m, refs if refs is not None else {}), t)
     t = re.sub(r"\\label\{[^}]*\}", "", t)
     t = re.sub(r"\\(?:emph|textit|textbf|texttt|text|mathrm|mbox)\{([^{}]*)\}", r"\1", t)
     t = re.sub(r"\\times", "×", t)
@@ -278,6 +322,7 @@ def main(argv=None):
     ap.add_argument("--bib", help="BibTeX file for author-year citations")
     ap.add_argument("--questions", help="directed questions: id<TAB>question per line")
     ap.add_argument("--venue", help="how the prompt names the venue (default: the workspace's target.venue)")
+    ap.add_argument("--aux", help="the compiled .aux, for the numbers cross-references show on the page")
     try:
         a = ap.parse_args(argv)
     except SystemExit as e:
@@ -295,9 +340,10 @@ def main(argv=None):
     if not paras:
         die("no paragraph to give the readers: nothing was built")
     bib, unknown = bib_entries(bibtext), set()
+    refs = {"labels": aux_labels(a.aux) if a.aux else {}, "resolved": 0, "omitted": 0}
     rendered = []
     for i, para in enumerate(paras, 1):
-        text = readable(" ".join(t for t, _, _ in para), bib, unknown)
+        text = readable(" ".join(t for t, _, _ in para), bib, unknown, refs)
         rendered.append({"p": i, "text": text, "sids": [s for _, s, _ in para if s], "hashes": [h for _, _, h in para]})
     manuscript = "\n\n".join(f"[P{r['p']}] {r['text']}" for r in rendered)
     questions = read_questions(a.questions or (source.get("questions_file") and str(Path(source["questions_file"]).expanduser())))
@@ -310,22 +356,30 @@ def main(argv=None):
     # The packet id travels through every reader's output, so an output written for another version of the text
     # cannot be tallied against this one.
     packet_id = sha(json.dumps([manuscript, questions, sorted(PERSONAS.items()), venue]))[:12]
+    refs_note = (f'Cross-references this packet has no number for read "{OMITTED}". That is a limit of the packet, not of '
+                 f'the manuscript: the published page shows the number. Do not report it under writing_got_in_way.\n'
+                 if refs["omitted"] else "")
     prompts = {}
     for pid, persona in PERSONAS.items():
-        text = INSTRUCTIONS.format(persona=persona, venue=venue, directed_block=directed_block,
+        text = INSTRUCTIONS.format(persona=persona, venue=venue, directed_block=directed_block, refs_note=refs_note,
                                    directed_keys=directed_keys, manuscript=manuscript, packet_id=packet_id)
         (out / f"prompt_{pid}.txt").write_text(text, encoding="utf-8")
         prompts[pid] = {"file": f"prompt_{pid}.txt", "sha1": sha(text)}
     packet = {"schema": 1, "packet_id": packet_id, "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
               "source": source,
               "paragraphs": rendered, "questions": questions, "personas": PERSONAS, "prompts": prompts,
-              "unknown_citation_keys": sorted(unknown), "snapshot": snap}
+              "unknown_citation_keys": sorted(unknown), "snapshot": snap,
+              "references": {"resolved": refs["resolved"], "omitted": refs["omitted"],
+                             "aux": str(Path(a.aux).resolve()) if a.aux else None}}
     (out / "packet.json").write_text(json.dumps(packet, ensure_ascii=False, indent=1), encoding="utf-8")
     words = sum(len(r["text"].split()) for r in rendered)
     print(f"packet: {len(rendered)} paragraphs, {words} words, {len(questions)} directed question(s), "
           f"{len(PERSONAS)} personas -> {out}")
     if unknown:
         print(f"  citation keys not in the bibliography, left as keys: {', '.join(sorted(unknown))}")
+    if refs["omitted"]:
+        print(f"  cross-references shown as {OMITTED}: {refs['omitted']} of {refs['omitted'] + refs['resolved']}"
+              + ("" if a.aux else " (give --aux, the compiled .aux, for the numbers)"))
     return 0
 
 

@@ -137,6 +137,41 @@ The next sentence must survive.
             self.assertIn("Persona: a county official", prompt)
             self.assertIn('"span": Which bridges?', prompt)
 
+    def test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it(self):
+        # Every \\ref used to become "§x", and most readers of one panel spent "what got in the way" on a placeholder
+        # the page does not show (spec 2026-09-25 §4.3). With the compiled .aux the number is the page's; a label the
+        # .aux lacks is said to be omitted, and the prompt tells readers that is the packet's limit.
+        with TempDir() as root:
+            src = Path(root) / "d.tex"
+            src.write_text("Methods are in \\S\\ref{sec:m}. Figure~\\ref{fig:a} shows the gauges.\n\n"
+                           "See \\autoref{tab:t} and \\S~\\ref{sec:gone}.\n", encoding="utf-8")
+            aux = Path(root) / "d.aux"
+            aux.write_text("\\newlabel{sec:m}{{3.2}{4}{Methods}{section.3.2}{}}\n"
+                           "\\newlabel{fig:a}{{2}{5}{Gauges}{figure.2}{}}\n"
+                           "\\newlabel{tab:t}{{4}{6}}\n", encoding="utf-8")
+            r = script("build-reader-packet.py", "--text", src, "--aux", aux, "--out", Path(root) / "o")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            text = (Path(root) / "o" / "manuscript.txt").read_text(encoding="utf-8")
+            self.assertNotIn("§x", text)
+            for shown in ("§3.2", "Figure 2 shows", "Table 4", "§(number omitted)"):
+                self.assertIn(shown, text)
+            packet = json.loads((Path(root) / "o" / "packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(packet["references"], {"resolved": 3, "omitted": 1, "aux": str(aux.resolve())})
+            head = (Path(root) / "o" / "prompt_R1.txt").read_text(encoding="utf-8").split("MANUSCRIPT")[0]
+            self.assertIn("(number omitted)", head, "the readers are told the omission is the packet's")
+
+    def test_without_an_aux_every_reference_says_its_number_is_omitted(self):
+        with TempDir() as root:
+            src = Path(root) / "d.tex"
+            src.write_text("Methods are in \\S\\ref{sec:m}. The table (\\ref{tab:t}) lists them.\n", encoding="utf-8")
+            r = script("build-reader-packet.py", "--text", src, "--out", Path(root) / "o")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            text = (Path(root) / "o" / "manuscript.txt").read_text(encoding="utf-8")
+            self.assertNotIn("§x", text)
+            self.assertIn("§(number omitted)", text)
+            packet = json.loads((Path(root) / "o" / "packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(packet["references"], {"resolved": 0, "omitted": 2, "aux": None})
+
     def test_nothing_to_read_exits_2(self):
         with TempDir() as root:
             empty = Path(root) / "e.txt"
