@@ -14,9 +14,10 @@ every float the draft includes with a version fingerprint and says which have
 no review of their current version.
 
 A float is a figure, table or longtable environment (spacing inside \begin
-allowed, and any environment a \newenvironment defines around one), or a
+allowed, and any environment a \newenvironment defines around one), a
 \captionof{figure|table} with the center, minipage or flush environment
-around it (its paragraph when there is none), in the document body of the
+around it (its paragraph when there is none), or a tabular set in the running
+text outside both (id <file>#tabular<k>, by order), in the document body of the
 files reachable from --main through \input, \include, \subfile and \import.
 Not the document: comment and filecontents environments, and a block opened
 by \iffalse at the start of a line up to its matching \fi (TeX's conditionals
@@ -103,6 +104,7 @@ TABLEREAD = re.compile(r"\\pgfplotstableread" + OPT + r"\{([^{}]+)\}\s*\{?\s*\\(
 GPATH = re.compile(r"\\graphicspath\s*\{((?:\s*\{[^{}]*\})+)\s*\}")
 LABEL = re.compile(r"\\label\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}")
 CAPTIONOF = re.compile(r"\\captionof\s*\{(figure|table)\}")
+TABULAR = re.compile(r"\\begin\s*\{(tabular\*?|tabularx|tabulary|NiceTabular\*?)\}")
 DOC = re.compile(r"\\begin\s*\{document\}")
 NEWENV = re.compile(r"\\(?:re)?newenvironment\s*\{([A-Za-z@]+\*?)\}(?:\s*\[[^\]]*\])*\s*\{[^{}]*?\\begin\s*\{([^{}]+)\}")
 NEWIF = re.compile(r"\\newif\s*\\(if[A-Za-z@]+)")
@@ -486,11 +488,28 @@ def collect(tree, mains):
     for rel, (here, text, envs, ctx) in owner.items():
         found = spans(text, envs)
         pieces = [(env, text[a:b], 0) for env, a, b in found]
+        taken = [(a, b) for _, a, b in found]
         for m in CAPTIONOF.finditer(text):
             if not any(a <= m.start() < b for _, a, b in found):
                 a, b = around(text, m.start(), found)
                 pieces.append(("captionof " + m.group(1), text[a:b], m.start() - a))
-        for n, (env, body, at) in enumerate(pieces, 1):
+                taken.append((a, b))
+        # A table set in the running text, with no float and no caption, still prints: listed as its own item, by
+        # its order in the file (a new one inserted before it renumbers it, and its review is asked for again).
+        k = 0
+        for m in TABULAR.finditer(text):
+            if any(a <= m.start() < b for a, b in taken):
+                continue
+            k += 1
+            a, b = around(text, m.start(), found)
+            if not re.match(r"\\begin\s*\{(" + WRAPPERS + r")\}", text[a:]):
+                # no center or minipage around it: the table itself, not the paragraph it follows
+                end = re.compile(r"\\end\s*\{" + re.escape(m.group(1)) + r"\}").search(text, m.end())
+                a, b = m.start(), end.end() if end else len(text)
+            taken.append((a, b))
+            pieces.append(("inline tabular", text[a:b], 0, f"{rel}#tabular{k}"))
+        for n, piece in enumerate(pieces, 1):
+            env, body, at = piece[:3]
             acc, missing, unfollowed = [], [], []
             pulled(tree, body, here, acc, missing, unfollowed, ctx)
             # a \captionof names the label that follows it
@@ -501,10 +520,14 @@ def collect(tree, mains):
                         labels = LABEL.findall(plain(tree.text(p) or ""))
                         if labels:
                             break
-            floats.append({"id": labels[0] if labels else f"{rel}#{n}", "env": env, "file": rel, "labels": labels,
+            fid = piece[3] if len(piece) > 3 else (labels[0] if labels else f"{rel}#{n}")
+            floats.append({"id": fid, "env": env, "file": rel, "labels": labels,
                            "caption": caption_of(body), "pulled": [p for p, _ in acc],
                            "missing": missing + [f"{u} (a macro)" for u in unfollowed],
                            "fingerprint": fingerprint(body, acc)})
+    # a tabular in a file that a float pulls in is that float's content, not a table of its own
+    inside_floats = {p for f in floats if f["env"] != "inline tabular" for p in f["pulled"]}
+    floats = [f for f in floats if not (f["env"] == "inline tabular" and f["file"] in inside_floats)]
     return floats, preambles, problems
 
 

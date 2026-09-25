@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (234 automated tests, labelled T2-T252: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249 and T251 figure and table reviews) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (235 automated tests, labelled T2-T253: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251 and T253 figure and table reviews) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -7081,6 +7081,39 @@ EOF
 
 run_test "T251 float reviews: listings, verbatim, plot rows and filecontents keep their line breaks; \\captionof beside its image, \\else and \\newif in dead blocks, #1 and TeX-tree files are read right" test_T251
 run_test "T252 generated copies: a python_* script is not an interpreter, a named python is judged alone, env -S is read, a zip on a .pth line is caught" test_T252
+test_T253() {
+    # A table set in the running text, with no float and no caption, is listed as its own item; a tabular inside a
+    # float, beside a \captionof, or in a file a float pulls in is that float's and is not listed twice. A changed
+    # cell reopens it; an edit to the paragraph before its center environment does not.
+    python3 - "$REPO_ROOT/.claude/skills/audit/scripts/audit-float-reviews.py" <<'EOF'
+import json, subprocess, sys, tempfile
+from pathlib import Path
+S = sys.argv[1]
+BODY = ("Three plates checked:\n\\begin{center}\\small\n\\begin{tabular}{ll}\nc01 & A \\\\\n\\end{tabular}\n\\end{center}\n\n"
+        "\\begin{table}\\input{inner}\\caption{T.}\\label{tab:t}\\end{table}\n"
+        "\\begin{center}\\begin{tabular}{l}x\\end{tabular}\\captionof{table}{Loose.}\\label{tab:loose}\\end{center}\n")
+def run(body, inner="\\begin{tabular}{l}y\\end{tabular}\n"):
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "main.tex").write_text("\\documentclass{article}\n\\begin{document}\n" + body + "\\end{document}\n")
+        (Path(d) / "inner.tex").write_text(inner)
+        r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--json"],
+                           capture_output=True, text=True)
+        return {f["id"]: f for f in json.loads(r.stdout)["floats"]}
+a = run(BODY)
+assert sorted(a) == ["main.tex#tabular1", "tab:loose", "tab:t"], sorted(a)
+assert a["main.tex#tabular1"]["env"] == "inline tabular"
+b = run(BODY.replace("c01 & A", "c01 & B"))
+assert b["main.tex#tabular1"]["fingerprint"] != a["main.tex#tabular1"]["fingerprint"], "a changed cell kept the review"
+c = run(BODY.replace("Three plates checked:", "Three plates were checked:"))
+assert c["main.tex#tabular1"]["fingerprint"] == a["main.tex#tabular1"]["fingerprint"], "the paragraph before reopened it"
+bare = "The counts follow.\n\\begin{tabular}{l}z\\end{tabular}\n"
+d, e = run(bare), run(bare.replace("The counts follow.", "The counts are these."))
+assert list(d) == ["main.tex#tabular1"] and d["main.tex#tabular1"]["fingerprint"] == e["main.tex#tabular1"]["fingerprint"], \
+    "a bare tabular took the paragraph before it"
+EOF
+}
+
+run_test "T253 float reviews: a tabular in the running text is its own item, and one inside a float or its input is not listed twice" test_T253
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

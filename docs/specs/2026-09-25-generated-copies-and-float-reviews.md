@@ -191,6 +191,14 @@ check refuses a run, rather than the reverse. Known and left:
 - a python the generator starts from PATH when the command names its own interpreter: not searched;
 - the generator is not sandboxed and runs with the user's rights.
 
+## After the reviews: a table in the running text (2026-09-25, found on the real manuscript)
+
+Fixing the figures on the real manuscript showed a table set in the running text (a `center` with a `tabular`, no
+float, no caption) that the check never listed, though it prints like any other. Such a tabular is now its own item,
+`<file>#tabular<k>` by order in the file: its `center` or `minipage` when there is one, else the tabular alone (not the
+paragraph before it). A tabular inside a float, beside a `\captionof`, or in a file a float pulls in belongs to that
+float and is not listed twice. Test T253; four mutants killed after one test was extended.
+
 ## On one real manuscript
 
 - Generator check: 18 copies, 17 matched and one figure differed; the figure had been corrected by hand in the copy
