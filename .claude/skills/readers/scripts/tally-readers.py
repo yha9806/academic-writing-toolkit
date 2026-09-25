@@ -3,14 +3,20 @@
 people and sub-agents (--judgments), never inferred here.
 
     python3 tally-readers.py --packet <dir>/packet.json --outputs <dir> [--judgments j.tsv] [--min-readers 8]
-                             [--repeat-outputs D --repeat-judgments J]
+                             [--injected truth.tsv] [--repeat-outputs D --repeat-judgments J]
                              [--compare-packet P --compare-outputs D --compare-judgments J] [--json]
 
 Reader output files are named <persona>_<model>_<n>.json (e.g. R1_haiku_1.json); the name is how the panel's cells
 are counted. Only outputs that pass check-reader-output.py's rules are tallied; the others are named.
 
 --judgments: TSV, one row per judge per reader per intended point: reader<TAB>point<TAB>judge<TAB>verdict, verdict
-one of ✓ △ ✗ (or hit / partial / miss). A reader counts as carrying a point only when every judge wrote ✓; judges
+one of ✓ △ ✗ ≠ (or hit / partial / miss / misattributed). ≠ is a point said but credited to the wrong thing (one
+model's result told as another's): it is not carried, and it is counted apart, because a judge asked only whether a
+point was mentioned graded it ✓.
+
+--injected: TSV reader<TAB>point<TAB>truth for answers whose grade is known (correct, misattributed, reversed, a
+bare number), judged with the panel under the same reader ids. More than two judge-by-answer misses on it records the
+panel as a failure: the judges cannot yet be trusted with the real answers. A reader counts as carrying a point only when every judge wrote ✓; judges
 who disagree count as not carried, which is the conservative reading. Agreement between judges is reported.
 
 --compare-*: a second panel on another version. Per point, a two-sided Fisher exact p is reported beside the counts.
@@ -55,7 +61,9 @@ MIN_PANEL = 8
 MIN_JUDGES = 2
 BLANK = "BLANK"
 NAME = re.compile(r"^(?P<persona>[A-Za-z0-9]+)_(?P<model>[A-Za-z0-9.\-]+)_(?P<n>\d+)\.json$")
-HIT = {"✓": "hit", "hit": "hit", "△": "partial", "partial": "partial", "✗": "miss", "miss": "miss"}
+HIT = {"✓": "hit", "hit": "hit", "△": "partial", "partial": "partial", "✗": "miss", "miss": "miss",
+       "≠": "misattributed", "misattributed": "misattributed", "归属错": "misattributed"}
+INJECT_TOLERANCE = 2
 LIMITS = [
     "Readers are sub-agents told to ignore what they can see beyond the text; they are not readers who never knew. "
     "Each reports the outside knowledge it used.",
@@ -117,7 +125,7 @@ def load_judgments(path):
             continue
         parts = line.split("\t")
         if len(parts) != 4 or parts[3].strip() not in HIT:
-            die(f"{path}:{i}: expected reader<TAB>point<TAB>judge<TAB>verdict (✓ △ ✗)")
+            die(f"{path}:{i}: expected reader<TAB>point<TAB>judge<TAB>verdict (✓ △ ✗ ≠)")
         reader, point, judge, verdict = (p.strip() for p in parts)
         rows.setdefault((reader, point), {})[judge] = HIT[verdict]
     return rows
@@ -145,6 +153,40 @@ def carried(judgments, readers):
             c += all(x == "hit" for x in vals)
         out[p] = {"carried": c, "judged": j}
     return out, (agree / pairs if pairs else None)
+
+
+def misattributed(judgments, readers):
+    """{point: readers every judge graded ≠}: said, but credited to the wrong thing."""
+    if judgments is None:
+        return None
+    names, out = {r["reader"] for r in readers}, {}
+    for (reader, p), v in judgments.items():
+        vals = list(v.values())
+        if reader in names and len(vals) >= MIN_JUDGES and all(x == "misattributed" for x in vals):
+            out[p] = out.get(p, 0) + 1
+    return out
+
+
+def injected_misses(path, judgments):
+    """(misses, cells): each judge's grade of each injected answer against its known grade; a judge that left one
+    ungraded missed it. None when no --injected was given."""
+    if not path:
+        return None
+    truth = {}
+    for i, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        parts = [x.strip() for x in line.split("\t")]
+        if len(parts) != 3 or parts[2] not in HIT:
+            die(f"{path}:{i}: expected reader<TAB>point<TAB>truth (✓ △ ✗ ≠)")
+        truth[(parts[0], parts[1])] = HIT[parts[2]]
+    if not truth:
+        die(f"{path}: no injected answer: an empty set checks nothing")
+    judges = sorted({j for v in (judgments or {}).values() for j in v})
+    if not judges:
+        return len(truth), len(truth)
+    misses = sum((judgments or {}).get(pair, {}).get(j) != want for pair, want in truth.items() for j in judges)
+    return misses, len(truth) * len(judges)
 
 
 def carried_by_model(judgments, readers):
@@ -245,9 +287,17 @@ def report(packet, readers, rejected, t, hits, agreement, shape, compare, extra=
                     line += "，**在噪声内**（不大于同包重跑的波动）"
                 elif c.get("inside_noise") is False:
                     line += "，超过同包重跑的波动"
+            wrong = (extra.get("misattributed") or {}).get(p)
+            if wrong:
+                line += f"；{wrong} 位说到了但归属错（不算带走）"
             if (extra.get("blank") or {}).get(p):
                 line += "；**空白读者也带走了**：照抄第一段就能得分，不能当作读懂的证据"
             L.append(line)
+        inj = extra.get("injected")
+        if inj is None:
+            L.append("没有注入集（--injected）：判定者没有先在答案已知的答卷上查过。")
+        else:
+            L.append(f"注入集：判定者判错 {inj[0]} / {inj[1]} 格（允许 {INJECT_TOLERANCE}）。")
         if compare and not extra.get("floor"):
             L.append("没有同包重跑（--repeat-*）：看不出版本之间的变化是否大于面板自身的波动。")
         by_model = extra.get("by_model") or {}
@@ -310,6 +360,7 @@ def main(argv=None):
     ap.add_argument("--outputs", required=True)
     ap.add_argument("--judgments")
     ap.add_argument("--min-readers", type=int, default=8)
+    ap.add_argument("--injected", help="answers of known grade: reader<TAB>point<TAB>truth")
     ap.add_argument("--repeat-outputs", help="a second panel's outputs on the same packet")
     ap.add_argument("--repeat-judgments")
     ap.add_argument("--compare-packet")
@@ -330,7 +381,8 @@ def main(argv=None):
     if a.repeat_outputs and hits is not None:
         _, rreaders, _ = load_panel(a.packet, a.repeat_outputs)
         floor = noise_floor(hits, carried(load_judgments(a.repeat_judgments), rreaders)[0])
-    extra = {"floor": floor, "by_model": carried_by_model(judgments, readers), "blank": blank_carried(judgments)}
+    extra = {"floor": floor, "by_model": carried_by_model(judgments, readers), "blank": blank_carried(judgments),
+             "misattributed": misattributed(judgments, readers), "injected": injected_misses(a.injected, judgments)}
     compare = None
     if a.compare_packet and a.compare_outputs and hits is not None:
         cpacket, creaders, _ = load_panel(a.compare_packet, a.compare_outputs)
@@ -344,6 +396,8 @@ def main(argv=None):
                 delta = abs(v["carried"] / v["judged"] - c["carried"] / c["judged"])
                 compare[p]["inside_noise"] = (delta <= f["spread"] + 1e-9) if f else None
     shape = panel_shape(readers, max(a.min_readers, MIN_PANEL))
+    if extra["injected"] and extra["injected"][0] > INJECT_TOLERANCE:
+        shape[0].append(f"判定者在注入集上判错 {extra['injected'][0]} 格（允许 {INJECT_TOLERANCE}）")
     text = report(packet, readers, rejected, t, hits, agreement, shape, compare, extra)
     out = Path(a.packet).parent / "report.md"
     out.write_text(text, encoding="utf-8")
@@ -352,6 +406,7 @@ def main(argv=None):
         print(json.dumps({"readers": len(readers), "rejected": rejected, "carried": hits, "agreement": agreement,
                           "panel_problems": shape[0], "compare": compare, "tally": t, "noise_floor": floor,
                           "by_model": extra["by_model"], "blank": extra["blank"], "repetition": packet.get("repetition"),
+                          "misattributed": extra["misattributed"], "injected": extra["injected"],
                           "recorded": bool(rec)}, ensure_ascii=False, indent=1))
     else:
         print(text.splitlines()[0])

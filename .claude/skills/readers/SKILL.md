@@ -59,8 +59,13 @@ report.
 
 4. Judge the intent points. Two judges, independently: you, and a separate sub-agent given the readers' `remember`
    and directed answers with the reader names shuffled and the version not named. Each writes
-   `reader<TAB>point<TAB>judge<TAB>✓|△|✗` rows to `<dir>/judgments.tsv`. A reader carries a point only when at
+   `reader<TAB>point<TAB>judge<TAB>✓|△|✗|≠` rows to `<dir>/judgments.tsv`. A reader carries a point only when at
    least two judges wrote ✓; judges who disagree count as not carried, and a pair with one judge is not judged.
+   Give each judge the facts of every point (who or what did it, the number), not only its name: `≠` is a point said
+   but credited to the wrong thing, and a judge told only the point's name grades it ✓. Mix a set of answers whose
+   grade you know into the judging (one correct, one misattributed, one reversed, one bare number per point is
+   enough), write their grades to `<dir>/injected.tsv` as `reader<TAB>point<TAB>truth`, and pass `--injected`:
+   more than two misses records the panel as a failure.
    The tally cannot tell two judge names written by one hand: the second judge must be a separate sub-agent that
    has not seen the first judge's rows.
 

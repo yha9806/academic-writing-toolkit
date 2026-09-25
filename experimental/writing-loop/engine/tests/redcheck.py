@@ -738,6 +738,10 @@ MUTATIONS = [
     ("gap", 'skill:readers/scripts/tally-readers.py', '        if reader == BLANK and len(vals) >= MIN_JUDGES:', '        if False:', 'test_readers.ReadersTest.test_counts_are_given_per_model_and_what_the_blank_reader_carries_is_marked'),
     ("gap", 'skill:readers/scripts/tally-readers.py', '    return {m: carried(judgments, [r for r in readers if r["model"] == m])[0] for m in sorted({r["model"] for r in readers})}', '    return {m: carried(judgments, readers)[0] for m in sorted({r["model"] for r in readers})}', 'test_readers.ReadersTest.test_counts_are_given_per_model_and_what_the_blank_reader_carries_is_marked'),
     ("gap", 'skill:readers/scripts/build-reader-packet.py', '    ab = [r for r, s in zip(rendered, sections) if str(s).upper().startswith("A")]', '    ab = []', 'test_readers.ReadersTest.test_the_packet_measures_how_much_the_introduction_repeats_the_abstract'),
+    # 判定查归属、判定者先过注入集（spec 2026-09-25 §4.3）。
+    ("gap", 'skill:readers/scripts/tally-readers.py', '        if reader in names and len(vals) >= MIN_JUDGES and all(x == "misattributed" for x in vals):', '        if False:', 'test_readers.ReadersTest.test_a_point_credited_to_the_wrong_thing_is_counted_apart_and_not_carried'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '    misses = sum((judgments or {}).get(pair, {}).get(j) != want for pair, want in truth.items() for j in judges)', '    misses = 0', 'test_readers.ReadersTest.test_judges_who_miss_the_injected_set_make_the_panel_a_failure'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '    if extra["injected"] and extra["injected"][0] > INJECT_TOLERANCE:', '    if False:', 'test_readers.ReadersTest.test_judges_who_miss_the_injected_set_make_the_panel_a_failure'),
 ]
 
 

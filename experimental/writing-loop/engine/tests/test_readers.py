@@ -305,6 +305,53 @@ The next sentence must survive.
                 [script("tally-readers.py", "--packet", out / "packet.json", "--outputs", panel(root, packet)).stdout,
                  (out / "report.md").read_text(encoding="utf-8")]))
 
+    def test_a_point_credited_to_the_wrong_thing_is_counted_apart_and_not_carried(self):
+        # Readers who told one model's result as another's were graded ✓: the judge was asked only whether the point
+        # was mentioned (spec 2026-09-25 §4.3).
+        all8 = [f"{pr}_{m}_{n}" for pr in ("R1", "R2") for m in ("small", "large") for n in (1, 2)]
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            j = self.judgments(root, "j.tsv", all8[:4])
+            j.write_text(j.read_text(encoding="utf-8").replace(f"{all8[4]}\tM1\tmain\t✗", f"{all8[4]}\tM1\tmain\t≠")
+                         .replace(f"{all8[4]}\tM1\tsub\t✗", f"{all8[4]}\tM1\tsub\t≠"), encoding="utf-8")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--judgments", j, "--json").stdout)
+            self.assertEqual(got["carried"]["M1"], {"carried": 4, "judged": 8})
+            self.assertEqual(got["misattributed"], {"M1": 1})
+            self.assertIn("归属错", (out / "report.md").read_text(encoding="utf-8"))
+
+    def test_judges_who_miss_the_injected_set_make_the_panel_a_failure(self):
+        all8 = [f"{pr}_{m}_{n}" for pr in ("R1", "R2") for m in ("small", "large") for n in (1, 2)]
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            card = Path(root) / "card.md"
+            card.write_text("M1 bridges fail slowly\n", encoding="utf-8")
+            cfg["target"] = {"intent_card": str(card)}
+            C.save(ws, cfg)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            truth = Path(root) / "injected.tsv"
+            truth.write_text("Z1\tM1\t✓\nZ2\tM1\t≠\nZ3\tM1\t✗\nZ4\tM1\t✗\n", encoding="utf-8")
+            good = "".join(f"{z}\tM1\t{jd}\t{v}\n" for z, v in (("Z1", "✓"), ("Z2", "≠"), ("Z3", "✗"), ("Z4", "✗"))
+                           for jd in ("main", "sub"))
+            bad = good.replace("Z2\tM1\tsub\t≠", "Z2\tM1\tsub\t✓").replace("Z3\tM1\tsub\t✗", "Z3\tM1\tsub\t✓") \
+                      .replace("Z4\tM1\tsub\t✗", "Z4\tM1\tsub\t✓")
+            args = ["--packet", out / "packet.json", "--outputs", d, "--injected", truth, "--json"]
+            ok = json.loads(script("tally-readers.py", *args, "--judgments",
+                                   self.judgments(root, "ok.tsv", all8[:4], extra=good)).stdout)
+            self.assertEqual(ok["injected"], [0, 8])
+            self.assertEqual(ok["panel_problems"], [])
+            self.assertEqual(ok["carried"]["M1"], {"carried": 4, "judged": 8}, "injected answers are not readers")
+            no = json.loads(script("tally-readers.py", *args, "--judgments",
+                                   self.judgments(root, "no.tsv", all8[:4], extra=bad)).stdout)
+            self.assertEqual(no["injected"], [3, 8])
+            self.assertTrue(any("注入集" in x for x in no["panel_problems"]), no["panel_problems"])
+            row = next(x for x in V.compute(C.load(ws), ws)["rows"] if x["id"] == "readers")
+            self.assertEqual(row["status"], V.FAILED, "a panel whose judges failed the injected set is not a reading")
+
     def test_a_small_panel_is_recorded_as_a_failure_not_a_reading(self):
         with TempDir() as root:
             repo, ws = setup(root)
