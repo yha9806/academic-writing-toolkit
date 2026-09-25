@@ -31,6 +31,8 @@ The ledger is Markdown, like the risk register:
 The whole draft is scanned, not what changed: a claim corrected in one section and left as it was in the abstract is
 the failure this exists for. Whatever cannot be read is said and counts against readiness, never skipped.
 """
+import json
+import os
 import re
 from pathlib import Path
 
@@ -133,12 +135,83 @@ def parse(raw):
     return stage, claims, todo, problems
 
 
-def scan(claims, sentences):
-    """Sentences anywhere in the draft that say a claim more strongly than allowed, and required wordings absent."""
+EXTRA_SCAN_VERSION = 1  # bump when extraction changes, so a cached scan is not reused
+
+
+def _listed(cfg, key, problems):
+    """A config list of paths, or [] with a problem said: a bare string would be read one character per path."""
+    from . import catalogue as K
+    v = K.get(cfg, key)
+    if v is None:
+        return []
+    if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
+        problems.append(f"{key} 要写成路径的列表，现在是 {type(v).__name__}")
+        return []
+    return v
+
+
+def extra_sentences(cfg, head, problems, ws=None):
+    """Text submitted with the draft but not tracked sentence by sentence (inputs.also_checked, e.g. a supplement) and
+    text inside figure and table sources (inputs.also_scanned: paths, directories or globs where * stays within a
+    path segment and ** spans them), read at the index's commit. Files that are already draft files are left to the
+    index. Scanned for wordings a claim forbids; never used to satisfy a required wording. Every listed entry that
+    yields nothing is said. Read through one cat-file process and cached by commit and list, since the per-turn line
+    computes this."""
+    from . import coverage as V
+    from . import gitio
+    from . import text as T
+    listed = _listed(cfg, "inputs.also_checked", problems) + _listed(cfg, "inputs.also_scanned", problems)
+    if not listed or not head:
+        return []
+    cache = Path(ws) / "cache" / "coverage" / "extra_scan.json" if ws else None
+    key = json.dumps([EXTRA_SCAN_VERSION, head, listed, cfg["draft"].get("glob")], ensure_ascii=False)
+    if cache is not None:
+        try:
+            got = json.loads(cache.read_text(encoding="utf-8"))
+            if isinstance(got, dict) and got.get("key") == key and isinstance(got.get("sentences"), list) \
+                    and isinstance(got.get("problems"), list):
+                problems.extend(got["problems"])
+                return got["sentences"]
+        except (OSError, ValueError):
+            pass  # an unreadable cache is rebuilt, never trusted
+    repo = cfg["repo"]
+    files = set(gitio.ls_tree(repo, head, "."))
+    drafts = set(V.draft_files(cfg, head))
+    found, said = [], []
+    for spec, names in T.resolve_listed(listed, files):
+        names = [n for n in names if n not in drafts]
+        if not names:
+            said.append(f"额外扫描的 {spec} 在 {head[:7]} 上没有可读的文件（不在仓里、是空目录，或只有正文文件）")
+        found += [n for n in names if n not in found]
+    out = []
+    with gitio.batch(repo):
+        for path in found:
+            raw = gitio.show(repo, head, path)
+            if raw is None:
+                said.append(f"额外扫描的文件在 {head[:7]} 上读不出：{path}")
+                continue
+            plain = T.tex_plain(raw) if path.endswith(".tex") else re.sub(r"\s+", " ", raw)
+            out += [{"label": f"{path}#{i}", "text": s} for i, s in enumerate(T.split_sentences(plain), 1)]
+    problems.extend(said)
+    if cache is not None:
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            tmp = cache.with_name(f".extra_scan.{os.getpid()}.tmp")
+            tmp.write_text(json.dumps({"key": key, "problems": said, "sentences": out}, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(cache)
+        except OSError:
+            pass
+    return out
+
+
+def scan(claims, sentences, extra=()):
+    """Sentences anywhere in the draft that say a claim more strongly than allowed, and required wordings absent.
+    extra: text outside the index (supplement, figure and table sources), searched for forbidden wordings only."""
     over, absent = [], []
     for c in claims:
         for raw, rx in c["over"]:
-            labels = [s.get("label") or s.get("sid") or "?" for s in sentences if rx.search(s.get("text") or "")]
+            labels = [s.get("label") or s.get("sid") or "?" for s in list(sentences) + list(extra)
+                      if rx.search(s.get("text") or "")]
             if labels:
                 over.append({"claim": c["id"], "pattern": raw, "labels": labels})
         for raw, rx in c["must"]:
@@ -155,6 +228,8 @@ def judge(st):
     blockers = []
     if st["problems"]:
         blockers.append(f"清单读不懂 {len(st['problems'])} 处")
+    if st.get("scan_problems"):
+        blockers.append(f"额外扫描读不到 {len(st['scan_problems'])} 处")
     if weak:
         blockers.append("没立住 " + "、".join(c["id"] for c in weak))
     if labels:
@@ -175,7 +250,7 @@ def compute(cfg, ws):
         return {"configured": False, "verdict": NO_LEDGER}
     p = Path(path).expanduser()
     st = {"configured": True, "path": str(p), "stage": "", "claims": [], "todo": [], "problems": [], "over": [],
-          "absent": [], "index_head": None}
+          "absent": [], "index_head": None, "scan_problems": []}
     try:
         raw = p.read_text(encoding="utf-8")
     except OSError:
@@ -187,7 +262,8 @@ def compute(cfg, ws):
     if sentences is None:
         st["problems"].append("句子索引没建（loop update），整篇的越界扫描没做")
     else:
-        st["over"], st["absent"] = scan(st["claims"], sentences)
+        extra = extra_sentences(cfg, st["index_head"], st["scan_problems"], ws)
+        st["over"], st["absent"] = scan(st["claims"], sentences, extra)
     return judge(st)
 
 
@@ -235,6 +311,8 @@ def table(st):
     out = [line(st), f"清单：{st['path']}" + (f" · 索引 {str(st['index_head'])[:7]}" if st.get("index_head") else "")]
     for p in st["problems"]:
         out.append(f"  读不懂  {p}")
+    for p in st.get("scan_problems") or []:
+        out.append(f"  读不到  {p}")
     for c in st["claims"]:
         out.append(f"  主张 {c['id']}  {c['strength'] or '?'}  {c['title']}")
         out.append(f"      允许的说法：{c['allowed'] or '—'}")

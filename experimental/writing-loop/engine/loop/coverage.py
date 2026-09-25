@@ -184,10 +184,18 @@ def unindexed_of(check, cfg, head):
 _OUTSIDE_CACHE = {}
 
 
+def _git_head(repo):
+    """A repository read at its HEAD commit (git:<repo> in a check's outside list): the commit, or None."""
+    r = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
 def outside_hash(path):
     """A file or a directory by content (a directory: every file's relative path and bytes). A missing path: None.
     Content, not size: a replaced PDF of the same size is a different corpus. File digests are memoised on
     (path, size, mtime) for the life of the process."""
+    if str(path).startswith("git:"):
+        return _git_head(str(path)[4:])
     p = Path(path)
 
     def file_digest(q):
@@ -269,7 +277,7 @@ def diff(old, new):
             reasons.append(f"输入 {role} 变了")
     for q in sorted(set(old.get("outside") or {}) | set(new["outside"])):
         if (old.get("outside") or {}).get(q) != new["outside"].get(q):
-            reasons.append(f"外部文件 {Path(q).name} 变了")
+            reasons.append(f"数据仓 {Path(q[4:]).name} 有新提交" if q.startswith("git:") else f"外部文件 {Path(q).name} 变了")
     if old.get("script") != new["script"]:
         reasons.append("检查脚本本身改过")
     if old.get("config") != new["config"]:
@@ -344,7 +352,10 @@ def interpret(check_id, code, stdout, stderr):
         return "failed", f"退出码 {code} 却没有给出结果：{tail}"
     summary = ""
     if isinstance(data, dict):
-        if "outliers" in data:
+        if isinstance(data.get("summary_zh"), str) and data["summary_zh"]:
+            # A check that says what it found in one line says it best; the shapes below are guesses at older ones.
+            summary = data["summary_zh"]
+        elif "outliers" in data:
             out = data.get("outliers") or []
             summary = f"越界 {len(out)} 项" + (f"：{', '.join(out)}" if out else "")
             # The script leaves per-section rates uncomputed for a directory target and calls that a hole, not a
@@ -649,6 +660,131 @@ def _readers_scope(cfg, sentences):
     return {"sections": list(prefixes), "sentences": inside, "of": len(sentences)}
 
 
+SCAN_MIN_WORDS = 20  # an unmatched heading with fewer words (a stub, a heading-only line) is shown, not failed
+
+
+_INPUTS = re.compile(r"\\(?:input|include|subfile)\s*\{([^{}]+)\}|\\input\s+([^\s{}\\]+)"
+                     r"|\\(?:sub)?import\*?\{([^{}]*)\}\{([^{}]+)\}")
+INPUT_DEPTH = 6
+
+
+def _input_targets(tex, here, files):
+    """Files a LaTeX text pulls in, resolved the way a compile run from the main file's directory would find them:
+    \\input{x}, \\input x, \\include, \\subfile, \\import{dir}{x}; ./ and .. normalised; .tex added only
+    when the name has no extension. A name not found from the main file's directory is tried from the including
+    file's own directory (subfiles, subimport). Only paths present in the tree are returned."""
+    import posixpath
+    from . import text as T
+    out = []
+    for a, b, d, f in _INPUTS.findall(T._TEX_COMMENT.sub("", tex)):
+        name = (a or b or (posixpath.join(d, f) if f else "")).strip()
+        if not name:
+            continue
+        if not posixpath.splitext(name)[1]:
+            name += ".tex"
+        for base in here:
+            cand = posixpath.normpath(posixpath.join(base, name) if base else name)
+            if cand in files:
+                out.append(cand)
+                break
+    return out
+
+
+def scan_coverage(cfg, head):
+    """How much of the draft at head the section rules keep (text.section_coverage over the draft's files joined), or
+    None when there is no head or no draft to read. A heading renamed after the config was written leaves the index in
+    silence; this is where that silence becomes a row. Also said: files the draft pulls in (at any depth) that no list
+    in the config accounts for, and config values of the wrong shape."""
+    if not head:
+        return None
+    paths = draft_files(cfg, head)
+    if not paths:
+        return None
+    import posixpath
+    from . import gitio
+    from . import text as T
+    errors = []
+    ignore = cfg["draft"].get("ignore_headings") or []
+    if not isinstance(ignore, list) or not all(isinstance(x, str) for x in ignore):
+        errors.append("draft.ignore_headings 要写成正则的列表")
+        ignore = []
+    good = []
+    for x in ignore:
+        try:
+            rx = re.compile(x)
+        except re.error as e:
+            errors.append(f"draft.ignore_headings 里的正则编不过：{x}（{e}）")
+            continue
+        if rx.search(""):
+            errors.append(f"draft.ignore_headings 里的「{x}」连空标题都匹配，会把所有标题都不扫")
+            continue
+        good.append(x)
+    inputs = cfg.get("inputs") if cfg.get("inputs") is not None else {}
+    if not isinstance(inputs, dict):
+        errors.append("inputs 要写成对象（键值表）")
+        inputs = {}
+    specs = []
+    for k in ("also_checked", "also_scanned"):
+        v = inputs.get(k) or []
+        if isinstance(v, list) and all(isinstance(s, str) for s in v):
+            specs += v
+        else:
+            errors.append(f"inputs.{k} 要写成路径的列表")
+    with gitio.batch(cfg["repo"]):
+        texts = {p: gitio.show(cfg["repo"], head, p) or "" for p in paths}
+        joined = "\n\n".join(texts[p] for p in paths)
+        fmt = draft_format(cfg)
+        cov = T.section_coverage(joined, cfg["draft"]["sections"], fmt, ignore=good)
+        unlisted = []
+        if fmt == "latex":
+            files = set(gitio.ls_tree(cfg["repo"], head, "."))
+            accounted = set(paths) | {n for _, ns in T.resolve_listed(specs, files) for n in ns}
+            root = posixpath.dirname(paths[0])
+            queue, seen = [(p, texts[p], 0) for p in paths], set(paths)
+            while queue:
+                path, tex, depth = queue.pop(0)
+                for target in _input_targets(tex, [root, posixpath.dirname(path)], files):
+                    if target in seen:
+                        continue
+                    seen.add(target)
+                    if target not in accounted:
+                        unlisted.append(target)
+                    if depth < INPUT_DEPTH and target.endswith(T.TEXT_SUFFIXES):
+                        queue.append((target, gitio.show(cfg["repo"], head, target) or "", depth + 1))
+    cov.update(head=head, min_words=SCAN_MIN_WORDS, errors=errors, unlisted=unlisted)
+    return cov
+
+
+def scan_row(cov):
+    """The coverage as a row: failed while a heading carrying prose is neither matched nor ignored, while the rules keep
+    nothing of a draft that has prose, while the draft pulls in a file no list accounts for, or while the config is
+    of the wrong shape."""
+    big = [m for m in cov["missing"] if m["words"] >= cov["min_words"]]
+    small = [m for m in cov["missing"] if m["words"] < cov["min_words"]]
+    whole = cov["kept"] + cov["dropped"] + cov["ignored"]
+    share = f"{cov['kept'] / whole:.0%}" if whole else "—"
+    named = lambda ms: "、".join(f"「{m['heading']}」{m['words']} 词" for m in ms[:5]) + ("…" if len(ms) > 5 else "")
+    base = {"id": "_scan", "name": "扫描覆盖", "kind": "internal", "last_commit": (cov.get("head") or "")[:7]}
+    parts = [f"扫描范围内 {cov['kept']} 词，占各标题下正文的 {share}"]
+    if cov["ignored"]:
+        parts.append(f"按配置不扫 {cov['ignored']} 词")
+    if cov.get("before_first"):
+        parts.append(f"第一个标题之前 {cov['before_first']} 词（题名、作者、关键词之类，不算失败）")
+    bad = list(cov.get("errors") or [])
+    if big:
+        bad.insert(0, f"{len(big)} 个标题不在扫描范围：{named(big)}（在 draft.sections 加规则，或写进 draft.ignore_headings）")
+    if cov["kept"] == 0 and max(cov.get("before_first") or 0, cov["dropped"]) >= cov["min_words"]:
+        bad.insert(0, "节规则在这份稿子里一个词也没保留（标题格式或 draft.format 和稿子对不上？）")
+    if cov.get("unlisted"):
+        bad.append("稿子引入了、但不在任何扫描列表里的文件：" + "、".join(cov["unlisted"][:5])
+                   + ("…" if len(cov["unlisted"]) > 5 else "") + "（正文进 draft.glob；图、表、宏定义进 inputs.also_scanned）")
+    if bad:
+        return {**base, "status": FAILED, "due": False, "detail": "；".join(bad + parts)}
+    if small:
+        parts.append(f"很短、没算失败的标题：{named(small)}")
+    return {**base, "status": OK, "detail": "；".join(parts)}
+
+
 def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     """Rows for every check, running the due script checks first when do_run. Writes cache/coverage/summary.json."""
     sentences, index_head = current_sentences(ws)
@@ -666,6 +802,9 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
                 run(check, cfg, ws, head, sentences, now=now)
                 ran.append(check["id"])
     rows = [row(c, cfg, ws, head, sentences, index_head) for c in checks]
+    scan = scan_coverage(cfg, head)
+    if scan is not None:
+        rows.append(scan_row(scan))
     counts = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
@@ -679,6 +818,7 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
                "experiments": TG.experiments(cfg),
                "risks": TG.risks(cfg),
                "readers_scope": _readers_scope(cfg, sentences),
+               "scan_coverage": scan,
                "unwired": [{"script": k, "reason": v} for k, v in sorted(K.UNWIRED.items())]}
     d = Path(ws) / "cache" / "coverage"
     d.mkdir(parents=True, exist_ok=True)
@@ -720,6 +860,8 @@ STATUSES = (OK, STALE, NEVER, MISSING, NOT_APPLICABLE, WAIVED, FAILED)
 
 
 def _stat_sig(path):
+    if str(path).startswith("git:"):
+        return _git_head(str(path)[4:])
     p = Path(path)
     if p.is_file():
         st = p.stat()
@@ -737,6 +879,10 @@ def fingerprint(cfg, ws):
     rows = [[c["id"], script_hash(c), config_hash(c, cfg), [_stat_sig(p) for p in c["outside"](cfg)]]
             for c in K.all_checks(cfg)]
     rows.append(["_waivers", sorted(waivers(ws).items())])
+    d = cfg.get("draft") or {}
+    inp = cfg.get("inputs") if isinstance(cfg.get("inputs"), dict) else {}
+    rows.append(["_scan", d.get("glob"), d.get("format"), d.get("sections"), d.get("ignore_headings"),
+                 inp.get("also_checked"), inp.get("also_scanned")])
     if cfg.get("risks"):
         rows.append(["_risks", _stat_sig(Path(cfg["risks"]).expanduser())])
     return _sha(json.dumps(rows, ensure_ascii=False, default=str))

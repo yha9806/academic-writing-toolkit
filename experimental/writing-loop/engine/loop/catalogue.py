@@ -16,7 +16,7 @@ Per check:
   inputs    function(cfg) -> {role: repo path} of files the check reads besides the draft; they are archived with it,
             and a change to any of them makes the check stale.
   outside   function(cfg) -> [absolute paths] read in place (a venue corpus, an intent card); their content hash is
-            part of what a run is keyed on.
+            part of what a run is keyed on. An entry git:<repo> is that repository's HEAD commit instead.
   base      optional function(cfg, head) -> fallback git ref, for a check that compares two versions: the draft at the
             base coverage.resolve_base picks (the check's last clean head, else this ref) is archived beside the
             draft, in BASE_DIR, and the run record names it.
@@ -112,6 +112,45 @@ def _numbers_inputs(cfg):
     for i, p in enumerate(get(cfg, "inputs.number_artifacts") or []):
         out[f"artifact{i}"] = p
     return out
+
+
+def _generated_inputs(cfg):
+    return {"manifest": get(cfg, "inputs.generated")}
+
+
+def _generated_outside(cfg):
+    """The data repositories the manifest's generators run from, as git:<repo> (not a file path: coverage reads it as
+    that repository's HEAD commit), so the check reruns when one commits.
+    Read from the manifest at the configured ref; an unreadable manifest names none (the run then fails on it)."""
+    import json
+    import subprocess
+    m = get(cfg, "inputs.generated")
+    if not m or not cfg.get("repo"):
+        return []
+    r = subprocess.run(["git", "-C", str(Path(cfg["repo"]).expanduser()), "show", f"{cfg.get('ref') or 'HEAD'}:{m}"],
+                       capture_output=True, text=True)
+    if r.returncode:
+        return []
+    try:
+        gens = json.loads(r.stdout).get("generators") or []
+    except (ValueError, AttributeError):
+        return []
+    if not isinstance(gens, list):
+        return []
+    repos = {str(Path(os.path.expanduser(g["repo"])).resolve()) for g in gens
+             if isinstance(g, dict) and isinstance(g.get("repo"), str) and g["repo"]}
+    return [f"git:{r}" for r in sorted(repos)]
+
+
+def _float_reviews_argv(ctx):
+    """Every draft file and every also-checked file is a place a float can start from; the script follows \input from
+    each and counts a file once."""
+    mains = list(ctx["drafts"]) + [p for p in (get(ctx["cfg"], "inputs.also_checked") or [])
+                                   if p not in ctx["drafts"] and (Path(ctx["tmp"]) / p).is_file()]
+    args = _py(ctx, "audit/audit-float-reviews.py") + ["--base-dir", ".", "--reviews", ctx["inputs"]["reviews"], "--json"]
+    for m in mains:
+        args += ["--main", m]
+    return args
 
 
 def _fingerprint_venue_argv(ctx):
@@ -222,6 +261,17 @@ CHECKS = [
      "inputs": _numbers_inputs, "outside": _no_outside,
      "argv": lambda ctx: _py(ctx, "audit/audit-number-ledger.py") + [
          "--base-dir", ".", "--ledger", ctx["inputs"]["ledger"], "--json"]},
+    {"id": "generated-copies", "name": "生成物对照", "kind": "script", "scripts": ["audit/audit-generated-copies.py"],
+     "formats": ["latex", "markdown"], "instead": {},
+     "scope": {"kind": "tree"}, "needs": ["inputs.generated"], "tree": True, "timeout": 600,
+     "inputs": _generated_inputs, "outside": _generated_outside,
+     "argv": lambda ctx: _py(ctx, "audit/audit-generated-copies.py") + [
+         "--base-dir", ".", "--manifest", ctx["inputs"]["manifest"], "--json"]},
+    {"id": "float-reviews", "name": "图表看过", "kind": "script", "scripts": ["audit/audit-float-reviews.py"],
+     "formats": ["latex"], "instead": {},
+     "scope": {"kind": "tree"}, "needs": ["inputs.float_reviews"], "tree": True,
+     "inputs": lambda cfg: {"reviews": get(cfg, "inputs.float_reviews")}, "outside": _no_outside,
+     "argv": _float_reviews_argv},
     {"id": "fingerprint-venue", "name": "文风·对照目标刊物", "kind": "script",
      "scripts": ["audit/audit-prose-fingerprint.py"],
      "formats": ["latex", "markdown"], "instead": {},
