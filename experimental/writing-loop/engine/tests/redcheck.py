@@ -718,6 +718,18 @@ MUTATIONS = [
      'test_overview.TodoTest.test_the_paper_cell_follows_the_claims_ledger'),
     ("state", 'overview.py', '    cells.insert(0, paper)', '    pass',
      'test_state.StateTest.test_the_overview_puts_the_paper_before_the_checks'),
+    # 生成物对照（spec 2026-09-25-generated-copies-and-float-reviews）：数据仓按 HEAD 提交读，行由检查自己的一句话说。
+    ("fig", 'coverage.py', '    if str(path).startswith("git:"):\n        return _git_head(str(path)[4:])\n    p = Path(path)\n\n    def file_digest', '    p = Path(path)\n\n    def file_digest',
+     'test_figures_tables.GeneratedCopiesInTheLoop.test_the_row_goes_stale_when_the_data_repository_commits'),
+    ("fig", 'coverage.py', '    if str(path).startswith("git:"):\n        return _git_head(str(path)[4:])\n    p = Path(path)\n    if p.is_file():\n        st = p.stat()', '    p = Path(path)\n    if p.is_file():\n        st = p.stat()',
+     'test_figures_tables.GeneratedCopiesInTheLoop.test_the_row_goes_stale_when_the_data_repository_commits'),
+    ("fig", 'coverage.py', '            reasons.append(f"数据仓 {Path(q[4:]).name} 有新提交" if q.startswith("git:") else f"外部文件 {Path(q).name} 变了")',
+     '            reasons.append(f"外部文件 {Path(q).name} 变了")',
+     'test_figures_tables.GeneratedCopiesInTheLoop.test_the_row_goes_stale_when_the_data_repository_commits'),
+    ("fig", 'coverage.py', '        if isinstance(data.get("summary_zh"), str) and data["summary_zh"]:', '        if False:',
+     'test_figures_tables.GeneratedCopiesInTheLoop.test_a_one_line_summary_is_what_the_row_says'),
+    ("fig", 'catalogue.py', '    return [f"git:{r}" for r in sorted(repos)]', '    return []',
+     'test_figures_tables.GeneratedCopiesInTheLoop.test_the_outside_list_comes_from_the_manifest_at_the_ref'),
 ]
 
 

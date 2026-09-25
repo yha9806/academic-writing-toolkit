@@ -184,10 +184,18 @@ def unindexed_of(check, cfg, head):
 _OUTSIDE_CACHE = {}
 
 
+def _git_head(repo):
+    """A repository read at its HEAD commit (git:<repo> in a check's outside list): the commit, or None."""
+    r = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
 def outside_hash(path):
     """A file or a directory by content (a directory: every file's relative path and bytes). A missing path: None.
     Content, not size: a replaced PDF of the same size is a different corpus. File digests are memoised on
     (path, size, mtime) for the life of the process."""
+    if str(path).startswith("git:"):
+        return _git_head(str(path)[4:])
     p = Path(path)
 
     def file_digest(q):
@@ -269,7 +277,7 @@ def diff(old, new):
             reasons.append(f"输入 {role} 变了")
     for q in sorted(set(old.get("outside") or {}) | set(new["outside"])):
         if (old.get("outside") or {}).get(q) != new["outside"].get(q):
-            reasons.append(f"外部文件 {Path(q).name} 变了")
+            reasons.append(f"数据仓 {Path(q[4:]).name} 有新提交" if q.startswith("git:") else f"外部文件 {Path(q).name} 变了")
     if old.get("script") != new["script"]:
         reasons.append("检查脚本本身改过")
     if old.get("config") != new["config"]:
@@ -344,7 +352,10 @@ def interpret(check_id, code, stdout, stderr):
         return "failed", f"退出码 {code} 却没有给出结果：{tail}"
     summary = ""
     if isinstance(data, dict):
-        if "outliers" in data:
+        if isinstance(data.get("summary_zh"), str) and data["summary_zh"]:
+            # A check that says what it found in one line says it best; the shapes below are guesses at older ones.
+            summary = data["summary_zh"]
+        elif "outliers" in data:
             out = data.get("outliers") or []
             summary = f"越界 {len(out)} 项" + (f"：{', '.join(out)}" if out else "")
             # The script leaves per-section rates uncomputed for a directory target and calls that a hole, not a
@@ -849,6 +860,8 @@ STATUSES = (OK, STALE, NEVER, MISSING, NOT_APPLICABLE, WAIVED, FAILED)
 
 
 def _stat_sig(path):
+    if str(path).startswith("git:"):
+        return _git_head(str(path)[4:])
     p = Path(path)
     if p.is_file():
         st = p.stat()

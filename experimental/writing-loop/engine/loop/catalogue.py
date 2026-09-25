@@ -114,6 +114,33 @@ def _numbers_inputs(cfg):
     return out
 
 
+def _generated_inputs(cfg):
+    return {"manifest": get(cfg, "inputs.generated")}
+
+
+def _generated_outside(cfg):
+    """The data repositories the manifest's generators run from, as git:<repo>: the check reruns when one commits.
+    Read from the manifest at the configured ref; an unreadable manifest names none (the run then fails on it)."""
+    import json
+    import subprocess
+    m = get(cfg, "inputs.generated")
+    if not m or not cfg.get("repo"):
+        return []
+    r = subprocess.run(["git", "-C", str(Path(cfg["repo"]).expanduser()), "show", f"{cfg.get('ref') or 'HEAD'}:{m}"],
+                       capture_output=True, text=True)
+    if r.returncode:
+        return []
+    try:
+        gens = json.loads(r.stdout).get("generators") or []
+    except (ValueError, AttributeError):
+        return []
+    if not isinstance(gens, list):
+        return []
+    repos = {str(Path(os.path.expanduser(g["repo"])).resolve()) for g in gens
+             if isinstance(g, dict) and isinstance(g.get("repo"), str) and g["repo"]}
+    return [f"git:{r}" for r in sorted(repos)]
+
+
 def _fingerprint_venue_argv(ctx):
     corpus = get(ctx["cfg"], "target.venue_corpus.dir")
     return _py(ctx, "audit/audit-prose-fingerprint.py") + ["--target", ".", "--baseline", str(Path(corpus).expanduser()),
@@ -222,6 +249,12 @@ CHECKS = [
      "inputs": _numbers_inputs, "outside": _no_outside,
      "argv": lambda ctx: _py(ctx, "audit/audit-number-ledger.py") + [
          "--base-dir", ".", "--ledger", ctx["inputs"]["ledger"], "--json"]},
+    {"id": "generated-copies", "name": "生成物对照", "kind": "script", "scripts": ["audit/audit-generated-copies.py"],
+     "formats": ["latex", "markdown"], "instead": {},
+     "scope": {"kind": "tree"}, "needs": ["inputs.generated"], "tree": True, "timeout": 600,
+     "inputs": _generated_inputs, "outside": _generated_outside,
+     "argv": lambda ctx: _py(ctx, "audit/audit-generated-copies.py") + [
+         "--base-dir", ".", "--manifest", ctx["inputs"]["manifest"], "--json"]},
     {"id": "fingerprint-venue", "name": "文风·对照目标刊物", "kind": "script",
      "scripts": ["audit/audit-prose-fingerprint.py"],
      "formats": ["latex", "markdown"], "instead": {},

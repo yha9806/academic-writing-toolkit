@@ -54,6 +54,8 @@ CHECKS = {
     "audit/audit-number-ledger.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty),
                           "--ledger", str(empty / "numbers.tsv")],
+    "audit/audit-generated-copies.py":
+        lambda s, empty: ["python3", str(s), "--base-dir", str(empty), "--manifest", "generated.json"],
     "audit/audit-claim-positioning.py":
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty)],
     "audit/audit-prose-structure.py":
