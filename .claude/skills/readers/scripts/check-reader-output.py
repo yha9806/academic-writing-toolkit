@@ -61,7 +61,11 @@ def problems(data, packet):
                 if k in e and not isinstance(e[k], list):
                     out.append(f"P{p} {k} is not a list")
     rem = data.get("remember")
-    if not isinstance(rem, list) or not [x for x in rem if isinstance(x, str) and x.strip()]:
+    if isinstance(rem, str) and rem.strip():
+        # Said as it is, not as "missing": a reader that numbered its points inside one string did answer, in the
+        # wrong shape, and a panel counted by hand around a vague message disagreed with the script's count.
+        out.append("remember is one string, not a list")
+    elif not isinstance(rem, list) or not [x for x in rem if isinstance(x, str) and x.strip()]:
         out.append("remember missing or empty")
     for k in TOP_TEXT:
         if not isinstance(data.get(k), str) or not data[k].strip():

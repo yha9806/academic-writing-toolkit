@@ -137,6 +137,41 @@ The next sentence must survive.
             self.assertIn("Persona: a county official", prompt)
             self.assertIn('"span": Which bridges?', prompt)
 
+    def test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it(self):
+        # Every \\ref used to become "§x", and most readers of one panel spent "what got in the way" on a placeholder
+        # the page does not show (spec 2026-09-25 §4.3). With the compiled .aux the number is the page's; a label the
+        # .aux lacks is said to be omitted, and the prompt tells readers that is the packet's limit.
+        with TempDir() as root:
+            src = Path(root) / "d.tex"
+            src.write_text("Methods are in \\S\\ref{sec:m}. Figure~\\ref{fig:a} shows the gauges.\n\n"
+                           "See \\autoref{tab:t} and \\S~\\ref{sec:gone}.\n", encoding="utf-8")
+            aux = Path(root) / "d.aux"
+            aux.write_text("\\newlabel{sec:m}{{3.2}{4}{Methods}{section.3.2}{}}\n"
+                           "\\newlabel{fig:a}{{2}{5}{Gauges}{figure.2}{}}\n"
+                           "\\newlabel{tab:t}{{4}{6}}\n", encoding="utf-8")
+            r = script("build-reader-packet.py", "--text", src, "--aux", aux, "--out", Path(root) / "o")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            text = (Path(root) / "o" / "manuscript.txt").read_text(encoding="utf-8")
+            self.assertNotIn("§x", text)
+            for shown in ("§3.2", "Figure 2 shows", "Table 4", "§(number omitted)"):
+                self.assertIn(shown, text)
+            packet = json.loads((Path(root) / "o" / "packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(packet["references"], {"resolved": 3, "omitted": 1, "aux": str(aux.resolve())})
+            head = (Path(root) / "o" / "prompt_R1.txt").read_text(encoding="utf-8").split("MANUSCRIPT")[0]
+            self.assertIn("(number omitted)", head, "the readers are told the omission is the packet's")
+
+    def test_without_an_aux_every_reference_says_its_number_is_omitted(self):
+        with TempDir() as root:
+            src = Path(root) / "d.tex"
+            src.write_text("Methods are in \\S\\ref{sec:m}. The table (\\ref{tab:t}) lists them.\n", encoding="utf-8")
+            r = script("build-reader-packet.py", "--text", src, "--out", Path(root) / "o")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            text = (Path(root) / "o" / "manuscript.txt").read_text(encoding="utf-8")
+            self.assertNotIn("§x", text)
+            self.assertIn("§(number omitted)", text)
+            packet = json.loads((Path(root) / "o" / "packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(packet["references"], {"resolved": 0, "omitted": 2, "aux": None})
+
     def test_nothing_to_read_exits_2(self):
         with TempDir() as root:
             empty = Path(root) / "e.txt"
@@ -155,6 +190,23 @@ The next sentence must survive.
             self.assertIn("R2_large_2.json: paragraphs", r.stdout)
             self.assertEqual(script("check-reader-output.py", "--packet", out / "packet.json",
                                     "--outputs", Path(root) / "none").returncode, 2)
+
+    def test_remember_written_as_one_string_is_named_as_such_not_as_missing(self):
+        # A reader that numbered its three points inside one string was reported as "remember missing or empty"; the
+        # panel's own count then disagreed with the script's, and the report used its own (spec 2026-09-25 §4.3).
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = Path(root) / "one"
+            d.mkdir()
+            data = reader_output(packet)
+            data["span"] = "the northern district"
+            data["remember"] = "1. bridges fail slowly 2. inspections are rare 3. gauges read 12"
+            (d / "R1_small_1.json").write_text(json.dumps(data), encoding="utf-8")
+            r = script("check-reader-output.py", "--packet", out / "packet.json", "--outputs", d)
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("remember is one string, not a list", r.stdout)
+            self.assertNotIn("remember missing", r.stdout)
 
     def test_a_full_panel_is_recorded_as_the_current_reading_until_an_in_scope_edit(self):
         with TempDir() as root:
@@ -185,6 +237,157 @@ The next sentence must survive.
             row = next(x for x in V.compute(cfg, ws)["rows"] if x["id"] == "readers")
             self.assertEqual(row["status"], V.STALE)
             self.assertEqual(row["changed"], 1)
+
+    def judgments(self, root, name, carriers, extra=""):
+        """Two judges who agree: ✓ for the readers in `carriers`, ✗ for the rest, on point M1."""
+        j = Path(root) / name
+        rows = []
+        for pr in ("R1", "R2"):
+            for m in ("small", "large"):
+                for n in (1, 2):
+                    r = f"{pr}_{m}_{n}"
+                    v = "✓" if r in carriers else "✗"
+                    rows += [f"{r}\tM1\tmain\t{v}\n", f"{r}\tM1\tsub\t{v}\n"]
+        j.write_text("".join(rows) + extra, encoding="utf-8")
+        return j
+
+    def test_a_repeat_panel_sets_the_noise_floor_and_a_change_inside_it_is_said_to_be_noise(self):
+        # One panel run twice on one text moved a point by three readers of sixteen, the size the round's rule called
+        # a clear drop (spec 2026-09-25 §4.3). A comparison is read against that spread, or says it has none.
+        all8 = [f"{pr}_{m}_{n}" for pr in ("R1", "R2") for m in ("small", "large") for n in (1, 2)]
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            j = self.judgments(root, "j.tsv", all8[:6])
+            rj = self.judgments(root, "rj.tsv", all8[:3])
+            cj = self.judgments(root, "cj.tsv", all8[:4])
+            args = ["--packet", out / "packet.json", "--outputs", d, "--judgments", j, "--compare-packet",
+                    out / "packet.json", "--compare-outputs", d, "--compare-judgments", cj, "--json"]
+            got = json.loads(script("tally-readers.py", *args, "--repeat-outputs", d, "--repeat-judgments", rj).stdout)
+            self.assertAlmostEqual(got["noise_floor"]["M1"]["spread"], 3 / 8)
+            self.assertIs(got["compare"]["M1"]["inside_noise"], True, "6/8 against 4/8 is inside a 6/8-3/8 spread")
+            self.assertIn("在噪声内", (out / "report.md").read_text(encoding="utf-8"))
+            got = json.loads(script("tally-readers.py", *args).stdout)
+            self.assertIsNone(got["compare"]["M1"]["inside_noise"])
+            self.assertIn("没有同包重跑", (out / "report.md").read_text(encoding="utf-8"))
+
+    def test_counts_are_given_per_model_and_what_the_blank_reader_carries_is_marked(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            blank = json.loads((out / "blank_reader.json").read_text(encoding="utf-8"))
+            self.assertEqual(blank["packet"], packet["packet_id"])
+            self.assertEqual(blank["remember"][0], "We audit a bridge survey.", "the blank reader copies the first paragraph")
+            d = panel(root, packet)
+            small = [f"{pr}_small_{n}" for pr in ("R1", "R2") for n in (1, 2)]
+            j = self.judgments(root, "j.tsv", small, extra="BLANK\tM1\tmain\t✓\nBLANK\tM1\tsub\t✓\n")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--judgments", j, "--json").stdout)
+            self.assertEqual(got["carried"]["M1"], {"carried": 4, "judged": 8}, "the blank reader is not a reader")
+            self.assertEqual(got["by_model"]["small"]["M1"], {"carried": 4, "judged": 4})
+            self.assertEqual(got["by_model"]["large"]["M1"], {"carried": 0, "judged": 4})
+            self.assertEqual(got["blank"], {"M1": True})
+            self.assertIn("空白读者也带走了", (out / "report.md").read_text(encoding="utf-8"))
+
+    def test_the_packet_measures_how_much_the_introduction_repeats_the_abstract(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            commit(repo, {"sections/01_intro.tex": INTRO.replace("Bridges fail slowly",
+                                                                  "We audit a bridge survey. Bridges fail slowly")},
+                   "v2", 1_700_000_100)
+            reindex(ws)
+            out, packet = self.build(root, ws)
+            rep = packet["repetition"]
+            self.assertGreaterEqual(rep["longest_verbatim_words"], 5, rep)
+            self.assertIn("we audit a bridge survey", rep["longest_verbatim"])
+            self.assertIn("引言第一段与摘要的重复", "".join(
+                [script("tally-readers.py", "--packet", out / "packet.json", "--outputs", panel(root, packet)).stdout,
+                 (out / "report.md").read_text(encoding="utf-8")]))
+
+    def test_a_point_credited_to_the_wrong_thing_is_counted_apart_and_not_carried(self):
+        # Readers who told one model's result as another's were graded ✓: the judge was asked only whether the point
+        # was mentioned (spec 2026-09-25 §4.3).
+        all8 = [f"{pr}_{m}_{n}" for pr in ("R1", "R2") for m in ("small", "large") for n in (1, 2)]
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            j = self.judgments(root, "j.tsv", all8[:4])
+            j.write_text(j.read_text(encoding="utf-8").replace(f"{all8[4]}\tM1\tmain\t✗", f"{all8[4]}\tM1\tmain\t≠")
+                         .replace(f"{all8[4]}\tM1\tsub\t✗", f"{all8[4]}\tM1\tsub\t≠"), encoding="utf-8")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--judgments", j, "--json").stdout)
+            self.assertEqual(got["carried"]["M1"], {"carried": 4, "judged": 8})
+            self.assertEqual(got["misattributed"], {"M1": 1})
+            self.assertIn("归属错", (out / "report.md").read_text(encoding="utf-8"))
+
+    def test_judges_who_miss_the_injected_set_make_the_panel_a_failure(self):
+        all8 = [f"{pr}_{m}_{n}" for pr in ("R1", "R2") for m in ("small", "large") for n in (1, 2)]
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            card = Path(root) / "card.md"
+            card.write_text("M1 bridges fail slowly\n", encoding="utf-8")
+            cfg["target"] = {"intent_card": str(card)}
+            C.save(ws, cfg)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            truth = Path(root) / "injected.tsv"
+            truth.write_text("Z1\tM1\t✓\nZ2\tM1\t≠\nZ3\tM1\t✗\nZ4\tM1\t✗\n", encoding="utf-8")
+            good = "".join(f"{z}\tM1\t{jd}\t{v}\n" for z, v in (("Z1", "✓"), ("Z2", "≠"), ("Z3", "✗"), ("Z4", "✗"))
+                           for jd in ("main", "sub"))
+            bad = good.replace("Z2\tM1\tsub\t≠", "Z2\tM1\tsub\t✓").replace("Z3\tM1\tsub\t✗", "Z3\tM1\tsub\t✓") \
+                      .replace("Z4\tM1\tsub\t✗", "Z4\tM1\tsub\t✓")
+            args = ["--packet", out / "packet.json", "--outputs", d, "--injected", truth, "--json"]
+            ok = json.loads(script("tally-readers.py", *args, "--judgments",
+                                   self.judgments(root, "ok.tsv", all8[:4], extra=good)).stdout)
+            self.assertEqual(ok["injected"], [0, 8])
+            self.assertEqual(ok["panel_problems"], [])
+            self.assertEqual(ok["carried"]["M1"], {"carried": 4, "judged": 8}, "injected answers are not readers")
+            no = json.loads(script("tally-readers.py", *args, "--judgments",
+                                   self.judgments(root, "no.tsv", all8[:4], extra=bad)).stdout)
+            self.assertEqual(no["injected"], [3, 8])
+            self.assertTrue(any("注入集" in x for x in no["panel_problems"]), no["panel_problems"])
+            row = next(x for x in V.compute(C.load(ws), ws)["rows"] if x["id"] == "readers")
+            self.assertEqual(row["status"], V.FAILED, "a panel whose judges failed the injected set is not a reading")
+
+    def test_a_directed_question_the_first_paragraph_answers_is_flagged_and_keys_do_not_reach_readers(self):
+        # All four prompted points were answerable by copying the abstract, and they sat at ceiling (spec 2026-09-25
+        # §4.3). A key phrase the first paragraph prints verbatim flags its question; keys are for judges only.
+        with TempDir() as root:
+            repo, ws = setup(root)
+            q = Path(root) / "q.tsv"
+            q.write_text("gauge\tWhat do the gauges read?\tgauges read 12\ncause\tWhy do bridges fail?\tcorrosion ‖ load\n",
+                         encoding="utf-8")
+            r = script("build-reader-packet.py", "--workspace", ws, "--out", Path(root) / "p", "--questions", q)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            packet = json.loads((Path(root) / "p" / "packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(packet["copyable_questions"], ["gauge"])
+            self.assertIn("gauge", r.stdout)
+            prompt = (Path(root) / "p" / "prompt_R1.txt").read_text(encoding="utf-8")
+            self.assertNotIn("corrosion", prompt, "an answer key never reaches a reader")
+            q.write_text("gauge\tWhat do the gauges read?\ncause\tWhy do bridges fail?\n", encoding="utf-8")
+            script("build-reader-packet.py", "--workspace", ws, "--out", Path(root) / "p2", "--questions", q)
+            again = json.loads((Path(root) / "p2" / "packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(again["packet_id"], packet["packet_id"], "keys do not change what the readers read")
+
+    def test_a_derived_metric_coded_only_by_the_reviser_is_not_a_count(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            derived = Path(root) / "derived.tsv"
+            derived.write_text("".join(f"misread\tR1_small_{n}\tmain\t1\n" for n in (1, 2)), encoding="utf-8")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--derived", derived, "--json").stdout)
+            self.assertEqual(got["derived"]["misread"], {"coded_by": ["main"], "blind": False, "count": None})
+            self.assertIn("未盲编", (out / "report.md").read_text(encoding="utf-8"))
+            derived.write_text(derived.read_text(encoding="utf-8") + "misread\tR1_small_1\tblind\t1\nmisread\tR1_small_2\tblind\t0\n",
+                               encoding="utf-8")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--derived", derived, "--json").stdout)
+            self.assertEqual(got["derived"]["misread"], {"coded_by": ["blind", "main"], "blind": True, "count": 1})
 
     def test_a_small_panel_is_recorded_as_a_failure_not_a_reading(self):
         with TempDir() as root:

@@ -1,0 +1,13 @@
+{
+ "failure": "A limiting qualifier went with a deleted sentence; nothing else in it would flag.",
+ "check": "sentence-changes",
+ "argv": [
+  "--target",
+  "{draft}",
+  "--base",
+  "base",
+  "--json"
+ ],
+ "expect_flag": "removed",
+ "expect_carried": "qualifier"
+}

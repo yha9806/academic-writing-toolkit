@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check each rewritten sentence against the sentence it replaced, and against the venue's own sentences.
 
-    python3 audit-sentence-changes.py --target <file or dir> --base <file or dir> [--baseline <dir>] [--json]
+    python3 audit-sentence-changes.py --target <file or dir> --base <file or dir> [--baseline <dir>] [--carriers <file>] [--json]
     python3 audit-sentence-changes.py --pairs <tsv with columns id, old, new> [--baseline <dir>] [--json]
     (a pairs file may add the columns verdict and reason once the author has read the rewrites)
     (either form: --venue-cache <file> keeps the venue's measured sentences between runs)
@@ -56,6 +56,14 @@ pairs file a verdict column (accepted or rejected, as the author decided; revise
 yet judged) and a reason column, and the report sets the flags against the verdicts, naming the script by its hash
 so that the thresholds that judged are the ones frozen before the round. The flags are prompts to re-read a sentence, not targets: a revision
 may need a clause to stay faithful to its source, and then the flag is the reason to check that it earns it.
+
+A sentence removed without a successor (nothing in the target revises, splits or merges it) is judged too. Every check
+of the draft rewards deletion: word and rate ceilings fall, a sentence nobody wrote cannot be flagged. On one
+manuscript a research question, three qualifiers and a denominator were deleted and every check passed. A removal is
+flagged when it carried something: it matches a pattern in --carriers (one regular expression per line; the writing
+loop passes the claims ledger's required wordings), or it holds a number, or a limiting qualifier (only, at most, may,
+exploratory, of N, in this study ...). A flagged removal needs a reason like a flagged rewrite. The report counts
+removals and flagged removals apart, so "nothing flagged" is not read as "nothing removed".
 
 Exit: 0 no changed sentence is flagged (including no change at all, reported as such); 1 at least one flagged;
 2 nothing to compare (no prose in the target or the base, an empty or malformed pairs file, a baseline too small
@@ -159,6 +167,13 @@ LONGER_WORDS = 3
 # Prepositional phrases gained before a revision is flagged: one is often the fact the correction adds.
 MORE_PREPOSITIONS = 2
 MATCH_MIN = 0.40
+# What a removed sentence can carry besides a pattern the caller names. Numbers: a count, a denominator, a result.
+# Qualifiers: the words that keep a claim no larger than its evidence. Both lists catch only what is written here.
+REMOVED_NUMBER = re.compile(r"\d")
+REMOVED_QUALIFIER = re.compile(
+    r"\b(only|at most|at least|no more than|may|might|could|approximately|roughly|estimated|exploratory|"
+    r"preliminary|tentative|suggests?|limited to|except|unless|in (?:this|our) (?:study|benchmark|sample|pool|setting|data)|"
+    r"(?:out )?of \d+)\b|仅|只有|至多|至少|可能|大约|估计|探索性|初步|除非|在本(?:研究|基准|文)", re.I)
 PIECE_MIN = 0.60   # share of a sentence's content words found in another before one is read as part of the other
 VENUE_PCT = 90      # a revision that grows past this is long or dense for the venue
 ADDITION_PCT = 75   # an added sentence has nothing to be compared with, so it is held to a typical published one
@@ -386,7 +401,7 @@ def share(part, whole):
 def pair_changes(target, base):
     """[(file, [old sentences], [new sentences])] for every target sentence that does not occur in the base, grouped:
     a revision is one old and one new, a split one old and several new, a merge several old and one new, an addition
-    no old. Second value: how many removed base sentences were matched to nothing."""
+    no old. Second value: the removed base sentences matched to nothing, as (file, sentence)."""
     base_all = {norm(s) for ss in base.values() for s in ss}
     target_all = {norm(s) for ss in target.values() for s in ss}
     removed = {f: [s for s in ss if norm(s) not in target_all] for f, ss in base.items()}
@@ -454,7 +469,33 @@ def pair_changes(target, base):
             if extra:
                 used.update(extra)
                 g[1].extend(o[1] for o in extra)
-    return out, sum(len(v) for v in removed.values()) - len(used)
+    return out, [old for old in pool if old not in used]
+
+
+def carried(sentence, carriers):
+    """What a removed sentence carried: the caller's patterns it matches, then a number, then a qualifier."""
+    out = [f"pattern {rx.pattern}" for rx in carriers if rx.search(sentence)]
+    if REMOVED_NUMBER.search(sentence):
+        out.append("number")
+    q = REMOVED_QUALIFIER.search(sentence)
+    if q:
+        out.append(f"qualifier '{q.group(0)}'")
+    return out
+
+
+def read_carriers(path):
+    if not Path(path).is_file():
+        die(f"no carriers file at {path}")
+    out = []
+    for n, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            out.append(re.compile(line, re.I))
+        except re.error as e:
+            die(f"{path}:{n}: not a regular expression ({e}): {line}")
+    return out
 
 
 def prose(cell):
@@ -652,11 +693,13 @@ def main():
     ap.add_argument("--pairs")
     ap.add_argument("--baseline")
     ap.add_argument("--venue-cache", help="keep the venue's measured sentences here and reuse them while unchanged")
+    ap.add_argument("--carriers", help="patterns (one per line) that a removed sentence must not take with it unflagged")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     global FP
     fp = FP = fingerprint()
-    removed = 0
+    removed = []
+    carriers = read_carriers(a.carriers) if a.carriers else []
     verdicts = {}
     if a.pairs:
         if a.target or a.base:
@@ -688,12 +731,24 @@ def main():
         if where in verdicts:
             r["verdict"], r["reason"] = verdicts[where]
         results.append(r)
+    removed_flagged = 0
+    for where, old in removed:
+        what = carried(old, carriers)
+        if not what:
+            continue
+        removed_flagged += 1
+        results.append({"old": old, "new": "", "kind": "removed", "where": where, "features_old": features(old),
+                        "features_new": None, "added": {}, "dense": [], "venue_percentile": {}, "carried": what,
+                        "flags": ["removed_carrier"], "pieces": 0, "olds": 1})
+        if where in verdicts:
+            results[-1]["verdict"], results[-1]["reason"] = verdicts[where]
     flagged = [r for r in results if r["flags"]]
     kinds = Counter(r["kind"] for r in results)
-    compared.update({"changed": len(results), "revised": kinds["revised"], "split": kinds["split"],
-                     "merged": kinds["merged"], "added": kinds["added"], "removed": removed})
+    compared.update({"changed": len(results) - removed_flagged, "revised": kinds["revised"], "split": kinds["split"],
+                     "merged": kinds["merged"], "added": kinds["added"], "removed": len(removed),
+                     "removed_flagged": removed_flagged})
     unjudged = kinds["added"] if venue is None else 0   # judged against DEFAULT_CEILING, not a venue
-    out = {"schema_version": 2, "compared": compared, "changed": len(results), "flagged": len(flagged),
+    out = {"schema_version": 2, "compared": compared, "changed": len(results) - removed_flagged, "flagged": len(flagged),
            "added_without_venue": unjudged,
            "venue": ({"documents": venue["documents"], "sentences": venue["sentences"],
                       "p90": {k: at(venue["columns"][k], VENUE_PCT) for k in ("words",) + DENSITY},
@@ -702,13 +757,15 @@ def main():
            "limits": LIMITS,
            "verdicts": verdict_table(results) if verdicts else None,
            "sentences": results,
-           "issues": [{"where": r["where"], "flags": r["flags"], "added": r["added"], "new": r["new"]}
+           "issues": [{"where": r["where"], "flags": r["flags"], "added": r["added"], "new": r["new"],
+                       **({"old": r["old"], "carried": r["carried"]} if r["kind"] == "removed" else {})}
                       for r in flagged]}
     if a.json:
         print(json.dumps(out, ensure_ascii=False, indent=1))
     else:
-        print(f"changed sentences: {len(results)} ({kinds['revised']} revised, {kinds['split']} split, "
-              f"{kinds['merged']} merged, {kinds['added']} added); flagged: {len(flagged)}")
+        print(f"changed sentences: {len(results) - removed_flagged} ({kinds['revised']} revised, {kinds['split']} split, "
+              f"{kinds['merged']} merged, {kinds['added']} added); removed without a successor: {len(removed)}, "
+              f"{removed_flagged} of them carrying something; flagged: {len(flagged)}")
         if venue:
             print(f"venue: {venue['sentences']} sentences from {venue['documents']} documents; p90 "
                   + ", ".join(f"{k} {v}" for k, v in out["venue"]["p90"].items())
@@ -717,6 +774,10 @@ def main():
             print(f"{unjudged} added sentence(s) held to default ceilings, not to a venue: give --baseline "
                   + "(" + ", ".join(f"{k} {v}" for k, v in DEFAULT_CEILING.items()) + ")")
         for r in flagged:
+            if r["kind"] == "removed":
+                print(f"\n[{r['where']}] removed: {', '.join(r['carried'])}")
+                print(f"  was: {r['old']}")
+                continue
             fo, fn = r["features_old"], r["features_new"]
             size = f"{fo['words']}->{fn['words']} words" if fo else f"{fn['words']} words, added"
             extra = "; ".join(f"{k}: {', '.join(v)}" for k, v in r["added"].items())
@@ -724,7 +785,7 @@ def main():
             if r["old"]:
                 print(f"  was: {r['old']}")
             print(f"  now: {r['new']}")
-        if not results:
+        if not results and not removed:
             print("no sentence changed")
         vt = out["verdicts"]
         if vt:

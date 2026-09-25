@@ -192,8 +192,33 @@ def _base_ref(cfg, head):
     return get(cfg, "draft.base_ref") or f"{head}~1"
 
 
+def _carriers_file(ctx):
+    """The claims ledger's required wordings, one pattern per line, for the changed-sentence check to hold removed
+    sentences against (spec 2026-09-25 §4.2). Written in a dot directory beside the draft, which the check does not
+    read as prose. None when there is no ledger, no pattern, or no directory to write in."""
+    path = (ctx.get("cfg") or {}).get("claims")
+    if not path or not ctx.get("tmp"):
+        return None
+    try:
+        raw = Path(path).expanduser().read_text(encoding="utf-8")
+    except OSError:
+        return None
+    from . import state as S
+    _, claims, _, _ = S.parse(raw)
+    patterns = [r for c in claims for r, _ in c.get("must") or []]
+    if not patterns:
+        return None
+    out = Path(ctx["tmp"]) / ".loop-carriers" / "required.txt"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(p + "\n" for p in patterns), encoding="utf-8")
+    return out
+
+
 def _sentence_changes_argv(ctx):
     args = _py(ctx, "audit/audit-sentence-changes.py") + ["--target", ".", "--base", BASE_DIR, "--json"]
+    carriers = _carriers_file(ctx)
+    if carriers:
+        args += ["--carriers", str(carriers)]
     corpus = get(ctx["cfg"], "target.venue_corpus.dir")
     if corpus:
         args += ["--baseline", str(Path(corpus).expanduser())]

@@ -34,11 +34,13 @@ report.
 1. Build the packet. From a loop workspace (records which sentences, at which commit, the panel reads):
 
    ```
-   python3 .claude/skills/readers/scripts/build-reader-packet.py --workspace <workspace> --out <dir> [--questions q.tsv]
+   python3 .claude/skills/readers/scripts/build-reader-packet.py --workspace <workspace> --out <dir> [--questions q.tsv] --aux <main.aux>
    ```
 
    Or from any file: `--text <file> [--bib refs.bib]`. Citations stay in author-year form; they are never replaced by
-   a placeholder.
+   a placeholder. Give `--aux` (the compiled draft's `.aux`) so cross-references show the numbers the page shows;
+   without it they read "(number omitted)" and the prompt tells readers so. A placeholder the page does not have
+   draws readers' complaints: in one panel most of "what got in the way" was about it.
 
 2. Open the readers as sub-agents: two personas (`prompt_R1.txt`, `prompt_R2.txt`) × two models (a small and a
    larger one) × samples per cell. Eight (two samples) is the floor and shows only large differences; use sixteen
@@ -57,8 +59,17 @@ report.
 
 4. Judge the intent points. Two judges, independently: you, and a separate sub-agent given the readers' `remember`
    and directed answers with the reader names shuffled and the version not named. Each writes
-   `reader<TAB>point<TAB>judge<TAB>✓|△|✗` rows to `<dir>/judgments.tsv`. A reader carries a point only when at
+   `reader<TAB>point<TAB>judge<TAB>✓|△|✗|≠` rows to `<dir>/judgments.tsv`. A reader carries a point only when at
    least two judges wrote ✓; judges who disagree count as not carried, and a pair with one judge is not judged.
+   Give each judge the facts of every point (who or what did it, the number), not only its name: `≠` is a point said
+   but credited to the wrong thing, and a judge told only the point's name grades it ✓. Mix a set of answers whose
+   grade you know into the judging (one correct, one misattributed, one reversed, one bare number per point is
+   enough), write their grades to `<dir>/injected.tsv` as `reader<TAB>point<TAB>truth`, and pass `--injected`:
+   more than two misses records the panel as a failure. Give each directed question its answer's key phrases in a
+   third column of the questions file (`id<TAB>question<TAB>key ‖ key`): the build flags any question whose key the
+   first paragraph prints, since a reader answers it by copying. A count you read off the outputs yourself (a
+   misreading, a complaint) goes to `--derived` with its coder; one only you coded is reported as uncoded, because the
+   side that revised the text is not a blind coder of the revision's effect.
    The tally cannot tell two judge names written by one hand: the second judge must be a separate sub-agent that
    has not seen the first judge's rows.
 
@@ -69,12 +80,22 @@ report.
    ```
 
    To compare two versions, run a full panel on each and pass `--compare-packet/--compare-outputs/--compare-judgments`;
-   the report puts a two-sided Fisher p beside each point.
+   the report puts a two-sided Fisher p beside each point. Run the current version's panel twice and pass the second
+   as `--repeat-outputs/--repeat-judgments`: a change no larger than the two runs' spread is reported as inside the
+   noise. Judge `blank_reader.json` (written beside the packet, reader id `BLANK`) like any reader: a point it
+   carries is scored by copying the first paragraph, and the report says so.
 
 6. Report to the author in three lines per scale (whole text, then paragraphs): what you want the reader to carry
    (the intent card), what the readers carried (the tally, counts with their denominators), and what the text added
    that the author did not intend (misreadings, points the readers took that are not on the card). Mark every
    machine-produced reading as a draft. The author decides what is a gap.
+
+   Counts in the report come from the scripts, not from your own reading of the outputs: how many readers
+   qualified is the `qualified N of M` line of `check-reader-output.py`, and a panel is a reading of this version only
+   when `tally-readers.py` says it recorded it (`已记为这一版的读者组`). A panel judged with sheets or scripts of your
+   own still ends with both; if the tally did not record it, say the panel was not run on this version. One panel
+   skipped both, reported sixteen qualified readers where there were fifteen, and the loop kept calling the last
+   recorded panel stale.
 
 ## Where the output goes
 

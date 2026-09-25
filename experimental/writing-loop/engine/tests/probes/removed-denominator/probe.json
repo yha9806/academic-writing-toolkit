@@ -1,0 +1,13 @@
+{
+ "failure": "A denominator went with a deleted sentence: the result it qualified is stated without its base once it is gone.",
+ "check": "sentence-changes",
+ "argv": [
+  "--target",
+  "{draft}",
+  "--base",
+  "base",
+  "--json"
+ ],
+ "expect_flag": "removed",
+ "expect_carried": "number"
+}

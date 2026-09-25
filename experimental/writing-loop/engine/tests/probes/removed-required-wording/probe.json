@@ -1,0 +1,15 @@
+{
+ "failure": "A sentence the claims ledger requires was deleted; it holds no number and no qualifier, so only the ledger's pattern can flag it.",
+ "check": "sentence-changes",
+ "argv": [
+  "--target",
+  "{draft}",
+  "--base",
+  "base",
+  "--carriers",
+  "carriers.txt",
+  "--json"
+ ],
+ "expect_flag": "removed",
+ "expect_carried": "pattern"
+}

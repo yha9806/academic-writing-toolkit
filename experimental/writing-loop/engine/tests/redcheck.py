@@ -28,8 +28,8 @@ MUTATIONS = [
      'test_coverage.TargetTest.test_a_card_finalised_by_claude_on_the_authors_word_is_delegated_only_if_that_word_is_on_record'),
     ("cov", 'skill:readers/scripts/build-reader-packet.py', '        PERSONAS.update(personas)', '        pass',
      'test_readers.ReadersTest.test_personas_and_questions_can_come_from_the_workspace'),
-    ("cov", 'skill:readers/scripts/build-reader-packet.py', '        text = readable(" ".join(t for t, _, _ in para), bib, unknown)',
-     '        text = " ".join(readable(t, bib, unknown) for t, _, _ in para)',
+    ("cov", 'skill:readers/scripts/build-reader-packet.py', '        text = readable(" ".join(t for t, _, _ in para), bib, unknown, refs)',
+     '        text = " ".join(readable(t, bib, unknown, refs) for t, _, _ in para)',
      'test_readers.ReadersTest.test_the_packet_shows_what_the_page_shows_not_the_markup_or_the_alt_text'),
     ("cov", 'skill:readers/scripts/build-reader-packet.py', '    t = drop_command(t, "Description")', '    pass',
      'test_readers.ReadersTest.test_the_packet_shows_what_the_page_shows_not_the_markup_or_the_alt_text'),
@@ -718,6 +718,40 @@ MUTATIONS = [
      'test_overview.TodoTest.test_the_paper_cell_follows_the_claims_ledger'),
     ("state", 'overview.py', '    cells.insert(0, paper)', '    pass',
      'test_state.StateTest.test_the_overview_puts_the_paper_before_the_checks'),
+    # 删句不再免费（spec 2026-09-25 §4.2）：三条承载规则各有一个探针，接线与删句的键各有一个端到端测试。
+    ("gap", 'skill:audit/scripts/audit-sentence-changes.py', '    out = [f"pattern {rx.pattern}" for rx in carriers if rx.search(sentence)]', '    out = []', 'test_probes.ProbeTest.test_each_probe_is_flagged_on_the_bad_draft_and_not_on_its_twin'),
+    ("gap", 'skill:audit/scripts/audit-sentence-changes.py', '    if REMOVED_NUMBER.search(sentence):', '    if False:', 'test_probes.ProbeTest.test_each_probe_is_flagged_on_the_bad_draft_and_not_on_its_twin'),
+    ("gap", 'skill:audit/scripts/audit-sentence-changes.py', '    q = REMOVED_QUALIFIER.search(sentence)', '    q = None', 'test_probes.ProbeTest.test_each_probe_is_flagged_on_the_bad_draft_and_not_on_its_twin'),
+    ("gap", 'skill:audit/scripts/audit-sentence-changes.py', '        what = carried(old, carriers)', '        what = []', 'test_probes.ProbeTest.test_the_deleted_research_question_is_caught'),
+    ("gap", 'catalogue.py', '    carriers = _carriers_file(ctx)', '    carriers = None', 'test_removals.RemovalTest.test_a_removed_sentence_that_carried_a_required_wording_holds_the_turn_until_accepted'),
+    ("gap", 'coverage.py', '    return s.get("new") or ("删去：" + (s.get("old") or ""))', '    return s.get("new") or ""', 'test_removals.RemovalTest.test_a_removed_sentence_that_carried_a_required_wording_holds_the_turn_until_accepted'),
+    ("gap", 'catalogue.py', '    out = Path(ctx["tmp"]) / ".loop-carriers" / "required.txt"', '    out = Path(ctx["tmp"]) / "loop-carriers" / "required.txt"', 'test_removals.RemovalTest.test_the_carriers_file_is_not_read_as_prose'),
+    ("gap", 'coverage.py', '            if gone:', '            if False:', 'test_removals.RemovalTest.test_without_a_ledger_pattern_a_plain_removal_is_counted_not_flagged'),
+    # 读者包的交叉引用（spec 2026-09-25 §4.3）：编号从 .aux 取；取不到时写明省略，提示里注明属于包的局限。
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '        return ("§" if section else "") + OMITTED', '        return "§x"', 'test_readers.ReadersTest.test_without_an_aux_every_reference_says_its_number_is_omitted'),
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '    refs = {"labels": aux_labels(a.aux) if a.aux else {}, "resolved": 0, "omitted": 0}', '    refs = {"labels": {}, "resolved": 0, "omitted": 0}', 'test_readers.ReadersTest.test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it'),
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '                 if refs["omitted"] else "")', '                 if False else "")', 'test_readers.ReadersTest.test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it'),
+    ("gap", 'skill:readers/scripts/check-reader-output.py', '    if isinstance(rem, str) and rem.strip():', '    if False:', 'test_readers.ReadersTest.test_remember_written_as_one_string_is_named_as_such_not_as_missing'),
+    # 读者组量的是稿子而不是自己（spec 2026-09-25 §4.3）：同包重跑定噪声底、按模型分、空白读者、重复用量的。
+    ("gap", 'skill:readers/scripts/tally-readers.py', '            out[p] = {**r, "spread": abs(v["carried"] / v["judged"] - r["carried"] / r["judged"])}', '            out[p] = {**r, "spread": 0.0}', 'test_readers.ReadersTest.test_a_repeat_panel_sets_the_noise_floor_and_a_change_inside_it_is_said_to_be_noise'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '                compare[p]["inside_noise"] = (delta <= f["spread"] + 1e-9) if f else None', '                compare[p]["inside_noise"] = None', 'test_readers.ReadersTest.test_a_repeat_panel_sets_the_noise_floor_and_a_change_inside_it_is_said_to_be_noise'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '        if reader == BLANK and len(vals) >= MIN_JUDGES:', '        if False:', 'test_readers.ReadersTest.test_counts_are_given_per_model_and_what_the_blank_reader_carries_is_marked'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '    return {m: carried(judgments, [r for r in readers if r["model"] == m])[0] for m in sorted({r["model"] for r in readers})}', '    return {m: carried(judgments, readers)[0] for m in sorted({r["model"] for r in readers})}', 'test_readers.ReadersTest.test_counts_are_given_per_model_and_what_the_blank_reader_carries_is_marked'),
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '    ab = [r for r, s in zip(rendered, sections) if str(s).upper().startswith("A")]', '    ab = []', 'test_readers.ReadersTest.test_the_packet_measures_how_much_the_introduction_repeats_the_abstract'),
+    # 判定查归属、判定者先过注入集（spec 2026-09-25 §4.3）。
+    ("gap", 'skill:readers/scripts/tally-readers.py', '        if reader in names and len(vals) >= MIN_JUDGES and all(x == "misattributed" for x in vals):', '        if False:', 'test_readers.ReadersTest.test_a_point_credited_to_the_wrong_thing_is_counted_apart_and_not_carried'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '    misses = sum((judgments or {}).get(pair, {}).get(j) != want for pair, want in truth.items() for j in judges)', '    misses = 0', 'test_readers.ReadersTest.test_judges_who_miss_the_injected_set_make_the_panel_a_failure'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '    if extra["injected"] and extra["injected"][0] > INJECT_TOLERANCE:', '    if False:', 'test_readers.ReadersTest.test_judges_who_miss_the_injected_set_make_the_panel_a_failure'),
+    # 能照抄的定向问题、只由改稿方编码的派生指标（spec 2026-09-25 §4.3）。
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '    copyable = [q["id"] for q in keyed if any(k.lower() in first for k in q.get("keys") or [])]', '    copyable = []', 'test_readers.ReadersTest.test_a_directed_question_the_first_paragraph_answers_is_flagged_and_keys_do_not_reach_readers'),
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '    questions = [{"id": q["id"], "question": q["question"]} for q in keyed]', '    questions = keyed', 'test_readers.ReadersTest.test_a_directed_question_the_first_paragraph_answers_is_flagged_and_keys_do_not_reach_readers'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '        blind = [c for c in coders if c != REVISER]', '        blind = coders', 'test_readers.ReadersTest.test_a_derived_metric_coded_only_by_the_reviser_is_not_a_count'),
+    # 环上的「分析」（spec 2026-09-25 §4.5）：默认关；开了才插在设计与改稿之间，这一轮做完才算做过。
+    # 第一条是写这一步时真出过的错：cli.py 没导入 catalogue，开关一开 loop lintel 就报 NameError，旧测试都没走到。
+    ("gap", 'cli.py', '        from . import catalogue as K\n        if K.get(cfg, "ring.analysis"):', '        if K.get(cfg, "ring.analysis"):', 'test_lintel.CliAnalysisStageTest.test_with_the_analysis_stage_on_the_card_carries_the_ledgers_open_analysis'),
+    ("gap", 'ring.py', '    return STAGES[:2] + [ANALYSIS] + STAGES[2:] if analysis else STAGES', '    return STAGES', 'test_ring.AnalysisStageTest.test_an_open_analysis_hangs_on_the_stage_between_design_and_rewrite'),
+    ("gap", 'ring.py', '        "analysis": any(since is None or d >= since for d in done_on) if analysis is not None else None,', '        "analysis": bool(done_on) if analysis is not None else None,', 'test_ring.AnalysisStageTest.test_an_analysis_closed_within_the_round_marks_the_stage_done'),
+    ("gap", 'lintel.py', '            note = f"要做 {len(g[\'items\'])}"', '            pass', 'test_lintel.CliAnalysisStageTest.test_with_the_analysis_stage_on_the_card_carries_the_ledgers_open_analysis'),
 ]
 
 

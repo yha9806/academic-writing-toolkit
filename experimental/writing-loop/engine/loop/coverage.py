@@ -354,6 +354,10 @@ def interpret(check_id, code, stdout, stderr):
             summary += _peaks_summary(data)
         elif "flagged" in data and "changed" in data:
             summary = f"改动 {data['changed']} 句，标出 {data['flagged']} 句"
+            compared = data.get("compared") or {}
+            gone = compared.get("removed")
+            if gone:
+                summary += f"；删 {gone} 句（{compared.get('removed_flagged', 0)} 句带着东西）"
         elif "total" in data and "unit" in data and isinstance(data.get("chapters"), list):
             summary = f"{data['total']} 词（{len(data['chapters'])} 个文件）"
         elif "hard_finding_count" in data:
@@ -551,7 +555,7 @@ def _apply_acceptances(rec, cfg):
     if not issues:
         return
     acc = accepted(cfg)
-    keys = [sentence_key(i.get("new")) for i in issues]
+    keys = [sentence_key(flag_text(i)) for i in issues]
     ok = [k for k in keys if k in acc]
     if not ok:
         return
@@ -980,6 +984,12 @@ def table(summary, ws):
 ACCEPTED_DEFAULT = K.ACCEPTED_DEFAULT
 
 
+def flag_text(s):
+    """What a flagged sentence is shown as and keyed by: the new wording, or 删去：<the old one> for a sentence removed
+    without a successor (spec 2026-09-25 §4.2), so an acceptance is given for that removal and not for every one."""
+    return s.get("new") or ("删去：" + (s.get("old") or ""))
+
+
 def sentence_key(text):
     """A flagged sentence's identity in the accepted-rewrites ledger: its text, whitespace and case folded. Editing the
     sentence changes the key, so an acceptance never outlives the wording it was given for."""
@@ -1065,8 +1075,8 @@ def worktree_check(cfg, ws, timeout=TIMEOUT):
         out.update({"error": summary, "unresolved": []})
         return out
     data = json.loads(r.stdout)
-    flagged = [{"key": sentence_key(s["new"]), "where": s.get("where"), "flags": s["flags"],
-                "added": s.get("added") or {}, "new": s["new"]} for s in data["sentences"] if s["flags"]]
+    flagged = [{"key": sentence_key(flag_text(s)), "where": s.get("where"), "flags": s["flags"],
+                "added": s.get("added") or {}, "new": flag_text(s)} for s in data["sentences"] if s["flags"]]
     out.update({"base": info, "changed": data["changed"], "flagged": len(flagged), "flagged_sentences": flagged,
                 "summary": summary + (f"（工作区，对照 {info['commit'][:7]}）" if info else "（工作区）")})
     cache.parent.mkdir(parents=True, exist_ok=True)

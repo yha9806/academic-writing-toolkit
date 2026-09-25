@@ -26,6 +26,15 @@ COMMITS_ONLY = "只有提交"
 STAGES = [("comment", "你的意见", SEEN), ("design", "设计", INFERRED), ("rewrite", "改稿", SEEN), ("check", "检查", SEEN),
           ("readers", "读者组", SEEN), ("review", "你核对", INFERRED), ("land", "落稿", COMMITS_ONLY)]
 
+# 分析, between 设计 and 改稿, only when the workspace turns it on (ring.analysis; spec 2026-09-25 §4.5): the analyses a
+# round needed ran outside the ring, which could then only offer rewording. It is seen through the claims ledger.
+ANALYSIS = ("analysis", "分析", SEEN)
+
+
+def stages(analysis=False):
+    return STAGES[:2] + [ANALYSIS] + STAGES[2:] if analysis else STAGES
+
+
 # The first part of a gate, by word. Order matters: 「改稿核对页」 names the review, not the rewrite.
 GATE_WORDS = [("design", ("意图卡", "设计")), ("readers", ("读者组",)), ("review", ("核对", "核完")), ("rewrite", ("改稿",))]
 NOT_CURRENT = (V.STALE, V.FAILED, V.NEVER, V.MISSING)
@@ -63,13 +72,22 @@ def _after(t, since):
     return bool(_utc(t)) and (since is None or str(t)[:10] >= since)
 
 
-def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
+def _done_on(status):
+    """The date an item closed as done (已做 YYYY-MM-DD ...), or None."""
+    parts = str(status or "").split()
+    return parts[1] if len(parts) > 1 and parts[0] == "已做" else None
+
+
+def ring(summary, *, last_comment_at=None, last_change_at=None, name=None, analysis=None):
+    """analysis: the claims ledger's 分析 items ([{id, title, closed, status}]) when the workspace turns the stage on;
+    None keeps the seven-stage ring. An open item hangs on 分析 as work to do, not as the author's to decide."""
+    stage_list = stages(analysis is not None)
     risks = (summary or {}).get("risks") or {}
     open_, decided = risks.get("open") or [], risks.get("decided") or []
     reviews = [d.get("decided_on") for d in decided if stage_of(d.get("gate")) == "review" and d.get("decided_on")]
     since = max(reviews) if reviews else None
 
-    items = {k: [] for k, _, _ in STAGES}
+    items = {k: [] for k, _, _ in stage_list}
     unhung = []
     for x in open_:
         entry = {"id": x.get("id"), "text": f"{x.get('kind', '')} {x.get('id')} {x.get('title', '')}".strip(),
@@ -92,7 +110,13 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
             items["readers"].append({"id": "readers", "text": "读者组 · 过期：稿子改过了，要重读" if at else "读者组 · 还没跑",
                                      "detail": readers.get("detail") or "", "you": False})
 
+    done_on = [d for d in (_done_on(x.get("status")) for x in analysis or [] if x.get("closed")) if d]
+    for x in analysis or []:
+        if not x.get("closed"):
+            items["analysis"].append({"id": x.get("id"), "text": f"分析 {x.get('id')} {x.get('title', '')}".strip(),
+                                      "detail": x.get("status") or "", "you": False})
     happened = {
+        "analysis": any(since is None or d >= since for d in done_on) if analysis is not None else None,
         "comment": _after(last_comment_at, since),
         "design": None,
         "rewrite": _after(last_change_at, since),
@@ -102,8 +126,11 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
         "land": None,
     }
     segments = []
-    for key, label, seen in STAGES:
-        if items[key]:
+    for key, label, seen in stage_list:
+        if key == "analysis":
+            # Work to do, not a decision waiting on the author: open while an analysis is open.
+            state = "open" if items[key] else ("done" if happened[key] else "unseen")
+        elif items[key]:
             state = "hanging"
         elif happened[key] is None:
             state = "unseen"
@@ -122,7 +149,7 @@ def ring(summary, *, last_comment_at=None, last_change_at=None, name=None):
     # How far the round got: the furthest stage that moved within it. Neither `current` (the first stage something
     # waits on) nor `latest` (a comment restarts it) says this; the author asked 09-24 why a draft ready to upload
     # still read 设计. A stage reached and then left behind by a later rewrite still counts: the round did get there.
-    order = [k for k, _, _ in STAGES]
+    order = [k for k, _, _ in stage_list]
     within = [k for k, t in moves if _after(t, since)]
     reached = max(within, key=order.index) if within else None
 
