@@ -21,6 +21,9 @@ The ledger is Markdown, like the risk register:
     - 允许的说法：<the strongest wording the evidence carries>
     - 越界：<regex> ‖ <regex>        no sentence of the draft may match (case-insensitive)
     - 必须出现：<regex> ‖ <regex>    each must match at least one sentence
+    - 必须出现：<regex> @ A, I1      ... in each named place (a label prefix: A the abstract, I1 its first paragraph)
+    - 承载：<regex> ‖ <regex>        the sentences that state the claim, listed for a grill whether changed or not
+    - 依据：<test or run>            required when the claim is a universal negation (no / none / never / 没有 ...)
     - 缺：N1、N2
 
     ## 待做 N1 <what>
@@ -37,7 +40,7 @@ import re
 from pathlib import Path
 
 HEAD = re.compile(r"^##\s+(主张|待做)\s+(\S+)\s+(.+?)\s*$", re.M)
-FIELD = re.compile(r"^\s*(?:[-*]\s*)?(?:\*\*)?(证据|强度|允许的说法|越界|必须出现|缺|类型|改变|状态)(?:\*\*)?\s*[:：]\s*"
+FIELD = re.compile(r"^\s*(?:[-*]\s*)?(?:\*\*)?(证据|强度|允许的说法|越界|必须出现|承载|依据|缺|类型|改变|状态)(?:\*\*)?\s*[:：]\s*"
                    r"(?:\*\*)?\s*(.*?)\s*$", re.M)
 STAGE = re.compile(r"^\s*(?:\*\*)?阶段(?:\*\*)?\s*[:：]\s*(.+?)\s*$", re.M)
 STRENGTHS = ("强", "中", "弱", "未立", "推论", "范围")
@@ -50,6 +53,18 @@ SEP = re.compile(r"\s*‖\s*")
 ID_LIST = re.compile(r"[、,，;；\s]+")
 CLAIM_NEEDS = ("证据", "强度", "允许的说法")
 TODO_NEEDS = ("类型", "状态")
+
+# A claim stated as a universal negation: it needs the test that could have found the thing (spec 2026-09-25 §4.4).
+NEGATION = re.compile(r"\b(no|none|never|nothing|neither|nor|zero|without|not)\b|没有|从未|无一|都不|均不|不存在|并未|未能", re.I)
+# "A significant, B not" read as a difference between A and B.
+SIG_DIFF = re.compile(r"(?<!不)(显著|significant)[^。；;.\n]{0,60}(不显著|not significant|n\.s\.)|"
+                      r"(不显著|not significant|n\.s\.)[^。；;.\n]{0,60}(?<!不)(显著|significant)", re.I)
+# Method sentences that close off an alternative, and sentences that name a cue left open.
+CLOSING = re.compile(r"\bonly (?:the )?\w+(?: \w+)? differs?\b|\bno (?:other |non-semantic |remaining )?cues? (?:is |are )?"
+                     r"(?:left|remains?)\b|\bnothing else (?:changes|differs)\b|\b(?:is|are) otherwise identical\b|"
+                     r"\ball else (?:being )?equal\b|只有.{0,12}不同|没有.{0,8}线索(?:剩下|留下)|其余(?:都)?相同", re.I)
+REMAINING = re.compile(r"\b(cues?|shortcuts?|confound\w*|not control\w*|uncontrolled|leak\w*|residual)\b|线索|捷径|混淆|未控制|没有控制", re.I)
+PLACE_SEP = re.compile(r"\s+@\s+")
 
 NOT_READY = "未就绪"
 AUTHOR = "待作者终审"
@@ -70,6 +85,24 @@ def _patterns(text, where, problems):
         except re.error as e:
             problems.append(f"{where} 的正则写错了（{e}）：{raw[:30]}")
     return out
+
+
+def in_place(label, place):
+    """Whether a sentence label lies in a place: letters name a section prefix (A: A01, A02 ...), letters and digits a
+    paragraph (I1: I1.1, I1.2 ..., not I10.1)."""
+    label, place = str(label or ""), str(place or "")
+    if not place or not label.startswith(place):
+        return False
+    rest = label[len(place):]
+    return rest == "" or (rest[0] == "." if place[-1].isdigit() else rest[0].isdigit())
+
+
+def _must(text, where, problems):
+    """Required wordings, and the places each must be found in ({} when anywhere will do)."""
+    parts = PLACE_SEP.split(text or "", maxsplit=1)
+    pats = _patterns(parts[0], where, problems)
+    places = [x for x in ID_LIST.split(parts[1]) if x] if len(parts) > 1 else []
+    return pats, ({raw: places for raw, _ in pats} if places else {})
 
 
 def parse(raw):
@@ -93,6 +126,7 @@ def parse(raw):
         seen.add(iid)
         where = f"{kind} {iid}"
         if kind == "主张":
+            must, places = _must(fields.get("必须出现"), where, problems)
             missing = [k for k in CLAIM_NEEDS if not fields.get(k)]
             strength = fields.get("强度", "")
             if missing:
@@ -102,8 +136,8 @@ def parse(raw):
             claims.append({"id": iid, "title": title, "strength": strength if strength in STRENGTHS else "",
                            "evidence": fields.get("证据", ""), "allowed": fields.get("允许的说法", ""),
                            "over": _patterns(fields.get("越界"), where, problems),
-                           "must": _patterns(fields.get("必须出现"), where, problems),
-                           "needs": _ids(fields.get("缺"))})
+                           "must": must, "places": places, "carry": _patterns(fields.get("承载"), where, problems),
+                           "basis": fields.get("依据", ""), "needs": _ids(fields.get("缺"))})
         else:
             missing = [k for k in TODO_NEEDS if not fields.get(k)]
             if missing:
@@ -215,9 +249,44 @@ def scan(claims, sentences, extra=()):
             if labels:
                 over.append({"claim": c["id"], "pattern": raw, "labels": labels})
         for raw, rx in c["must"]:
-            if not any(rx.search(s.get("text") or "") for s in sentences):
-                absent.append({"claim": c["id"], "pattern": raw})
+            places = (c.get("places") or {}).get(raw)
+            if not places:
+                if not any(rx.search(s.get("text") or "") for s in sentences):
+                    absent.append({"claim": c["id"], "pattern": raw})
+                continue
+            for place in places:
+                if not any(rx.search(s.get("text") or "") for s in sentences if in_place(s.get("label"), place)):
+                    absent.append({"claim": c["id"], "pattern": raw, "place": place})
     return over, absent
+
+
+def question(claims, sentences, extra=()):
+    """What the ledger itself is asked (spec 2026-09-25 §4.4): the sentences that carry each claim, universal
+    negations with no named test, evidence notes that read one significant and one not as a difference, and method
+    sentences that close off an alternative beside the sentences that name a cue left open. extra (figure and table
+    text, the supplement) is read for method sentences too: a figure said no cue was left while the text named one."""
+    label = lambda s: s.get("label") or s.get("sid") or "?"
+    carrying = {c["id"]: [label(s) for s in sentences if any(rx.search(s.get("text") or "") for _, rx in c["carry"])]
+                for c in claims if c.get("carry")}
+    negations = [c["id"] for c in claims if NEGATION.search(c.get("title") or "") and not (c.get("basis") or "").strip()]
+    warnings = [{"claim": c["id"], "why": "一个显著一个不显著被读成两者不同"} for c in claims
+                if SIG_DIFF.search((c.get("evidence") or "") + " " + (c.get("allowed") or ""))]
+    everything = list(sentences) + list(extra)
+    closing = [label(s) for s in everything if CLOSING.search(s.get("text") or "")]
+    remaining = [label(s) for s in everything if label(s) not in closing and REMAINING.search(s.get("text") or "")]
+    return {"carrying": carrying, "negations": negations, "warnings": warnings, "closing": closing, "remaining": remaining}
+
+
+def gates(cfg, st):
+    """Required gates (config state.required_gates: words a gate's title must hold) not yet decided in the risk
+    register. A person closes them; the loop only reports them open."""
+    wanted = list(((cfg.get("state") or {}).get("required_gates")) or [])
+    if not wanted:
+        return []
+    from . import targets as TG
+    reg = TG.risks(cfg) or {"decided": [], "open": []}
+    done = [d.get("title") or "" for d in reg.get("decided") or []]
+    return [w for w in wanted if not any(w in t for t in done)]
 
 
 def judge(st):
@@ -236,6 +305,10 @@ def judge(st):
         blockers.append(f"越界 {len(labels)} 句")
     if st["absent"]:
         blockers.append("缺该有的说法 " + "、".join(sorted({a["claim"] for a in st["absent"]})))
+    if st.get("negations"):
+        blockers.append("全称否定没写依据 " + "、".join(st["negations"]))
+    if st.get("gates_open"):
+        blockers.append("门没关 " + "、".join(st["gates_open"]))
     if open_:
         blockers.append(f"待做开着 {len(open_)}")
     st.update(weak=[c["id"] for c in weak], open=[t["id"] for t in open_], over_labels=labels, blockers=blockers,
@@ -250,7 +323,8 @@ def compute(cfg, ws):
         return {"configured": False, "verdict": NO_LEDGER}
     p = Path(path).expanduser()
     st = {"configured": True, "path": str(p), "stage": "", "claims": [], "todo": [], "problems": [], "over": [],
-          "absent": [], "index_head": None, "scan_problems": []}
+          "absent": [], "index_head": None, "scan_problems": [], "carrying": {}, "negations": [], "warnings": [],
+          "closing": [], "remaining": [], "gates_open": []}
     try:
         raw = p.read_text(encoding="utf-8")
     except OSError:
@@ -264,6 +338,8 @@ def compute(cfg, ws):
     else:
         extra = extra_sentences(cfg, st["index_head"], st["scan_problems"], ws)
         st["over"], st["absent"] = scan(st["claims"], sentences, extra)
+        st.update(question(st["claims"], sentences, extra))
+    st["gates_open"] = gates(cfg, st)
     return judge(st)
 
 
@@ -319,11 +395,23 @@ def table(st):
         for o in (x for x in st["over"] if x["claim"] == c["id"]):
             out.append(f"      越界「{o['pattern']}」：{'、'.join(o['labels'])}")
         for a in (x for x in st["absent"] if x["claim"] == c["id"]):
-            out.append(f"      缺「{a['pattern']}」：整篇没有一句")
+            out.append(f"      缺「{a['pattern']}」@ {a['place']}：这一处没有" if a.get("place")
+                       else f"      缺「{a['pattern']}」：整篇没有一句")
+        if c["id"] in (st.get("carrying") or {}):
+            out.append(f"      承载句：{'、'.join(st['carrying'][c['id']]) or '一句也没有'}")
+        if c["id"] in (st.get("negations") or []):
+            out.append("      全称否定：要写「依据」（哪个检验、检验力多少）")
+        for w in (x for x in st.get("warnings") or [] if x["claim"] == c["id"]):
+            out.append(f"      要人看：{w['why']}")
         if c["needs"]:
             out.append(f"      缺：{'、'.join(c['needs'])}")
     for t in st["todo"]:
         out.append(f"  待做 {t['id']}  {t['kind'] or '?'}  {t['status'] or '?'}  {t['title']}")
+    if st.get("closing"):
+        out.append(f"  方法句（排除了别的解释）：{'、'.join(st['closing'])}；对照提到剩余线索的句子："
+                   f"{'、'.join(st.get('remaining') or []) or '没有'}——要人读")
+    for g in st.get("gates_open") or []:
+        out.append(f"  门没关  {g}（风险台账里还没有已决的这道门）")
     return "\n".join(out)
 
 

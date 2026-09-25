@@ -216,8 +216,9 @@ def cmd_state(a):
     st = S.compute(cfg, a.workspace)
     if a.json:
         out = dict(st)
-        out["claims"] = [dict({k: v for k, v in c.items() if k not in ("over", "must")},
-                              over=[r for r, _ in c["over"]], must=[r for r, _ in c["must"]])
+        out["claims"] = [dict({k: v for k, v in c.items() if k not in ("over", "must", "carry")},
+                              over=[r for r, _ in c["over"]], must=[r for r, _ in c["must"]],
+                              carry=[r for r, _ in c.get("carry") or []])
                          for c in st.get("claims") or []]
         print(json.dumps(out, ensure_ascii=False, indent=1))
     else:

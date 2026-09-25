@@ -718,6 +718,15 @@ MUTATIONS = [
      'test_overview.TodoTest.test_the_paper_cell_follows_the_claims_ledger'),
     ("state", 'overview.py', '    cells.insert(0, paper)', '    pass',
      'test_state.StateTest.test_the_overview_puts_the_paper_before_the_checks'),
+    # 主张清单本身被追问（spec 2026-09-25 §4.2、§4.4）：必须出现可限定位置、承载句、全称否定要依据、显著性之差、方法句、必需的门。
+    ("gap", 'state.py', '            if not places:', '            if True:', 'test_ledger_questions.PlaceTest.test_a_wording_required_in_named_places_is_absent_from_a_place_it_does_not_reach'),
+    ("gap", 'state.py', '    return rest == "" or (rest[0] == "." if place[-1].isdigit() else rest[0].isdigit())', '    return True', 'test_ledger_questions.PlaceTest.test_a_place_names_a_paragraph_not_every_paragraph_whose_number_starts_with_it'),
+    ("gap", 'state.py', '    negations = [c["id"] for c in claims if NEGATION.search(c.get("title") or "") and not (c.get("basis") or "").strip()]', '    negations = []', 'test_ledger_questions.NegationTest.test_a_universal_negation_without_a_named_test_holds_the_paper'),
+    ("gap", 'state.py', '    if st.get("negations"):', '    if False:', 'test_ledger_questions.NegationTest.test_a_universal_negation_without_a_named_test_holds_the_paper'),
+    ("gap", 'state.py', '                if SIG_DIFF.search((c.get("evidence") or "") + " " + (c.get("allowed") or ""))]', '                if False]', 'test_ledger_questions.NegationTest.test_one_significant_and_one_not_is_flagged_as_evidence_of_a_difference'),
+    ("gap", 'state.py', '    everything = list(sentences) + list(extra)', '    everything = list(sentences)', 'test_ledger_questions.MethodTest.test_figure_text_is_read_for_method_sentences_too'),
+    ("gap", 'state.py', '    return [w for w in wanted if not any(w in t for t in done)]', '    return []', 'test_ledger_questions.GateTest.test_a_required_gate_holds_the_paper_until_the_register_closes_it'),
+    ("gap", 'state.py', '                for c in claims if c.get("carry")}', '                for c in claims if False}', 'test_ledger_questions.CarryTest.test_each_claim_lists_every_sentence_that_states_it_changed_or_not'),
 ]
 
 
