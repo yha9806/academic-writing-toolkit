@@ -110,6 +110,10 @@ PRIMITIVE_IFS = {"if", "ifcat", "ifnum", "ifdim", "ifodd", "ifvmode", "ifhmode",
                  "ifhbox", "ifvbox", "ifx", "ifeof", "iftrue", "iffalse", "ifcase", "ifdefined", "ifcsname",
                  "iffontchar", "ifincsname", "ifpdfprimitive", "ifpdfabsnum", "ifpdfabsdim", "ifprimitive"}
 WRAPPERS = r"center|minipage|flushleft|flushright"
+VERBATIM = re.compile(r"\\begin\s*\{(verbatim\*?|Verbatim\*?|BVerbatim|LVerbatim|lstlisting|minted|alltt)\}(.*?)"
+                      r"\\end\s*\{\1\}", re.S)
+INLINE_DATA = re.compile(r"(\\addplot3?\+?" + OPT + r"table" + OPT + r"|\\pgfplotstableread" + OPT + r")\{([^{}]*\n[^{}]*)\}")
+FILECONTENTS = re.compile(r"\\begin\s*\{(filecontents\*?)\}(.*?)\\end\s*\{\1\}", re.S)
 BRACED = r"(?:[^{}]|\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\})*"
 NEWLABEL = re.compile(r"\\newlabel\{([^{}]+)\}\{\{(" + BRACED + r")\}\{([^{}]*)\}(?:\{(" + BRACED + r")\}\{([^{}]*)\})?")
 AUX_INPUT = re.compile(r"\\@input\{([^{}]+)\}")
@@ -138,10 +142,10 @@ def strip_dead(text):
     """Drop what TeX never typesets: comment and filecontents environments, and each \\iffalse that starts a line
     through its matching \\fi. Conditionals counted are TeX's and the ones a \\newif declares; a \\iffalse with no
     matching \\fi is left alone (a dead float counted is noise, a live one dropped is a false pass)."""
-    text = re.sub(r"\\begin\s*\{(filecontents\*?|comment)\}.*?\\end\s*\{\1\}", "", text, flags=re.S)
+    text = re.sub(r"\\begin\s*\{comment\}.*?\\end\s*\{comment\}", "", text, flags=re.S)
     ifs = PRIMITIVE_IFS | set(NEWIF.findall(text))
     opener = re.compile(r"(?m)^[ \t]*\\iffalse(?![A-Za-z@])")
-    token = re.compile(r"\\(if[A-Za-z@]*|fi)(?![A-Za-z@])")
+    token = re.compile(r"(\\newif\s*)?\\(if[A-Za-z@]*|fi|else)(?![A-Za-z@])")
     out, i = [], 0
     while True:
         m = opener.search(text, i)
@@ -154,12 +158,16 @@ def strip_dead(text):
             if not t:
                 break
             j = t.end()
-            if t.group(1) == "fi":
+            if t.group(1):
+                continue  # \newif\ifname declares a conditional; it opens nothing
+            if t.group(2) == "fi":
                 depth -= 1
                 if depth == 0:
                     closed = True
                     break
-            elif t.group(1) in ifs:
+            elif t.group(2) == "else" and depth == 1:
+                break  # an \else makes part of the block live: keep all of it rather than guess which part
+            elif t.group(2) in ifs:
                 depth += 1
         if closed:
             out.append(text[i:m.start()])
@@ -169,10 +177,25 @@ def strip_dead(text):
         i = j
 
 
+def _sealed(kind, raw):
+    return f"\\sealed{kind}{{{hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]}}}"
+
+
+def seal(text):
+    """Text TeX does not read as prose is kept as written: verbatim-like environments and inline plot data (a line
+    break separates rows there, a % is a character) and filecontents blocks (their content is a file) are each
+    replaced by a token carrying the hash of their raw text, so any change to them counts and none of it is read as
+    document text."""
+    text = VERBATIM.sub(lambda m: _sealed("verbatim", m.group(0)), text)
+    text = FILECONTENTS.sub(lambda m: _sealed("filecontents", m.group(0)), text)
+    return INLINE_DATA.sub(lambda m: m.group(1) + "{" + _sealed("data", m.group(2)) + "}", text)
+
+
 def plain(text):
     """Text as TeX reads it: whole-line comments and inline comment text dropped, dead blocks dropped, a line break a
     space, a line ending in % joined to the next with nothing, spaces collapsed, one paragraph per line with a blank
-    line between."""
+    line between. Verbatim, inline plot data and filecontents are sealed first (see seal)."""
+    text = seal(text)
     lines = [strip_comment(l, keep_mark=True) for l in text.splitlines() if not l.lstrip().startswith("%")]
     text = strip_dead("\n".join(lines))
     paras, cur = [], []
@@ -247,6 +270,17 @@ def input_refs(text):
     return out
 
 
+_TEX_TREE = {}
+
+
+def in_tex_tree(name):
+    """True when the TeX distribution provides the file (\\input{glyphtounicode}): not the project's to track."""
+    if name not in _TEX_TREE:
+        k = shutil.which("kpsewhich")
+        _TEX_TREE[name] = bool(k) and subprocess.run([k, name], capture_output=True, text=True).returncode == 0
+    return _TEX_TREE[name]
+
+
 def graphic_exts(name):
     return ("",) if posixpath.splitext(name)[1].lower() in KNOWN_EXT else IMAGE_EXT
 
@@ -271,12 +305,15 @@ def pulled(tree, text, here, acc, missing, unfollowed, ctx, depth=0):
             return True
         return False
     for name, sub in input_refs(text):
+        if "#" in name:
+            continue  # a macro's parameter: the file is named where the macro is used, which is not followed
         if "\\" in name:
             unfollowed.append(name)
             continue
         got = resolve(tree, posixpath.join(sub, name) if sub else name, here, ("",))
         if not got:
-            missing.append(name)
+            if not in_tex_tree(name):
+                missing.append(name)
         elif add(got) and depth < DEPTH:
             # \input is found from the main file's directory first, as LaTeX finds it; \import puts its own first
             child = ([posixpath.normpath(posixpath.join(h, sub)) if h else posixpath.normpath(sub) for h in here]
@@ -284,6 +321,8 @@ def pulled(tree, text, here, acc, missing, unfollowed, ctx, depth=0):
             pulled(tree, plain(tree.text(got) or ""), child, acc, missing, unfollowed, ctx, depth + 1)
     for name in GRAPHICS.findall(text):
         name = name.strip()
+        if "#" in name:
+            continue
         if "\\" in name:
             unfollowed.append(name)
             continue
@@ -330,8 +369,7 @@ def reach(tree, main):
     m = DOC.search(text)
     pre_text, body_text = (text[:m.start()], text[m.end():]) if m else ("", text)
     pre_files, pre_missing, pre_unf, problems = [], [], [], []
-    gpath = [d for group in GPATH.findall(pre_text) for d in re.findall(r"\{([^{}]*)\}", group)]
-    ctx = Ctx(gpath)
+    ctx = Ctx()
     pulled(tree, pre_text, [root, ""], pre_files, pre_missing, pre_unf, ctx)
     for name in pre_unf:
         problems.append({"kind": "unfollowed", "float": f"preamble:{main}",
@@ -339,6 +377,7 @@ def reach(tree, main):
     for name in pre_missing:
         problems.append({"kind": "unfollowed", "float": f"preamble:{main}", "detail": f"{name} is not there"})
     pre_sources = [pre_text] + [plain(tree.text(p) or "") for p, _ in pre_files if p.endswith(".tex")]
+    ctx.gpath = [d for src in pre_sources for group in GPATH.findall(src) for d in re.findall(r"\{([^{}]*)\}", group)]
     envs = {name for src in pre_sources for name, inner in NEWENV.findall(src) if inner in BASE_ENVS}
     preamble = None
     if m:
@@ -366,7 +405,8 @@ def reach(tree, main):
     walk(main, [root, ""], 0)
     for src in pre_sources + [t for _, t in body.values()]:
         for f, macro in TABLEREAD.findall(src):
-            ctx.tables.setdefault(macro, f.strip())
+            if not re.search(r"\s", f.strip()) and "sealed" not in f:
+                ctx.tables.setdefault(macro, f.strip())
     return body, preamble, envs, ctx, problems
 
 
@@ -386,15 +426,25 @@ def spans(text, envs):
 
 
 def around(text, pos, found):
-    """The span of a \\captionof: the innermost center, minipage or flush environment around it, or else its
-    paragraph; never reaching into a float environment beside it."""
-    best = None
+    """The span of a \\captionof: the outermost center, minipage or flush environment around it (an image often sits
+    in a sibling minipage of the one holding the caption), or else its paragraph; never reaching into a float
+    environment beside it."""
     for m in re.finditer(r"\\begin\s*\{(" + WRAPPERS + r")\}", text[:pos]):
-        end = re.compile(r"\\end\s*\{" + m.group(1) + r"\}").search(text, m.end())
-        if end and end.start() >= pos:
-            best = (m.start(), end.end())
-    if best:
-        return best
+        depth, j = 0, m.end()
+        rx = re.compile(r"\\(begin|end)\s*\{" + m.group(1) + r"\}")
+        while True:
+            t = rx.search(text, j)
+            if not t:
+                break
+            j = t.end()
+            if t.group(1) == "begin":
+                depth += 1
+            elif depth:
+                depth -= 1
+            else:
+                break
+        if t and t.group(1) == "end" and t.start() >= pos:
+            return m.start(), t.end()
     a = text.rfind("\n\n", 0, pos)
     a = max([a + 2 if a >= 0 else 0] + [e for _, _, e in found if e <= pos])
     b = text.find("\n\n", pos)
@@ -639,7 +689,8 @@ def render(a, payload):
                 notes.append(f"PDF built from {a.built_from}, where this float was a different version: "
                              "rebuild before reviewing")
         else:
-            files = [Path(a.base_dir) / f["file"]] + [Path(a.base_dir) / p for p in f["pulled"]]
+            pre = [x for p in payload["preambles"] for x in [p["file"]] + p["pulled"]]
+            files = [Path(a.base_dir) / q for q in [f["file"]] + f["pulled"] + pre]
             newest = max((p.stat().st_mtime for p in files if p.is_file()), default=0)
             if newest > Path(pdf).stat().st_mtime:
                 notes.append("a file of this float is newer than the PDF: rebuild before reviewing")

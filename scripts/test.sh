@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (232 automated tests, labelled T2-T250: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247 and T250 generated copies rerun against their generators + T239-T246, T248 and T249 figure and table reviews) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (234 automated tests, labelled T2-T252: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249 and T251 figure and table reviews) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -6971,6 +6971,116 @@ EOF
 run_test "T248 float reviews: a \\let\\iffalse, nested conditionals, an unclosed \\iffalse and a filecontents block do not change what the document is" test_T248
 run_test "T249 float reviews: inline plot data, a table macro, \\captionof in center, \\graphicspath, \\includesvg and preamble inputs are followed or said" test_T249
 run_test "T250 generated copies: bash and env -u still reach the PATH python's editable install; env NAME=value, a TMPDIR in the repository and a dead .pth line are not refused" test_T250
+test_T251() {
+    # Round four: text TeX does not read as prose keeps its line breaks and % (a listing, verbatim, inline plot rows,
+    # a filecontents block); a \captionof beside its image's minipage takes the image; an \iffalse with an \else, or
+    # a \newif inside, drops no live float; a macro's #1 and a TeX-distribution file are not missing; inline table
+    # data read into a macro is not a missing file.
+    python3 - "$REPO_ROOT/.claude/skills/audit/scripts/audit-float-reviews.py" <<'EOF'
+import json, shutil, subprocess, sys, tempfile
+from pathlib import Path
+S = sys.argv[1]
+def run(files):
+    with tempfile.TemporaryDirectory() as d:
+        for k, v in files.items():
+            (Path(d) / k).parent.mkdir(parents=True, exist_ok=True)
+            (Path(d) / k).write_text(v)
+        r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--json"],
+                           capture_output=True, text=True)
+        return json.loads(r.stdout)
+def doc(body, pre=""):
+    return "\\documentclass{article}\n" + pre + "\\begin{document}\n" + body + "\\end{document}\n"
+def fp(d, i):
+    return {f["id"]: f["fingerprint"] for f in d["floats"] + d["preambles"]}[i]
+pairs = {"listing": ("\\begin{lstlisting}\nx = 1\ny = 2\n\\end{lstlisting}", "\\begin{lstlisting}\nx = 1 y = 2\n\\end{lstlisting}"),
+         "verbatim": ("\\begin{verbatim}\nrate 5%\nof all\n\\end{verbatim}", "\\begin{verbatim}\nrate 5%of all\n\\end{verbatim}"),
+         "plot rows": ("\\addplot table {x y\n0 0\n1 2\n};", "\\addplot table {x y 0 0\n1 2\n};")}
+for name, (a, b) in pairs.items():
+    fa = fp(run({"main.tex": doc("\\begin{figure}\n" + a + "\n\\caption{C.}\\label{fig:x}\\end{figure}\n")}), "fig:x")
+    fb = fp(run({"main.tex": doc("\\begin{figure}\n" + b + "\n\\caption{C.}\\label{fig:x}\\end{figure}\n")}), "fig:x")
+    assert fa != fb, f"{name}: a changed line break kept the review"
+side = ("\\begin{center}\n\\begin{minipage}{.4\\linewidth}\\includegraphics{a.png}\\end{minipage}\n"
+        "\\begin{minipage}{.4\\linewidth}\\captionof{figure}{Side.}\\label{fig:side}\\end{minipage}\n\\end{center}\n")
+d1, d2 = run({"main.tex": doc(side), "a.png": "A"}), run({"main.tex": doc(side), "a.png": "A2"})
+assert fp(d1, "fig:side") != fp(d2, "fig:side"), "a \\captionof beside its image's minipage left the image out"
+live = "\\begin{figure}\\caption{Live.}\\label{fig:live}\\end{figure}\n"
+for body in ("\\iffalse\nold text\n\\else\n" + live + "\\fi\n",
+             "\\iffalse\n\\newif\\ifdraft\n\\fi\n" + live + "\\ifpdf x\\fi\n"):
+    assert [f["id"] for f in run({"main.tex": doc(body)})["floats"]] == ["fig:live"], body
+pre = ("\\newcommand{\\fig}[2]{\\includegraphics[width=#1]{#2}}\n\\newcommand{\\tab}[1]{\\input{tables/#1}}\n"
+       + ("\\input{glyphtounicode}\n" if shutil.which("kpsewhich") else ""))
+d = run({"main.tex": doc(live, pre)})
+assert [x for x in d["findings"] if x["kind"] in ("unfollowed", "missing-file")] == [], d["findings"]
+inline = "\\pgfplotstableread{x y 1 2 3 4}\\loadedtable\n\\begin{figure}\\addplot table {\\loadedtable};\\caption{I.}\\label{fig:i}\\end{figure}\n"
+d = run({"main.tex": doc(inline)})
+assert [x for x in d["findings"] if x["kind"] == "missing-file"] == [], d["findings"]
+fc = "\\begin{filecontents*}[overwrite]{d.dat}\nx y\n1 2\n\\end{filecontents*}\n"
+d1, d2 = run({"main.tex": doc(live, fc)}), run({"main.tex": doc(live, fc.replace("1 2", "1 3"))})
+assert fp(d1, "preamble:main.tex") != fp(d2, "preamble:main.tex"), "data written by filecontents in the preamble did not count"
+EOF
+}
+
+test_T252() {
+    # Round four, the generator side: a script whose name only starts with python is not an interpreter; a command
+    # that names its own python is not refused for what another python on PATH imports; env -S is read; a .pth line
+    # naming a zip inside the repository is caught.
+    local tmp out sp
+    tmp=$(mktemp -d) || return 1
+    gencopy_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    mkdir -p "$tmp/data/bin" && printf 'python3 gen.py "$1"\n' > "$tmp/data/bin/python_gen.sh"
+    git -C "$tmp/data" add bin && git -C "$tmp/data" -c user.name=t -c user.email=t@example.invalid commit -qm sh
+    python3 - "$tmp" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p)); m["generators"][0]["run"] = ["bash", "{repo}/bin/python_gen.sh", "{out}"]; json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert d['same']==[] and f and 'working tree' in f[0]['detail'], f" \
+        || { echo "a script named python_* in bin/ ran from the working tree"; rm -rf "$tmp"; return 1; }
+    python3 -m venv --without-pip "$tmp/data/.venv" && python3 -m venv --without-pip "$tmp/other" || { rm -rf "$tmp"; return 1; }
+    sp=$("$tmp/other/bin/python" -c "import site; print(site.getsitepackages()[0])")
+    printf '%s\n' "$tmp/data" > "$sp/_other.pth"
+    python3 - "$tmp" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p)); m["generators"][0]["run"] = ["{repo}/.venv/bin/python", "gen.py", "{out}"]; json.dump(m, open(p, "w"))
+EOF
+    out=$(PATH="$tmp/other/bin:$PATH" python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['same']==['tables/t1.tex'], d['findings']" \
+        || { echo "a run with its own python was refused for another python on PATH"; rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+    tmp=$(mktemp -d) || return 1
+    python3 -m venv --without-pip "$tmp/venv" || { rm -rf "$tmp"; return 1; }
+    gencopy_lib_fixture "$tmp" "python" || { rm -rf "$tmp"; return 1; }
+    sp=$("$tmp/venv/bin/python" -c "import site; print(site.getsitepackages()[0])")
+    printf '%s\n' "$tmp/data" > "$sp/_abs.pth"
+    python3 - "$tmp" <<'EOF'
+import json, sys
+root = sys.argv[1]
+p = root + "/ms/generated.json"
+m = json.load(open(p)); m["generators"][0]["run"] = ["/usr/bin/env", "-S", root + "/venv/bin/python scripts/make.py", "{out}"]
+json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert d['same']==[] and f and '_abs.pth' in f[0]['detail'], f" \
+        || { echo "env -S hid the python it runs"; rm -rf "$tmp"; return 1; }
+    rm "$sp/_abs.pth"
+    (cd "$tmp/data" && python3 -c "import zipfile; zipfile.ZipFile('lib.zip','w').writestr('mylib/__init__.py','V = \"0.71\"\n')")
+    python3 -c "import os,sys; r=os.path.realpath; print(os.path.relpath(r(sys.argv[1]), r(sys.argv[2])))" "$tmp/data/lib.zip" "$sp" > "$sp/_zip.pth"
+    python3 - "$tmp" <<'EOF'
+import json, sys
+root = sys.argv[1]
+p = root + "/ms/generated.json"
+m = json.load(open(p)); m["generators"][0]["run"] = [root + "/venv/bin/python", "scripts/make.py", "{out}"]; json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert d['same']==[] and f and '_zip.pth' in f[0]['detail'], f" \
+        || { echo "a .pth line naming a zip in the repository was not caught"; return 1; }
+}
+
+run_test "T251 float reviews: listings, verbatim, plot rows and filecontents keep their line breaks; \\captionof beside its image, \\else and \\newif in dead blocks, #1 and TeX-tree files are read right" test_T251
+run_test "T252 generated copies: a python_* script is not an interpreter, a named python is judged alone, env -S is read, a zip on a .pth line is caught" test_T252
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

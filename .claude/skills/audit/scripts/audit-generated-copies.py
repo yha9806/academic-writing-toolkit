@@ -42,10 +42,12 @@ of the committed copy being read back.
 The working tree can still reach a run through the interpreter: PYTHONPATH,
 user site-packages and an editable install that points into the repository.
 The first two are removed from the environment; the third is looked for in
-the .pth and editable-finder files of each interpreter the run can reach (the
-python the command runs, through /usr/bin/env, nice or timeout, and every
-python3 and python on its PATH, since a script it starts may call them),
-absolute and relative paths both, and a hit fails the generator. Uncommitted changes under the export paths are then reported as
+the .pth and editable-finder files of each interpreter the run reaches (the
+python the command runs, through /usr/bin/env, nice or timeout; when the
+command runs a shell or a script instead, every python3 and python on its
+PATH), absolute and relative paths both, and a hit fails the generator. A
+python the generator itself starts from PATH is not searched when the command
+names its own interpreter. Uncommitted changes under the export paths are then reported as
 not used, which is only true after these steps.
 
 Copies are read before any generator runs and read again after; a copy that
@@ -190,15 +192,19 @@ def editable_hits(python, repo, env):
             if f.suffix == ".pth":
                 # site.py adds a relative line only when the directory exists
                 paths += [str(p / l.strip()) for l in text.splitlines()
-                          if l.strip() and not l.startswith(("#", "import ", "import\t")) and (p / l.strip()).is_dir()]
+                          if l.strip() and not l.startswith(("#", "import ", "import\t")) and (p / l.strip()).exists()]
             if any(inside(m, [real]) for m in paths):
                 hits.append(str(f))
     return hits
 
 
+PYTHON_NAME = re.compile(r"python(\d+(\.\d+)*)?(\.exe)?$")
+
+
 def is_interpreter(word):
-    """A python in a bin/ directory: where a virtual environment keeps it."""
-    return os.path.basename(word).startswith("python") and os.path.basename(os.path.dirname(word)) == "bin"
+    """A python (python, python3, python3.11) in a bin/ directory: where a virtual environment keeps it. A script
+    whose name merely starts with python is not one."""
+    return bool(PYTHON_NAME.match(os.path.basename(word))) and os.path.basename(os.path.dirname(word)) == "bin"
 
 
 def program(argv):
@@ -210,7 +216,9 @@ def program(argv):
         if base == "env":
             i += 1
             while i < len(argv) and (argv[i].startswith("-") or "=" in argv[i]):
-                i += 2 if argv[i] in ("-u", "-C", "-S", "--unset", "--chdir", "--split-string") else 1
+                if argv[i] in ("-S", "--split-string") and i + 1 < len(argv):
+                    return program(argv[i + 1].split() + argv[i + 2:])  # env -S "python3 x.py": the string is the command
+                i += 2 if argv[i] in ("-u", "-C", "--unset", "--chdir") else 1
             continue
         if base in ("nice", "timeout", "nohup", "time"):
             i += 1
@@ -224,11 +232,11 @@ def program(argv):
 
 
 def interpreters(argv, env):
-    """The Python interpreters a run can reach: the program its command line runs when that is a python, and every
-    python3 and python on the run's PATH, since a script the command starts may call either."""
+    """The Python interpreters a run reaches: the program its command line runs when that is a python; otherwise (a
+    shell, a script) every python3 and python on the run's PATH, since what it starts may call either."""
     out = []
     first = program(argv)
-    words = ([first] if os.path.basename(first).startswith("python") else []) + ["python3", "python"]
+    words = [first] if PYTHON_NAME.match(os.path.basename(first)) else ["python3", "python"]
     for w in words:
         found = w if os.sep in w else shutil.which(w, path=env.get("PATH"))
         if found and found not in out:

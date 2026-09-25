@@ -1,6 +1,6 @@
 # Generated copies and float reviews: tables and figures the loop never looked at
 
-Status: implemented (2026-09-25): three independent review rounds (round 1 on the generator check, rounds 2 and 3 on both;
+Status: implemented (2026-09-25): four independent review rounds (round 1 on the generator check, rounds 2 to 4 on both;
 every finding reproduced, fixed, each with a test that fails on the reviewed code); every rule has a test and a mutant that the test kills; run
 read-only on one real manuscript. Not author-approved before work began: the author asked on 2026-09-25 to continue the
 remaining toolkit items with a grill at each step. Items 31.3–31.6 of the same list (claims strength, statistics
@@ -154,6 +154,42 @@ followed; the float search is textual, so an environment built by a macro that i
 - Not changed, written down: an image named inside a `\newcommand` is not followed (macro expansion is out of scope);
   the reader is textual, so a conditional built another way than `\iffalse` at the start of a line is typeset text to
   it.
+
+## Review round 4 (2026-09-25, narrow: regressions of round 3 only; ten findings, all reproduced first)
+
+- Reading as TeX reads had been applied to text TeX does not read as prose. A re-wrapped listing, a joined verbatim
+  line and re-flowed inline plot rows kept their review; a `filecontents` block edited in the preamble counted for
+  nothing until the next build. Verbatim-like environments, inline plot data and filecontents blocks are now sealed
+  first: each becomes a token carrying the hash of its raw text.
+- A `\captionof` in a minipage beside the image's minipage left the image out: the outermost wrapper is taken.
+- An `\iffalse ... \else FIGURE \fi` dropped the live figure, and a `\newif` inside a dead block opened a conditional
+  that closed on a later `\fi`: an `\else` at the block's level keeps the whole block, and `\newif\ifname` opens
+  nothing.
+- The preamble item failed on a macro's `#2`, on `\input{tables/#1}` and on a TeX-distribution file such as
+  `glyphtounicode`, with no way to clear it; inline data read into a table macro was a missing file. Parameters are
+  skipped, a file `kpsewhich` finds is the distribution's, whitespace in a table source means inline data.
+- Generator check: a script named `bin/python_gen.sh` passed as an interpreter; a command naming its own venv python
+  was refused because another python on PATH had an editable install; `env -S` hid its program; a `.pth` line naming
+  a zip in the repository was skipped. Interpreters are matched by name (`python`, `python3`, `python3.11`); PATH
+  pythons are searched only when the command runs a shell or a script; `env -S` is read; any path site.py would add
+  counts.
+- Also from this round: `\graphicspath` in a file the preamble inputs is read, and without `--built-from` a preamble
+  newer than the PDF marks every float stale.
+
+## Where the reviews stopped, and what is left
+
+Rounds 2, 3 and 4 reported 14, 16 and 10 defects (round 1's report grouped its findings and was not counted item by
+item); each was reproduced, fixed, and given a test that fails on the reviewed code and a mutant the test kills. The kind of finding moved from ordinary layouts (a copy read after its generator
+ran, a blank line that did not count) to rare ones (an `\else` inside `\iffalse`, a listing inside a figure), and two
+rounds found regressions the previous round's fixes introduced. A textual reader of TeX will keep having such cases,
+so the review loop was stopped here on this rule: when uncertain, the float check reopens a review and the generator
+check refuses a run, rather than the reverse. Known and left:
+
+- what a macro expands to (an image or a file named inside a `\newcommand`);
+- conditionals other than a line-start `\iffalse` (`\ifdraft ... \fi`, `\iftoggle`): their text counts as typeset;
+- an image name present in two directories: the first found here, which can differ from LaTeX's choice;
+- a python the generator starts from PATH when the command names its own interpreter: not searched;
+- the generator is not sandboxed and runs with the user's rights.
 
 ## On one real manuscript
 
