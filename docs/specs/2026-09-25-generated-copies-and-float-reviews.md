@@ -1,7 +1,7 @@
 # Generated copies and float reviews: tables and figures the loop never looked at
 
-Status: implemented (2026-09-25): one independent review round on the generator check (its findings reproduced,
-fixed, each with a test that fails on the reviewed code); every rule has a test and a mutant that the test kills; run
+Status: implemented (2026-09-25): two independent review rounds (round 1 on the generator check, round 2 on both;
+every finding reproduced, fixed, each with a test that fails on the reviewed code); every rule has a test and a mutant that the test kills; run
 read-only on one real manuscript. Not author-approved before work began: the author asked on 2026-09-25 to continue the
 remaining toolkit items with a grill at each step. Items 31.3–31.6 of the same list (claims strength, statistics
 review, method sentences, domain reader) are specified in `2026-09-25-review-gap-closure.md` §4.4 and built in another
@@ -100,11 +100,42 @@ Two parts of a manuscript sit outside every check the loop runs.
   second); the generator is not sandboxed and can write anything it names by absolute path; Python 3.8 was checked by
   parsing only (no 3.8 interpreter on the machine).
 
+## Review round 2 (2026-09-25, independent reviewer on both scripts; fourteen findings, all reproduced first)
+
+Float reviews, a float that printed differently kept its review: a blank line (a paragraph break) was collapsed into a
+space; a trailing `%` between images was dropped; `\includegraphics[...]` followed by a line break or a space before
+its argument was not followed; `\import` resolved from the root, not its directory; a bare file beside `plot.png` was
+hashed instead of the image; preamble macros and data files (`\addplot table`, `\includestandalone`,
+`\lstinputlisting`, `\csv...`) were never followed. Floats were missed: `\begin {figure}`, an environment defined
+around `figure*`, `longtable`, `\captionof`, a label inside an input file; floats in `\iffalse` and comment
+environments and a `\newenvironment` definition were counted; an `\input` naming a macro was dropped silently. A
+pulled `.tex` was hashed by bytes, so a regenerated table's timestamp comment reopened it. Render took the printed
+page number as the PDF page, let two PDFs with one name overwrite each other's PNGs, rendered a label present in two
+`.aux` files from the first without saying so, did not follow `\@input` in an `.aux`, compared `--built-from` files
+from the repository root when run in a subdirectory, and crashed on a missing `--aux`. Now: the fingerprint is taken
+over the text as it bears on the page (whole-line comments and inline comment text dropped, the `%` kept, a paragraph
+break kept), every pulled `.tex` by that text, data files and the main file's preamble with what it pulls in included;
+floats are found in the document body only, with the other spellings above; a macro `\input` fails the check; the
+page is the physical one from the PDF's named destination for the label's anchor.
+
+Generator check, round-1 fixes that did not hold: a script in the repository as the first word, and an absolute or
+`~` path to it in the arguments, still ran uncommitted code; a relative `.pth` line and an interpreter reached through
+`/usr/bin/env` escaped the editable-install search; `{out}/sub/../x` was reported missing. Now only a python in a
+`bin/` directory may live in the repository, any other word pointing into its working tree is refused, `.pth` lines
+are resolved as site.py resolves them, the interpreters a command runs are found on its PATH, and produced paths are
+normalised. Three mutants survived the first set of tests (a relative `.pth` line whose fixture also carried an
+absolute tail, a comment-only change in a table that sat in its own float, a macro `\input` in a draft whose floats
+were all unreviewed anyway); each test was sharpened until its mutant died.
+
+Not changed, written down: macros defined outside the preamble, `\graphicspath`, packages and classes are not
+followed; the float search is textual, so an environment built by a macro that is not a `\newenvironment` is not seen.
+
 ## On one real manuscript
 
 - Generator check: 18 copies, 17 matched and one figure differed; the figure had been corrected by hand in the copy
   and not in its generator. After the generator was fixed in the data repository, 18 of 18 match.
-- Float reviews: 20 floats found (4 figures, 16 tables, including tables that exist only in the supplement). The
+- Float reviews: 20 floats found (4 figures, 16 tables, including tables that exist only in the supplement; the same 20
+  after round 2, and the round-2 render of the same build is byte-identical page for page). The
   rendered pages were read by the drafting session (same model family as the drafter), and the record holds 11 ok and
   9 fix with notes: overlapping markers that hide cells a caption says are drawn, legends whose markers sit nearer the
   previous label, a CJK font falling back to a second typeface inside a table about character forms, note rows that

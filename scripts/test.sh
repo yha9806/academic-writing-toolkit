@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (224 automated tests, labelled T2-T242: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238 generated copies rerun against their generators + T239-T242 figure and table reviews) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (229 automated tests, labelled T2-T247: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238 and T247 generated copies rerun against their generators + T239-T246 figure and table reviews) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -6313,7 +6313,7 @@ EOF
     status=$?
     rm -rf "$tmp"
     [ "$status" = "1" ] || { echo "{repo} in the arguments: expected exit 1, got $status"; return 1; }
-    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert [x['kind'] for x in f]==['generator-failed'] and 'only in the interpreter' in f[0]['detail'], f"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert [x['kind'] for x in f]==['generator-failed'] and 'names the working tree' in f[0]['detail'], f"
 }
 
 test_T235() {
@@ -6562,15 +6562,17 @@ test_T241() {
 }
 
 test_T242() {
-    # --render: each float's page from the .aux, one PNG per page, and a float whose PDF was built from a commit
-    # where it was a different version is marked. Without pdftoppm it says so and exits 2.
+    # --render: the page is the PDF's physical page, from the named destination of the label's anchor, not the
+    # printed number (here they are swapped, as front matter numbered apart makes them); a float the PDF shows at an
+    # older version is marked and an unchanged one is not. Without pdftoppm it says so and exits 2.
     local tmp out status
     tmp=$(mktemp -d) || return 1
     float_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
     git -C "$tmp" init -q && git -C "$tmp" add -A . && git -C "$tmp" -c user.name=t -c user.email=t@example.invalid commit -qm v1
     python3 - "$tmp/doc.pdf" <<'EOF'
 import sys
-objs = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+objs = [b"<< /Type /Catalog /Pages 2 0 R /Dests << /figure.1 [4 0 R /XYZ 0 0 null] /table.1 [3 0 R /XYZ 0 0 null] >> >>",
+        b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] >>", b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] >>"]
 out, offs = b"%PDF-1.4\n", []
 for i, o in enumerate(objs, 1):
@@ -6593,17 +6595,241 @@ EOF
     fi
     [ "$status" = "0" ] || { echo "render: expected exit 0, got $status: $out"; rm -rf "$tmp"; return 1; }
     [ -f "$tmp/sheet/doc-p001.png" ] && [ -f "$tmp/sheet/doc-p002.png" ] || { echo "pages not rendered: $(ls "$tmp/sheet")"; rm -rf "$tmp"; return 1; }
+    grep -q '`fig:span` · PDF page 2' "$tmp/sheet/REVIEW.md" && grep -q '`tab:counts` · PDF page 1' "$tmp/sheet/REVIEW.md" \
+        || { echo "pages taken from the printed numbers: $(grep '^## ' "$tmp/sheet/REVIEW.md")"; rm -rf "$tmp"; return 1; }
     echo "$out" | grep -q "fig:span: PDF built from HEAD~1, where this float was a different version" \
         || { echo "the older figure was not marked: $out"; rm -rf "$tmp"; return 1; }
-    echo "$out" | grep -q "tab:counts:" && { echo "the unchanged table was marked: $out"; rm -rf "$tmp"; return 1; }
-    grep -q "tab:counts" "$tmp/sheet/REVIEW.md" || { rm -rf "$tmp"; return 1; }
+    echo "$out" | grep -q "tab:counts: PDF built from" && { echo "the unchanged table was marked: $out"; rm -rf "$tmp"; return 1; }
     rm -rf "$tmp"
+}
+
+test_T243() {
+    # A float that prints differently must not keep its old review: a paragraph break between two panels, a
+    # trailing % removed, an image whose argument sits after a space or a line break, a macro file the preamble
+    # inputs, a data file an \addplot table reads. A comment-only change to a regenerated table keeps its review.
+    python3 - "$REPO_ROOT/.claude/skills/audit/scripts/audit-float-reviews.py" <<'EOF'
+import json, subprocess, sys, tempfile
+from pathlib import Path
+S = sys.argv[1]
+MAIN = "\\documentclass{article}\n\\input{numbers}\n\\begin{document}\n\\input{body}\n\\end{document}\n"
+BODY = ("\\begin{figure}\n\\includegraphics{a}%\n\\includegraphics[width=2cm]\n{b}\n\\input{plot}\n"
+        "\\caption{Panels.}\\label{fig:p}\n\\end{figure}\n\\input{t}\n")
+FILES = {"main.tex": MAIN, "body.tex": BODY, "numbers.tex": "\\newcommand{\\n}{12}\n", "a.png": "A", "b.png": "B",
+         "plot.tex": "\\begin{tikzpicture}\\begin{axis}\\addplot table {data.dat};\\end{axis}\\end{tikzpicture}\n",
+         "data.dat": "x y\n1 2\n",
+         "t.tex": "% generated 10:00\n\\begin{table}\\caption{T.}\\label{tab:t}\\begin{tabular}{l}\\n\\end{tabular}\\end{table}\n"}
+def fps(root):
+    r = subprocess.run([sys.executable, S, "--base-dir", str(root), "--main", "main.tex", "--reviews", "r.tsv", "--json"],
+                       capture_output=True, text=True)
+    return {f["id"]: f["fingerprint"] for f in json.loads(r.stdout)["floats"]}
+def case(edit):
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        for k, v in FILES.items():
+            (root / k).write_text(v)
+        before = fps(root)
+        k, old, new = edit
+        p = root / k
+        p.write_text(p.read_text().replace(old, new) if old else new)
+        return before, fps(root)
+changes = {"paragraph break": ("body.tex", "{a}%\n", "{a}%\n\n"),
+           "trailing % removed": ("body.tex", "{a}%\n", "{a}\n"),
+           "image after a line break": ("b.png", None, "B2"),
+           "preamble macro file": ("numbers.tex", None, "\\newcommand{\\n}{13}\n"),
+           "addplot data file": ("data.dat", None, "x y\n1 3\n")}
+for name, edit in changes.items():
+    b, a = case(edit)
+    assert b["fig:p"] != a["fig:p"], f"{name}: the figure kept its fingerprint"
+b, a = case(("t.tex", "% generated 10:00", "% generated 11:30"))
+assert b["tab:t"] == a["tab:t"], "a comment-only change reopened the table"
+b, a = case(("plot.tex", None, "% regenerated 11:30\n" + FILES["plot.tex"]))
+assert b["fig:p"] == a["fig:p"], "a comment-only change to a file the figure inputs reopened it"
+b, a = case(("plot.tex", None, FILES["plot.tex"].replace("\\begin{axis}", "\\begin{axis}[ymax=5]")))
+assert b["fig:p"] != a["fig:p"], "a real change to a file the figure inputs kept its review"
+b, a = case(("numbers.tex", None, "\\newcommand{\\n}{13}\n"))
+assert b["tab:t"] != a["tab:t"], "a preamble macro the table prints did not reopen it"
+EOF
+}
+
+test_T244() {
+    # Floats written other ways are found: a space in \begin {figure}, an environment a \newenvironment defines around
+    # figure*, longtable, \captionof, a label that lives in the input file. Not floats: the definition itself, a float
+    # in \iffalse or a comment environment. An \input that names a macro fails instead of hiding what is behind it.
+    python3 - "$REPO_ROOT/.claude/skills/audit/scripts/audit-float-reviews.py" <<'EOF'
+import json, subprocess, sys, tempfile
+from pathlib import Path
+S = sys.argv[1]
+MAIN = ("\\documentclass{article}\n\\newenvironment{widefig}{\\begin{figure*}}{\\end{figure*}}\n\\begin{document}\n"
+        "\\begin {figure}\\caption{Spaced.}\\label{fig:spaced}\\end {figure}\n"
+        "\\begin{widefig}\\caption{Wide.}\\label{fig:wide}\\end{widefig}\n"
+        "\\begin{longtable}{l}\\caption{Long.}\\label{tab:long}\\\\ x \\\\ \\end{longtable}\n"
+        "\\begin{minipage}{\\linewidth}\\captionof{figure}{Loose.}\\label{fig:loose}\\end{minipage}\n\n"
+        "\\begin{table}\\input{t}\\end{table}\n"
+        "\\iffalse\n\\begin{figure}\\caption{Dead.}\\label{fig:dead}\\end{figure}\n\\fi\n"
+        "\\begin{comment}\n\\begin{figure}\\caption{Commented.}\\label{fig:commented}\\end{figure}\n\\end{comment}\n"
+        "\\end{document}\n")
+with tempfile.TemporaryDirectory() as d:
+    root = Path(d)
+    (root / "main.tex").write_text(MAIN)
+    (root / "t.tex").write_text("\\caption{In a file.}\\label{tab:infile}\\begin{tabular}{l}x\\end{tabular}\n")
+    r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--json"],
+                       capture_output=True, text=True)
+    got = sorted(f["id"] for f in json.loads(r.stdout)["floats"])
+    assert got == ["fig:loose", "fig:spaced", "fig:wide", "tab:infile", "tab:long"], got
+    rows = "".join(f"{f['id']}\t{f['fingerprint']}\tA\t2026-01-01\tok\t\n" for f in json.loads(r.stdout)["floats"])
+    (root / "r.tsv").write_text("label\tfingerprint\treviewer\tdate\tverdict\tnote\n" + rows)
+    r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--json"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, (r.returncode, json.loads(r.stdout)["findings"])
+    (root / "main.tex").write_text(MAIN.replace("\\end{document}", "\\input{\\secdir/more}\n\\end{document}"))
+    r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--json"],
+                       capture_output=True, text=True)
+    kinds = [(f["kind"], bool(f.get("prompt"))) for f in json.loads(r.stdout)["findings"]]
+    assert r.returncode == 1 and kinds == [("unfollowed", False)], (r.returncode, kinds)
+EOF
+}
+
+test_T245() {
+    # \import leads with its own directory: an image beside the imported file is the one hashed, not a namesake at
+    # the root; and a name with no extension is looked up with the driver's extensions before the bare file.
+    python3 - "$REPO_ROOT/.claude/skills/audit/scripts/audit-float-reviews.py" <<'EOF'
+import json, subprocess, sys, tempfile
+from pathlib import Path
+S = sys.argv[1]
+with tempfile.TemporaryDirectory() as d:
+    root = Path(d)
+    (root / "figs").mkdir()
+    (root / "main.tex").write_text("\\documentclass{article}\\begin{document}\n\\begin{figure}\\import{figs/}{body}"
+                                   "\\caption{I.}\\label{fig:i}\\end{figure}\n\\end{document}\n")
+    (root / "figs/body.tex").write_text("\\includegraphics{plot}\n")
+    (root / "figs/plot.png").write_text("inner")
+    (root / "plot.png").write_text("root")
+    (root / "plot").write_text("bare")
+    r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--json"],
+                       capture_output=True, text=True)
+    f = json.loads(r.stdout)["floats"][0]
+    assert f["pulled"] == ["figs/body.tex", "figs/plot.png"], f["pulled"]
+    (root / "figs/body.tex").write_text("\\includegraphics{../plot}\n")
+    r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--json"],
+                       capture_output=True, text=True)
+    assert json.loads(r.stdout)["floats"][0]["pulled"][-1] == "plot.png", json.loads(r.stdout)["floats"][0]["pulled"]
+EOF
+}
+
+test_T246() {
+    # --render reads the .aux files an .aux \@input's, names the pages of two PDFs with the same name apart, says a
+    # missing --aux instead of a traceback, and a --built-from run from a subdirectory of the repository compares
+    # the same files.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/ms/a" "$tmp/ms/b"
+    float_fixture "$tmp/ms" || { rm -rf "$tmp"; return 1; }
+    git -C "$tmp" init -q && git -C "$tmp" add -A . && git -C "$tmp" -c user.name=t -c user.email=t@example.invalid commit -qm v1
+    out=$(python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp/ms" --main main.tex --reviews r.tsv \
+          --render --pdf "$tmp/ms/a/main.pdf" --aux "$tmp/ms/a/main.aux" --out "$tmp/sheet" 2>&1)
+    status=$?
+    [ "$status" = "2" ] && echo "$out" | grep -q "not found" && ! echo "$out" | grep -q Traceback \
+        || { echo "missing inputs: expected exit 2 and a reason, got $status: $out"; rm -rf "$tmp"; return 1; }
+    command -v pdftoppm >/dev/null 2>&1 || { rm -rf "$tmp"; return 0; }
+    for d in a b; do
+        python3 - "$tmp/ms/$d/main.pdf" <<'EOF'
+import sys
+objs = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] >>"]
+out, offs = b"%PDF-1.4\n", []
+for i, o in enumerate(objs, 1):
+    offs.append(len(out)); out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+x = len(out)
+out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offs)
+out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, x)
+open(sys.argv[1], "wb").write(out)
+EOF
+    done
+    printf '\\@input{chap.aux}\n' > "$tmp/ms/a/main.aux"
+    printf '\\newlabel{fig:span}{{1}{1}{Two spans}{figure.1}{}}\n' > "$tmp/ms/a/chap.aux"
+    printf '\\newlabel{tab:counts}{{1}{1}{Counts}{table.1}{}}\n' > "$tmp/ms/b/main.aux"
+    out=$(python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp/ms" --main main.tex --reviews r.tsv \
+          --render --pdf "$tmp/ms/a/main.pdf" --aux "$tmp/ms/a/main.aux" --pdf "$tmp/ms/b/main.pdf" --aux "$tmp/ms/b/main.aux" \
+          --built-from HEAD --out "$tmp/sheet" 2>&1)
+    status=$?
+    local names; names=$(ls "$tmp/sheet" | tr '\n' ' ')
+    rm -rf "$tmp"
+    [ "$status" = "0" ] || { echo "render: expected exit 0, got $status: $out"; return 1; }
+    echo "$names" | grep -q "1-main-p001.png" && echo "$names" | grep -q "2-main-p001.png" \
+        || { echo "two PDFs named alike wrote one PNG: $names"; return 1; }
+    echo "$out" | grep -q "not in any .aux" && { echo "a label in an \\@input .aux was not read: $out"; return 1; }
+    echo "$out" | grep -q "different version" && { echo "--built-from from a subdirectory compared other files: $out"; return 1; }
+    return 0
 }
 
 run_test "T239 float reviews: an unreviewed float is named, and a changed image reopens its figure while prose elsewhere does not" test_T239
 run_test "T240 float reviews: the latest current row decides, a gone label is a prompt, a missing image fails" test_T240
 run_test "T241 float reviews: no float, or an unreadable record, exits 2" test_T241
-run_test "T242 float reviews: --render finds pages in the .aux and marks a float the PDF shows at an older version" test_T242
+run_test "T242 float reviews: --render takes the physical page from the named destination and marks a float the PDF shows at an older version" test_T242
+run_test "T243 float reviews: a paragraph break, a trailing %, a spaced image argument, a preamble macro file and plot data change the fingerprint; a comment does not" test_T243
+run_test "T244 float reviews: floats written other ways are found, dead ones are not, and an \\input naming a macro fails" test_T244
+run_test "T245 float reviews: \\import leads with its own directory and extensions are tried before the bare name" test_T245
+run_test "T246 float reviews: --render reads \\@input .aux files, names alike PDFs apart, and says what is missing" test_T246
+
+test_T247() {
+    # Round two of the working-tree guard: a script in the repository as the first word, an absolute or ~ path into
+    # it among the arguments, a relative .pth line, and an interpreter reached through /usr/bin/env all used to run
+    # uncommitted code while the report said it was not used. And {out}/sub/../x is the file x in {out}.
+    local tmp out status sp rel
+    tmp=$(mktemp -d) || return 1
+    gencopy_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    printf '#!/usr/bin/env python3\n%s' "$(cat "$tmp/data/gen.py")" > "$tmp/data/gen.py" && chmod +x "$tmp/data/gen.py"
+    git -C "$tmp/data" -c user.name=t -c user.email=t@example.invalid commit -qam exec
+    sed -i.bak 's/"{:.2f}".format(v\["a"\])/"0.99"/' "$tmp/data/gen.py" && rm "$tmp/data/gen.py.bak"
+    sed -i.bak 's/A \& 0.63/A \& 0.99/' "$tmp/ms/tables/t1.tex" && rm "$tmp/ms/tables/t1.tex.bak"
+    for run in '["{repo}/gen.py", "{out}"]' '["python3", "'"$tmp"'/data/gen.py", "{out}"]' '["python3", "~/data/gen.py", "{out}"]'; do
+        python3 - "$tmp" "$run" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p)); m["generators"][0]["run"] = json.loads(sys.argv[2]); json.dump(m, open(p, "w"))
+EOF
+        out=$(HOME="$tmp" python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+        status=$?
+        echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert d['same']==[] and [x['kind'] for x in f]==['generator-failed'] and 'working tree' in f[0]['detail'], f" \
+            || { echo "$run ran the working tree (exit $status)"; rm -rf "$tmp"; return 1; }
+    done
+    git -C "$tmp/data" checkout -q gen.py
+    sed -i.bak 's/A \& 0.99/A \& 0.63/' "$tmp/ms/tables/t1.tex" && rm "$tmp/ms/tables/t1.tex.bak"
+    python3 - "$tmp" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p)); g = m["generators"][0]
+g["run"] = ["python3", "gen.py", "{out}"]; g["copies"] = {"tables/t1.tex": "{out}/sub/../t1.tex"}
+json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['same']==['tables/t1.tex'], d['findings']" \
+        || { echo "{out}/sub/../t1.tex was not read"; rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+    tmp=$(mktemp -d) || return 1
+    python3 -m venv --without-pip "$tmp/venv" || { rm -rf "$tmp"; return 1; }
+    gencopy_lib_fixture "$tmp" "$tmp/venv/bin/python" || { rm -rf "$tmp"; return 1; }
+    sp=$("$tmp/venv/bin/python" -c "import site; print(site.getsitepackages()[0])")
+    # both sides resolved, so the line is relative all the way (a /var against /private/var pair climbs to the root
+    # and carries an absolute tail, which the absolute-path rule would catch instead)
+    rel=$(python3 -c "import os,sys; r=os.path.realpath; print(os.path.relpath(r(sys.argv[1]), r(sys.argv[2])))" "$tmp/data" "$sp")
+    case "$rel" in /*|*/var/*|*/private/*) echo "fixture: the .pth line is not purely relative: $rel"; rm -rf "$tmp"; return 1;; esac
+    printf '%s\n' "$rel" > "$sp/_rel.pth"
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert d['same']==[] and '_rel.pth' in f[0]['detail'], f" \
+        || { echo "a relative .pth line was not caught"; rm -rf "$tmp"; return 1; }
+    python3 - "$tmp" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p)); m["generators"][0]["run"] = ["/usr/bin/env", "python", "scripts/make.py", "{out}"]; json.dump(m, open(p, "w"))
+EOF
+    out=$(PATH="$tmp/venv/bin:$PATH" python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert d['same']==[] and '_rel.pth' in f[0]['detail'], f" \
+        || { echo "an interpreter reached through /usr/bin/env was not probed"; return 1; }
+}
+
+run_test "T247 generated copies: a script, a path or ~ into the repository, a relative .pth line and /usr/bin/env python cannot run uncommitted code" test_T247
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

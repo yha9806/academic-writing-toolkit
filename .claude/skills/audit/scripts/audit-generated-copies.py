@@ -29,8 +29,10 @@ The manifest (JSON, in the manuscript repository):
 For each generator the repository's HEAD commit (never its working tree) is
 archived, `export` pathspecs only, into a temporary directory; `run` is run
 there with `{tree}` (the archive) and `{out}` (an empty directory)
-substituted, and `{repo}` only in the first word (the interpreter: a virtual
-environment usually lives in the repository). A relative `repo` is read from
+substituted, and `{repo}` for the interpreter: a virtual environment usually
+lives in the repository, so the first word may point there when it is a
+python in a bin/ directory; any other word that points into the working tree
+(through {repo}, an absolute path or ~) is refused. A relative `repo` is read from
 the manuscript directory, which the loop replaces with a copy: give an absolute
 or ~ path there. Links in the archive are not extracted. A produced
 path must resolve inside the archive or `{out}`; any file already there is
@@ -40,8 +42,9 @@ of the committed copy being read back.
 The working tree can still reach a run through the interpreter: PYTHONPATH,
 user site-packages and an editable install that points into the repository.
 The first two are removed from the environment; the third is looked for in
-the interpreter's .pth and editable-finder files, and a hit fails the
-generator. Uncommitted changes under the export paths are then reported as
+the .pth and editable-finder files of each interpreter the command runs (its
+first word, or what /usr/bin/env is asked for, found on PATH), absolute and
+relative paths both, and a hit fails the generator. Uncommitted changes under the export paths are then reported as
 not used, which is only true after these steps.
 
 Copies are read before any generator runs and read again after; a copy that
@@ -89,6 +92,7 @@ import json
 import os
 import posixpath
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -179,10 +183,45 @@ def editable_hits(python, repo, env):
                 text = f.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            # Paths are compared resolved: a temporary directory or a home path is often written through a link.
-            if any(inside(m, [real]) for m in re.findall(r"/[^\s'\"\],;)]+", text)):
+            # Paths are compared resolved: a temporary directory or a home path is often written through a link. A
+            # .pth line that is not an import is a path, relative to the .pth's own directory as site.py reads it.
+            paths = re.findall(r"/[^\s'\"\],;)]+", text)
+            if f.suffix == ".pth":
+                paths += [str(p / l.strip()) for l in text.splitlines()
+                          if l.strip() and not l.startswith(("#", "import ", "import\t"))]
+            if any(inside(m, [real]) for m in paths):
                 hits.append(str(f))
     return hits
+
+
+def interpreters(argv, env):
+    """The Python interpreters a command line runs: its first word, or the program /usr/bin/env is asked for,
+    resolved on the run's PATH."""
+    words = argv[:1]
+    if argv and os.path.basename(argv[0]) == "env":
+        words = [next((a for a in argv[1:] if not a.startswith("-") and "=" not in a), "")]
+    out = []
+    for w in words:
+        if os.path.basename(w).startswith("python"):
+            found = w if os.sep in w else shutil.which(w, path=env.get("PATH"))
+            if found:
+                out.append(found)
+    return out
+
+
+def names_working_tree(argv, repo):
+    """The words of a command line that point into the repository's working tree. The interpreter may live there
+    (a virtual environment usually does); a script, a module path or an argument may not."""
+    real = os.path.realpath(repo)
+    bad = []
+    for k, a in enumerate(argv):
+        if k == 0 and os.path.basename(a).startswith("python") and os.path.basename(os.path.dirname(a)) == "bin":
+            continue
+        for m in re.findall(r"(?:~|/)[^\s'\";:,]*", a):
+            if inside(os.path.expanduser(m), [real]) or m.startswith(repo):
+                bad.append(a)
+                break
+    return bad
 
 
 def run_argv(argv, cwd, timeout, env):
@@ -210,8 +249,6 @@ def run_generator(g, base, timeout):
     run = [str(a) for a in g.get("run") or []]
     if not repo or not specs or not run or not isinstance(g.get("copies"), dict):
         return info, {}, "generator needs repo, export, run and copies"
-    if any("{repo}" in a for a in run[1:]):
-        return info, {}, "{repo} is allowed only in the interpreter: anywhere else the run reads the working tree"
     env = {k: v for k, v in os.environ.items() if k not in SCRUB}
     env.update(PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1")
     with tempfile.TemporaryDirectory(prefix="gen-tree-") as tree, tempfile.TemporaryDirectory(prefix="gen-out-") as out:
@@ -221,15 +258,19 @@ def run_generator(g, base, timeout):
             return info, {}, err
         info["dirty"] = dirty(repo, specs)
         subst = lambda s: os.path.expanduser(s).replace("{repo}", repo).replace("{tree}", tree).replace("{out}", out)
-        argv = [subst(run[0])] + [subst(a) for a in run[1:]]
-        hits = editable_hits(argv[0], repo, env) if os.path.basename(argv[0]).startswith("python") else []
+        argv = [subst(a) for a in run]
+        bad = names_working_tree(argv, repo)
+        if bad:
+            return info, {}, ("the command names the working tree of the repository (" + ", ".join(bad[:2]) + "); "
+                              "only an interpreter in its bin/ may live there")
+        hits = [h for py in interpreters(argv, env) for h in editable_hits(py, repo, env)]
         if hits:
             return info, {}, "the interpreter imports the working tree of the repository through " + ", ".join(hits[:3])
         roots = [os.path.realpath(tree), os.path.realpath(out)]
         produced = {}
         for copy, target in g["copies"].items():
             p = Path(subst(str(target)))
-            p = p if p.is_absolute() else Path(tree) / p
+            p = Path(os.path.normpath(str(p if p.is_absolute() else Path(tree) / p)))
             if not inside(p, roots):
                 # A file outside the archive and the output directory would be read as it already is, and removing
                 # it would remove someone's file.
