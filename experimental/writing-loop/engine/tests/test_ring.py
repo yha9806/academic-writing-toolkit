@@ -147,3 +147,32 @@ class RingTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnalysisStageTest(unittest.TestCase):
+    """A stage for analysis (spec 2026-09-25 §4.5): the analyses a round needed ran outside the ring, so the ring could
+    only offer rewording. It is off unless the workspace turns it on; the claims ledger's 分析 items hang on it."""
+
+    def test_without_the_stage_the_ring_keeps_its_seven_stages(self):
+        r = R.ring(summary())
+        self.assertEqual([s["key"] for s in r["segments"]], [k for k, _, _ in R.STAGES])
+        self.assertNotIn("analysis", [s["key"] for s in r["segments"]])
+
+    def test_an_open_analysis_hangs_on_the_stage_between_design_and_rewrite(self):
+        items = [{"id": "N1", "title": "五个模型跑遮字", "closed": False, "status": "未做"},
+                 {"id": "N2", "title": "换掉查询文字", "closed": True, "status": "已做 2026-01-01 run-2"}]
+        r = R.ring(summary(), analysis=items)
+        keys = [s["key"] for s in r["segments"]]
+        self.assertEqual(keys[:4], ["comment", "design", "analysis", "rewrite"])
+        a = seg(r, "analysis")
+        self.assertEqual(a["state"], "open")
+        self.assertEqual([i["id"] for i in a["items"]], ["N1"])
+
+    def test_an_analysis_closed_within_the_round_marks_the_stage_done(self):
+        decided = [risk("门", "G1", "核对页", decided_on="2026-02-01")]
+        done = [{"id": "N1", "title": "五个模型跑遮字", "closed": True, "status": "已做 2026-02-03 run-5"}]
+        r = R.ring(summary(decided=decided), analysis=done)
+        self.assertEqual(seg(r, "analysis")["state"], "done")
+        before = [{"id": "N1", "title": "五个模型跑遮字", "closed": True, "status": "已做 2026-01-20 run-5"}]
+        self.assertEqual(seg(R.ring(summary(decided=decided), analysis=before), "analysis")["state"], "unseen",
+                         "an analysis done before the round began is not this round's")

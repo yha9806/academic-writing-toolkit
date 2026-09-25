@@ -811,6 +811,34 @@ class CliOffByDefaultTest(unittest.TestCase):
             self.assertEqual(len(list((home / "producers" / L.PRODUCER / "activities").glob("loop-*.json"))), 1)
 
 
+class CliAnalysisStageTest(unittest.TestCase):
+    def test_with_the_analysis_stage_on_the_card_carries_the_ledgers_open_analysis(self):
+        # The stage is off by default (the notch was laid out for seven); on, the resident producer reads the claims
+        # ledger and the ring gains 分析 between 设计 and 改稿 (spec 2026-09-25 §4.5).
+        from loop.cli import main
+        from loop import config as C
+        from test_doctor import DoctorTest
+        with TempDir() as root:
+            ws = DoctorTest.setup_ws(None, root)
+            ledger = root / "claims.md"
+            ledger.write_text("## 主张 C1 读数是 12\n- 证据：表 1\n- 强度：中\n- 允许的说法：读数\n- 缺：N1\n\n"
+                              "## 待做 N1 再测一座桥\n- 类型：分析\n- 改变：C1\n- 状态：未做\n", encoding="utf-8")
+            cfg = C.load(ws)
+            cfg["claims"] = str(ledger)
+            cfg["ring"] = {"analysis": True}
+            C.save(ws, cfg)
+            home = root / "lintel-home"
+            register(home)
+            self.assertEqual(main(["update", str(ws)]), 0)
+            main(["coverage", str(ws)])   # writes the coverage summary the ring is read from
+            self.assertEqual(main(["lintel", str(ws), "--once", "--home", str(home)]), 0)
+            act = json.loads(next((home / "producers" / L.PRODUCER / "activities").glob("loop-*.json")).read_text(encoding="utf-8"))
+            segs = {s["key"]: s for s in (act.get("ring") or {}).get("segments") or []}
+            self.assertIn("analysis", segs, act.get("ring"))
+            self.assertEqual(segs["analysis"]["note"], "要做 1")
+            self.assertEqual([k for k in segs][:4], ["comment", "design", "analysis", "rewrite"])
+
+
 class ResidentTest(unittest.TestCase):
     def test_the_resident_producer_reads_the_index_and_does_not_rebuild_it(self):
         from loop.cli import main

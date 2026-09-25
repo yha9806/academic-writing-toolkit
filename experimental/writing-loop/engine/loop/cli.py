@@ -335,7 +335,16 @@ def cmd_lintel(a):
         except Exception as e:  # noqa: BLE001
             problems.append(f"轮次：{type(e).__name__}：{e}")
         from . import outlet as OUT
-        acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov,
+        analysis = None
+        from . import catalogue as K
+        if K.get(cfg, "ring.analysis"):
+            # 分析 on the ring (spec 2026-09-25 §4.5), off unless turned on: the notch was laid out for seven stages.
+            try:
+                from . import state as S
+                analysis = [t for t in S.compute(cfg, a.workspace).get("todo") or [] if t.get("kind") == "分析"]
+            except Exception as e:  # noqa: BLE001
+                problems.append(f"分析环：{type(e).__name__}：{e}")
+        acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov, analysis=analysis,
                         coverage=V.load_summary(a.workspace, cfg), turn=turn, readers=readers,
                         built_at=(HL.load(a.workspace).get("last_ok") or {}).get("t"),
                         denials=HL.guard_denials(a.workspace), overrides=HL.gate_overrides(a.workspace),
