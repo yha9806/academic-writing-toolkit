@@ -1,6 +1,6 @@
-"""Generated copies in the loop: a data repository is read at its HEAD commit, so the check goes stale when that
-repository commits, not when its files are touched; the row shows the check's own one-line summary. Synthetic files
-throughout."""
+"""Generated copies and float reviews in the loop: a data repository is read at its HEAD commit, so the check goes
+stale when that repository commits, not when its files are touched; the row shows the check's own one-line summary;
+floats are looked for from every draft file and every also-checked file. Synthetic files throughout."""
 import json
 import sys
 import unittest
@@ -104,6 +104,52 @@ class GeneratedCopiesInTheLoop(unittest.TestCase):
     def test_a_one_line_summary_is_what_the_row_says(self):
         out = json.dumps({"summary_zh": "3 份副本重跑对照：一致 3", "hard_finding_count": 0})
         self.assertEqual(V.interpret("generated-copies", 0, out, ""), ("ok", "3 份副本重跑对照：一致 3"))
+
+
+FMAIN = r"""\documentclass{article}
+\begin{document}
+\section{Introduction}
+Two gauges read twelve points.
+\begin{figure}\includegraphics{photo.png}\caption{Two spans.}\label{fig:span}\end{figure}
+\end{document}
+"""
+FSUPP = r"""\section{Extra}
+\begin{table}\caption{Night readings.}\label{tab:night}\begin{tabular}{l}x\end{tabular}\end{table}
+"""
+
+
+class FloatReviewsInTheLoop(unittest.TestCase):
+    def test_floats_in_the_draft_and_the_also_checked_files_are_listed_until_reviewed(self):
+        with TempDir() as root:
+            repo = make_repo(root, [({"main.tex": FMAIN, "supp.tex": FSUPP, "photo.png": "PNG1",
+                                      "reviews.tsv": "label\tfingerprint\treviewer\tdate\tverdict\tnote\n"},
+                                     "v1", 1_700_000_000)])
+            ws = workspace(root, repo, "main", glob=["main.tex"])
+            cfg = C.load(ws)
+            cfg["draft"]["format"] = "latex"
+            cfg["draft"]["sections"] = [{"match": r"^Introduction$", "prefix": "I", "kind": "prose"}]
+            cfg.setdefault("inputs", {}).update({"float_reviews": "reviews.tsv", "also_checked": ["supp.tex"]})
+            C.save(ws, cfg)
+            cfg = C.load(ws)
+            vs = H.load_versions(cfg)
+            H.assign_ids(vs)
+            head = git(repo, "rev-parse", "HEAD")
+            (Path(ws) / "index" / "sentences.json").write_text(json.dumps({"head": head, "versions": vs}),
+                                                               encoding="utf-8")
+            chk = K.by_id("float-reviews")
+            rec = V.run(chk, cfg, ws, head, V.current_sentences(ws)[0])
+            self.assertEqual(rec["verdict"], "findings", rec)
+            self.assertIn("图表 2 个：看过这一版 0", rec["summary"])
+            self.assertEqual(sorted(f["id"] for f in rec["result"]["floats"]), ["fig:span", "tab:night"],
+                             "the table lives only in an also-checked file")
+            rows = "".join(f"{f['id']}\t{f['fingerprint']}\tA. Reader\t2026-01-01\tok\t\n" for f in rec["result"]["floats"])
+            (repo / "reviews.tsv").write_text("label\tfingerprint\treviewer\tdate\tverdict\tnote\n" + rows,
+                                              encoding="utf-8")
+            git(repo, "commit", "-qam", "reviewed")
+            head = git(repo, "rev-parse", "HEAD")
+            rec = V.run(chk, cfg, ws, head, V.current_sentences(ws)[0])
+            self.assertEqual(rec["verdict"], "ok", rec)
+            self.assertIn("看过这一版 2", rec["summary"])
 
 
 if __name__ == "__main__":

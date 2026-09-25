@@ -1,9 +1,11 @@
 # Generated copies and float reviews: tables and figures the loop never looked at
 
-Status: draft (2026-09-25). The author asked on 2026-09-25 to continue the remaining toolkit items with a grill at
-each step; this spec is written before the code and is not author-approved. Items 31.3–31.6 of the same list
-(claims strength, statistics review, method sentences, domain reader) are specified in
-`2026-09-25-review-gap-closure.md` §4.4 and built in another session; this spec does not touch them.
+Status: implemented (2026-09-25): one independent review round on the generator check (its findings reproduced,
+fixed, each with a test that fails on the reviewed code); every rule has a test and a mutant that the test kills; run
+read-only on one real manuscript. Not author-approved before work began: the author asked on 2026-09-25 to continue the
+remaining toolkit items with a grill at each step. Items 31.3–31.6 of the same list (claims strength, statistics
+review, method sentences, domain reader) are specified in `2026-09-25-review-gap-closure.md` §4.4 and built in another
+session; this spec does not touch them.
 
 ## Problem
 
@@ -26,8 +28,8 @@ Two parts of a manuscript sit outside every check the loop runs.
 ## Goals
 
 1. `audit-generated-copies.py`: for every copy listed in a manifest, rerun its generator on the data repository's
-   committed state (never its working tree, never in place) and compare the copy with the output, LaTeX comments
-   ignored. A copy that differs, a generator that fails, or a file under the manifest's covered globs that the
+   committed state (never its working tree, never in place) and compare the copy with the output, whole-line
+   comments ignored. A copy that differs, a generator that fails, or a file under the manifest's covered globs that the
    manifest does not list fails the check. A file the manifest lists as hand-made is reported as such, not checked.
 2. `audit-float-reviews.py`: list every figure and table the draft includes, with a version fingerprint (its caption
    and the bytes of every file it pulls in), and compare with a review record. A float with no review of its
@@ -50,14 +52,16 @@ Two parts of a manuscript sit outside every check the loop runs.
   to a reason; `generators` is a list of `{name, repo, export, run, copies}`: `export` is the pathspecs archived
   from the repository's HEAD into a temporary tree, `run` is the argv run there (`{repo}`, `{tree}`, `{out}` are
   substituted; `{out}` is an empty directory), `copies` maps each manuscript path to the produced file.
-- Comparison: comments stripped (an escaped `\%` is text), trailing spaces and blank lines ignored. The report
-  gives the first differing lines of each copy.
+- Comparison: whole-line comments, trailing spaces and blank lines ignored; everything else compared as written,
+  bytes kept (changed in review round 1: stripping every comment folded a trailing `%` and a `%` in a URL away).
+  The report gives the first differing lines of each copy.
 - Staleness: an `outside` entry of the form `git:<repo>` is the repository's HEAD commit, so the check reruns when
   the data repository commits, without hashing the repository's files.
 - Float identity: its first `\label`, or `<file>#<n>` when it has none. Floats are found in the draft, the
   `also_checked` files and every file they `\input`, including a float environment that lives inside an input
-  file. Fingerprint: sha256 over the caption text and, for each file the float pulls in (`\input`,
-  `\includegraphics`, recursively through `.tex` files), its path and bytes.
+  file. Fingerprint: sha256 over the float's environment text (comments dropped, spaces collapsed: the caption and
+  the layout commands around it) and, for each file the float pulls in (`\input`, `\includegraphics`, recursively
+  through `.tex` files), its path and bytes. A change inside a comment does not reopen a review.
 - Review record: TSV `label, fingerprint, reviewer, date, verdict, note`. Only a row whose fingerprint is the
   current one counts. Rows for labels that no longer exist are reported as stale rows.
 - Render: pages come from the `.aux` (`\newlabel{<label>}{{n}{page}…}`); `pdftoppm` renders each page once. The
@@ -75,3 +79,36 @@ Two parts of a manuscript sit outside every check the loop runs.
 - Empty inputs exit 2 (the fails-closed registry lists both scripts).
 - On the real manuscript: the generator check reproduces the one known differing copy before any fix, and a person
   reads each float at its rendered page before a review row is written.
+
+## Review round 1 (2026-09-25, independent reviewer on the generator check; every finding reproduced first)
+
+- The working tree still reached a run through the interpreter: PYTHONPATH, an editable install whose `.pth` points
+  into the repository, `{repo}` in the arguments. The report said the uncommitted change was "not used". Now
+  PYTHONPATH and user site-packages are removed, the interpreter's `.pth` and editable-finder files are searched for
+  paths inside the repository (compared resolved: the first fix compared strings and missed a path written through
+  a link, which its own test caught), and `{repo}` is allowed only as the interpreter.
+- Copies were read after the generators ran, so a generator that syncs into the manuscript made its own copy match:
+  copies are read first, and a copy that changed during the run fails.
+- A produced path with `..`, or through a link committed in the data repository, removed a file outside the run:
+  paths are resolved before anything is removed, and links are not extracted from the archive.
+- Comparisons folded different files together: empty output against a comment-only copy, a trailing `%` (LaTeX
+  joins the lines), `%` in a URL, invalid UTF-8 bytes. Only whole-line comments are dropped now, bytes are kept, and
+  output with no content line fails.
+- A `covers` pattern with a typo silently turned the unlisted check off; a name differing only in case escaped it;
+  `./` in a key and a copy listed under two generators were counted twice; a timeout left grandchildren running.
+- Not changed, written down: any commit to the data repository reruns every generator (one real manuscript: about a
+  second); the generator is not sandboxed and can write anything it names by absolute path; Python 3.8 was checked by
+  parsing only (no 3.8 interpreter on the machine).
+
+## On one real manuscript
+
+- Generator check: 18 copies, 17 matched and one figure differed; the figure had been corrected by hand in the copy
+  and not in its generator. After the generator was fixed in the data repository, 18 of 18 match.
+- Float reviews: 20 floats found (4 figures, 16 tables, including tables that exist only in the supplement). The
+  rendered pages were read by the drafting session (same model family as the drafter), and the record holds 11 ok and
+  9 fix with notes: overlapping markers that hide cells a caption says are drawn, legends whose markers sit nearer the
+  previous label, a CJK font falling back to a second typeface inside a table about character forms, note rows that
+  widen tables, a hyphen for a minus sign, and narrow tables scaled up by `\resizebox{\columnwidth}`. The render
+  step's older-version marking was probed with a build commit from before the last figure changes: the four changed
+  figures and one changed table were marked, the rest were not.
+

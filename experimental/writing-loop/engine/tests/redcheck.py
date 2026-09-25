@@ -730,6 +730,9 @@ MUTATIONS = [
      'test_figures_tables.GeneratedCopiesInTheLoop.test_a_one_line_summary_is_what_the_row_says'),
     ("fig", 'catalogue.py', '    return [f"git:{r}" for r in sorted(repos)]', '    return []',
      'test_figures_tables.GeneratedCopiesInTheLoop.test_the_outside_list_comes_from_the_manifest_at_the_ref'),
+    ("fig", 'catalogue.py', '    mains = list(ctx["drafts"]) + [p for p in (get(ctx["cfg"], "inputs.also_checked") or [])',
+     '    mains = list(ctx["drafts"]) + [p for p in []',
+     'test_figures_tables.FloatReviewsInTheLoop.test_floats_in_the_draft_and_the_also_checked_files_are_listed_until_reviewed'),
 ]
 
 

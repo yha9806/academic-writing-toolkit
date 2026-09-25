@@ -6258,6 +6258,353 @@ run_test "T231 generated copies: the data repository's working tree is not used,
 run_test "T232 generated copies: an unlisted table fails until listed as made by hand; a produced path outside the run is refused" test_T232
 run_test "T233 generated copies: nothing compared exits 2" test_T233
 
+gencopy_lib_fixture() {
+    # A data repository whose generator lives in scripts/ and imports mylib from the repository root, so only the
+    # archive's own mylib is the committed one; the working tree's mylib is edited and not committed.
+    mkdir -p "$1/data/scripts" "$1/data/mylib" "$1/ms/tables" || return 1
+    printf 'V = "0.63"\n' > "$1/data/mylib/__init__.py"
+    cat > "$1/data/scripts/make.py" <<'EOF'
+import os, sys
+sys.path.append(os.getcwd())
+import mylib
+out = sys.argv[1]
+os.makedirs(out, exist_ok=True)
+open(os.path.join(out, "t.tex"), "w").write("A & " + mylib.V + "\n")
+EOF
+    git -C "$1/data" init -q && git -C "$1/data" add scripts mylib \
+        && git -C "$1/data" -c user.name=t -c user.email=t@example.invalid commit -qm init || return 1
+    printf 'V = "0.71"\n' > "$1/data/mylib/__init__.py"
+    printf 'A & 0.71\n' > "$1/ms/tables/t.tex"
+    python3 - "$1" "$2" <<'EOF'
+import json, sys
+root, py = sys.argv[1], sys.argv[2]
+json.dump({"covers": ["tables/*.tex"], "hand": {},
+           "generators": [{"name": "gen", "repo": root + "/data", "export": ["scripts", "mylib"],
+                           "run": [py, "scripts/make.py", "{out}"], "copies": {"tables/t.tex": "{out}/t.tex"}}]},
+          open(root + "/ms/generated.json", "w"))
+EOF
+}
+
+test_T234() {
+    # The working tree must not reach the run: not through PYTHONPATH, not through an editable install in the
+    # interpreter's environment, not through {repo} in the arguments. Each would make a copy that matches only
+    # uncommitted code pass.
+    local tmp out status sp
+    tmp=$(mktemp -d) || return 1
+    python3 -m venv --without-pip "$tmp/venv" || { rm -rf "$tmp"; return 1; }
+    gencopy_lib_fixture "$tmp" "$tmp/venv/bin/python" || { rm -rf "$tmp"; return 1; }
+    out=$(PYTHONPATH="$tmp/data" python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    status=$?
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['same']==[] and [f['kind'] for f in d['findings']]==['differs'], d['findings']" \
+        || { echo "PYTHONPATH reached the run (exit $status)"; rm -rf "$tmp"; return 1; }
+    sp=$("$tmp/venv/bin/python" -c "import site; print(site.getsitepackages()[0])")
+    printf '%s\n' "$tmp/data" > "$sp/_editable_data.pth"
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    status=$?
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert d['same']==[] and [x['kind'] for x in f]==['generator-failed'] and '_editable_data.pth' in f[0]['detail'], f" \
+        || { echo "an editable install into the repository was not caught (exit $status)"; rm -rf "$tmp"; return 1; }
+    rm "$sp/_editable_data.pth"
+    python3 - "$tmp" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p)); m["generators"][0]["run"][1] = "{repo}/scripts/make.py"; json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    status=$?
+    rm -rf "$tmp"
+    [ "$status" = "1" ] || { echo "{repo} in the arguments: expected exit 1, got $status"; return 1; }
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert [x['kind'] for x in f]==['generator-failed'] and 'only in the interpreter' in f[0]['detail'], f"
+}
+
+test_T235() {
+    # Copies are read before the generators run: a generator that also writes into the manuscript cannot make its
+    # own copy match, and the change is reported.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gencopy_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    printf 'import shutil, sys\nshutil.copy(sys.argv[1] + "/t1.tex", sys.argv[2])\n' > "$tmp/data/sync.py"
+    git -C "$tmp/data" add sync.py && git -C "$tmp/data" -c user.name=t -c user.email=t@example.invalid commit -qm sync
+    sed -i.bak 's/A \& 0.63/A \& 0.99/' "$tmp/ms/tables/t1.tex" && rm "$tmp/ms/tables/t1.tex.bak"
+    python3 - "$tmp" <<'EOF'
+import json, sys
+root = sys.argv[1]
+p = root + "/ms/generated.json"
+m = json.load(open(p))
+m["generators"][0]["export"].append("sync.py")
+m["generators"][0]["run"] = ["sh", "-c", "python3 gen.py {out} && python3 sync.py {out} " + root + "/ms/tables/t1.tex"]
+json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    status=$?
+    rm -rf "$tmp"
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); k=sorted(f['kind'] for f in d['findings']); assert k==['copy-changed','differs'], d['findings']"
+}
+
+test_T236() {
+    # A produced path that climbs out with .. or through a committed link is refused, and nothing outside the
+    # run's own directories is removed.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gencopy_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    mkdir -p "$tmp/elsewhere" && printf 'keep\n' > "$tmp/elsewhere/t1.tex" && printf 'keep\n' > "$tmp/victim.tex"
+    ln -s "$tmp/elsewhere" "$tmp/data/results"
+    git -C "$tmp/data" add results && git -C "$tmp/data" -c user.name=t -c user.email=t@example.invalid commit -qm link
+    for target in "{out}/../../../victim.tex" "results/t1.tex"; do
+        python3 - "$tmp" "$target" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p))
+m["generators"][0]["export"] = ["gen.py", "outputs/values.json", "results"]
+m["generators"][0]["copies"]["tables/t1.tex"] = sys.argv[2]
+json.dump(m, open(p, "w"))
+EOF
+        out=$(TMPDIR="$tmp" python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json 2>&1)
+        status=$?
+        [ -f "$tmp/victim.tex" ] && [ -f "$tmp/elsewhere/t1.tex" ] || { echo "$target: a file outside the run was removed"; rm -rf "$tmp"; return 1; }
+        [ "$status" = "1" ] || { echo "$target: expected exit 1, got $status: $out"; rm -rf "$tmp"; return 1; }
+        echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert [f['kind'] for f in d['findings']] in (['generator-failed'], ['output-missing']), d['findings']" \
+            || { rm -rf "$tmp"; return 1; }
+    done
+    rm -rf "$tmp"
+}
+
+test_T237() {
+    # Comparisons that used to fold two different files together: an empty output against a comment-only copy, a
+    # trailing % (which joins lines in LaTeX), an invalid UTF-8 byte. And a covers pattern with a typo is said, and
+    # a table whose name differs only in case is still unlisted.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gencopy_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    # LaTeX joins a line ending in % to the next: the copy prints 0.85 where the generator prints 0.8 and 5.
+    printf 'import os, sys\nos.makedirs(sys.argv[1], exist_ok=True)\nopen(os.path.join(sys.argv[1], "t1.tex"), "w").write("A & 0.8\\n5 \\\\\\\\\\n")\n' > "$tmp/data/gen.py"
+    git -C "$tmp/data" -c user.name=t -c user.email=t@example.invalid commit -qam joined
+    printf 'A & 0.8%%\n5 \\\\\n' > "$tmp/ms/tables/t1.tex"
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert [f['kind'] for f in d['findings']]==['differs'], d['findings']" \
+        || { echo "a trailing % was folded away"; rm -rf "$tmp"; return 1; }
+    printf '%% nothing but a comment\n' > "$tmp/ms/tables/t1.tex"
+    printf 'import os, sys\nos.makedirs(sys.argv[1], exist_ok=True)\nopen(os.path.join(sys.argv[1], "t1.tex"), "w").write("%% generated\\n")\n' > "$tmp/data/gen.py"
+    git -C "$tmp/data" -c user.name=t -c user.email=t@example.invalid commit -qam empty
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    status=$?
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert [f['kind'] for f in d['findings']]==['empty-output'], d['findings']" \
+        || { echo "empty output matched a comment-only copy (exit $status)"; rm -rf "$tmp"; return 1; }
+    printf 'import os, sys\nos.makedirs(sys.argv[1], exist_ok=True)\nopen(os.path.join(sys.argv[1], "t1.tex"), "wb").write(b"caf\\xe9\\n")\n' > "$tmp/data/gen.py"
+    git -C "$tmp/data" -c user.name=t -c user.email=t@example.invalid commit -qam bytes
+    printf 'caf\xe8\n' > "$tmp/ms/tables/t1.tex"
+    printf 'x\n' > "$tmp/ms/tables/T2.TEX"
+    python3 - "$tmp" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p)); m["covers"] = ["tables/*.tex", "tabels/*.tex"]; json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    status=$?
+    rm -rf "$tmp"
+    [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+k=sorted((f['kind'], f['copy']) for f in d['findings'])
+assert k==[('covers-empty','tabels/*.tex'),('differs','tables/t1.tex'),('unlisted','tables/T2.TEX')], k
+"
+}
+
+test_T238() {
+    # One copy is one copy: ./ in a key names the same file, a copy named by two generators is reported once as a
+    # manifest error, and a generator that outlives its timeout takes its children with it.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    gencopy_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    python3 - "$tmp" <<'EOF'
+import json, sys, copy
+p = sys.argv[1] + "/ms/generated.json"
+m = json.load(open(p))
+g = m["generators"][0]; g["copies"] = {"./tables/t1.tex": "{out}/t1.tex"}
+g2 = copy.deepcopy(g); g2["name"] = "gen2"; g2["copies"] = {"tables/t1.tex": "{out}/t1.tex"}
+m["generators"].append(g2)
+json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json)
+    echo "$out" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['same']==['tables/t1.tex'] and d['copies_checked']==1, (d['same'], d['copies_checked'])
+assert [f['kind'] for f in d['findings']]==['listed-twice'], d['findings']
+" || { rm -rf "$tmp"; return 1; }
+    python3 - "$tmp" <<'EOF'
+import json, sys
+root = sys.argv[1]
+p = root + "/ms/generated.json"
+m = json.load(open(p)); m["generators"] = m["generators"][:1]
+m["generators"][0]["run"] = ["sh", "-c", "(sleep 3; touch " + root + "/late) & sleep 30"]
+json.dump(m, open(p, "w"))
+EOF
+    out=$(python3 .claude/skills/audit/scripts/audit-generated-copies.py --base-dir "$tmp/ms" --manifest generated.json --json --timeout 1)
+    status=$?
+    sleep 4
+    [ ! -e "$tmp/late" ] || { echo "a child outlived the timeout"; rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+    [ "$status" = "1" ] || { echo "timeout: expected exit 1, got $status"; return 1; }
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'timed out' in d['findings'][0]['detail'], d['findings']"
+}
+
+run_test "T234 generated copies: the working tree does not reach the run through PYTHONPATH, an editable install or {repo}" test_T234
+run_test "T235 generated copies: copies are read before the run, and a generator writing into one is reported" test_T235
+run_test "T236 generated copies: a produced path out through .. or a link is refused and removes nothing outside" test_T236
+run_test "T237 generated copies: empty output, a trailing %, a stray byte, a covers typo and a case-only name are not folded away" test_T237
+run_test "T238 generated copies: one copy is counted once, and a timeout takes the generator's children with it" test_T238
+
+# --- Float reviews -------------------------------------------------------------
+
+float_fixture() {
+    # A draft with a figure (a TikZ input and an image) in its main file and a table whose environment lives in an
+    # input file; a paragraph of prose besides.
+    mkdir -p "$1/figures" "$1/tables" "$1/sections" || return 1
+    cat > "$1/main.tex" <<'EOF'
+\documentclass{article}
+\begin{document}
+\input{sections/results}
+\end{document}
+EOF
+    cat > "$1/sections/results.tex" <<'EOF'
+\section{Results}
+The gauges agree.
+\begin{figure}[tb]
+  \input{figures/span}
+  \includegraphics{figures/photo}
+  \caption{Two spans, read at dawn.}\label{fig:span}
+\end{figure}
+\input{tables/counts}
+EOF
+    printf '\\begin{tikzpicture}\\node {span};\\end{tikzpicture}\n' > "$1/figures/span.tex"
+    printf 'PNGBYTES-1' > "$1/figures/photo.png"
+    printf '\\begin{table}\\caption{Counts.}\\label{tab:counts}\n\\begin{tabular}{lr}A & 12 \\\\\n\\end{tabular}\\end{table}\n' > "$1/tables/counts.tex"
+}
+
+float_fp() {
+    python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$1" --main main.tex --reviews reviews.tsv --json \
+        | python3 -c "import json,sys; print({f['id']: f['fingerprint'] for f in json.load(sys.stdin)['floats']}['$2'])"
+}
+
+test_T239() {
+    # One reviewed float of two fails and names the other; both reviewed passes; new bytes in the figure's image
+    # make its review an older version's; a prose edit elsewhere does not.
+    local tmp out status fp_fig fp_tab
+    tmp=$(mktemp -d) || return 1
+    float_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    fp_fig=$(float_fp "$tmp" fig:span) && fp_tab=$(float_fp "$tmp" tab:counts) || { rm -rf "$tmp"; return 1; }
+    printf 'label\tfingerprint\treviewer\tdate\tverdict\tnote\nfig:span\t%s\tA. Reader\t2026-01-01\tok\t\n' "$fp_fig" > "$tmp/reviews.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json)
+    status=$?
+    [ "$status" = "1" ] || { echo "one unreviewed: expected exit 1, got $status"; rm -rf "$tmp"; return 1; }
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert [(f['kind'],f['float']) for f in d['findings']]==[('unreviewed','tab:counts')], d['findings']" \
+        || { rm -rf "$tmp"; return 1; }
+    printf 'tab:counts\t%s\tA. Reader\t2026-01-01\tok\t\n' "$fp_tab" >> "$tmp/reviews.tsv"
+    python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json >/dev/null
+    status=$?
+    [ "$status" = "0" ] || { echo "both reviewed: expected exit 0, got $status"; rm -rf "$tmp"; return 1; }
+    printf 'The gauges agree, mostly.\n' >> "$tmp/sections/results.tex"
+    python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json >/dev/null
+    status=$?
+    [ "$status" = "0" ] || { echo "a prose edit outside the floats reopened a review (exit $status)"; rm -rf "$tmp"; return 1; }
+    printf 'PNGBYTES-2' > "$tmp/figures/photo.png"
+    out=$(python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json)
+    status=$?
+    rm -rf "$tmp"
+    [ "$status" = "1" ] || { echo "changed image: expected exit 1, got $status"; return 1; }
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); f=d['findings']; assert [(x['kind'],x['float']) for x in f]==[('unreviewed','fig:span')] and 'older version' in f[0]['detail'], f"
+}
+
+test_T240() {
+    # The latest current row decides: fix keeps a float open, a later ok closes it. A row for a label that is gone
+    # is only a prompt; a pulled-in file that is not there fails.
+    local tmp out status fp_fig fp_tab
+    tmp=$(mktemp -d) || return 1
+    float_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    fp_fig=$(float_fp "$tmp" fig:span) && fp_tab=$(float_fp "$tmp" tab:counts) || { rm -rf "$tmp"; return 1; }
+    { printf 'label\tfingerprint\treviewer\tdate\tverdict\tnote\n'
+      printf 'fig:span\t%s\tA. Reader\t2026-01-01\tfix\tlabel runs into the frame\n' "$fp_fig"
+      printf 'tab:counts\t%s\tA. Reader\t2026-01-01\tok\t\n' "$fp_tab"
+      printf 'fig:gone\t0000000000000000\tA. Reader\t2026-01-01\tok\t\n'; } > "$tmp/reviews.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json)
+    status=$?
+    [ "$status" = "1" ] || { echo "fix: expected exit 1, got $status"; rm -rf "$tmp"; return 1; }
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); k=[(f['kind'],f['float']) for f in d['findings']]; assert k==[('review-open','fig:span'),('stale-row','fig:gone')], k" \
+        || { rm -rf "$tmp"; return 1; }
+    printf 'fig:span\t%s\tB. Reader\t2026-01-02\tok\tmoved the label\n' "$fp_fig" >> "$tmp/reviews.tsv"
+    python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json >/dev/null
+    status=$?
+    [ "$status" = "0" ] || { echo "a later ok: expected exit 0, got $status"; rm -rf "$tmp"; return 1; }
+    rm "$tmp/figures/photo.png"
+    out=$(python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json)
+    status=$?
+    rm -rf "$tmp"
+    [ "$status" = "1" ] || { echo "missing image: expected exit 1, got $status"; return 1; }
+    echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert ('missing-file','fig:span') in [(f['kind'],f['float']) for f in d['findings']], d['findings']"
+}
+
+test_T241() {
+    # Nothing found is not a pass, and a record that cannot be read is not an empty one.
+    local tmp status
+    tmp=$(mktemp -d) || return 1
+    printf '\\documentclass{article}\\begin{document}Text.\\end{document}\n' > "$tmp/main.tex"
+    python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json >/dev/null 2>&1
+    status=$?
+    [ "$status" = "2" ] || { echo "no float: expected 2, got $status"; rm -rf "$tmp"; return 1; }
+    float_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    printf 'figure\thash\n' > "$tmp/reviews.tsv"
+    python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv --json >/dev/null 2>&1
+    status=$?
+    rm -rf "$tmp"
+    [ "$status" = "2" ] || { echo "bad header: expected 2, got $status"; return 1; }
+}
+
+test_T242() {
+    # --render: each float's page from the .aux, one PNG per page, and a float whose PDF was built from a commit
+    # where it was a different version is marked. Without pdftoppm it says so and exits 2.
+    local tmp out status
+    tmp=$(mktemp -d) || return 1
+    float_fixture "$tmp" || { rm -rf "$tmp"; return 1; }
+    git -C "$tmp" init -q && git -C "$tmp" add -A . && git -C "$tmp" -c user.name=t -c user.email=t@example.invalid commit -qm v1
+    python3 - "$tmp/doc.pdf" <<'EOF'
+import sys
+objs = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] >>", b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] >>"]
+out, offs = b"%PDF-1.4\n", []
+for i, o in enumerate(objs, 1):
+    offs.append(len(out)); out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+x = len(out)
+out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offs)
+out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, x)
+open(sys.argv[1], "wb").write(out)
+EOF
+    printf '\\newlabel{fig:span}{{1}{1}{Two spans}{figure.1}{}}\n\\newlabel{tab:counts}{{1}{2}{Counts}{table.1}{}}\n' > "$tmp/doc.aux"
+    printf 'PNGBYTES-2' > "$tmp/figures/photo.png"
+    git -C "$tmp" -c user.name=t -c user.email=t@example.invalid commit -qam v2
+    out=$(python3 .claude/skills/audit/scripts/audit-float-reviews.py --base-dir "$tmp" --main main.tex --reviews reviews.tsv \
+          --render --pdf "$tmp/doc.pdf" --aux "$tmp/doc.aux" --built-from HEAD~1 --out "$tmp/sheet" 2>&1)
+    status=$?
+    if ! command -v pdftoppm >/dev/null 2>&1; then
+        rm -rf "$tmp"
+        [ "$status" = "2" ] && echo "$out" | grep -q "pdftoppm is not installed" && return 0
+        echo "without pdftoppm: expected exit 2 and the reason, got $status: $out"; return 1
+    fi
+    [ "$status" = "0" ] || { echo "render: expected exit 0, got $status: $out"; rm -rf "$tmp"; return 1; }
+    [ -f "$tmp/sheet/doc-p001.png" ] && [ -f "$tmp/sheet/doc-p002.png" ] || { echo "pages not rendered: $(ls "$tmp/sheet")"; rm -rf "$tmp"; return 1; }
+    echo "$out" | grep -q "fig:span: PDF built from HEAD~1, where this float was a different version" \
+        || { echo "the older figure was not marked: $out"; rm -rf "$tmp"; return 1; }
+    echo "$out" | grep -q "tab:counts:" && { echo "the unchanged table was marked: $out"; rm -rf "$tmp"; return 1; }
+    grep -q "tab:counts" "$tmp/sheet/REVIEW.md" || { rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+}
+
+run_test "T239 float reviews: an unreviewed float is named, and a changed image reopens its figure while prose elsewhere does not" test_T239
+run_test "T240 float reviews: the latest current row decides, a gone label is a prompt, a missing image fails" test_T240
+run_test "T241 float reviews: no float, or an unreadable record, exits 2" test_T241
+run_test "T242 float reviews: --render finds pages in the .aux and marks a float the PDF shows at an older version" test_T242
+
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then
     printf "  %s on live surfaces, %s on bundles retired under archive/skills/\n" \
