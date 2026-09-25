@@ -1,8 +1,12 @@
 # Writing loop: what one co-author reading found that three weeks of checks did not
 
-- **Status: draft.** Written 2026-09-25. Not author-approved, not implemented, not verified. The author asked for all
-  the remaining toolkit work to be done while a co-author reads the manuscript; §4 is carried out on the recommended
-  defaults, each of which can be overturned.
+- **Status: implemented, not verified.** Written 2026-09-25; not author-approved. The author asked for all the remaining
+  toolkit work to be done while a co-author reads the manuscript, and §4 was carried out on the recommended defaults,
+  each of which can be overturned. 4.1–4.3 and 4.5 are on `feat/ipm-gap-closure` (from main); 4.2's placed required
+  wordings and carrying sentences, and 4.4, are on `feat/ledger-questioned`, stacked on the scan-coverage branch whose
+  `scan(claims, sentences, extra)` they use. Local suites pass on both (`scripts/test.sh`, the writing-loop suite, the
+  full redcheck). Not pushed; CI, which runs Python 3.8, has not run; the notch has not been checked at eight stages,
+  so 4.5 ships off. 4.6 is design only.
 
 ## 1. Problem
 
