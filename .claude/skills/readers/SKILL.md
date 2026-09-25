@@ -78,6 +78,13 @@ report.
    that the author did not intend (misreadings, points the readers took that are not on the card). Mark every
    machine-produced reading as a draft. The author decides what is a gap.
 
+   Counts in the report come from the scripts, not from your own reading of the outputs: how many readers
+   qualified is the `qualified N of M` line of `check-reader-output.py`, and a panel is a reading of this version only
+   when `tally-readers.py` says it recorded it (`已记为这一版的读者组`). A panel judged with sheets or scripts of your
+   own still ends with both; if the tally did not record it, say the panel was not run on this version. One panel
+   skipped both, reported sixteen qualified readers where there were fifteen, and the loop kept calling the last
+   recorded panel stale.
+
 ## Where the output goes
 
 `report.md` beside the packet. Real runs on unpublished work stay in the private workspace; never commit reader

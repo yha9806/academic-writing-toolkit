@@ -731,6 +731,7 @@ MUTATIONS = [
     ("gap", 'skill:readers/scripts/build-reader-packet.py', '        return ("§" if section else "") + OMITTED', '        return "§x"', 'test_readers.ReadersTest.test_without_an_aux_every_reference_says_its_number_is_omitted'),
     ("gap", 'skill:readers/scripts/build-reader-packet.py', '    refs = {"labels": aux_labels(a.aux) if a.aux else {}, "resolved": 0, "omitted": 0}', '    refs = {"labels": {}, "resolved": 0, "omitted": 0}', 'test_readers.ReadersTest.test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it'),
     ("gap", 'skill:readers/scripts/build-reader-packet.py', '                 if refs["omitted"] else "")', '                 if False else "")', 'test_readers.ReadersTest.test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it'),
+    ("gap", 'skill:readers/scripts/check-reader-output.py', '    if isinstance(rem, str) and rem.strip():', '    if False:', 'test_readers.ReadersTest.test_remember_written_as_one_string_is_named_as_such_not_as_missing'),
 ]
 
 

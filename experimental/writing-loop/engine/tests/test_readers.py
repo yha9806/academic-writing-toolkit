@@ -191,6 +191,23 @@ The next sentence must survive.
             self.assertEqual(script("check-reader-output.py", "--packet", out / "packet.json",
                                     "--outputs", Path(root) / "none").returncode, 2)
 
+    def test_remember_written_as_one_string_is_named_as_such_not_as_missing(self):
+        # A reader that numbered its three points inside one string was reported as "remember missing or empty"; the
+        # panel's own count then disagreed with the script's, and the report used its own (spec 2026-09-25 §4.3).
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = Path(root) / "one"
+            d.mkdir()
+            data = reader_output(packet)
+            data["span"] = "the northern district"
+            data["remember"] = "1. bridges fail slowly 2. inspections are rare 3. gauges read 12"
+            (d / "R1_small_1.json").write_text(json.dumps(data), encoding="utf-8")
+            r = script("check-reader-output.py", "--packet", out / "packet.json", "--outputs", d)
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("remember is one string, not a list", r.stdout)
+            self.assertNotIn("remember missing", r.stdout)
+
     def test_a_full_panel_is_recorded_as_the_current_reading_until_an_in_scope_edit(self):
         with TempDir() as root:
             repo, ws = setup(root)
