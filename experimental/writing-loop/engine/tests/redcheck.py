@@ -732,6 +732,12 @@ MUTATIONS = [
     ("gap", 'skill:readers/scripts/build-reader-packet.py', '    refs = {"labels": aux_labels(a.aux) if a.aux else {}, "resolved": 0, "omitted": 0}', '    refs = {"labels": {}, "resolved": 0, "omitted": 0}', 'test_readers.ReadersTest.test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it'),
     ("gap", 'skill:readers/scripts/build-reader-packet.py', '                 if refs["omitted"] else "")', '                 if False else "")', 'test_readers.ReadersTest.test_a_cross_reference_shows_its_number_from_the_aux_or_says_the_packet_omits_it'),
     ("gap", 'skill:readers/scripts/check-reader-output.py', '    if isinstance(rem, str) and rem.strip():', '    if False:', 'test_readers.ReadersTest.test_remember_written_as_one_string_is_named_as_such_not_as_missing'),
+    # 读者组量的是稿子而不是自己（spec 2026-09-25 §4.3）：同包重跑定噪声底、按模型分、空白读者、重复用量的。
+    ("gap", 'skill:readers/scripts/tally-readers.py', '            out[p] = {**r, "spread": abs(v["carried"] / v["judged"] - r["carried"] / r["judged"])}', '            out[p] = {**r, "spread": 0.0}', 'test_readers.ReadersTest.test_a_repeat_panel_sets_the_noise_floor_and_a_change_inside_it_is_said_to_be_noise'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '                compare[p]["inside_noise"] = (delta <= f["spread"] + 1e-9) if f else None', '                compare[p]["inside_noise"] = None', 'test_readers.ReadersTest.test_a_repeat_panel_sets_the_noise_floor_and_a_change_inside_it_is_said_to_be_noise'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '        if reader == BLANK and len(vals) >= MIN_JUDGES:', '        if False:', 'test_readers.ReadersTest.test_counts_are_given_per_model_and_what_the_blank_reader_carries_is_marked'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '    return {m: carried(judgments, [r for r in readers if r["model"] == m])[0] for m in sorted({r["model"] for r in readers})}', '    return {m: carried(judgments, readers)[0] for m in sorted({r["model"] for r in readers})}', 'test_readers.ReadersTest.test_counts_are_given_per_model_and_what_the_blank_reader_carries_is_marked'),
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '    ab = [r for r, s in zip(rendered, sections) if str(s).upper().startswith("A")]', '    ab = []', 'test_readers.ReadersTest.test_the_packet_measures_how_much_the_introduction_repeats_the_abstract'),
 ]
 
 

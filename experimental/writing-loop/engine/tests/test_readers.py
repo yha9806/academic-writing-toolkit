@@ -238,6 +238,73 @@ The next sentence must survive.
             self.assertEqual(row["status"], V.STALE)
             self.assertEqual(row["changed"], 1)
 
+    def judgments(self, root, name, carriers, extra=""):
+        """Two judges who agree: ✓ for the readers in `carriers`, ✗ for the rest, on point M1."""
+        j = Path(root) / name
+        rows = []
+        for pr in ("R1", "R2"):
+            for m in ("small", "large"):
+                for n in (1, 2):
+                    r = f"{pr}_{m}_{n}"
+                    v = "✓" if r in carriers else "✗"
+                    rows += [f"{r}\tM1\tmain\t{v}\n", f"{r}\tM1\tsub\t{v}\n"]
+        j.write_text("".join(rows) + extra, encoding="utf-8")
+        return j
+
+    def test_a_repeat_panel_sets_the_noise_floor_and_a_change_inside_it_is_said_to_be_noise(self):
+        # One panel run twice on one text moved a point by three readers of sixteen, the size the round's rule called
+        # a clear drop (spec 2026-09-25 §4.3). A comparison is read against that spread, or says it has none.
+        all8 = [f"{pr}_{m}_{n}" for pr in ("R1", "R2") for m in ("small", "large") for n in (1, 2)]
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            j = self.judgments(root, "j.tsv", all8[:6])
+            rj = self.judgments(root, "rj.tsv", all8[:3])
+            cj = self.judgments(root, "cj.tsv", all8[:4])
+            args = ["--packet", out / "packet.json", "--outputs", d, "--judgments", j, "--compare-packet",
+                    out / "packet.json", "--compare-outputs", d, "--compare-judgments", cj, "--json"]
+            got = json.loads(script("tally-readers.py", *args, "--repeat-outputs", d, "--repeat-judgments", rj).stdout)
+            self.assertAlmostEqual(got["noise_floor"]["M1"]["spread"], 3 / 8)
+            self.assertIs(got["compare"]["M1"]["inside_noise"], True, "6/8 against 4/8 is inside a 6/8-3/8 spread")
+            self.assertIn("在噪声内", (out / "report.md").read_text(encoding="utf-8"))
+            got = json.loads(script("tally-readers.py", *args).stdout)
+            self.assertIsNone(got["compare"]["M1"]["inside_noise"])
+            self.assertIn("没有同包重跑", (out / "report.md").read_text(encoding="utf-8"))
+
+    def test_counts_are_given_per_model_and_what_the_blank_reader_carries_is_marked(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            blank = json.loads((out / "blank_reader.json").read_text(encoding="utf-8"))
+            self.assertEqual(blank["packet"], packet["packet_id"])
+            self.assertEqual(blank["remember"][0], "We audit a bridge survey.", "the blank reader copies the first paragraph")
+            d = panel(root, packet)
+            small = [f"{pr}_small_{n}" for pr in ("R1", "R2") for n in (1, 2)]
+            j = self.judgments(root, "j.tsv", small, extra="BLANK\tM1\tmain\t✓\nBLANK\tM1\tsub\t✓\n")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--judgments", j, "--json").stdout)
+            self.assertEqual(got["carried"]["M1"], {"carried": 4, "judged": 8}, "the blank reader is not a reader")
+            self.assertEqual(got["by_model"]["small"]["M1"], {"carried": 4, "judged": 4})
+            self.assertEqual(got["by_model"]["large"]["M1"], {"carried": 0, "judged": 4})
+            self.assertEqual(got["blank"], {"M1": True})
+            self.assertIn("空白读者也带走了", (out / "report.md").read_text(encoding="utf-8"))
+
+    def test_the_packet_measures_how_much_the_introduction_repeats_the_abstract(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            commit(repo, {"sections/01_intro.tex": INTRO.replace("Bridges fail slowly",
+                                                                  "We audit a bridge survey. Bridges fail slowly")},
+                   "v2", 1_700_000_100)
+            reindex(ws)
+            out, packet = self.build(root, ws)
+            rep = packet["repetition"]
+            self.assertGreaterEqual(rep["longest_verbatim_words"], 5, rep)
+            self.assertIn("we audit a bridge survey", rep["longest_verbatim"])
+            self.assertIn("引言第一段与摘要的重复", "".join(
+                [script("tally-readers.py", "--packet", out / "packet.json", "--outputs", panel(root, packet)).stdout,
+                 (out / "report.md").read_text(encoding="utf-8")]))
+
     def test_a_small_panel_is_recorded_as_a_failure_not_a_reading(self):
         with TempDir() as root:
             repo, ws = setup(root)

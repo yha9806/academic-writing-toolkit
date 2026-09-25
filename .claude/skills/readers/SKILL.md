@@ -71,7 +71,10 @@ report.
    ```
 
    To compare two versions, run a full panel on each and pass `--compare-packet/--compare-outputs/--compare-judgments`;
-   the report puts a two-sided Fisher p beside each point.
+   the report puts a two-sided Fisher p beside each point. Run the current version's panel twice and pass the second
+   as `--repeat-outputs/--repeat-judgments`: a change no larger than the two runs' spread is reported as inside the
+   noise. Judge `blank_reader.json` (written beside the packet, reader id `BLANK`) like any reader: a point it
+   carries is scored by copying the first paragraph, and the report says so.
 
 6. Report to the author in three lines per scale (whole text, then paragraphs): what you want the reader to carry
    (the intent card), what the readers carried (the tally, counts with their denominators), and what the text added

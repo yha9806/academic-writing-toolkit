@@ -17,11 +17,17 @@ everywhere, and most readers of one panel spent "what got in the way" on that pl
 descriptions are dropped. Directed questions (--questions: one `id<TAB>question` per line) are asked of every
 reader after the free questions.
 
-Output in --out: manuscript.txt, prompt_<persona>.txt per persona, packet.json.
+Output in --out: manuscript.txt, prompt_<persona>.txt per persona, packet.json, blank_reader.json.
+
+blank_reader.json is a reader who read nothing but the first paragraph and copied it into every answer. Judge it like
+the others (reader id BLANK): a point it carries can be scored by copying, so readers carrying it is no evidence the
+text got it across. With a workspace packet, packet.json also measures how much of the introduction's first paragraph
+repeats the abstract (shared four-word sequences, the longest verbatim run): readers' complaints are only a sign.
 Exit: 0 written; 2 nothing to read (no paragraph, unreadable input), or an argument it does not recognise.
 """
 import argparse
 import datetime as dt
+import difflib
 import hashlib
 import json
 import os
@@ -283,6 +289,7 @@ def from_workspace(ws, sections_arg):
               "format": V.draft_format(cfg), "venue": K.get(cfg, "target.venue"),
               "intent_card": {"path": card, "state": state,
                               "sha1": sha(Path(card).read_bytes()) if card and Path(card).is_file() else None}}
+    source["paragraph_sections"] = [k[0] for k in order]
     return [[(s["text"], s["sid"], s["hash"]) for s in paras[k]] for k in order], bibtext, source, snap
 
 
@@ -296,6 +303,38 @@ def from_text(path):
     blocks = [b.strip() for b in re.split(r"\n\s*\n", raw) if b.strip()]
     blocks = [b for b in blocks if not re.fullmatch(r"\\[a-zA-Z]+\*?(\{[^}]*\})*", b)]
     return [[(b, None, sha(b)[:10])] for b in blocks], "", {"text": str(Path(path).resolve()), "sha1": sha(raw)}, None
+
+
+def repetition(rendered, sections):
+    """How much of the introduction's first paragraph repeats the abstract: the share of its four-word sequences that
+    occur in the abstract, and its longest verbatim run of words. None without sections (a --text packet)."""
+    if not sections or len(sections) != len(rendered):
+        return None
+    ab = [r for r, s in zip(rendered, sections) if str(s).upper().startswith("A")]
+    intro = next((r for r, s in zip(rendered, sections) if str(s).upper().startswith("I")), None)
+    if not ab or intro is None:
+        return None
+    a = re.findall(r"[\w'-]+", " ".join(r["text"] for r in ab).lower())
+    i = re.findall(r"[\w'-]+", intro["text"].lower())
+    grams = lambda w: {tuple(w[k:k + 4]) for k in range(len(w) - 3)}
+    ig = grams(i)
+    m = difflib.SequenceMatcher(None, a, i, autojunk=False).find_longest_match(0, len(a), 0, len(i))
+    return {"abstract": [r["p"] for r in ab], "introduction_first": intro["p"],
+            "shared_four_word_share": round(len(ig & grams(a)) / len(ig), 3) if ig else 0.0,
+            "longest_verbatim_words": m.size, "longest_verbatim": " ".join(i[m.b:m.b + m.size])}
+
+
+def blank_reader(rendered, questions, packet_id):
+    """A reader who copies the first paragraph into every answer (reader id BLANK)."""
+    first = rendered[0]["text"]
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+", first) if s.strip()]
+    out = {"reader": "BLANK", "packet": packet_id,
+           "note": "Not a reader: every answer is copied from the first paragraph. Judge it like the others; a point "
+                   "it carries can be scored by copying.",
+           "remember": sentences[:3], "why_accept": first, "closest_prior_work": first, "reuse": first}
+    for q in questions:
+        out[q["id"]] = first
+    return out
 
 
 def read_questions(path):
@@ -370,8 +409,11 @@ def main(argv=None):
               "paragraphs": rendered, "questions": questions, "personas": PERSONAS, "prompts": prompts,
               "unknown_citation_keys": sorted(unknown), "snapshot": snap,
               "references": {"resolved": refs["resolved"], "omitted": refs["omitted"],
-                             "aux": str(Path(a.aux).resolve()) if a.aux else None}}
+                             "aux": str(Path(a.aux).resolve()) if a.aux else None},
+              "repetition": repetition(rendered, source.get("paragraph_sections"))}
     (out / "packet.json").write_text(json.dumps(packet, ensure_ascii=False, indent=1), encoding="utf-8")
+    (out / "blank_reader.json").write_text(json.dumps(blank_reader(rendered, questions, packet_id), ensure_ascii=False,
+                                                      indent=1), encoding="utf-8")
     words = sum(len(r["text"].split()) for r in rendered)
     print(f"packet: {len(rendered)} paragraphs, {words} words, {len(questions)} directed question(s), "
           f"{len(PERSONAS)} personas -> {out}")
