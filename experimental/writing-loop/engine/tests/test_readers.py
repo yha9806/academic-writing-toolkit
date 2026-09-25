@@ -352,6 +352,43 @@ The next sentence must survive.
             row = next(x for x in V.compute(C.load(ws), ws)["rows"] if x["id"] == "readers")
             self.assertEqual(row["status"], V.FAILED, "a panel whose judges failed the injected set is not a reading")
 
+    def test_a_directed_question_the_first_paragraph_answers_is_flagged_and_keys_do_not_reach_readers(self):
+        # All four prompted points were answerable by copying the abstract, and they sat at ceiling (spec 2026-09-25
+        # §4.3). A key phrase the first paragraph prints verbatim flags its question; keys are for judges only.
+        with TempDir() as root:
+            repo, ws = setup(root)
+            q = Path(root) / "q.tsv"
+            q.write_text("gauge\tWhat do the gauges read?\tgauges read 12\ncause\tWhy do bridges fail?\tcorrosion ‖ load\n",
+                         encoding="utf-8")
+            r = script("build-reader-packet.py", "--workspace", ws, "--out", Path(root) / "p", "--questions", q)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            packet = json.loads((Path(root) / "p" / "packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(packet["copyable_questions"], ["gauge"])
+            self.assertIn("gauge", r.stdout)
+            prompt = (Path(root) / "p" / "prompt_R1.txt").read_text(encoding="utf-8")
+            self.assertNotIn("corrosion", prompt, "an answer key never reaches a reader")
+            q.write_text("gauge\tWhat do the gauges read?\ncause\tWhy do bridges fail?\n", encoding="utf-8")
+            script("build-reader-packet.py", "--workspace", ws, "--out", Path(root) / "p2", "--questions", q)
+            again = json.loads((Path(root) / "p2" / "packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(again["packet_id"], packet["packet_id"], "keys do not change what the readers read")
+
+    def test_a_derived_metric_coded_only_by_the_reviser_is_not_a_count(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            out, packet = self.build(root, ws)
+            d = panel(root, packet)
+            derived = Path(root) / "derived.tsv"
+            derived.write_text("".join(f"misread\tR1_small_{n}\tmain\t1\n" for n in (1, 2)), encoding="utf-8")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--derived", derived, "--json").stdout)
+            self.assertEqual(got["derived"]["misread"], {"coded_by": ["main"], "blind": False, "count": None})
+            self.assertIn("未盲编", (out / "report.md").read_text(encoding="utf-8"))
+            derived.write_text(derived.read_text(encoding="utf-8") + "misread\tR1_small_1\tblind\t1\nmisread\tR1_small_2\tblind\t0\n",
+                               encoding="utf-8")
+            got = json.loads(script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d,
+                                    "--derived", derived, "--json").stdout)
+            self.assertEqual(got["derived"]["misread"], {"coded_by": ["blind", "main"], "blind": True, "count": 1})
+
     def test_a_small_panel_is_recorded_as_a_failure_not_a_reading(self):
         with TempDir() as root:
             repo, ws = setup(root)

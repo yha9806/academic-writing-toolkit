@@ -15,7 +15,9 @@ shows, read from the compiled --aux ("§3.2", "Figure 2", "Table 4"), and one th
 "(number omitted)", which the prompt tells readers is the packet's limit, not the manuscript's. It used to become "§x"
 everywhere, and most readers of one panel spent "what got in the way" on that placeholder. Figures and their
 descriptions are dropped. Directed questions (--questions: one `id<TAB>question` per line) are asked of every
-reader after the free questions.
+reader after the free questions. A third column may give the answer's key phrases (`key ‖ key`), for the judges: they
+never reach a reader and do not change the packet id. A question whose key phrase the first paragraph prints verbatim
+is flagged in packet.json (copyable_questions): a reader can answer it by copying, so it cannot tell who understood.
 
 Output in --out: manuscript.txt, prompt_<persona>.txt per persona, packet.json, blank_reader.json.
 
@@ -344,10 +346,14 @@ def read_questions(path):
     for i, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip() or line.startswith("#"):
             continue
-        qid, _, q = line.partition("\t")
+        qid, _, rest = line.partition("\t")
+        q, _, keys = rest.partition("\t")
         if not q.strip():
-            die(f"{path}:{i}: a directed question is `id<TAB>question`")
-        out.append({"id": qid.strip(), "question": q.strip()})
+            die(f"{path}:{i}: a directed question is `id<TAB>question[<TAB>key ‖ key]`")
+        item = {"id": qid.strip(), "question": q.strip()}
+        if keys.strip():
+            item["keys"] = [k.strip() for k in keys.split("‖") if k.strip()]
+        out.append(item)
     return out
 
 
@@ -385,7 +391,11 @@ def main(argv=None):
         text = readable(" ".join(t for t, _, _ in para), bib, unknown, refs)
         rendered.append({"p": i, "text": text, "sids": [s for _, s, _ in para if s], "hashes": [h for _, _, h in para]})
     manuscript = "\n\n".join(f"[P{r['p']}] {r['text']}" for r in rendered)
-    questions = read_questions(a.questions or (source.get("questions_file") and str(Path(source["questions_file"]).expanduser())))
+    keyed = read_questions(a.questions or (source.get("questions_file") and str(Path(source["questions_file"]).expanduser())))
+    # Keys are for the judges: what the readers read, and the packet id, hold the questions without them.
+    questions = [{"id": q["id"], "question": q["question"]} for q in keyed]
+    first = rendered[0]["text"].lower()
+    copyable = [q["id"] for q in keyed if any(k.lower() in first for k in q.get("keys") or [])]
     venue = a.venue or source.get("venue") or "a journal"
     directed_block = "".join(f'- "{q["id"]}": {q["question"]}\n' for q in questions)
     directed_keys = "".join(f", {q['id']}" for q in questions)
@@ -410,7 +420,8 @@ def main(argv=None):
               "unknown_citation_keys": sorted(unknown), "snapshot": snap,
               "references": {"resolved": refs["resolved"], "omitted": refs["omitted"],
                              "aux": str(Path(a.aux).resolve()) if a.aux else None},
-              "repetition": repetition(rendered, source.get("paragraph_sections"))}
+              "repetition": repetition(rendered, source.get("paragraph_sections")),
+              "question_keys": {q["id"]: q["keys"] for q in keyed if q.get("keys")}, "copyable_questions": copyable}
     (out / "packet.json").write_text(json.dumps(packet, ensure_ascii=False, indent=1), encoding="utf-8")
     (out / "blank_reader.json").write_text(json.dumps(blank_reader(rendered, questions, packet_id), ensure_ascii=False,
                                                       indent=1), encoding="utf-8")
@@ -419,6 +430,8 @@ def main(argv=None):
           f"{len(PERSONAS)} personas -> {out}")
     if unknown:
         print(f"  citation keys not in the bibliography, left as keys: {', '.join(sorted(unknown))}")
+    if copyable:
+        print(f"  directed questions the first paragraph answers verbatim (a reader can copy the answer): {', '.join(copyable)}")
     if refs["omitted"]:
         print(f"  cross-references shown as {OMITTED}: {refs['omitted']} of {refs['omitted'] + refs['resolved']}"
               + ("" if a.aux else " (give --aux, the compiled .aux, for the numbers)"))

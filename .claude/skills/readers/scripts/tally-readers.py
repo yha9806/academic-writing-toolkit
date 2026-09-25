@@ -3,7 +3,7 @@
 people and sub-agents (--judgments), never inferred here.
 
     python3 tally-readers.py --packet <dir>/packet.json --outputs <dir> [--judgments j.tsv] [--min-readers 8]
-                             [--injected truth.tsv] [--repeat-outputs D --repeat-judgments J]
+                             [--injected truth.tsv] [--derived coded.tsv] [--repeat-outputs D --repeat-judgments J]
                              [--compare-packet P --compare-outputs D --compare-judgments J] [--json]
 
 Reader output files are named <persona>_<model>_<n>.json (e.g. R1_haiku_1.json); the name is how the panel's cells
@@ -21,6 +21,11 @@ who disagree count as not carried, which is the conservative reading. Agreement 
 
 --compare-*: a second panel on another version. Per point, a two-sided Fisher exact p is reported beside the counts.
 A single round's rise or fall is not a result: an eight-reader panel separates only large differences.
+
+--derived: TSV metric<TAB>reader<TAB>coder<TAB>0|1 for a count read off the outputs (a misreading, a complaint). A
+metric coded only by `main`, the side that revised the text, is reported as uncoded, not as a count: in one panel the
+reviser's coding showed a large drop after its own rewrite and a blind coder's showed none. With a blind coder the
+count is the blind coder's.
 
 --repeat-*: a second panel on the same packet. Its spread per point is the panel's own noise: a change between
 versions no larger than it is reported as inside the noise, whatever its p. Without a repeat the report says the
@@ -64,6 +69,7 @@ NAME = re.compile(r"^(?P<persona>[A-Za-z0-9]+)_(?P<model>[A-Za-z0-9.\-]+)_(?P<n>
 HIT = {"✓": "hit", "hit": "hit", "△": "partial", "partial": "partial", "✗": "miss", "miss": "miss",
        "≠": "misattributed", "misattributed": "misattributed", "归属错": "misattributed"}
 INJECT_TOLERANCE = 2
+REVISER = "main"
 LIMITS = [
     "Readers are sub-agents told to ignore what they can see beyond the text; they are not readers who never knew. "
     "Each reports the outside knowledge it used.",
@@ -189,6 +195,32 @@ def injected_misses(path, judgments):
     return misses, len(truth) * len(judges)
 
 
+def derived_metrics(path, readers):
+    """{metric: {"coded_by", "blind", "count"}}: count is the blind coders' readers with a 1, None when only the reviser
+    coded it. A blind coder is anyone but REVISER; with several, a reader counts when every blind coder wrote 1."""
+    if not path:
+        return None
+    rows = {}
+    names = {r["reader"] for r in readers}
+    for i, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        parts = [x.strip() for x in line.split("\t")]
+        if len(parts) != 4 or parts[3] not in ("0", "1"):
+            die(f"{path}:{i}: expected metric<TAB>reader<TAB>coder<TAB>0|1")
+        metric, reader, coder, v = parts
+        if reader in names:
+            rows.setdefault(metric, {}).setdefault(reader, {})[coder] = v == "1"
+    out = {}
+    for metric, by_reader in rows.items():
+        coders = sorted({c for v in by_reader.values() for c in v})
+        blind = [c for c in coders if c != REVISER]
+        count = sum(all(v.get(c, False) for c in blind) for v in by_reader.values() if any(c in v for c in blind)) \
+            if blind else None
+        out[metric] = {"coded_by": coders, "blind": bool(blind), "count": count}
+    return out
+
+
 def carried_by_model(judgments, readers):
     """{model: {point: {"carried", "judged"}}}: the same rule as carried(), one model's readers at a time."""
     if judgments is None:
@@ -305,6 +337,12 @@ def report(packet, readers, rejected, t, hits, agreement, shape, compare, extra=
             L.append("按模型：" + "；".join(f"{m} " + "、".join(f"{p} {v['carried']}/{v['judged']}" for p, v in hm.items())
                                              for m, hm in by_model.items() if hm))
         L.append(f"判定者一致率：{agreement:.2f}" if agreement is not None else "只有一位判定者：没有一致率")
+    der = extra.get("derived")
+    if der:
+        L += ["", "## 派生指标（从输出里数的）"]
+        for m, v in der.items():
+            L.append(f"- {m}：{v['count']} 位（盲编：{'、'.join(c for c in v['coded_by'] if c != REVISER)}）" if v["blind"]
+                     else f"- {m}：未盲编（只有改稿的一方 {REVISER} 编过），不报数")
     rep = packet.get("repetition")
     if rep:
         L += ["", "## 引言第一段与摘要的重复（量的，不是问的）",
@@ -361,6 +399,7 @@ def main(argv=None):
     ap.add_argument("--judgments")
     ap.add_argument("--min-readers", type=int, default=8)
     ap.add_argument("--injected", help="answers of known grade: reader<TAB>point<TAB>truth")
+    ap.add_argument("--derived", help="counts read off the outputs: metric<TAB>reader<TAB>coder<TAB>0|1")
     ap.add_argument("--repeat-outputs", help="a second panel's outputs on the same packet")
     ap.add_argument("--repeat-judgments")
     ap.add_argument("--compare-packet")
@@ -382,7 +421,8 @@ def main(argv=None):
         _, rreaders, _ = load_panel(a.packet, a.repeat_outputs)
         floor = noise_floor(hits, carried(load_judgments(a.repeat_judgments), rreaders)[0])
     extra = {"floor": floor, "by_model": carried_by_model(judgments, readers), "blank": blank_carried(judgments),
-             "misattributed": misattributed(judgments, readers), "injected": injected_misses(a.injected, judgments)}
+             "misattributed": misattributed(judgments, readers), "injected": injected_misses(a.injected, judgments),
+             "derived": derived_metrics(a.derived, readers)}
     compare = None
     if a.compare_packet and a.compare_outputs and hits is not None:
         cpacket, creaders, _ = load_panel(a.compare_packet, a.compare_outputs)
@@ -406,7 +446,7 @@ def main(argv=None):
         print(json.dumps({"readers": len(readers), "rejected": rejected, "carried": hits, "agreement": agreement,
                           "panel_problems": shape[0], "compare": compare, "tally": t, "noise_floor": floor,
                           "by_model": extra["by_model"], "blank": extra["blank"], "repetition": packet.get("repetition"),
-                          "misattributed": extra["misattributed"], "injected": extra["injected"],
+                          "misattributed": extra["misattributed"], "injected": extra["injected"], "derived": extra["derived"],
                           "recorded": bool(rec)}, ensure_ascii=False, indent=1))
     else:
         print(text.splitlines()[0])

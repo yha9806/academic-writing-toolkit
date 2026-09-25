@@ -742,6 +742,10 @@ MUTATIONS = [
     ("gap", 'skill:readers/scripts/tally-readers.py', '        if reader in names and len(vals) >= MIN_JUDGES and all(x == "misattributed" for x in vals):', '        if False:', 'test_readers.ReadersTest.test_a_point_credited_to_the_wrong_thing_is_counted_apart_and_not_carried'),
     ("gap", 'skill:readers/scripts/tally-readers.py', '    misses = sum((judgments or {}).get(pair, {}).get(j) != want for pair, want in truth.items() for j in judges)', '    misses = 0', 'test_readers.ReadersTest.test_judges_who_miss_the_injected_set_make_the_panel_a_failure'),
     ("gap", 'skill:readers/scripts/tally-readers.py', '    if extra["injected"] and extra["injected"][0] > INJECT_TOLERANCE:', '    if False:', 'test_readers.ReadersTest.test_judges_who_miss_the_injected_set_make_the_panel_a_failure'),
+    # 能照抄的定向问题、只由改稿方编码的派生指标（spec 2026-09-25 §4.3）。
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '    copyable = [q["id"] for q in keyed if any(k.lower() in first for k in q.get("keys") or [])]', '    copyable = []', 'test_readers.ReadersTest.test_a_directed_question_the_first_paragraph_answers_is_flagged_and_keys_do_not_reach_readers'),
+    ("gap", 'skill:readers/scripts/build-reader-packet.py', '    questions = [{"id": q["id"], "question": q["question"]} for q in keyed]', '    questions = keyed', 'test_readers.ReadersTest.test_a_directed_question_the_first_paragraph_answers_is_flagged_and_keys_do_not_reach_readers'),
+    ("gap", 'skill:readers/scripts/tally-readers.py', '        blind = [c for c in coders if c != REVISER]', '        blind = coders', 'test_readers.ReadersTest.test_a_derived_metric_coded_only_by_the_reviser_is_not_a_count'),
 ]
 
 

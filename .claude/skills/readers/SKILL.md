@@ -65,7 +65,11 @@ report.
    but credited to the wrong thing, and a judge told only the point's name grades it ✓. Mix a set of answers whose
    grade you know into the judging (one correct, one misattributed, one reversed, one bare number per point is
    enough), write their grades to `<dir>/injected.tsv` as `reader<TAB>point<TAB>truth`, and pass `--injected`:
-   more than two misses records the panel as a failure.
+   more than two misses records the panel as a failure. Give each directed question its answer's key phrases in a
+   third column of the questions file (`id<TAB>question<TAB>key ‖ key`): the build flags any question whose key the
+   first paragraph prints, since a reader answers it by copying. A count you read off the outputs yourself (a
+   misreading, a complaint) goes to `--derived` with its coder; one only you coded is reported as uncoded, because the
+   side that revised the text is not a blind coder of the revision's effect.
    The tally cannot tell two judge names written by one hand: the second judge must be a separate sub-agent that
    has not seen the first judge's rows.
 
