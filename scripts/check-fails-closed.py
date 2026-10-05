@@ -64,6 +64,9 @@ CHECKS = {
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty)],
     "audit/audit-prose-structure.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty), "--baseline", str(empty)],
+    # No draft named: no abstract to measure (exit 2), whatever the baseline holds.
+    "audit/audit-abstract-numbers.py":
+        lambda s, empty: ["python3", str(s), "--baseline", str(empty)],
     "audit/audit-prose-fingerprint.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty)],
     # The prose view feeds the chapter checks; a file it cannot read, or that holds no prose, stops the run (exit 2)

@@ -492,6 +492,15 @@ CHECKS = [
      "scope": {"kind": "all"}, "needs": [],
      "inputs": _none, "outside": _no_outside,
      "argv": lambda ctx: _py(ctx, "scripts/audit-openers.py") + ["--base-dir", ctx.get("view", "."), "--json"]},
+    # Quantities in the abstract against the abstracts the venue publishes (spec 2026-10-05-abstract-numbers): a prompt
+    # above the 90th percentile, never a verdict on which number goes. Added after a revision doubled the venue's most.
+    {"id": "abstract-numbers", "name": "摘要数字", "kind": "script", "scripts": ["audit/audit-abstract-numbers.py"],
+     "formats": ["latex", "markdown"], "instead": {},
+     "scope": {"kind": "sections", "config": "target.abstract_sections", "default": ["A"]},
+     "needs": ["target.venue_corpus.dir"], "config_keys": ["target.venue"],
+     "inputs": _none, "outside": _venue_outside,
+     "argv": lambda ctx: _py(ctx, "audit/audit-abstract-numbers.py") + [
+         "--baseline", str(Path(get(ctx["cfg"], "target.venue_corpus.dir")).expanduser()), "--json"] + ctx["drafts"]},
     {"id": "word-count", "name": "字数", "kind": "script", "scripts": ["map/count-words.mjs", "audit/prose-view.py"],
      "formats": ["markdown", "latex"], "instead": {}, "view": True,
      "scope": {"kind": "all"}, "needs": [],

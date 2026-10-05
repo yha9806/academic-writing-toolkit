@@ -1,13 +1,18 @@
 # Abstract numbers: measured against the venue, prompted above its range
 
-Status: draft (2026-10-05; the author asked for it; revised the same day against the author's words and an earlier
-measurement found on disk; nothing implemented)
+Status: implemented in part (2026-10-05; the author asked for it; revised the same day against the author's words
+and an earlier measurement found on disk; the author has not read the revision). Done: the measure, the baseline,
+the prompt and the loop check (`abstract-numbers`, 摘要数字), with its tests and red check. Not done: the author's
+marks file and the overview line (submitted version → current). Verified only on the case below, read only; no
+workspace has run it through the loop yet.
 
 ## Problem
 
 The author (2026-10-05): an abstract must not carry too many numbers. A revision on one real manuscript had just
-rewritten its abstract to carry more than twice as many quantities as the most number-heavy abstract in its venue's
-corpus, where the submitted version had sat near the corpus median. No check saw it:
+rewritten its abstract to carry nearly twice as many quantities as the most number-heavy abstract in its venue's
+corpus, and more than twice as many per word, where the submitted version had sat below the corpus median. (The
+first draft of this spec said "more than twice as many quantities"; that came from an earlier count that included
+list markers and dates.) No check saw it:
 the prose fingerprint measures the whole manuscript, and the number ledger checks whether a number is right, not
 whether the abstract should hold it.
 
@@ -59,3 +64,14 @@ the two apart. Before list markers and dates were removed, one abstract with no 
 - On the real case above (read only), the check reports the revision above the 90th percentile and the submitted
   version below it.
 - Synthetic fixtures only in this repository.
+
+## Implementation notes (2026-10-05)
+
+- `audit/scripts/audit-abstract-numbers.py`; the loop's `abstract-numbers` check runs it on the draft files against
+  `target.venue_corpus.dir`, stale when a sentence of section `A` changes (`target.abstract_sections` to override).
+- Numbered citations (`[62]`) are removed with the list markers: one corpus abstract counted a citation as a quantity.
+- The extractor's stop is a line that starts with the next block (keywords, introduction), never the heading's own
+  line: on a two-column page the left column's "Keywords" shares it, and an earlier rule lost nine abstracts that way.
+- A multiple written `12.5x` is one quantity: without the `x` in the pattern it backtracked to a quantity `12` and a
+  name `5x`. Names are counted on the text with the quantities taken out.
+- Each `test_abstract_numbers` test has a mutation in the red check that turns it red.
