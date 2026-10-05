@@ -1,13 +1,15 @@
 # Related work: placed early, each closest work told apart, novelty laid out in a table
 
 Status: draft (2026-10-05; the author asked for it; recommended answers to Q1–Q4 below are defaults the author can
-overturn; nothing implemented)
+overturn; revised the same day where the first draft had softened the author's words (Q1, Q4, P0); nothing
+implemented)
 
 ## Problem
 
 The author's request (2026-10-05): related work goes near the front; it says in detail how this paper differs from
 each earlier one; and a table lays out the paper's novelty point by point, with columns for the earlier paper, this
-paper, and the difference (what is new and why it matters).
+paper, and the difference (what is new and why it matters). The request is about how AWT helps write a paper, not
+only about what it checks, so the design starts where the paper is planned (P0) and the check follows (P2).
 
 What AWT has today reads positioning one sentence at a time:
 
@@ -52,6 +54,16 @@ A reviewer reads positioning first, and a positioning failure is the one that ca
 
 ## Design
 
+### P0 The plan: a positioning step on the story page
+
+The intent card's story page gets a 定位 · Positioning section, written in plain words before any English, like the
+rest of the story page (feedback: story page before sentences):
+
+- the closest works, each with what it established, where it stops, and where this paper attaches;
+- the novelty points, one line each: which earlier work is nearest, what this paper does, what is new, why it matters.
+
+The author approves this section as part of the story page. P1's file is drafted from it, never the other way round.
+
 ### P1 The positioning file
 
 One file per workspace, `positioning.tsv`, next to the claims ledger. Two kinds of rows:
@@ -95,19 +107,25 @@ something the table does not have. The last is the useful one: a work the reader
 
 ## Questions for the author (recommended answer first)
 
-- Q1 Where related work goes. **Per target, default right after the introduction for journals and for IR/IS and
-  humanities venues; the report only prompts.** Some ML conferences put it before the conclusion; forcing one place
-  would fight the target layer.
+- Q1 Where related work goes. **Right after the introduction, for every target: the author's words were "near the
+  front", with no exception.** The report names the section's position whenever it is elsewhere. A target can move
+  the default only with its venue corpus showing that most papers there place it elsewhere, measured and recorded
+  in the target, not assumed (the first draft had made ML conferences an exception on assumption; withdrawn).
 - Q2 Table rows. **One row per novelty point, earlier-work column lists one to three closest works.** One row per
   earlier paper repeats our side and hides which point each work threatens.
 - Q3 Where the table goes. **At the end of related work, referenced from the introduction's contribution list.**
   At the start it reads as a claim before the evidence; in the introduction it costs the opening page.
-- Q4 Prose and table together. **The table carries the point-by-point difference; the prose groups the lines of
-  work and keeps one difference sentence per closest work.** Writing every difference twice is the accretion the
-  author flagged on 2026-09-27.
+- Q4 Prose and table together. **The prose tells each closest work apart in detail: what it did, where it stops,
+  and how this paper differs, in as many sentences as that takes; the table summarises the same differences point by
+  point and adds the value column.** The first draft kept one difference sentence per closest work to avoid writing
+  every difference twice (the accretion flagged on 2026-09-27); that was thinner than "in detail". The guard against
+  accretion is that both come from the same `positioning.tsv` row: a new difference is added there first, then to
+  the prose paragraph of that work, never as a new paragraph. Whether prose and table say the same thing stays the
+  author's reading; no check claims to judge it.
 
 ## Acceptance
 
+- P0: the intent-card template carries the 定位 section; one real story page fills it and the author reads it.
 - P2: each finding kind goes red on a planted manuscript and green on its fixed version; synthetic fixtures only
   (public repository).
 - P1–P3: one real workspace runs it read-only and the author reads the report; that is the first time it counts as
