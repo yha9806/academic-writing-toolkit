@@ -723,6 +723,18 @@ MUTATIONS = [
      'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
     ("risks", 'catalogue.py', '"outside": _sentence_outside,', '"outside": _venue_outside,',
      'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
+    # 谁接受的（spec 2026-10-05-who-accepted-a-sentence）：要有「作者读过」标记，且那句话在会话记录里查得到。
+    ("whoaccepted", 'coverage.py', '    mine = [k for k in ok if read_by_author(cfg, acc[k][1], seen)]',
+     '    mine = list(ok)',
+     'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
+    ("whoaccepted", 'coverage.py', '    m = AUTHOR_READ.search(who or "")',
+     '    m = re.search(r"([0-9a-f]{8}[0-9a-f-]*)", who or "")',
+     'test_coverage.RealCheckTest.test_an_acceptance_counts_as_the_authors_reading_only_with_a_mark_whose_message_is_on_record'),
+    ("whoaccepted", 'coverage.py', '        seen[m.group(1)] = bool(TG._approval_in_transcripts(cfg, m.group(1)))',
+     '        seen[m.group(1)] = True',
+     'test_coverage.RealCheckTest.test_an_acceptance_counts_as_the_authors_reading_only_with_a_mark_whose_message_is_on_record'),
+    ("whoaccepted", 'coverage.py', '    if not (m and cfg.get("transcripts")):', '    if not m:',
+     'test_coverage.RealCheckTest.test_an_acceptance_counts_as_the_authors_reading_only_with_a_mark_whose_message_is_on_record'),
     # 读不了 LaTeX 的四项（spec awt-loop 2026-09-22-latex-coverage）：视图、整树取件、拼写模式、LaTeX 的引文替代。
     ("latex", 'coverage.py', '            err = _write_view(ctx)\n', '            err = None\n',
      'test_coverage.LatexCoverageTest.test_the_chapter_checks_read_a_latex_draft'),

@@ -832,8 +832,44 @@ class RealCheckTest(unittest.TestCase):
                 rec = V.load_run(ws, "sentence-changes")
                 self.assertEqual(rec["verdict"], "ok", rec["summary"])
                 self.assertIn("已接受 1", rec["summary"])
+                self.assertIn("作者读过 0 句", rec["summary"], "a row that only says author is not a reading on record")
                 self.assertEqual(rec["clean_head"], git(repo, "rev-parse", "HEAD"))
                 self.assertEqual(rec["accepted"], [key])
+
+    def test_an_acceptance_counts_as_the_authors_reading_only_with_a_mark_whose_message_is_on_record(self):
+        # spec 2026-10-05-who-accepted-a-sentence: on one manuscript a clean run rested on 19 acceptances, each written
+        # by the model that wrote the sentence, and it read like a run the author had read.
+        from fixtures import make_transcripts
+        said = "abcdef12-0000-4000-8000-000000000001"
+        with TempDir() as root:
+            plain = INTRO.replace("Inspections are rare.", "Inspections are few.")
+            repo, ws = setup(root, [({"sections/01_intro.tex": plain}, "v2", 1_700_000_100)])
+            cfg = C.load(ws)
+            make_transcripts(root, cfg["transcripts"]["cwd_prefix"], cfg["transcripts"]["git_branch"],
+                             [{"type": "user", "uuid": said, "timestamp": "2026-10-05T00:00:00Z",
+                               "message": {"role": "user", "content": "读过了，这句可以"}}])
+            for who, mine in (("作者 10-05 按默认（句子由 Claude 写，作者未逐句读）", False),
+                              (f"作者 uuid {said}（按默认）", False),
+                              (f"作者读过：uuid {said}", True),
+                              (f"author-read: uuid {said[:8]}", True),
+                              ("作者读过：uuid deadbeef-0000-4000-8000-000000000009", False)):
+                self.assertEqual(V.read_by_author(cfg, who), mine, who)
+            self.assertFalse(V.read_by_author({**cfg, "transcripts": None}, f"作者读过：uuid {said}"),
+                             "without transcripts nothing can be found on record")
+            with Probe(K.by_id("sentence-changes")):
+                V.compute(cfg, ws, do_run=True)
+                bad = plain.replace("Inspections are few.", "Inspections, which the county still schedules, are few.")
+                commit(repo, {"sections/01_intro.tex": bad}, "v3", 1_700_000_200)
+                reindex(ws)
+                V.compute(cfg, ws, do_run=True)
+                key = V.sentence_key(V.load_run(ws, "sentence-changes")["result"]["issues"][0]["new"])
+                V.accepted_path(cfg).write_text(f"{key}\tthe schedule is the finding\t作者读过：uuid {said}\t…\n",
+                                                encoding="utf-8")
+                V.compute(cfg, ws, do_run=True)
+                rec = V.load_run(ws, "sentence-changes")
+                self.assertEqual(rec["verdict"], "ok", rec["summary"])
+                self.assertIn("已接受 1 句（作者读过 1 句）", rec["summary"])
+                self.assertEqual(rec["accepted_by_author"], [key])
 
     def test_an_uncommitted_rewrite_is_read_and_holds_the_turn_until_fixed_or_accepted(self):
         # About two thirds of one session's writes to a draft went through scripts run in a shell, which a gate on the

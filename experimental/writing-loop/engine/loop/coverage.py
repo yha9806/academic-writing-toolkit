@@ -624,9 +624,31 @@ def _apply_acceptances(rec, cfg):
     if not ok:
         return
     rec["accepted"] = ok
-    rec["summary"] = (rec.get("summary") or "") + f"，已接受 {len(ok)} 句"
+    # Who released each sentence (spec 2026-10-05-who-accepted-a-sentence): on one manuscript every acceptance of a
+    # clean run had been written by the model that wrote the sentence, and the run read like one the author had read.
+    seen = {}
+    mine = [k for k in ok if read_by_author(cfg, acc[k][1], seen)]
+    rec["accepted_by_author"] = mine
+    rec["summary"] = (rec.get("summary") or "") + f"，已接受 {len(ok)} 句（作者读过 {len(mine)} 句）"
     if len(ok) == len(keys):
         rec["verdict"] = "ok"
+
+
+AUTHOR_READ = re.compile(r"(?:作者读过|author-read)\s*[:：]\s*uuid\s+([0-9a-f][0-9a-f-]{7,})")
+
+
+def read_by_author(cfg, who, seen=None):
+    """An acceptance counts as the author's only when its "who decided" cell carries 作者读过：uuid <id> and that message
+    is on record in this workspace's transcripts. Anything else, including a general approval given before the wording
+    existed, counts as the model's: free text cannot tell the two apart. `seen` keeps one lookup per uuid in a run (a
+    uuid not on record is not cached on disk, and the transcripts can run to hundreds of megabytes)."""
+    m = AUTHOR_READ.search(who or "")
+    if not (m and cfg.get("transcripts")):
+        return False
+    seen = {} if seen is None else seen
+    if m.group(1) not in seen:
+        seen[m.group(1)] = bool(TG._approval_in_transcripts(cfg, m.group(1)))
+    return seen[m.group(1)]
 
 
 BASE_WHY = {"clean": "上次无标出", "pin": "base_ref", "parent": "上一提交", "head": "当前提交"}
