@@ -17,10 +17,13 @@ Experiments: when the workspace names an experiments directory, every experiment
 it (处置：已晋升 → where / 退役 — why / 进行中 — the gate; 复查 YYYY-MM-DD). A prototype that works and is never
 promoted is the failure this reports.
 """
+import csv
 import datetime as dt
 import html
+import io
 import json
 import re
+import statistics
 import subprocess
 from pathlib import Path
 
@@ -266,17 +269,87 @@ NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 RISK_MOVED = re.compile(r"^\s*(?:[-*]\s*)?(?:\*\*)?进展(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*(?:\d{4}-)?(\d{2}-\d{2})", re.M)
 
 
-def _scale(text):
-    """`我们 18 · 同类 46、120 · 单位 查询` -> {ours, least, unit, below}; None when the line does not say both sides."""
-    parts = {m.group(1): m.group(2).strip() for m in re.finditer(r"(我们|同类|单位)\s*[:：]?\s*([^·]*)", text)}
+SCALE_PART = re.compile(r"(我们|同类|单位|台账|列)\s*[:：]?\s*([^·]*)")
+SCALE_FORMS = "要写成「我们 n · 同类 n、n · 单位 …」或「我们 n · 台账 <文件> · 列 <列名> · 单位 …」"
+
+
+def _ledger_path(name, base):
+    p = Path(name).expanduser()
+    return p if p.is_absolute() or base is None else Path(base) / p
+
+
+def scale_ledgers(register_text, base):
+    """Every venue ledger a register's 规模 lines name, as paths: the coverage fingerprint reads them by size and time."""
+    out = []
+    for m in RISK_FIELD.finditer(register_text):
+        if m.group(1) == "规模":
+            parts = {k: v.strip() for k, v in SCALE_PART.findall(m.group(2))}
+            if parts.get("台账"):
+                out.append(_ledger_path(parts["台账"], base))
+    return out
+
+
+def _ledger_values(name, column, base):
+    """The numbers in one column of a venue sample ledger, the number of cells that held none, and why it could not be
+    read (or None). A ledger is one row per paper: TSV (or .txt), CSV, or JSON (a list of objects). A cell that says a
+    count was not reported, or holds anything but a number, is skipped and counted, never read as zero."""
+    p = _ledger_path(name, base)
+    if not column:
+        return [], 0, f"台账没写列（· 列 <列名>）：{name}"
+    try:
+        raw = p.read_text(encoding="utf-8")
+    except OSError:
+        return [], 0, f"台账读不到：{p}"
+    try:
+        if p.suffix.lower() == ".json":
+            rows = json.loads(raw)
+            if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+                return [], 0, f"台账不是一组对象（JSON 要写成 [{{…}}, …]）：{p.name}"
+        else:
+            rows = list(csv.DictReader(io.StringIO(raw), delimiter="," if p.suffix.lower() == ".csv" else "\t"))
+    except (ValueError, csv.Error) as e:
+        return [], 0, f"台账读不懂：{p.name}：{str(e)[:40]}"
+    if not any(column in r for r in rows):
+        return [], 0, f"台账没有列 {column}：{p.name}"
+    vals, skipped = [], 0
+    for r in rows:
+        cell = str(r.get(column, "") if r.get(column) is not None else "").strip()
+        if NUMBER.fullmatch(cell):
+            vals.append(float(cell.replace(",", "")))
+        else:
+            skipped += 1
+    if not vals:
+        return [], skipped, f"台账没有数（列 {column} 一个数也没有）：{p.name}"
+    return vals, skipped, None
+
+
+def _scale(text, base=None):
+    """`我们 12 · 同类 40、95 · 单位 查询`, or `我们 12 · 台账 venue.tsv · 列 models · 单位 查询` (the ledger read from
+    the register's folder) -> {ours, comparators, unit, below, …}: with two or more comparators, where ours stands among
+    them (a mid-rank percentile) and their median, and below means below the median; with one, that one, and below
+    means below it. None when the line does not say both sides, or a string saying why its ledger cannot be read."""
+    parts = {m.group(1): m.group(2).strip() for m in SCALE_PART.finditer(text)}
     ours = NUMBER.findall(parts.get("我们", ""))
-    theirs = [float(x.replace(",", "")) for x in NUMBER.findall(parts.get("同类", ""))]
+    extra = {}
+    if parts.get("台账"):
+        theirs, skipped, why = _ledger_values(parts["台账"], parts.get("列", ""), base)
+        if why:
+            return why
+        extra = {"ledger": parts["台账"], "column": parts.get("列", ""), "skipped": skipped}
+    else:
+        theirs = [float(x.replace(",", "")) for x in NUMBER.findall(parts.get("同类", ""))]
     if not ours or not theirs:
         return None
-    o, least = float(ours[0].replace(",", "")), min(theirs)
-    fmt = lambda x: str(int(x)) if x == int(x) else str(x)  # noqa: E731
-    return {"ours": fmt(o), "least": fmt(least), "comparators": len(theirs), "unit": parts.get("单位", "").strip(),
-            "below": o < least}
+    o = float(ours[0].replace(",", ""))
+    fmt = lambda x: str(int(x)) if x == int(x) else str(round(x, 2))  # noqa: E731
+    out = {"ours": fmt(o), "comparators": len(theirs), "unit": parts.get("单位", "").strip(), **extra}
+    if len(theirs) == 1:
+        out.update(least=fmt(theirs[0]), below=o < theirs[0])
+        return out
+    med = statistics.median(theirs)
+    rank = 100 * (sum(t < o for t in theirs) + 0.5 * sum(t == o for t in theirs)) / len(theirs)
+    out.update(least=fmt(min(theirs)), median=fmt(med), pct=int(rank + 0.5), below=o < med)
+    return out
 
 
 def risks(cfg):
@@ -320,17 +393,20 @@ def risks(cfg):
         if moved:
             item["moved"] = moved[-1]
         if fields.get("规模"):
-            sc = _scale(fields["规模"])
-            if sc:
+            sc = _scale(fields["规模"], p.parent)
+            if isinstance(sc, dict):
                 item["scale"] = sc
                 if sc["below"]:
                     out["below"].append({"id": item["id"], "kind": item["kind"], **sc})
+            elif sc:
+                # A ledger the line names but nobody can read is said, never taken for "no comparison".
+                unread_scale.append((item, f"{item['kind']} {item['id']} 的「规模」{sc}"))
             else:
                 # Unread is said, like every other unreadable part of the register: a 规模 line in another form
                 # used to vanish without a word, so a comparison the author wrote down was never shown. It holds the
                 # register open only while its item is open: a decided item whose line was a count, not a comparison,
                 # was shown as undecided on the notch (09-27). A decided item carries the note itself.
-                unread_scale.append((item, f"{item['kind']} {item['id']} 的「规模」读不懂（要写成「我们 n · 同类 n、n · 单位 …」）："
+                unread_scale.append((item, f"{item['kind']} {item['id']} 的「规模」读不懂（{SCALE_FORMS}）："
                                            f"{fields['规模'][:40]}"))
         missing = [f for f in RISK_NEEDS if not fields.get(f)]
         status = fields.get("状态", "")

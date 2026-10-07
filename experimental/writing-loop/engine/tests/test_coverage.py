@@ -1144,13 +1144,19 @@ class RiskRegisterTest(unittest.TestCase):
             self.assertFalse(any("R1" in r["name"] for r in V.pending(s)))
             line = V.reminder_line(s, ws)
             self.assertIn("规模", line)
-            self.assertIn("12 < 同类最少 40", line)
+            # Two or more comparators: where we stand among them and their median, never the least one alone.
+            self.assertIn("我们 12：第 0 百分位 / 中位数 67.5（n=2）", line)
+            self.assertNotIn("最少", line)
             cfg2, ws2, _ = self.ws_with(Path(root) / "b", text.replace("我们 12", "我们 60"))
-            self.assertNotIn("同类最少", V.reminder_line(V.compute(cfg2, ws2), ws2) or "")
+            self.assertIn("我们 60：第 50 百分位 / 中位数 67.5（n=2）", V.reminder_line(V.compute(cfg2, ws2), ws2) or "",
+                          "above the least comparator but below the median is still below")
+            cfg4, ws4, _ = self.ws_with(Path(root) / "d", text.replace("我们 12", "我们 70"))
+            self.assertNotIn("规模", V.reminder_line(V.compute(cfg4, ws4), ws4) or "")
             cfg3, ws3, _ = self.ws_with(Path(root) / "c", text.replace("同类 40、95", "同类 40"))
             line = V.reminder_line(V.compute(cfg3, ws3), ws3)
             self.assertIn("12 < 同类 40", line)
             self.assertNotIn("最少", line, "one comparator is not a range")
+            self.assertNotIn("百分位", line, "one comparator has no percentile")
 
     def test_an_unreadable_scale_line_is_shown_not_dropped(self):
         # A 规模 line that is not 「我们 n · 同类 n」 used to vanish: no scale, no problem, nothing on the line.
@@ -1177,6 +1183,72 @@ class RiskRegisterTest(unittest.TestCase):
             r1 = next(d for d in s["risks"]["decided"] if d["id"] == "R1")
             self.assertIn("读不懂", r1["scale_note"])
 
+    LEDGER_LINE = "我们 3 · 台账 refs/venue.tsv · 列 models · 单位 模型"
+
+    def venue(self, root, cells, name="refs/venue.tsv", column="models"):
+        """A venue sample ledger: one row per paper, one column per count; a cell may say it was not reported."""
+        path = Path(root) / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if name.endswith(".json"):
+            path.write_text(json.dumps([{"id": f"p{i}", column: v} for i, v in enumerate(cells)]), encoding="utf-8")
+        else:
+            sep = "," if name.endswith(".csv") else "\t"
+            path.write_text(f"id{sep}{column}\n" + "".join(f"p{i}{sep}{v}\n" for i, v in enumerate(cells)),
+                            encoding="utf-8")
+        return path
+
+    def test_a_scale_against_a_venue_ledger_says_percentile_and_median(self):
+        # The register names a ledger of the target venue's papers instead of listing comparators by hand. Cells that
+        # say a count was not reported are skipped, not read as zero, and the path is read from the register's folder.
+        with TempDir() as root:
+            self.venue(root, ["1", "2", "3", "5", "6", "8", "未报告"])
+            cfg, ws, path = self.ws_with(root, REGISTER.replace("我们 12 · 同类 40、95 · 单位 查询", self.LEDGER_LINE))
+            s = V.compute(cfg, ws)
+            self.assertEqual(s["risks"]["problems"], [])
+            line = V.reminder_line(s, ws)
+            self.assertIn("我们 3：第 42 百分位 / 中位数 4（n=6）（模型）", line)
+            self.assertNotIn("最少", line)
+            self.assertIn("跳过 1", V.table(s, ws), "the terminal view says how many cells held no number")
+            path.write_text(path.read_text(encoding="utf-8").replace("我们 3", "我们 4"), encoding="utf-8")
+            self.assertEqual(V.compute(cfg, ws)["risks"]["below"], [], "at the median is not below it")
+
+    def test_a_json_or_csv_ledger_reads_the_same_and_one_paper_is_not_a_range(self):
+        with TempDir() as root:
+            self.venue(root, ["1", "2", "3", "5", "6", "8"], name="refs/venue.csv")
+            cfg, ws, _ = self.ws_with(root, REGISTER.replace("我们 12 · 同类 40、95 · 单位 查询",
+                                                             self.LEDGER_LINE.replace(".tsv", ".csv")))
+            self.assertIn("第 42 百分位 / 中位数 4（n=6）", V.reminder_line(V.compute(cfg, ws), ws))
+        with TempDir() as root:
+            self.venue(root, [7], name="refs/venue.json")
+            cfg, ws, _ = self.ws_with(root, REGISTER.replace("我们 12 · 同类 40、95 · 单位 查询",
+                                                             self.LEDGER_LINE.replace(".tsv", ".json")))
+            line = V.reminder_line(V.compute(cfg, ws), ws)
+            self.assertIn("我们 3 < 同类 7", line)
+            self.assertNotIn("百分位", line, "one paper has no percentile")
+
+    def test_a_ledger_that_cannot_be_read_is_said_not_taken_for_no_scale(self):
+        with TempDir() as root:
+            cfg, ws, _ = self.ws_with(root, REGISTER.replace("我们 12 · 同类 40、95 · 单位 查询", self.LEDGER_LINE))
+            probs = V.compute(cfg, ws)["risks"]["problems"]
+            self.assertTrue(any("R1" in p and "台账" in p and "读不到" in p for p in probs), probs)
+            self.venue(root, ["1", "2"], column="families")
+            probs = V.compute(cfg, ws)["risks"]["problems"]
+            self.assertTrue(any("R1" in p and "没有列 models" in p for p in probs), probs)
+            self.venue(root, ["未报告", "不适用"])
+            s = V.compute(cfg, ws)
+            self.assertTrue(any("R1" in p and "一个数也没有" in p for p in s["risks"]["problems"]), s["risks"]["problems"])
+            self.assertEqual(s["risks"]["below"], [])
+            self.assertIn("台账没有数", V.reminder_line(s, ws), "the short form on the line keeps the reason")
+
+    def test_editing_the_venue_ledger_makes_the_summary_stale(self):
+        with TempDir() as root:
+            ledger = self.venue(root, ["1", "2", "3", "5", "6", "8"])
+            cfg, ws, _ = self.ws_with(root, REGISTER.replace("我们 12 · 同类 40、95 · 单位 查询", self.LEDGER_LINE))
+            V.compute(cfg, ws)
+            self.assertFalse(V.load_summary(ws, cfg).get("stale_inputs"))
+            ledger.write_text(ledger.read_text(encoding="utf-8") + "p9\t11\n", encoding="utf-8")
+            self.assertTrue(V.load_summary(ws, cfg).get("stale_inputs"), "a new paper in the ledger moves the median")
+
     def test_editing_the_register_makes_the_summary_stale(self):
         with TempDir() as root:
             cfg, ws, path = self.ws_with(root, REGISTER)
@@ -1196,7 +1268,7 @@ class RiskRegisterTest(unittest.TestCase):
             s = V.compute(cfg, ws)
             self.assertEqual([r["name"].split()[1] for r in V.pending(s)], ["G0", "R1"])
             self.assertEqual(s["risks"]["problems"], [])
-            self.assertIn("12 < 同类最少 40", V.reminder_line(s, ws))
+            self.assertIn("我们 12：第 0 百分位 / 中位数 67.5（n=2）", V.reminder_line(s, ws))
 
     def test_no_register_configured_says_nothing(self):
         with TempDir() as root:

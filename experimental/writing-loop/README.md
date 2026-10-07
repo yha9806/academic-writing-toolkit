@@ -66,7 +66,7 @@ names as `risks` (a path to a Markdown file). Each item is a level-two heading w
 由哪个门决定：G0
 状态：未决
 
-## 风险 R1 Evidence smaller than every comparator
+## 风险 R1 Evidence smaller than its comparators
 来源：mock review, strike 3
 消除它的证据：the same audit on a second, independent source
 由哪个门决定：G0
@@ -79,8 +79,16 @@ names as `risks` (a path to a Markdown file). Each item is a level-two heading w
 - An item is decided only by `状态：已决 <YYYY-MM-DD> <decision> — 作者 uuid <uuid>`, where the uuid is the author's
   message in this workspace's transcripts. A uuid that is not on record, or a message that is not the author's,
   decides nothing. A register kept under the workspace's `human/` folder is the author's own and needs no uuid.
-- A `规模` line whose own number is below every comparator is said on every turn, decided or not: a decision does
-  not change the numbers.
+- A `规模` line whose own number is below its comparators is said on every turn, decided or not: a decision does
+  not change the numbers. With two or more comparators "below" means below their median, and the line says where
+  ours stands (`我们 12：第 0 百分位 / 中位数 67.5（n=2）`, a mid-rank percentile); with one comparator it means below
+  that one and the line says `我们 12 < 同类 40`, since a single paper has no percentile.
+- The comparators can come from a venue ledger instead of being typed in:
+  `规模：我们 3 · 台账 refs/venue.tsv · 列 models · 单位 models`. The ledger is a TSV, a CSV (`.csv`) or a JSON list
+  of objects (`.json`), one row per paper; a relative path is read from the register's folder. Cells that are not a
+  number (`未报告`, `n/a`) are skipped and counted on the terminal view. A ledger that cannot be read, has no such
+  column or no number in it is shown as a problem, never taken for "no scale", and editing the ledger marks the
+  coverage summary stale just as editing the register does.
 - A missing field, an unreadable status, a register that cannot be read or holds no item: each is shown, never
   taken for "no risks". Editing the register marks the coverage summary stale.
 - The parser reads only the five fields shown above. Any other line in an item (a `进展：` note, say) stays in the

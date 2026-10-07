@@ -725,8 +725,17 @@ MUTATIONS = [
     # 已决项的规模读不懂只挂在这一项上，不再让刘海把它显示成未决（09-27）。
     ("risks", 'targets.py', '            item["scale_note"] = msg', '            out["problems"].append(msg)',
      'test_coverage.RiskRegisterTest.test_an_unreadable_scale_line_on_a_decided_item_does_not_hold_the_register_open'),
-    ("risks", 'coverage.py', '        rows.append(["_risks", _stat_sig(Path(cfg["risks"]).expanduser())])', '        pass',
+    ("risks", 'coverage.py', '        rows.append(["_risks", _stat_sig(reg)] + (', '        rows.append(["_risks", None] + (',
      'test_coverage.RiskRegisterTest.test_editing_the_register_makes_the_summary_stale'),
+    # 规模对刊物台账（awt-loop evidence 2026-10-07-venue-scale）：多篇比中位数、台账读不到要说、台账一改即过期。
+    ("risks", 'targets.py', 'pct=int(rank + 0.5), below=o < med)', 'pct=int(rank + 0.5), below=o < min(theirs))',
+     'test_coverage.RiskRegisterTest.test_evidence_below_its_comparators_is_said_even_after_a_decision'),
+    ("risks", 'targets.py', '        if why:\n            return why\n', '        if why:\n            return None\n',
+     'test_coverage.RiskRegisterTest.test_a_ledger_that_cannot_be_read_is_said_not_taken_for_no_scale'),
+    ("risks", 'coverage.py', '[[[str(q), _stat_sig(q)] for q in ledgers]] if ledgers else []', '[]',
+     'test_coverage.RiskRegisterTest.test_editing_the_venue_ledger_makes_the_summary_stale'),
+    ("risks", 'coverage.py', '    if b.get("comparators", 1) > 1 and b.get("median") is not None:', '    if False:',
+     'test_coverage.RiskRegisterTest.test_a_scale_against_a_venue_ledger_says_percentile_and_median'),
     ("risks", 'targets.py', '    register = re.sub(r"(?ms)^```.*?^```", "", raw)  # an item quoted as an example is not an item', '    register = raw',
      'test_coverage.RiskRegisterTest.test_a_block_missing_a_field_or_an_unreadable_register_is_shown'),
     # 测试隔离（spec awt-loop 2026-09-22-rewrite-gates D）：换掉 HOME、拦住真实家目录，各自拿掉必须变红。
