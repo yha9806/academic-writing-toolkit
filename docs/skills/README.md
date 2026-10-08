@@ -8,6 +8,10 @@ If you want to start from a goal rather than a skill name, see the [use-case gui
 
 ## Pipeline
 
+For early direction exploration or a change in research conditions, use
+`/research-plan` independently before or during the writing workflow. It is
+experimental and does not require a manuscript or completed results.
+
 ```text
 /read -> /note -> /map -> /integrate -> /review -> /audit -> /verify-refs -> /export
 ```
@@ -22,6 +26,7 @@ On-demand reference documents: `references/argument-checklist.md`,
 
 | Skill | Guide |
 |-------|-------|
+| `/research-plan` | [12-research-plan.md](12-research-plan.md) (experimental) |
 | `/review` | (guide pending; see the SKILL.md) |
 | `/read` | [01-read.md](01-read.md) |
 | `/note` | [02-note.md](02-note.md) |

@@ -28,6 +28,7 @@ after(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, f
 // every description stays within a 40-word budget.
 const EXCLUSIVE = {
   read: 'page by page',
+  'research-plan': 'research directions',
   note: 'record',
   map: 'coverage',
   integrate: 'weave',
