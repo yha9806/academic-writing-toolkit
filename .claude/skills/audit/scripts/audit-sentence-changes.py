@@ -44,7 +44,8 @@ for an adjective only matters when the rewrite introduces it.
 Before splitting, LaTeX list items and figure or table captions are kept as prose (the fingerprint audit drops
 them), blank lines and Markdown headings and list items end a sentence, reference and citation commands and inline comments are removed, inline math becomes one placeholder word,
 footnotes become parentheses, and headings are dropped. A pairs file is read with no quoting: a stray quotation
-mark stays text.
+mark stays text. A bare % in a pairs cell is a percent sign, not the start of a comment (a cell is one line, and a
+comment would cut the rest of the proposal); comments in a .tex draft read with --target/--base are still removed.
 
 The --pairs form is for proposals: run it on the rewrites before anyone reads them. The --target/--base form is for
 a draft after the edit; the writing loop runs it against the last version at which it flagged nothing.
@@ -804,10 +805,13 @@ def read_carriers(path):
 
 
 def prose(cell):
-    """A proposal is usually written in the draft's markup; read it the way the draft is read."""
+    """A proposal is usually written in the draft's markup; read it the way the draft is read. A cell is one line, so a
+    bare % in it is a percent sign, not a comment: as a comment it cut the rest of the cell, and a change after a
+    percentage was reported as no change. Proposals are often plain text, and the loop writes cells from prose it has
+    already stripped, where the draft's \\% is a bare %. A bare % alone therefore no longer makes a cell LaTeX."""
     cell = (cell or "").strip()
-    if "\\" in cell or "~" in cell or "$" in cell or "%" in cell:
-        cell = FP.strip_markup(pre_tex(cell), ".tex")
+    if "\\" in cell or "~" in cell or "$" in cell:
+        cell = FP.strip_markup(pre_tex(re.sub(r"(?<!\\)%", r"\\%", cell)), ".tex")
     return re.sub(r"\s+", " ", cell).strip()
 
 
