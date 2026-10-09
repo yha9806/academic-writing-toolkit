@@ -616,6 +616,12 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT, record=True)
                     rec["result"] = json.loads(r.stdout)
                 except ValueError:
                     pass
+            if check.get("note") and verdict != "failed" and isinstance(rec.get("result"), dict):
+                # What the check cannot know about the copy it ran on (a source the copy left out): added, never in
+                # place of its own count.
+                note = check["note"](ctx, rec["result"])
+                if note:
+                    rec["summary"] = f"{rec['summary']}（{note}）"
         except subprocess.TimeoutExpired:
             rec.update({"exit": None, "verdict": "failed", "summary": f"超时（{check.get('timeout') or timeout} 秒）"})
         except OSError as e:

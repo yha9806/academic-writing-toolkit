@@ -1458,3 +1458,61 @@ class AcceptedRenderingTest(unittest.TestCase):
             self.assertEqual(acc[V.sentence_key(spaced)], ("size is the finding", "author"))
             self.assertNotIn(V.sentence_key("The survey is 4,120 long."), acc,
                              "a sentence column that is not the keyed text carries no acceptance")
+
+
+class NumberSourceOutsideSnapshotTest(unittest.TestCase):
+    """10-07 and 10-09: a number ledger whose source files the config did not list in inputs.number_artifacts read
+    every row as artifact-missing, and the row said only 「硬错 N」, as if the files were gone. The loop copies the draft
+    and the listed files, nothing else. A source the commit has and the copy does not is said as that; it is still a
+    hard finding, since the run did not read it. Synthetic files throughout."""
+
+    LEDGER = "printed\tin_artifact\tscope\tartifact\tlocator\n12\t12\t-\t{artifact}\tgauge reading 12\n"
+
+    def _setup(self, root, ledger_path, artifact, files):
+        files = {ledger_path: self.LEDGER.format(artifact=artifact), **files}
+        repo, ws = setup(root, [(files, "ledger", 1_700_000_050)])
+        cfg = C.load(ws)
+        cfg.setdefault("inputs", {})["number_ledger"] = ledger_path
+        C.save(ws, cfg)
+        reindex(ws)
+        return repo, ws
+
+    def _run(self, ws):
+        with Probe(K.by_id("number-ledger")):
+            V.compute(C.load(ws), ws, do_run=True)
+        return V.load_run(ws, "number-ledger")
+
+    def test_a_source_the_commit_has_and_the_config_does_not_list_is_said_to_be_outside_the_copy(self):
+        with TempDir() as root:
+            repo, ws = self._setup(root, "numbers.tsv", "results/gauges.txt",
+                                   {"results/gauges.txt": "gauge reading 12\n"})
+            rec = self._run(ws)
+            self.assertEqual(rec["result"]["hard_finding_count"], 1, rec["summary"])
+            self.assertTrue(rec["summary"].startswith("硬错 1"), "still counted as a hard finding: " + rec["summary"])
+            self.assertIn("inputs.number_artifacts", rec["summary"])
+            self.assertIn("results/gauges.txt", rec["summary"])
+            self.assertIn("快照", rec["summary"])
+            cfg = C.load(ws)
+            cfg["inputs"]["number_artifacts"] = ["results/gauges.txt"]
+            C.save(ws, cfg)
+            rec = self._run(ws)
+            self.assertEqual(rec["result"]["hard_finding_count"], 0, rec["summary"])
+            self.assertNotIn("快照", rec["summary"], "listed, copied and read: nothing to say")
+
+    def test_a_source_beside_the_ledger_is_looked_for_where_the_audit_looks(self):
+        with TempDir() as root:
+            repo, ws = self._setup(root, "numbers/numbers.tsv", "gauges.txt",
+                                   {"numbers/gauges.txt": "gauge reading 12\n"})
+            rec = self._run(ws)
+            self.assertIn("inputs.number_artifacts", rec["summary"])
+            self.assertIn("numbers/gauges.txt", rec["summary"])
+
+    def test_a_source_the_commit_does_not_have_is_not_blamed_on_the_copy(self):
+        with TempDir() as root:
+            repo, ws = self._setup(root, "numbers.tsv", "results/gauges.txt", {})
+            rec = self._run(ws)
+            self.assertEqual(rec["result"]["hard_finding_count"], 1, rec["summary"])
+            self.assertNotIn("inputs.number_artifacts", rec["summary"])
+            head = git(repo, "rev-parse", "HEAD")
+            self.assertIn(f"提交 {head[:7]} 里也没有", rec["summary"])
+
