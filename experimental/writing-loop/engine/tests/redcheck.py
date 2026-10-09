@@ -54,6 +54,8 @@ MUTATIONS = [
      'test_coverage.TargetTest.test_a_card_finalised_by_claude_on_the_authors_word_is_delegated_only_if_that_word_is_on_record'),
     ("cov", 'skill:readers/scripts/build-reader-packet.py', '        PERSONAS.update(personas)', '        pass',
      'test_readers.ReadersTest.test_personas_and_questions_can_come_from_the_workspace'),
+    ("cov", 'skill:readers/scripts/build-reader-packet.py', '        pats = [pats]\n', '        pass\n',
+     'test_readers.ReadersTest.test_a_draft_named_by_one_pattern_string_is_read_as_one_pattern'),
     ("cov", 'skill:readers/scripts/build-reader-packet.py', ' if plain else readable(joined, bib, unknown, refs, residual)',
      ' if plain else " ".join(readable(t, bib, unknown, refs, residual) for t, _, _ in para)',
      'test_readers.ReadersTest.test_the_packet_shows_what_the_page_shows_not_the_markup_or_the_alt_text'),

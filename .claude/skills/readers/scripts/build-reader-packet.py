@@ -376,7 +376,10 @@ def from_workspace(ws, sections_arg):
     # Not the commit time: compiling and then committing is the usual order, and the .aux would always read as a few
     # seconds older than a commit of the same text (09-28, found on a real workspace).
     times = []
-    for pat in (cfg.get("draft") or {}).get("glob") or []:
+    pats = (cfg.get("draft") or {}).get("glob") or []
+    if isinstance(pats, str):  # one pattern, the engine's default form (loop/doctor.py), not one per character
+        pats = [pats]
+    for pat in pats:
         for f in Path(cfg["repo"]).glob(pat):
             try:
                 times.append(f.stat().st_mtime)
