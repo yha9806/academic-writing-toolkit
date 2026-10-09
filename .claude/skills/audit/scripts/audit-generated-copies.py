@@ -448,14 +448,22 @@ def main(argv=None):
                                  "detail": "under covers, named by no generator and no hand entry"})
     checked = len(same) + sum(1 for f in findings if f["kind"] == "differs")
     hard = [f for f in findings if f["kind"] in HARD]
-    parts = [f"{checked} 份副本重跑对照：一致 {len(same)}"]
+    # Failures first. 10-02: with one generator of two not run, the line opened on the copies that matched and put the
+    # failure last, and it read as all green. 「一致」 never opens a line that has a failure in it.
+    named = lambda cs: "、".join(cs[:3]) + (" 等" if len(cs) > 3 else "")
+    parts = []
+    failed = [f["copy"] for f in findings if f["kind"] == "generator-failed"]
+    if failed:
+        gens = {f["generator"] for f in findings if f["kind"] == "generator-failed"}
+        parts.append(f"生成器没跑起来 {len(gens)} 个，{len(failed)} 份副本没对照（{named(failed)}）")
     diff = [f["copy"] for f in findings if f["kind"] == "differs"]
     if diff:
-        parts.append(f"不一致 {len(diff)}（{'、'.join(diff[:3])}{' 等' if len(diff) > 3 else ''}）")
-    other = [f for f in hard if f["kind"] != "differs"]
+        parts.append(f"不一致 {len(diff)}（{named(diff)}）")
+    other = [f for f in hard if f["kind"] not in ("differs", "generator-failed")]
     if other:
-        parts.append("另有 " + "、".join(f"{k} {sum(1 for f in other if f['kind'] == k)}"
-                                          for k in HARD if any(f["kind"] == k for f in other)))
+        parts.append(("另有 " if parts else "") + "、".join(f"{k} {sum(1 for f in other if f['kind'] == k)}"
+                                                           for k in HARD if any(f["kind"] == k for f in other)))
+    parts.append(f"{checked} 份副本重跑对照，一致 {len(same)}" if hard else f"{checked} 份副本重跑对照：一致 {len(same)}")
     if hand_out:
         parts.append(f"手做 {len(hand_out)} 份不查")
     payload = {

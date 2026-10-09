@@ -39,13 +39,13 @@ def data_repo(root, a=0.634):
     return d
 
 
-def setup(root, copy="A & 0.63\n", manifest=None):
+def setup(root, copy="A & 0.63\n", manifest=None, extra=None):
     data = data_repo(root)
     manifest = manifest if manifest is not None else json.dumps(
         {"covers": ["tables/*.tex"], "hand": {},
          "generators": [{"name": "gen", "repo": str(data), "export": ["gen.py", "values.json"],
                          "run": [sys.executable, "gen.py", "{out}"], "copies": {"tables/t.tex": "{out}/t.tex"}}]})
-    repo = make_repo(root, [({"main.tex": MAIN, "tables/t.tex": copy, "generated.json": manifest}, "v1",
+    repo = make_repo(root, [({"main.tex": MAIN, "tables/t.tex": copy, "generated.json": manifest, **(extra or {})}, "v1",
                              1_700_000_000)])
     ws = workspace(root, repo, "main", glob=["main.tex"])
     cfg = C.load(ws)
@@ -104,6 +104,32 @@ class GeneratedCopiesInTheLoop(unittest.TestCase):
     def test_a_one_line_summary_is_what_the_row_says(self):
         out = json.dumps({"summary_zh": "3 份副本重跑对照：一致 3", "hard_finding_count": 0})
         self.assertEqual(V.interpret("generated-copies", 0, out, ""), ("ok", "3 份副本重跑对照：一致 3"))
+
+    def test_a_generator_that_did_not_run_is_said_before_the_copies_that_matched(self):
+        # 10-02: one generator of two did not run, and the row began with the copies that matched, the failure at the
+        # end: it read as all green. A failure leads; the matched count follows it.
+        with TempDir() as root:
+            data = Path(root) / "data"
+            manifest = json.dumps(
+                {"covers": ["tables/*.tex"], "hand": {},
+                 "generators": [{"name": "gen", "repo": str(data), "export": ["gen.py", "values.json"],
+                                 "run": [sys.executable, "gen.py", "{out}"], "copies": {"tables/t.tex": "{out}/t.tex"}},
+                                {"name": "broken", "repo": str(data), "export": ["gen.py"],
+                                 "run": [sys.executable, "no_such_script.py", "{out}"],
+                                 "copies": {"tables/u.tex": "{out}/u.tex"}}]})
+            data_, repo, ws, cfg = setup(root, manifest=manifest, extra={"tables/u.tex": "B & 0.10\n"})
+            rec = V.run(K.by_id("generated-copies"), cfg, ws, git(repo, "rev-parse", "HEAD"), V.current_sentences(ws)[0])
+            self.assertEqual(rec["verdict"], "findings", rec)
+            first = rec["summary"].split("；")[0]
+            self.assertIn("没跑起来", first, rec["summary"])
+            self.assertNotRegex(first, r"(?<!不)一致", rec["summary"])
+            self.assertIn("一致 1", rec["summary"], "the copies that matched are still counted")
+
+    def test_a_copy_that_differs_is_said_before_the_copies_that_matched(self):
+        with TempDir() as root:
+            data, repo, ws, cfg = setup(root, copy="A & 0.70\n")
+            rec = V.run(K.by_id("generated-copies"), cfg, ws, git(repo, "rev-parse", "HEAD"), V.current_sentences(ws)[0])
+            self.assertTrue(rec["summary"].startswith("不一致 1（tables/t.tex）"), rec["summary"])
 
 
 FMAIN = r"""\documentclass{article}
