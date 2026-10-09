@@ -1046,7 +1046,14 @@ def fingerprint(cfg, ws):
     rows.append(["_scan", d.get("glob"), d.get("format"), d.get("sections"), d.get("ignore_headings"),
                  inp.get("also_checked"), inp.get("also_scanned")])
     if cfg.get("risks"):
-        rows.append(["_risks", _stat_sig(Path(cfg["risks"]).expanduser())])
+        reg = Path(cfg["risks"]).expanduser()
+        try:
+            ledgers = TG.scale_ledgers(reg.read_text(encoding="utf-8"), reg.parent)
+        except OSError:
+            ledgers = []
+        # A venue ledger a 规模 line names moves its median when a paper is added, with the register untouched. (A
+        # register without one keeps its old row, so installing this does not mark every summary stale.)
+        rows.append(["_risks", _stat_sig(reg)] + ([[[str(q), _stat_sig(q)] for q in ledgers]] if ledgers else []))
     return _sha(json.dumps(rows, ensure_ascii=False, default=str))
 
 
@@ -1127,14 +1134,26 @@ def pending(summary):
 
 
 def below(summary):
-    """Evidence smaller than every comparator the register names. A fact, not a decision: shown until the numbers
-    change, whatever was decided about it."""
+    """Evidence smaller than its comparators (their median, when the register names several). A fact, not a
+    decision: shown until the numbers change, whatever was decided about it."""
     return ((summary or {}).get("risks") or {}).get("below") or []
 
 
-def _least(b):
-    """「同类最少 40」only when there is more than one comparator: with one, "least" claims a range it does not have."""
-    return f"同类最少 {b['least']}" if b.get("comparators", 2) > 1 else f"同类 {b['least']}"
+def _versus(b):
+    """「我们 3：第 42 百分位 / 中位数 4（n=6）」with two or more comparators, 「我们 12 < 同类 40」with one: a single
+    paper has no percentile, and the least of several is one paper standing in for the venue."""
+    if b.get("comparators", 1) > 1 and b.get("median") is not None:
+        return f"我们 {b['ours']}：第 {b['pct']} 百分位 / 中位数 {b['median']}（n={b['comparators']}）"
+    if b.get("comparators", 1) > 1:  # a summary written before medians: say what it holds
+        return f"我们 {b['ours']} < 同类最少 {b['least']}"
+    return f"我们 {b['ours']} < 同类 {b['least']}"
+
+
+def _ledger_note(b):
+    """Where a ledger-based comparison came from, for the terminal view."""
+    if not b.get("ledger"):
+        return ""
+    return f"（台账 {b['ledger']} 列 {b['column']}" + (f"，跳过 {b['skipped']} 格无数" if b.get("skipped") else "") + "）"
 
 
 def _short(text, limit=28):
@@ -1184,7 +1203,7 @@ def reminder_line(summary, ws):
             for r in open_))
     small = below(summary)
     if small:
-        bits.append("规模 " + "、".join(f"{b['kind']} {b['id']}：我们 {b['ours']} < {_least(b)}"
+        bits.append("规模 " + "、".join(f"{b['kind']} {b['id']}：{_versus(b)}"
                                         + (f"（{b['unit']}）" if b.get("unit") else "") for b in small))
     for status in (FAILED, STALE, NEVER, MISSING):
         xs = [_name(r) for r in rows if r["status"] == status]
@@ -1271,7 +1290,7 @@ def table(summary, ws):
         lines += [f"  {PENDING}   {r['name']}  {r['detail']}".rstrip() for r in pending(summary)]
         lines += [f"  已决   {i['kind']} {i['id']} {i['title']}  {i['decided_on']} {i.get('decision') or ''}".rstrip()
                   for i in rk.get("decided") or []]
-        lines += [f"  规模   {b['kind']} {b['id']}：我们 {b['ours']} < {_least(b)} {b.get('unit') or ''}".rstrip()
+        lines += [f"  规模   {b['kind']} {b['id']}：{_versus(b)} {b.get('unit') or ''}{_ledger_note(b)}".rstrip()
                   for b in below(summary)]
     t = summary.get("target") or {}
     lines.append("目标档案：" + ("；".join(t["problems"]) if t.get("problems") else (t.get("line") or "—")))
