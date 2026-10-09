@@ -1,6 +1,9 @@
 """`loop update` and health (plan 2.4, spec T8): a stopped or broken updater, and a tampered index, must show."""
+import contextlib
+import io
 import json
 import os
+import subprocess
 import sys
 import time
 import unittest
@@ -20,6 +23,62 @@ from loop import config as C  # noqa: E402
 
 def items(problems):
     return [i for i, _ in problems]
+
+
+# `loop update` in a second process, stopped inside its lock until the test lets it go. Only the coverage step, the
+# last thing done under the lock, is replaced by the wait, so the lock code that runs is the engine's own: the one
+# this test imports (redcheck points PYTHONPATH at a mutated copy).
+HOLDER = r"""
+import isolation  # noqa: F401
+import sys
+import time
+from pathlib import Path
+from loop import cli
+ws, entered, go = sys.argv[1:4]
+def held(ws_, cfg):
+    Path(entered).write_text("in", encoding="utf-8")
+    end = time.time() + 60
+    while not Path(go).exists() and time.time() < end:
+        time.sleep(0.02)
+cli._coverage_after_update = held
+sys.exit(cli.main(["update", ws, "--reason", "holder"]))
+"""
+
+
+class Holder:
+    def __init__(self, root, ws):
+        import loop
+        self.entered, self.go = Path(root) / "holder-entered", Path(root) / "holder-go"
+        engine = Path(loop.__file__).resolve().parents[1]
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(engine), str(engine / "tests")]))
+        self.proc = subprocess.Popen([sys.executable, "-c", HOLDER, str(ws), str(self.entered), str(self.go)],
+                                     env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        end = time.time() + 60
+        while not self.entered.exists():
+            if self.proc.poll() is not None or time.time() > end:
+                self._stop()
+                raise AssertionError(f"the holder never got inside its lock: {self.proc.stderr.read()}")
+            time.sleep(0.02)
+
+    def release(self):
+        self.go.write_text("go", encoding="utf-8")
+        out, err = self.proc.communicate(timeout=60)
+        return self.proc.returncode, out, err
+
+    def _stop(self):
+        if self.proc.poll() is None:
+            self.go.write_text("go", encoding="utf-8")
+            try:
+                self.proc.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.communicate()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self._stop()
 
 
 class UpdateTest(unittest.TestCase):
@@ -51,6 +110,52 @@ class UpdateTest(unittest.TestCase):
             self.assertEqual(main(["update", str(ws)]), 0)
             self.assertTrue((ws / "index" / "sources.json").exists())
             self.assertFalse(lock.exists())
+
+    def test_an_old_lock_whose_holder_is_still_running_is_not_taken_over(self):
+        # An update that runs past STALE_LOCK is slow, not dead. Taking its lock over ran two updates of one workspace
+        # side by side. The lock is aged by hand: nothing here waits STALE_LOCK out.
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            lock, dirty = ws / "cache" / "update.lock", ws / "cache" / "update.dirty"
+            with Holder(root, ws) as holder:
+                old = time.time() - 3600
+                os.utime(lock, (old, old))
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    self.assertEqual(main(["update", str(ws), "--reason", "second"]), 0)
+                self.assertIn("另一次更新正在进行", out.getvalue(), "the second update must leave, not run alongside")
+                self.assertTrue(dirty.exists(), "the request is kept for the running update to go round again")
+                code, _, err = holder.release()
+                self.assertEqual(code, 0, err)
+            self.assertFalse(lock.exists(), "the holder still removes its own lock")
+
+    def test_a_lock_whose_holder_has_exited_is_taken_over_at_once(self):
+        # The holder's pid is in the lock: once that process is gone the lock is free, however fresh its time.
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            (ws / "cache").mkdir(exist_ok=True)
+            gone = subprocess.Popen([sys.executable, "-c", "pass"])
+            gone.wait()
+            lock = ws / "cache" / "update.lock"
+            lock.write_text(f"{gone.pid} a-token-of-an-exited-update\n", encoding="utf-8")
+            self.assertEqual(main(["update", str(ws)]), 0)
+            self.assertTrue((ws / "index" / "sources.json").exists())
+            self.assertFalse(lock.exists())
+
+    def test_an_update_that_ends_removes_only_its_own_lock(self):
+        # The lock passed to someone else while this update ran (the takeover rule on a platform without a pid
+        # probe, or a hand-cleared lock). The update that ends must not delete the new holder's lock.
+        with TempDir() as root:
+            repo, ws, _ = setup(root)
+            lock = ws / "cache" / "update.lock"
+            with Holder(root, ws) as holder:
+                lock.unlink()
+                theirs = f"{os.getpid()} a-token-that-is-not-the-holders\n"
+                lock.write_text(theirs, encoding="utf-8")
+                code, _, err = holder.release()
+                self.assertEqual(code, 0, err)
+            self.assertTrue(lock.exists(), "the ending update deleted a lock it did not hold")
+            self.assertEqual(lock.read_text(encoding="utf-8"), theirs)
 
     def test_a_failure_is_recorded_and_stays_visible_until_a_later_success(self):
         with TempDir() as root:
