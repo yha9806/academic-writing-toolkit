@@ -111,7 +111,11 @@ proof of the underlying scientific claim. Reuse an existing discussion record
 when asked to save or update the plan.
 
 This skill works directly without ProblemBridge or ClaimHarness. A user-supplied
-ProblemBridge brief can be an input. Concrete results and text may later support
+ProblemBridge brief can be an input. So can a user-supplied ClaimHarness evidence
+brief (`evidence_brief.md` or `.json`): read its program statuses apart from the
+user's notes and handling records, and treat neither as a confirmed human review.
+Its coverage stays unknown, since claims the checker did not extract are absent
+from the brief. Concrete results and text may later support
 a limited ClaimHarness check within its available capabilities; this skill does
 not implement that connection. Use AWT's existing reading, notes and manuscript
 workflows when the user needs those tasks, without making them prerequisites
