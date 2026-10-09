@@ -23,7 +23,7 @@ It is stdlib-only Python (3.9+). It never writes to the manuscript repository or
 
 ```
 bin/loop init <workspace> --repo <manuscript repo> --ref <branch> --draft-glob <glob>
-bin/loop doctor <workspace>          # every configured path resolves (not: the content is right)
+bin/loop doctor <workspace>          # every configured path resolves, and the hook registry lists the workspace (not: the content is right)
 bin/loop index <workspace>           # build index/ from git and transcripts
 bin/loop rebuild <workspace> --check # byte-for-byte comparison with a fresh rebuild
 bin/loop update <workspace>          # rebuild index/ and record the outcome in health.json (what the hooks call)
@@ -43,7 +43,10 @@ A workspace is any directory holding `config.json` plus `human/`, `model/`, `ind
 
 `hooks/loop_hook.py` is one script for five events; `hooks/settings.example.json` shows how to wire it. Workspaces it should act on are listed one per line in `~/.awt/loop-workspaces` (or `$AWT_LOOP_REGISTRY`).
 
+A workspace that is not listed there gets nothing from the hooks: the author's words are not recorded, no update runs after an edit, and no session is told the paper's state. Nothing else would say so, since every configured path still resolves. So `loop doctor` fails on it and names the registry, and `loop state` and `loop coverage` say it in their first line (`hook_registry` in their JSON).
+
 - **UserPromptSubmit**: in a session on a registered manuscript (cwd under the configured prefix, on the configured branch), the prompt is appended verbatim to `human/comments.jsonl`, and Claude is asked to end manuscript replies with a short explanation block (`〔循环〕` … `〔/循环〕`: what it read the message as, which sentences it changed, on what basis). The block is parsed from the transcript into `index/explanations.json`, next to the verbatim message. It is what Claude says, not a record of what happened.
+- **A session named by id** (`"transcripts": {"sessions": [{"id": "<session id>", "note": "<why it is this paper's>"}]}`) is a manuscript session wherever it runs, for example one that edits the draft by absolute path from another checkout and branch. Its prompts are recorded and get the block, its draft writes (counted against the manuscript's checkout, not the one it runs in) and its stops start an update, and transcript reading, `loop doctor` (which fails on an id with no transcript file), approvals and the to-do ring count it too: one list, read through `config.session_ids`. A neighbour in the same directory is not taken in. `history_sessions` stays read-only history that only the hook reads.
 - **PreToolUse**: a model write into any registered workspace's `human/` is refused and recorded (the author's words are written by hooks or an interface, never by the model).
 - **PostToolUse**, **Stop**: a write to the draft or the ledger, a git command, or the end of a turn starts `loop update` detached. Overlapping requests are merged.
 - **StopFailure**: fired instead of Stop when an API error ended the turn (its output is ignored). The update it starts records the turn as ended but unfinished, so the notch stops showing it as running and does not show a landing card. A Stop the rewrite gate blocks is recorded as `stop:blocked`, which does not end the turn.
@@ -108,8 +111,11 @@ is wrong". So the line now starts with the paper's state, read from a claims led
 
 - **主张** items: each claim, where the evidence is, its strength (强 / 中 / 弱 / 未立 / 推论 / 范围), the strongest
   wording the evidence allows, optional regexes for wordings that go beyond it (`越界`) or must be present
-  (`必须出现`), the sentences that state it (`承载`) and qualifiers each of those sentences must keep (`限定词`),
-  and the work items it waits on (`缺`).
+  (`必须出现`; when the draft no longer has one that an earlier indexed version said, `loop state` names the last
+  commit that said it, since the draft may have been reworded and the ledger not), the sentences that state it (`承载`) and qualifiers each of those sentences must keep (`限定词`),
+  how many sentences at most may say something, such as a limitation restated across the paper (`至多：<regex> ‖
+  <regex> @ 2`, optionally in named places; only the listed wordings are counted), and the work items it waits on
+  (`缺`).
 - **集合** items: the set a universal quantifier ranges over (the systems compared, say): its noun, the sentence that
   defines it, its size, and names outside it that the same noun might be read to cover. In the abstract (or the
   places `全称量词查：` names), every / all / each / none of / no + noun must either say its size where it stands

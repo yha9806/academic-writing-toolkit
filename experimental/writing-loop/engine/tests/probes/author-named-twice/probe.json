@@ -1,0 +1,13 @@
+{
+ "failure": "In an author-year style, a sentence named the authors and the citation printed them again: \"Smith et al. report ... (Smith et al., 2020)\".",
+ "check": "cite-bib",
+ "argv": [
+  "--bib",
+  "{draft}/references.bib",
+  "--root",
+  "{draft}",
+  "--json",
+  "{draft}/draft.tex"
+ ],
+ "expect_flag": "author-named-twice"
+}

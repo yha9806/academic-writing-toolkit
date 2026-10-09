@@ -1,0 +1,11 @@
+{
+ "failure": "The abstract was rewritten until it kept none of the words of the title's main clause; no check compared the two.",
+ "check": "front-matter",
+ "argv": [
+  "--root",
+  "{draft}",
+  "--json",
+  "{draft}/draft.tex"
+ ],
+ "expect_flag": "title-word-missing-from-abstract"
+}

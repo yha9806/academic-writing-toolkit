@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (251 automated tests, labelled T2-T269: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251 and T253 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (255 automated tests, labelled T2-T273: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251 and T253 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3795,6 +3795,139 @@ assert ('unledgered-number','0.7891') in got, got
 assert not [g for g in got if g[1] in ('0.123','27')], got
 " || return 1
     [ "$status" = "1" ] || { echo "expected exit 1, got $status"; return 1; }
+}
+
+test_T270() {
+    # "We speculate", "the speculation", "a speculative reading" hedge a claim as "may" does, and the hedge rate
+    # counted none of them. Every inflection counts; a word that only looks alike does not.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+hedged = ("We speculate that the gauge drifts. The team speculates about the bridge. They speculated twice. "
+          "Speculating helps little. The speculation rests on two readings. Speculations differ. "
+          "A speculative reading follows. It is read speculatively. ")
+plain = "The gauge reads the river level twice a day at the north bridge. A spectacular flood came in spring. "
+(d / "t.txt").write_text((hedged + plain * 4) * 5, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/t.txt" --json 2>/dev/null)
+    rm -rf "$tmp"
+    printf '%s' "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+words = d['target_words']
+got = d['metrics']['hedge_per_1k']['value']
+want = 1000.0 * 8 * 5 / words
+assert abs(got - want) < 1e-9, (got, want, words)
+"
+}
+
+test_T271() {
+    # Word forms of one procedure share one sourced state. A study preregistered
+    # with a citation in one paragraph, and called "the preregistration" in a
+    # later one, was reported as uncited-method preregistration: the two forms
+    # were separate entries, so the citation sourced only the form beside it.
+    # A family with no citation anywhere is still reported, and once.
+    local tmp out out2
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/cited" "$tmp/bare"
+    cat > "$tmp/cited/main.tex" <<'TEXEOF'
+\documentclass{article}
+\begin{document}
+The gauge protocol was preregistered before any reading was taken \citep{plan2020}.
+
+The preregistration also fixed the stopping rule for the readings.
+\end{document}
+TEXEOF
+    cat > "$tmp/bare/main.tex" <<'TEXEOF'
+\documentclass{article}
+\begin{document}
+The gauge protocol was preregistered before any reading was taken.
+
+The preregistration also fixed the stopping rule for the readings.
+\end{document}
+TEXEOF
+    printf '@article{plan2020, author = {Plan, P.}, title = {A plan}, year = {2020}}\n' \
+        | tee "$tmp/cited/references.bib" > "$tmp/bare/references.bib"
+    out=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py \
+            --base-dir "$tmp/cited" --bib "$tmp/cited/references.bib" --json 2>/dev/null)
+    out2=$(python3 .claude/skills/audit/scripts/audit-claim-positioning.py \
+            --base-dir "$tmp/bare" --bib "$tmp/bare/references.bib" --json 2>/dev/null)
+    rm -rf "$tmp"
+    printf '%s\n%s\n' "$out" "$out2" | python3 -c "
+import json, sys
+raw = sys.stdin.read()
+dec = json.JSONDecoder()
+cited, end = dec.raw_decode(raw)
+bare, _ = dec.raw_decode(raw[end:].lstrip())
+meth = [i['detail'] for i in cited['issues'] if i['kind'] == 'uncited-method']
+assert meth == [], 'a citation beside one form sources the other: %r' % meth
+meth = [i['detail'] for i in bare['issues'] if i['kind'] == 'uncited-method']
+assert len(meth) == 1 and meth[0].startswith('preregist'), \
+    'an uncited family is reported once, not once per form: %r' % meth
+"
+}
+
+test_T272() {
+    # A number set as 4{,}120 reads as 4,120 on the page. The audits stripped the braces and kept the comma as a
+    # word of its own ("4 , 120"), so every sentence with such a number was two words per number longer than the
+    # same sentence typed 4,120, and the changed-sentence audit marked it long. \, \; \: \! are spaces, not marks.
+    local tmp out out2
+    python3 - <<'PYEOF' || return 1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("fp", ".claude/skills/audit/scripts/audit-prose-fingerprint.py")
+fp = importlib.util.module_from_spec(spec); sys.argv = ["x"]; spec.loader.exec_module(fp)
+text = fp.strip_markup("\\begin{document}Of 4{,}120 gauges, 7\\,315 were read in a thin\\,space\\;while\\:waiting\\!now.\\end{document}", ".tex")
+words = text.split()
+assert "4,120" in words and "7315" in words, text
+assert text.count(",") == 2 and ";" not in text and ":" not in text and "!" not in text, text
+PYEOF
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base" "$tmp/cur" "$tmp/cur_b"
+    printf 'The survey covers more bridges than most of the counties.\n' > "$tmp/base/a.tex"
+    printf 'The survey covers more bridges than all but 3 of the counties, at 4{,}120 or 4{,}385 by 1{,}906.\n' > "$tmp/cur/a.tex"
+    printf 'The survey covers more bridges than all but 3 of the counties, at 4,120 or 4,385 by 1,906.\n' > "$tmp/cur_b/a.tex"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/cur" --base "$tmp/base" --json 2>&1)
+    out2=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/cur_b" --base "$tmp/base" --json 2>&1)
+    rm -rf "$tmp"
+    printf '%s\n%s\n' "$out" "$out2" | python3 -c "
+import json, sys
+raw = sys.stdin.read()
+dec = json.JSONDecoder()
+braced, end = dec.raw_decode(raw)
+plain, _ = dec.raw_decode(raw[end:].lstrip())
+b, p = braced['sentences'][0], plain['sentences'][0]
+assert '4,120 or 4,385 by 1,906' in b['new'], b['new']
+assert b['features_new'] == p['features_new'], (b['features_new'], p['features_new'])
+assert b['flags'] == p['flags'], (b['flags'], p['flags'])
+"
+}
+
+test_T273() {
+    # The comma in 4,120 groups digits; the reader does not pause on it. Counted as a comma, a revision that adds
+    # three sizes was flagged for added commas although it has fewer than the sentence it replaced. A comma between a number and the next
+    # (0.5,0.7) or before a year that is not a digit group (2019,2020) is still one.
+    local tmp out
+    python3 - <<'PYEOF' || return 1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sc", ".claude/skills/audit/scripts/audit-sentence-changes.py")
+sc = importlib.util.module_from_spec(spec); sys.argv = ["x"]; spec.loader.exec_module(sc)
+got = sc.features("Of 4,120 gauges, 7,315,000 were read, 0.5,0.7 and 2019,2020.")["commas"]
+assert got == 4, got
+PYEOF
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base" "$tmp/cur"
+    printf 'The survey, it seems, covers more bridges than most of the counties.\n' > "$tmp/base/a.tex"
+    printf 'The survey covers more bridges than all but 3 of the counties, at 4{,}120 or 4{,}385 by 1{,}906.\n' > "$tmp/cur/a.tex"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/cur" --base "$tmp/base" --json 2>&1)
+    rm -rf "$tmp"
+    printf '%s' "$out" | python3 -c "
+import json, sys
+s = json.load(sys.stdin)['sentences'][0]
+assert s['features_new']['commas'] == 1, s['features_new']
+assert 'comma' not in s['flags'], s['flags']
+"
 }
 
 # --- T254-T255: a supplement's ledgers and files --------------------------------
@@ -7720,6 +7853,10 @@ run_test "T266 changed-sentence audit: an edit that unbinds a claim-ledger row n
 run_test "T267 claim ledger: a determiner, digits in a name, a sequence first and a compound -only are not high-risk" test_T267
 run_test "T268 paragraph openers: figure-first paragraphs are listed; a year, a metric name, a pointer and a model version are not" test_T268
 run_test "T269 number ledger: a number that ends a sentence is seen, and the full stop does not let a shorter number match inside a longer one" test_T269
+run_test "T270 prose fingerprint: speculate, speculation and speculative in every inflection count as hedges" test_T270
+run_test "T271 claim positioning: word forms of one method share one source (preregistered, preregistration)" test_T271
+run_test "T272 a number set as 4{,}120 reads as 4,120, and \\, is a space, not a comma" test_T272
+run_test "T273 the comma inside 4,120 groups digits and is not counted as a comma" test_T273
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

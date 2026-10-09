@@ -141,5 +141,68 @@ class DiskCacheTest(unittest.TestCase):
             self.assertIn("再补一句", [t["text"] for t in threads["threads"]])
 
 
+class RoundReadsTest(unittest.TestCase):
+    """2026-10-08：写一张卡把 sentences.json 解析四遍（摘要、总览、主张清单的整篇扫描两遍），前后叠着，一张卡峰值
+    超过 1 GB。round_reads() 里同一个文件只解析一次，几处读同一份，所以读的地方都不能改它。"""
+
+    def _ws(self, root):
+        from test_overview import DAY, T0, build_ws
+        cfg, shas = build_ws(root)
+        ws = Path(cfg["_ws"])
+        (ws / "index" / "sources.json").write_text(json.dumps({"head": shas[2]}), encoding="utf-8")
+        (ws / "index" / "threads.json").write_text(json.dumps({"threads": []}), encoding="utf-8")
+        (ws / "index" / "explanations.json").write_text(json.dumps({"explanations": []}), encoding="utf-8")
+        ledger = Path(root) / "claims.md"
+        ledger.write_text("阶段：分析\n\n## 主张 C1 读数是 12\n- 证据：表 1\n- 强度：强\n- 允许的说法：读数\n",
+                          encoding="utf-8")
+        cfg = C.load(ws)
+        cfg["claims"] = str(ledger)
+        C.save(ws, cfg)
+        return C.load(ws), T0 + 12 * DAY
+
+    def _one_card(self, cfg, now):
+        from loop import coverage as V
+        from loop import overview as O
+        from loop import state as S
+        self.assertIsNotNone(X.load_summary(cfg))
+        O.build(cfg, now)
+        V.indexed_versions(cfg["_ws"])
+        S.compute(cfg, cfg["_ws"])
+
+    def test_one_card_parses_sentences_json_once(self):
+        import contextlib
+        from unittest import mock
+        with TempDir() as root:
+            cfg, now = self._ws(root)
+            real, parsed = json.loads, []
+
+            def counting(s, *a, **k):
+                if isinstance(s, str) and s.startswith('{"head"') and '"versions"' in s:
+                    parsed.append(len(s))
+                return real(s, *a, **k)
+            with mock.patch("json.loads", counting), getattr(X, "round_reads", contextlib.nullcontext)():
+                self._one_card(cfg, now)
+            self.assertEqual(len(parsed), 1, f"sentences.json parsed {len(parsed)} times for one card")
+
+    def test_what_one_card_reads_is_not_changed_by_its_readers(self):
+        with TempDir() as root:
+            cfg, now = self._ws(root)
+            with X.round_reads():
+                docs = {n: X.read_doc(cfg["_ws"], n) for n in X.FILES}
+                before = {n: json.dumps(d, sort_keys=True) for n, d in docs.items()}
+                self._one_card(cfg, now)
+                self.assertEqual({n: json.dumps(d, sort_keys=True) for n, d in docs.items()}, before)
+
+    def test_a_file_rewritten_during_a_round_is_read_again_and_nothing_outlives_the_round(self):
+        with TempDir() as root:
+            cfg, _ = self._ws(root)
+            p = Path(cfg["_ws"]) / "index" / "threads.json"
+            with X.round_reads():
+                self.assertEqual(X.read_doc(cfg["_ws"], "threads.json"), {"threads": []})
+                p.write_text(json.dumps({"threads": [{"text": "新的"}]}), encoding="utf-8")
+                self.assertEqual(X.read_doc(cfg["_ws"], "threads.json")["threads"][0]["text"], "新的")
+            self.assertIsNone(X._ROUND, "the parsed files are dropped when the round ends")
+
+
 if __name__ == "__main__":
     unittest.main()

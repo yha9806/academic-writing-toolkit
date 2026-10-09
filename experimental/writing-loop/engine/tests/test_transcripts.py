@@ -1,5 +1,6 @@
 import json
 import unittest
+from pathlib import Path
 
 from loop import config as C
 from loop import transcripts as T
@@ -72,6 +73,56 @@ class TranscriptReadTest(unittest.TestCase):
         with TempDir() as root:
             a = self.read(root)["assistant"]
             self.assertEqual([(x["aid"], x["text"]) for x in a], [("msg_1", "第一段\n\n第二段")])
+
+
+class PrimaryByIdTest(unittest.TestCase):
+    """transcripts.sessions names a session that works on the manuscript from another directory and branch (it edits the
+    draft by absolute path). Its messages are the author's on this manuscript, as the hooks treat it; a neighbour in
+    that same directory is not taken in."""
+
+    def setup_ws(self, root):
+        repo = make_repo(root, [({"drafts/DRAFT-v1.md": draft_md("T", "A.", ["B."])}, "v1", 1_700_000_000)])
+        projects = make_transcripts(root, repo, "main", [human("2026-09-17T10:00:00.000Z", "a message in the repo")])
+        other = Path(root) / "elsewhere"
+        other.mkdir()
+        make_transcripts(root, other, "spike", [
+            human("2026-09-17T11:00:00.000Z", "a message from the named session", _file="s7", uuid="u-named-0001"),
+            human("2026-09-17T11:05:00.000Z", "a message from its neighbour", _file="s8", uuid="u-neighbour-0002")])
+        ws = workspace(root, repo, "main", projects=projects)
+        cfg = C.load(ws)
+        cfg["transcripts"]["sessions"] = [{"id": "s7", "note": "edits the draft from another checkout"}]
+        C.save(ws, cfg)
+        return C.load(ws)
+
+    def test_a_session_named_by_its_id_is_read_wherever_it_ran(self):
+        with TempDir() as root:
+            texts = [h["text"] for h in T.read(self.setup_ws(root))["human"]]
+            self.assertEqual(texts, ["a message in the repo", "a message from the named session"])
+
+    def test_its_file_is_read_even_when_the_scan_cache_says_it_holds_no_branch(self):
+        """The scan cache skips files that did not hold the branch: a file cached before its id was named must still
+        be read once the id is named."""
+        with TempDir() as root:
+            cfg = self.setup_ws(root)
+            ids = cfg["transcripts"].pop("sessions")
+            cache = str(Path(root) / "scan.json")
+            files = T.session_files(cfg) + sorted((Path(root) / "projects").glob("*/s7.jsonl"))
+            T.read(cfg, files=files, scan_cache=cache)
+            cfg["transcripts"]["sessions"] = ids
+            texts = [h["text"] for h in T.read(cfg, files=files, scan_cache=cache)["human"]]
+            self.assertIn("a message from the named session", texts)
+
+    def test_an_author_message_in_it_is_on_record_for_approvals_and_the_ring(self):
+        """A decision or an approval the author gave in that session names its uuid; the uuid must be found there,
+        as it is for a session under the configured prefix."""
+        from loop import ringinputs as RI
+        from loop import targets as TG
+        with TempDir() as root:
+            cfg = self.setup_ws(root)
+            cfg["_ws"] = str(Path(root) / "ws")
+            self.assertTrue(TG._approval_in_transcripts(cfg, "u-named-0001"))
+            self.assertFalse(TG._approval_in_transcripts(cfg, "u-neighbour-0002"))
+            self.assertIn("s7.jsonl", [Path(f).name for f in RI._transcript_files(cfg)])
 
 
 if __name__ == "__main__":

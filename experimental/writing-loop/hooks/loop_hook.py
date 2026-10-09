@@ -43,7 +43,7 @@ sys.path.insert(0, str(ENGINE))
 from loop import config as C  # noqa: E402
 from loop import health as HL  # noqa: E402
 
-REGISTRY = "~/.awt/loop-workspaces"
+REGISTRY = C.REGISTRY  # one definition: `loop doctor` checks a workspace against the same file (config.registry_path)
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 GIT_RE = re.compile(r"\bgit\b[^\n;&|]*\b(commit|merge|rebase|cherry-pick|reset|revert|pull|am)\b")
 REMINDER = (
@@ -73,7 +73,7 @@ def _under(path, root):
 
 def registry(path=None):
     """[(workspace, cfg)] for every readable line; a line that does not load is skipped, and returned as bad."""
-    p = Path(os.path.expanduser(path or os.environ.get("AWT_LOOP_REGISTRY") or REGISTRY))
+    p = Path(os.path.expanduser(path)) if path else C.registry_path()
     good, bad = [], []
     try:
         lines = p.read_text(encoding="utf-8").splitlines()
@@ -102,7 +102,14 @@ def toplevel(cwd):
 
 
 def session_ws(payload, regs):
-    """The registered workspace this session works on: cwd under the configured prefix, on the configured branch."""
+    """The registered workspace this session works on: one whose transcripts.sessions names this session's id, wherever
+    it runs; otherwise cwd under the configured prefix, on the configured branch. The id list is read through
+    C.session_ids, the one rule transcript reading, doctor, approvals and the ring also go by."""
+    sid = payload.get("session_id")
+    if isinstance(sid, str) and sid:
+        for ws, cfg in regs:
+            if sid in C.session_ids(cfg):
+                return ws, cfg
     cwd = payload.get("cwd")
     if not isinstance(cwd, str):
         return None, None
@@ -123,7 +130,9 @@ def history_wss(payload, regs):
 
     A session can also be named by its id (transcripts.history_sessions, read only here): a conversation
     shares its checkout and branch with other lines, so a directory + branch rule would take them in too. Only the
-    hook reads that key; transcript reading, targets and doctor still go by `also`, so its turns are not counted."""
+    hook reads that key; transcript reading, targets and doctor still go by `also`, so its turns are not counted.
+    A session that does work on the manuscript belongs in transcripts.sessions instead (see session_ws): that key
+    makes it a primary session, and every reader counts it."""
     cwd, sid = payload.get("cwd"), payload.get("session_id")
     br, out = None, []
     for ws, cfg in regs:
@@ -142,10 +151,25 @@ def history_wss(payload, regs):
     return out
 
 
+LOG_CAP = 1 << 20   # bytes; past this a log moves to <name>.1 (one older file kept) before the next run appends
+
+
+def open_log(ws, name):
+    """cache/<name> for appending, with a ceiling: the logs used to grow without one (2026-10-08: 4.9 MB of notch
+    log on one manuscript). A process already running keeps writing to the file it opened, now named <name>.1."""
+    (ws / "cache").mkdir(parents=True, exist_ok=True)
+    p = ws / "cache" / name
+    try:
+        if p.stat().st_size > LOG_CAP:
+            p.replace(p.with_name(name + ".1"))
+    except OSError:
+        pass
+    return open(p, "a")
+
+
 def spawn_update(ws, reason):
     """Start `loop update` detached from this hook process; its output goes to cache/update.log."""
-    (ws / "cache").mkdir(parents=True, exist_ok=True)
-    log = open(ws / "cache" / "update.log", "a")
+    log = open_log(ws, "update.log")
     subprocess.Popen([sys.executable, "-m", "loop", "update", str(ws), "--reason", reason],
                      cwd=str(ENGINE), env=dict(os.environ, PYTHONPATH=str(ENGINE)),
                      stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
@@ -154,8 +178,7 @@ def spawn_update(ws, reason):
 
 def spawn_card(ws):
     """Write this workspace's notch card once (`loop lintel --once`), detached; its output goes to cache/lintel.log."""
-    (ws / "cache").mkdir(parents=True, exist_ok=True)
-    log = open(ws / "cache" / "lintel.log", "a")
+    log = open_log(ws, "lintel.log")
     subprocess.Popen([sys.executable, "-m", "loop", "lintel", str(ws), "--once"], cwd=str(ENGINE),
                      env=dict(os.environ, PYTHONPATH=str(ENGINE)),
                      stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
@@ -177,8 +200,7 @@ def refresh_card(ws):
 
 def spawn_producer(ws):
     """Start the resident `loop lintel` for this workspace, detached; it keeps the notch cards and heartbeat."""
-    (ws / "cache").mkdir(parents=True, exist_ok=True)
-    log = open(ws / "cache" / "lintel.log", "a")
+    log = open_log(ws, "lintel.log")
     subprocess.Popen([sys.executable, "-m", "loop", "lintel", str(ws)], cwd=str(ENGINE),
                      env=dict(os.environ, PYTHONPATH=str(ENGINE)),
                      stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
@@ -527,6 +549,17 @@ def on_pre_tool(payload, regs, now):
     return None
 
 
+def _manuscript_top(t, cfg):
+    """The git top of the manuscript checkout holding path t (the configured prefix or the repository, or a worktree
+    inside either), or None when t lies in neither. t need not exist yet: the nearest existing parent is asked."""
+    d = os.path.dirname(_real(t))
+    while d and not os.path.isdir(d) and os.path.dirname(d) != d:
+        d = os.path.dirname(d)
+    top = toplevel(d) if d else None
+    roots = [r for r in (cfg["transcripts"].get("cwd_prefix"), cfg.get("repo")) if r]
+    return top if top and any(_under(top, r) for r in roots) else None
+
+
 def _is_draft(rel, glob):
     """A string is a glob naming one file per version; a list names the files that together are the draft
     (a LaTeX main file and its sections), matched file by file, as history.py reads it."""
@@ -543,6 +576,10 @@ def on_post_tool(payload, regs, now, spawn):
         return None
     if tool in WRITE_TOOLS:
         t, top = _target(tool, ti, payload.get("cwd")), toplevel(payload.get("cwd"))
+        if t and payload.get("session_id") in C.session_ids(cfg) and not _under(payload.get("cwd"), cfg["transcripts"]["cwd_prefix"]):
+            # A session named by id that runs elsewhere edits the draft by absolute path: the path counts against the
+            # manuscript's checkout that holds it, never against the other repository the session happens to run in.
+            top = _manuscript_top(t, cfg)
         if t and top and _under(t, top):
             rel = os.path.relpath(_real(t), _real(top)).replace(os.sep, "/")
             led = cfg.get("ledger") or {}

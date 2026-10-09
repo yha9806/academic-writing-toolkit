@@ -74,8 +74,13 @@ CLEAN = """阶段：终检
 """
 
 
-def setup(root, ledger=LEDGER, main=MAIN):
-    repo = make_repo(root, [({"main.tex": main, "sections/01_intro.tex": INTRO}, "v1", 1_700_000_000)])
+def capped(text):
+    """CLEAN with a 至多 line on its claim C1."""
+    return CLEAN.replace("- 越界：three bridges", "- 越界：three bridges\n- 至多：" + text)
+
+
+def setup(root, ledger=LEDGER, main=MAIN, intro=INTRO):
+    repo = make_repo(root, [({"main.tex": main, "sections/01_intro.tex": intro}, "v1", 1_700_000_000)])
     ws = workspace(root, repo, "main", glob=["main.tex", "sections/01_intro.tex"])
     cfg = C.load(ws)
     cfg["draft"]["format"] = "latex"
@@ -282,6 +287,48 @@ class StateTest(unittest.TestCase):
             st = S.compute(cfg, ws)
             self.assertTrue(any("写了限定词没写承载" in p for p in st["problems"]), st["problems"])
 
+    def test_a_wording_said_more_often_than_the_ledger_allows_is_said(self):
+        # probe-growth #4: one limitation restated in six sentences of the draft, each worded differently; every check
+        # passed, because a ledger could require a wording or forbid it but not cap how often it is said.
+        main = MAIN.replace("The gauges prove that every bridge is safe.", "Drivers were not asked.")
+        intro = INTRO.replace("Inspections are rare.", "Inspections are rare. No driver was surveyed. Whether drivers "
+                                                       "notice is left untested.")
+        cap = CLEAN.replace("- 越界：three bridges", "- 越界：three bridges\n- 至多：drivers? were not asked ‖ "
+                                                     "do not test whether drivers ‖ no driver was surveyed ‖ drivers notice @ 2")
+        with TempDir() as root:
+            ws, cfg = setup(root, cap, main=main, intro=intro)
+            st = S.compute(cfg, ws)
+            [r] = [x for x in st["at_most"] if len(x["labels"]) > x["limit"]]
+            self.assertEqual((r["claim"], r["limit"], [lab[0] for lab in r["labels"]]), ("C1", 2, ["A", "I", "I", "I"]))
+            self.assertEqual(st["verdict"], S.NOT_READY)
+            self.assertIn("说太多遍 C1", S.line(st))
+            self.assertIn("至多 2 句，现有 4 句", S.table(st))
+        with TempDir() as root:  # the corrected twin: said twice, once where it is first raised and once in the abstract
+            ws, cfg = setup(root, cap, main=main, intro=INTRO)
+            st = S.compute(cfg, ws)
+            self.assertEqual([len(x["labels"]) for x in st["at_most"]], [2])
+            self.assertEqual(st["verdict"], S.AUTHOR)
+            self.assertIn("至多 2 句，现有 2 句", S.table(st), "a cap that holds is said, not left silent")
+
+    def test_a_sentence_is_counted_once_and_a_cap_can_hold_in_named_places(self):
+        intro = INTRO.replace("Inspections are rare.", "No driver was surveyed, so we do not test whether drivers notice.")
+        with TempDir() as root:
+            ws, cfg = setup(root, capped("do not test whether drivers ‖ no driver was surveyed @ 1 I2"), intro=intro)
+            st = S.compute(cfg, ws)
+            self.assertEqual([x["labels"] for x in st["at_most"]], [["I2.1"]])
+            self.assertEqual(st["verdict"], S.AUTHOR, "the first paragraph's mention lies outside I2")
+        with TempDir() as root:
+            ws, cfg = setup(root, capped("do not test whether drivers ‖ no driver was surveyed @ 1 I"), intro=intro)
+            self.assertEqual(S.compute(cfg, ws)["verdict"], S.NOT_READY)
+
+    def test_a_cap_without_a_number_is_a_ledger_problem(self):
+        for cap in ("drivers? notice", "drivers? notice @ two", "drivers? notice @ I1"):
+            with self.subTest(cap=cap), TempDir() as root:
+                ws, cfg = setup(root, capped(cap))
+                st = S.compute(cfg, ws)
+                self.assertTrue(any("至多要写成" in p for p in st["problems"]), st["problems"])
+                self.assertEqual(st["verdict"], S.NOT_READY)
+
     def test_quantifiers_are_read_in_english_and_chinese(self):
         self.assertEqual(S._quantified("We read all of the five gauges."), [("all of the five gauges", "five gauges")])
         self.assertTrue(S.NUMERAL.match(S._quantified("所有五座桥都更稳")[0][1]))
@@ -319,6 +366,85 @@ class StateTest(unittest.TestCase):
             self.assertEqual(block["cells"][0]["title"], "论文")
             self.assertEqual(block["cells"][0]["value"], "未就绪")
             self.assertEqual(block["cells"][0]["tone"], "orange")
+
+
+class StaleLedgerHintTest(unittest.TestCase):
+    """A required wording the whole draft no longer has, that an earlier indexed version still said: the draft may have
+    been reworded on purpose and the ledger not, so `loop state` names the last commit that said it. A wording no
+    version ever said gets no hint: then the ledger asks for something not yet written."""
+
+    REWORDED = INTRO.replace("We do not test whether drivers notice.", "Drivers were not asked.")
+
+    def setup_history(self, root, ledger, intros):
+        """One commit per intro text, oldest first; the index built over all of them. Returns ws, cfg, shas."""
+        commits = [({"main.tex": MAIN, "sections/01_intro.tex": t}, f"v{i}", 1_700_000_000 + i)
+                   for i, t in enumerate(intros, 1)]
+        repo = make_repo(root, commits)
+        ws = workspace(root, repo, "main", glob=["main.tex", "sections/01_intro.tex"])
+        cfg = C.load(ws)
+        cfg["draft"]["format"] = "latex"
+        cfg["draft"]["sections"] = RULES
+        cfg["genre"] = "note"
+        p = Path(root) / "claims.md"
+        p.write_text(ledger, encoding="utf-8")
+        cfg["claims"] = str(p)
+        C.save(ws, cfg)
+        cfg = C.load(ws)
+        vs = H.load_versions(cfg)
+        H.assign_ids(vs)
+        head = git(cfg["repo"], "rev-parse", "HEAD")
+        (Path(ws) / "index" / "sentences.json").write_text(json.dumps({"head": head, "versions": vs}), encoding="utf-8")
+        shas = git(cfg["repo"], "log", "--reverse", "--format=%H").split()
+        return ws, cfg, shas
+
+    def test_the_last_commit_that_said_it_is_named(self):
+        intros = [INTRO, INTRO.replace("Inspections are rare.", "Inspections are scarce."), self.REWORDED,
+                  self.REWORDED.replace("Inspections are rare.", "Inspections are few.")]
+        with TempDir() as root:
+            ws, cfg, shas = self.setup_history(root, LEDGER, intros)
+            st = S.compute(cfg, ws)
+            [a] = [x for x in st["absent"] if x["claim"] == "C1"]
+            self.assertEqual(a["last_seen"]["sha"], shas[1], "the last version that still said it, not the first")
+            self.assertIn(f"缺「do not test whether drivers」：整篇没有一句——可能是台账过期：该短语在 {shas[1][:7]} 之后不再出现",
+                          S.table(st))
+
+    def test_a_wording_no_version_said_gets_no_hint(self):
+        ledger = LEDGER.replace("- 必须出现：do not test whether drivers", "- 必须出现：drivers were surveyed")
+        with TempDir() as root:
+            ws, cfg, _shas = self.setup_history(root, ledger, [INTRO, self.REWORDED])
+            st = S.compute(cfg, ws)
+            [a] = [x for x in st["absent"] if x["claim"] == "C1"]
+            self.assertNotIn("last_seen", a)
+            self.assertIn("缺「drivers were surveyed」：整篇没有一句", S.table(st))
+            self.assertNotIn("台账过期", S.table(st))
+
+    def test_a_wording_required_in_one_place_is_looked_for_in_that_place(self):
+        """Moved out of the abstract into the introduction is absent where the ledger wants it; the hint names the
+        last commit that had it in the abstract, and a version that had it only elsewhere does not count."""
+        ledger = LEDGER.replace("- 必须出现：do not test whether drivers", "- 必须出现：drivers notice @ A")
+        main_said = MAIN.replace("We audit a bridge survey.", "We audit a bridge survey. Whether drivers notice is open.")
+        commits = [(main_said, INTRO), (MAIN, INTRO), (MAIN, INTRO.replace("Inspections are rare.", "Checks are rare."))]
+        with TempDir() as root:
+            repo = make_repo(root, [({"main.tex": m, "sections/01_intro.tex": t}, f"v{i}", 1_700_000_000 + i)
+                                    for i, (m, t) in enumerate(commits, 1)])
+            ws = workspace(root, repo, "main", glob=["main.tex", "sections/01_intro.tex"])
+            cfg = C.load(ws)
+            cfg["draft"].update(format="latex", sections=RULES)
+            cfg["genre"] = "note"
+            p = Path(root) / "claims.md"
+            p.write_text(ledger, encoding="utf-8")
+            cfg["claims"] = str(p)
+            C.save(ws, cfg)
+            cfg = C.load(ws)
+            vs = H.load_versions(cfg)
+            H.assign_ids(vs)
+            (Path(ws) / "index" / "sentences.json").write_text(
+                json.dumps({"head": git(cfg["repo"], "rev-parse", "HEAD"), "versions": vs}), encoding="utf-8")
+            shas = git(cfg["repo"], "log", "--reverse", "--format=%H").split()
+            st = S.compute(cfg, ws)
+            [a] = [x for x in st["absent"] if x["claim"] == "C1"]
+            self.assertEqual(a["place"], "A")
+            self.assertEqual(a["last_seen"]["sha"], shas[0], "v2 has it only in the introduction, which is not A")
 
 
 if __name__ == "__main__":
@@ -387,9 +513,15 @@ class StoryPageTest(unittest.TestCase):
                                on_record=(STEP_UUID,))
             self.assertEqual(st["story"]["approved"], 1)
 
-    def test_a_card_without_a_story_page_is_said_and_blocks_nothing(self):
-        with TempDir() as root:
-            st = self.run_card(root, card="# 意图卡\n\n## 读者\n- 记忆点 M1\n")
-            self.assertEqual(st["story"]["steps"], 0)
-            self.assertEqual(st["verdict"], S.AUTHOR)
-            self.assertIn("意图卡里没有讲法页", S.line(st))
+    def test_a_card_without_a_story_page_keeps_the_paper_from_the_author(self):
+        # 10-07: a card without a page used to be said and block nothing, so an abstract whose order no page
+        # could check reached the author with every reader point carried, and the author could not follow it. A
+        # missing page is at least as open as an unapproved step, which already blocks (S3).
+        for card, said in (("# 意图卡\n\n## 读者\n- 记忆点 M1\n", "意图卡里没有讲法页"),
+                           ("# 意图卡\n\n## 讲法页\n\n先讲问题，再讲修法。\n", "讲法页没列出编号的步骤")):
+            with self.subTest(said=said), TempDir() as root:
+                st = self.run_card(root, card=card)
+                self.assertEqual(st["story"]["steps"], 0)
+                self.assertEqual(st["verdict"], S.NOT_READY)
+                self.assertIn(said, st["blockers"])
+                self.assertEqual(S.line(st).count(said), 1, "said once, as a blocker")

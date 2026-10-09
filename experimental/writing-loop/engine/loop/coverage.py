@@ -143,15 +143,24 @@ def waivers(ws):
         return {}
 
 
+def indexed_versions(ws):
+    """Every indexed version of the draft, oldest first, and the head the index was built from. (None, None) if the
+    index is not there."""
+    try:
+        from . import index as X
+        d = X.read_doc(ws, "sentences.json")
+    except (OSError, ValueError):
+        return None, None
+    return d.get("versions") or [], d.get("head")
+
+
 def current_sentences(ws):
     """The latest version's sentences from the index on disk, and the head it was built from. (None, None) if the
     index is not there: coverage then refuses to say anything is up to date."""
-    try:
-        d = json.loads((Path(ws) / "index" / "sentences.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    vs, head = indexed_versions(ws)
+    if vs is None:
         return None, None
-    vs = d.get("versions") or []
-    return (vs[-1]["sentences"] if vs else []), d.get("head")
+    return (vs[-1]["sentences"] if vs else []), head
 
 
 def in_sections(sec, prefixes):
@@ -402,6 +411,12 @@ def interpret(check_id, code, stdout, stderr):
             # clean result: a whole-paper average in range can hide one section far outside it. Say it.
             if str(data.get("per_section_note") or "").startswith("NOT COMPUTED"):
                 summary += "；逐节没算（只有全文平均）"
+            # The draft read one way (markup stripped) and the baseline another (PDFs as printed): every percentile
+            # compares two readings of a document, not two documents. 「越界 N 项」 alone reads the same either way.
+            if data.get("pipeline_mismatch") is True:
+                mine = "、".join(str(x) for x in data.get("target_pipeline") or []) or "?"
+                theirs = "、".join(sorted(str(x) for x in data.get("baseline_pipeline_mix") or [])) or "?"
+                summary += f"；稿件与对照读法不同（稿件 {mine}，对照 {theirs}），百分位比的是两种读法"
             summary += _peaks_summary(data)
         elif "flagged" in data and "changed" in data:
             summary = f"改动 {data['changed']} 句，标出 {data['flagged']} 句"
@@ -416,6 +431,10 @@ def interpret(check_id, code, stdout, stderr):
                 summary += f"；比例与别处对不上 {compared['count_elsewhere']}"
             if compared.get("duplicates_elsewhere"):
                 summary += f"；与别处一字不差 {compared['duplicates_elsewhere']}"
+            if compared.get("repeats_elsewhere"):
+                summary += f"；与别处几乎一样 {compared['repeats_elsewhere']}"
+            if compared.get("multiple_without_count"):
+                summary += f"；倍数旁没有命中数 {compared['multiple_without_count']}"
         elif "total" in data and "unit" in data and isinstance(data.get("chapters"), list):
             summary = f"{data['total']} 词（{len(data['chapters'])} 个文件）"
         elif "hard_finding_count" in data:
@@ -966,6 +985,7 @@ def live_line(ws, cfg):
     workspace as `/private/var/…` agree. The paper's state leads and is never cut: checks that have all looked at the
     draft say nothing about whether its claims stand, and a line of coverage alone read as "nothing is wrong"."""
     ws = Path(ws).resolve()
+    _LAST_STATE.pop(str(ws), None)  # a call that fails before the state is computed leaves none, not the last one
     cov = reminder_line(load_summary(ws, cfg), ws)
     try:
         from . import state as S
@@ -998,7 +1018,7 @@ def refresh_outlet(ws, cfg):
         HL.record_event(ws, "hook_error", f"许愿柳的留言没刷新（{type(e).__name__}：{e}），下一条消息时会更正")
 
 
-STATUSES = (OK, STALE, NEVER, MISSING, NOT_APPLICABLE, WAIVED, FAILED)
+STATUSES = (OK, STALE, NEVER, MISSING, NOT_APPLICABLE, WAIVED, FAILED, ACCEPTED)
 
 
 def _stat_sig(path):
@@ -1295,10 +1315,16 @@ def accepted_path(cfg):
     return K.accepted_rewrites_path(cfg)
 
 
+# Until 2026-10-08 the audits showed a number set as 4{,}120 as "4 , 120", and sentences were accepted in that form.
+SPACED_DIGIT_GROUP = re.compile(r"(?<=\d) , (?=\d)")
+
+
 def accepted(cfg):
     """{key: (reason, who)} from the ledger: key<TAB>reason<TAB>who decided<TAB>the sentence (for the reader). A row
-    without a reason accepts nothing."""
-    out = {}
+    without a reason accepts nothing. A row accepted in the old "4 , 120" form also accepts the sentence as the page
+    prints it (4,120): the wording did not change, only how the audit showed it. Only when the sentence column is the
+    text the key was made from."""
+    out, alias = {}, {}
     try:
         lines = accepted_path(cfg).read_text(encoding="utf-8").splitlines()
     except OSError:
@@ -1306,8 +1332,11 @@ def accepted(cfg):
     for ln in lines:
         cells = ln.split("\t")
         if len(cells) >= 3 and cells[0].strip() and cells[1].strip() and not ln.startswith("#"):
-            out[cells[0].strip()] = (cells[1].strip(), cells[2].strip())
-    return out
+            key, given = cells[0].strip(), (cells[1].strip(), cells[2].strip())
+            out[key] = given
+            if len(cells) >= 4 and SPACED_DIGIT_GROUP.search(cells[3]) and sentence_key(cells[3]) == key:
+                alias[sentence_key(SPACED_DIGIT_GROUP.sub(",", cells[3]))] = given
+    return {**alias, **out}
 
 
 def _worktree_paths(cfg, head):

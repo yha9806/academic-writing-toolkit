@@ -185,6 +185,7 @@ Detailed, goal-oriented documentation lives in:
 
 - [Skill guides](docs/skills/README.md)
 - [Use-case guides](docs/use-cases/README.md)
+- [Research direction and paper planning (experimental method; Chinese)](docs/specs/2026-10-08-research-direction-and-paper-planning.md) — a one-page [discussion template](templates/research-discussion-record.md) to fill in by hand or with an AI host; the callable skill is still on trial.
 - [Write a literature review](docs/use-cases/write-literature-review.md)
 - [Audit thesis citations](docs/use-cases/audit-thesis-citations.md)
 - [Verify references before submission](docs/use-cases/verify-references-before-submission.md)

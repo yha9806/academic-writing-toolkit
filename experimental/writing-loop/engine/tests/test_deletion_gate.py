@@ -181,6 +181,75 @@ class DuplicateTest(unittest.TestCase):
             self.assertEqual(flags(d, "duplicates_elsewhere"), [])
 
 
+NEAR = "Ten of the eighteen gauges on the north bridge differ from their drawings beyond rounding."
+
+
+class NearRepeatTest(unittest.TestCase):
+    """Spec 2026-10-05-probe-growth, batch 1: an introduction sentence rewritten into the abstract's with one word
+    changed passed the letter-for-letter check."""
+
+    def test_a_rewrite_worded_like_another_sentence_but_for_a_word_is_flagged(self):
+        with TempDir() as root:
+            d = gate_files(root, {"a.tex": para(FILLER[0], NEAR), "b.tex": para(FILLER[1], "Some gauges were replaced in May.")},
+                           {"a.tex": para(FILLER[0], NEAR),
+                            "b.tex": para(FILLER[1], NEAR.replace("north", "south"))})
+            [s] = flags(d, "repeats_elsewhere")
+            self.assertEqual(s["repeats"], [{"where": "a.tex", "sentence": NEAR, "ratio": 0.93}])
+            self.assertEqual(d["compared"]["repeats_elsewhere"], 1)
+            self.assertEqual([i.get("repeats") for i in d["issues"] if "repeats_elsewhere" in i["flags"]], [s["repeats"]])
+
+    def test_a_letter_for_letter_copy_is_a_duplicate_and_not_also_a_repeat(self):
+        with TempDir() as root:
+            d = gate_files(root, {"a.tex": para(FILLER[0], NEAR), "b.tex": para(FILLER[1], "Some gauges were replaced in May.")},
+                           {"a.tex": para(FILLER[0], NEAR), "b.tex": para(FILLER[1], NEAR[:-1] + " (Section~\\ref{sec:a}).")})
+            self.assertEqual(len(flags(d, "duplicates_elsewhere")), 1)
+            self.assertEqual(flags(d, "repeats_elsewhere"), [])
+
+    def test_a_sentence_that_says_the_same_in_other_words_is_not_flagged(self):
+        with TempDir() as root:
+            other = "Ten of the eighteen gauges on the north bridge no longer match what their drawings show."   # 0.71
+            d = gate_files(root, {"a.tex": para(FILLER[0], NEAR), "b.tex": para(FILLER[1], "Some gauges were replaced in May.")},
+                           {"a.tex": para(FILLER[0], NEAR), "b.tex": para(FILLER[1], other)})
+            self.assertEqual(flags(d, "repeats_elsewhere"), [])
+
+    def test_a_short_sentence_is_not_compared(self):
+        with TempDir() as root:
+            d = gate_files(root, {"a.tex": para(FILLER[0], "Results differ by bridge here."), "b.tex": FILLER[1]},
+                           {"a.tex": para(FILLER[0], "Results differ by bridge here."),
+                            "b.tex": para(FILLER[1], "Results differ by bridge there.")})
+            self.assertEqual(flags(d, "repeats_elsewhere"), [])
+
+
+class MultipleWithoutCountTest(unittest.TestCase):
+    """Spec 2026-10-05-probe-growth, batch 1: a multiple of chance written with no count beside it."""
+
+    def run_on(self, *sentences):
+        with TempDir() as root:
+            return gate(root, para(INTRO, FILLER[0], FILLER[1]), para(INTRO, *sentences))
+
+    def test_a_multiple_of_chance_alone_is_flagged(self):
+        d = self.run_on("Gauges on the north bridge were read wrong about 30 times more often than chance.", FILLER[1])
+        [s] = flags(d, "multiple_without_count")
+        self.assertEqual(s["multiple"], ["30 times more often than chance"])
+        self.assertEqual(d["compared"]["multiple_without_count"], 1)
+        self.assertEqual([i.get("multiple") for i in d["issues"] if "multiple_without_count" in i["flags"]],
+                         [s["multiple"]])
+
+    def test_a_multiple_written_in_math_is_read_as_one(self):
+        d = self.run_on("The mean rose from $3.1\\times$ chance on the south span.", FILLER[1])
+        self.assertEqual(len(flags(d, "multiple_without_count")), 1)
+
+    def test_a_count_in_the_sentence_or_beside_it_is_enough(self):
+        self.assertEqual(flags(self.run_on("Gauges were read wrong 9 of 12 times, 30 times more often than chance.",
+                                           FILLER[1]), "multiple_without_count"), [])
+        self.assertEqual(flags(self.run_on("Gauges were read wrong 30 times more often than chance.",
+                                           "That is 9 wrong readings in 12."), "multiple_without_count"), [])
+
+    def test_a_chance_level_is_not_a_multiple(self):
+        d = self.run_on("All three spans sit near the $1/48$ chance level of that pool.", FILLER[1])
+        self.assertEqual(flags(d, "multiple_without_count"), [])
+
+
 class LoopSummaryTest(unittest.TestCase):
     def test_the_loop_names_the_new_flags_apart(self):
         with TempDir() as root:
@@ -194,6 +263,20 @@ class LoopSummaryTest(unittest.TestCase):
                            {"a.tex": para(FILLER[0], SAME), "b.tex": para(FILLER[1], SAME)})
             _, summary = V.interpret("sentence-changes", 1, json.dumps(d), "")
             self.assertIn("与别处一字不差 1", summary)
+
+    def test_the_loop_names_a_near_repeat(self):
+        with TempDir() as root:
+            d = gate_files(root, {"a.tex": para(FILLER[0], NEAR), "b.tex": FILLER[1]},
+                           {"a.tex": para(FILLER[0], NEAR), "b.tex": para(FILLER[1], NEAR.replace("north", "south"))})
+            _, summary = V.interpret("sentence-changes", 1, json.dumps(d), "")
+            self.assertIn("与别处几乎一样 1", summary)
+
+    def test_the_loop_names_a_multiple_without_a_count(self):
+        with TempDir() as root:
+            d = gate(root, para(INTRO, FILLER[0]),
+                     para(INTRO, "Gauges were read wrong about 30 times more often than chance."))
+            _, summary = V.interpret("sentence-changes", 1, json.dumps(d), "")
+            self.assertIn("倍数旁没有命中数 1", summary)
 
 
 if __name__ == "__main__":

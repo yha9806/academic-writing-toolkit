@@ -1,0 +1,12 @@
+{
+ "failure": "A result was rewritten as a multiple of chance ('N times more often than chance') with the hits and the pool it rested on left in another section.",
+ "check": "sentence-changes",
+ "argv": [
+  "--target",
+  "{draft}",
+  "--base",
+  "base",
+  "--json"
+ ],
+ "expect_flag": "multiple_without_count"
+}

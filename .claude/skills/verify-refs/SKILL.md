@@ -38,7 +38,9 @@ This skill activates on: `verify refs`, `verify references`, `reference check`, 
 7. For a LaTeX manuscript, reconcile its citations with the `.bib` file both ways:
    `python3 .claude/skills/verify-refs/scripts/reconcile-cites.py --bib "{bib}" --root "{repo}" --json "{main.tex}" ...`
    It follows `\input`, `\include` and `\subfile`, reports keys cited but not defined and entries defined but cited
-   nowhere, and treats `\nocite{*}` as citing everything. Exit 2 when nothing could be read.
+   nowhere, and treats `\nocite{*}` as citing everything. Macro definitions (`\newcommand`, `\renewcommand`,
+   `\providecommand`, `\def`, `\let` ...) are skipped with their bodies, and a token starting with `\` or `#` is never
+   read as a key; a key written out in a definition body counts as cited. Exit 2 when nothing could be read.
 
 ## Constraints
 

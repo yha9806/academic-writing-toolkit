@@ -255,6 +255,20 @@ class NeverGreenTest(unittest.TestCase):
         done = '{"outliers": [], "per_section_cv": {"hedge_per_1k": 0.4}, "per_section_note": null}'
         self.assertNotIn("逐节没算", V.interpret("fingerprint-venue", 0, done, "")[1])
 
+    def test_a_style_run_whose_draft_and_baseline_were_read_differently_says_so(self):
+        # The fingerprint reports pipeline_mismatch when the draft is read one way (markup stripped) and the baseline
+        # another (PDFs as printed): every percentile then compares two readings, not two documents. The loop line
+        # used to show only 「越界 N 项」, which reads the same either way.
+        run = ('{"outliers": ["hedge_per_1k"], "pipeline_mismatch": true, "target_pipeline": ["markup-stripped"], '
+               '"baseline_pipeline_mix": {"pdf-as-printed": 12}, "pipeline_note": "target and baseline differ"}')
+        verdict, summary = V.interpret("fingerprint-venue", 1, run, "")
+        self.assertEqual(verdict, "findings")
+        self.assertTrue(summary.startswith("越界 1 项"), summary)
+        self.assertIn("读法不同（稿件 markup-stripped，对照 pdf-as-printed）", summary)
+        self.assertIn("百分位比的是两种读法", summary)
+        same = '{"outliers": [], "pipeline_mismatch": false, "target_pipeline": ["pdf-as-printed"]}'
+        self.assertNotIn("读法", V.interpret("fingerprint-venue", 0, same, "")[1])
+
     def test_the_densest_section_of_the_structure_run_is_named_as_description(self):
         run = ('{"outliers": ["sub_per_comma"], "per_file": {"sections/03_background.tex": {"short": false}, '
                '"sections/02_method.tex": {"short": false}, "sections/04_stub.tex": {"short": true}}, '
@@ -1300,6 +1314,18 @@ class AcceptStaleTest(unittest.TestCase):
                 reindex(ws)
                 self.assertEqual(status(V.compute(cfg, ws))["status"], V.STALE, "the next change clears the acceptance")
 
+    def test_summary_with_an_accepted_row_is_trusted(self):
+        """10-08, a live workspace: the reader panel was accepted at 15:44; load_summary did not know the status, threw the whole
+        summary away, and the notch ring read 「环算不出来」 while `loop coverage` kept writing the same row back."""
+        with TempDir() as root:
+            with Probe(probe_check(root, scope="cite")):
+                repo, ws, cfg = self._stale(root)
+                V.accept(cfg, ws, "probe", "只换了一个词")
+                V.compute(cfg, ws)
+                s = V.load_summary(ws, cfg)
+                self.assertIsNotNone(s, "a summary whose only odd row is an accepted one is still trusted")
+                self.assertEqual(status(s)["status"], V.ACCEPTED)
+
     def test_refusals(self):
         with TempDir() as root:
             with Probe(probe_check(root, scope="cite")):
@@ -1410,3 +1436,25 @@ class SupplementReadTest(unittest.TestCase):
                 r = status(V.compute(cfg, ws, do_run=True), "blind")
                 self.assertEqual(r["status"], V.FAILED, r)
                 self.assertIn("figures/*.tex", r["detail"])
+
+
+class AcceptedRenderingTest(unittest.TestCase):
+    """10-08: the audits read 4{,}120 as "4 , 120", and a live draft had dozens of sentences accepted in that
+    rendering. Read as the page prints it, the same sentence keys differently; the author's acceptance follows the
+    wording."""
+
+    def test_an_acceptance_given_to_a_spaced_digit_group_follows_the_corrected_rendering(self):
+        with TempDir() as root:
+            cfg = {"repo": str(root)}
+            spaced = "At 4 , 120 or 4 , 385 by 1 , 906 bridges, the survey is larger."
+            note = "The survey is 4 , 120 long."
+            path = V.accepted_path(cfg)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"{V.sentence_key(spaced)}\tsize is the finding\tauthor\t{spaced}\n"
+                            f"0123456789abcdef\tanother reason\tauthor\t{note}\n", encoding="utf-8")
+            acc = V.accepted(cfg)
+            self.assertEqual(acc.get(V.sentence_key("At 4,120 or 4,385 by 1,906 bridges, the survey is larger.")),
+                             ("size is the finding", "author"))
+            self.assertEqual(acc[V.sentence_key(spaced)], ("size is the finding", "author"))
+            self.assertNotIn(V.sentence_key("The survey is 4,120 long."), acc,
+                             "a sentence column that is not the keyed text carries no acceptance")

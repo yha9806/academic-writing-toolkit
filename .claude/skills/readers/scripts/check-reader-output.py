@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 PARA_KEYS = ("believe", "expect", "reread", "guessed")
+RELATION_ID = "relation_guessed"   # build-reader-packet.py --ask-relations
 TOP_TEXT = ("why_accept", "closest_prior_work", "reuse", "writing_got_in_way", "outside_knowledge")
 
 
@@ -71,7 +72,10 @@ def problems(data, packet):
         if not isinstance(data.get(k), str) or not data[k].strip():
             out.append(f"{k} missing")
     for q in packet.get("questions") or []:
-        if not isinstance(data.get(q["id"]), str) or not data[q["id"]].strip():
+        a = data.get(q["id"])
+        if q["id"] == RELATION_ID and isinstance(a, list) and a and all(isinstance(x, str) and x.strip() for x in a):
+            continue   # it asks for two sentences; a list of the two is an answer (10-07: readers who answered so were dropped)
+        if not isinstance(a, str) or not a.strip():
             out.append(f"directed question {q['id']} unanswered")
     return out
 

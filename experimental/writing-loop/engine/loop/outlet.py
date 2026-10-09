@@ -8,15 +8,21 @@ its envelopes.json), the hook leaves a note in `<willow state dir>/inbox/awt-loo
    "sessions": {<session id>: {"role": "primary" | "history", "since": <id of the first prompt seen>}},
    "full": <the explanation block>, "always": <the coverage line>, "history_head": ..., "history": ...,
    "todo": [{"id", "title", "state", "closed"}] | null, "todo_why": <why null>, "hookup": true | false,
-   "updatedAt": ...}
+   "verdict": {"ready": true | false, "text": <one line>}, "updatedAt": ...}
 
 `todo` and `hookup` let willow match its list against the manuscript's to-do items (spec 2026-10-04
 manuscript-todo-hookup, D1 and D4): closed items are kept, so willow can tell "closed" from "not there"; with no ledger
 or a state that could not be computed it is null with the reason, never [], which would read as "all closed". `hookup`
 is the workspace config's `hookup`, off when absent; willow matches only when it is true.
 
-Which sessions belong to the manuscript is still decided here (cwd prefix and branch); willow only matches session
-ids, so that rule is not copied. The two hooks run in parallel and a note written during a prompt is not read for
+`verdict` lets willow hold a reply that says the paper is done against the paper's state: `ready` is true only where
+`loop state` exits 0 (state.ready: 待作者终审, or 已投稿 with nothing in the way), `text` is the first part of the
+line, the verdict and the stage (state.head), never the whole line. Willow reads exactly this shape: ready a real
+boolean, text a non-empty string; anything else, null included, it reports every turn as unreadable. A state that
+could not be computed is written as not ready, never left out: no key would read as nothing to hold the reply against.
+
+Which sessions belong to the manuscript is still decided here (cwd prefix and branch, or the session ids listed under
+transcripts.sessions); willow only matches the session ids written here, so that rule is not copied. The two hooks run in parallel and a note written during a prompt is not read for
 it, so the first prompt of a session is said by the hook, and `since` tells willow to skip that one.
 
 The coverage line is judged current when it is read (fingerprint and HEAD, `coverage.load_summary`), so every refresh
@@ -83,6 +89,17 @@ def _todo(ws):
                      for t in st.get("todo") or []]}
 
 
+def _verdict(ws):
+    """The paper's verdict from the same state as the line (coverage.live_line), as {"verdict": {"ready", "text"}}."""
+    from . import coverage as V
+    from . import state as S
+    st = V.last_state(ws)
+    if st is None:
+        return {"verdict": {"ready": False, "text": "论文状态：算不出"}}
+    text = " ".join(S.head(st).split()) or "论文状态：算不出"
+    return {"verdict": {"ready": S.ready(st) is True, "text": text}}
+
+
 def enrol(ws, cfg, session_id, role, prompt_id, *, full, line, history_head):
     """Note this session and the texts as they read now. Returns (first, said): `first` when the session was not
     noted in this role before (the caller says everything itself this prompt), and `said`, the line willow was going
@@ -103,6 +120,7 @@ def enrol(ws, cfg, session_id, role, prompt_id, *, full, line, history_head):
             "sessions": sessions, "full": full, "history_head": history_head, "hookup": cfg.get("hookup") is True}
     note.update(_texts(note, line))
     note.update(_todo(ws))
+    note.update(_verdict(ws))
     note["updatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     _write(ws, note)
     return first, said
@@ -116,6 +134,7 @@ def refresh(ws, line):
     note.update(_texts(note, line))
     note.pop("todo_why", None)
     note.update(_todo(ws))  # the switch stays as the last prompt read it from the config
+    note.update(_verdict(ws))
     note["updatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     _write(ws, note)
     return True

@@ -559,15 +559,15 @@ def _labels(explanations, changesets):
 def build(cfg, now):
     """{"payload": detail.overview, "touches": {change set id: [section]}, "actions": {action id}, "stage_changesets": n}."""
     ov = cfg.get("overview") or {}
-    d = Path(cfg["_ws"]) / "index"
-    versions = json.loads((d / "sentences.json").read_text(encoding="utf-8"))["versions"]
-    changesets = json.loads((d / "changesets.json").read_text(encoding="utf-8"))["changesets"]
+    from . import index as X
+    versions = X.read_doc(cfg["_ws"], "sentences.json")["versions"]
+    changesets = X.read_doc(cfg["_ws"], "changesets.json")["changesets"]
     try:
-        chk = json.loads((d / "checks.json").read_text(encoding="utf-8"))
+        chk = X.read_doc(cfg["_ws"], "checks.json")
     except (OSError, ValueError):
         chk = None
     try:
-        explanations = json.loads((d / "explanations.json").read_text(encoding="utf-8"))["explanations"]
+        explanations = X.read_doc(cfg["_ws"], "explanations.json")["explanations"]
     except (OSError, ValueError, KeyError):
         explanations = []
     if not versions:

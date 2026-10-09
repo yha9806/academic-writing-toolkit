@@ -1,0 +1,11 @@
+{
+ "failure": "The abstract's first use of the benchmark's own name said it was ours but not what it was; the sentence that said so had been cut to fit the word limit.",
+ "check": "front-matter",
+ "argv": [
+  "--root",
+  "{draft}",
+  "--json",
+  "{draft}/draft.tex"
+ ],
+ "expect_flag": "coined-name-undefined-in-abstract"
+}

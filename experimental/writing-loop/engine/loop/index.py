@@ -6,6 +6,7 @@ index/sources.json records what the index was built from, so `rebuild --check` c
   - the engine code changed                               → 引擎改过
   - neither                                                → 索引被改动过
 """
+import contextlib
 import hashlib
 import json
 import re
@@ -198,11 +199,38 @@ def _latest(explanations):
             "reading": e["reading"], "changed": e["changed"]}
 
 
+# 2026-10-08：刘海写一张卡要把 sentences.json（一份 216 版的稿子是 51 MB）解析四遍：摘要、总览、主张清单的整篇扫描两遍，
+# 前后叠着，一张卡峰值超过 1 GB。round_reads() 打开期间同一个文件（按大小和修改时间认）只解析一次，几处读的是同一份；
+# 关上就忘掉，常驻进程两轮之间不留着它。读的地方都只读不改（tests 里有一条看着）。
+_ROUND = None
+
+
+@contextlib.contextmanager
+def round_reads():
+    global _ROUND
+    _ROUND = {}
+    try:
+        yield
+    finally:
+        _ROUND = None
+
+
+def read_doc(ws, name):
+    """index/<name> parsed; raises OSError / ValueError as reading and parsing it would."""
+    p = Path(ws) / "index" / name
+    if _ROUND is None:
+        return json.loads(p.read_text(encoding="utf-8"))
+    st = p.stat()
+    key = (str(p), st.st_size, st.st_mtime_ns)
+    if key not in _ROUND:
+        _ROUND[key] = json.loads(p.read_text(encoding="utf-8"))
+    return _ROUND[key]
+
+
 def load_summary(cfg):
     """The summary of the index as it is on disk, without rebuilding anything. None if it is not there."""
-    d = Path(cfg["_ws"]) / "index"
     try:
-        docs = {name: json.loads((d / name).read_text(encoding="utf-8")) for name in FILES}
+        docs = {name: read_doc(cfg["_ws"], name) for name in FILES}
     except (OSError, ValueError):
         return None
     versions = docs["sentences.json"]["versions"]

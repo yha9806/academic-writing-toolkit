@@ -49,6 +49,17 @@ METHODS = [
     "equivalence test", "TOST", "preregistration", "preregistered",
     "Shapiro", "Levene", "ANOVA", "mixed-effects", "Cronbach",
 ]
+# Word forms of one procedure share one sourced state: a citation beside any
+# form sources the family, and an uncited family is reported once, by the form
+# first used. A study cited where it says it was "preregistered" and later
+# called "the preregistration" has sourced its preregistration. Only word forms
+# are grouped here, never distinct procedures that share a name.
+FAMILIES = [("preregistration", "preregistered")]
+FAMILY = {form: forms[0] for forms in FAMILIES for form in forms}
+
+
+def family(meth: str) -> str:
+    return FAMILY.get(meth, meth)
 # A claim frame asserts priority outright. The bare word does not: it appears
 # in method names, and -- twice on one manuscript -- inside a sentence that
 # REFUSES the claim. The frames
@@ -201,8 +212,8 @@ def audit(base: Path, tex_files: List[Path], bib: Path) -> List[dict]:
             continue
         for meth in METHODS:
             if re.search(r"\b" + re.escape(meth), para["text"], re.I):
-                sourced_methods.add(meth)
-    first_use: Dict[str, str] = {}
+                sourced_methods.add(family(meth))
+    first_use: Dict[str, Tuple[str, str]] = {}
 
     cited, harvard = cited_keys(whole), cited_harvard(whole)
     for e in bib_entries(bib):
@@ -249,15 +260,15 @@ def audit(base: Path, tex_files: List[Path], bib: Path) -> List[dict]:
             loc = "{}:{}".format(p.relative_to(base) if base in p.parents or base == p.parent else p.name,
                                  para["line"])
             for meth in METHODS:
-                if meth in sourced_methods:
+                if family(meth) in sourced_methods:
                     continue
                 if re.search(r"\b" + re.escape(meth), para["text"], re.I):
-                    first_use.setdefault(meth, loc)
+                    first_use.setdefault(family(meth), (loc, meth))
             m = novelty_claim(para["text"])
             if m and not has_cite:
                 issues.append({"kind": "bare-novelty", "location": loc,
                                "detail": para["text"][max(0, m.start() - 30): m.end() + 60]})
-    for meth, loc in sorted(first_use.items()):
+    for _fam, (loc, meth) in sorted(first_use.items()):
         issues.append({"kind": "uncited-method", "location": loc, "detail": meth})
     return issues
 

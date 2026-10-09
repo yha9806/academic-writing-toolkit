@@ -455,6 +455,57 @@ class AlsoSourceTest(unittest.TestCase):
             self.assertEqual(LH.session_ws(prompt_payload(repo), regs), (None, None))
 
 
+class PrimaryByIdTest(unittest.TestCase):
+    """A session that edits the draft from another directory, by absolute path, was not a manuscript session: the hooks
+    matched only a cwd under the configured prefix on the configured branch. transcripts.sessions names it by id, and
+    it then counts as the manuscript's own session wherever it runs; a neighbour in the same directory does not."""
+
+    def setup_named(self, root):
+        repo, ws, regs = setup(root)
+        elsewhere = Path(root) / "elsewhere"
+        elsewhere.mkdir()
+        git(elsewhere, "init", "-q", "-b", "spike")
+        git(elsewhere, "commit", "-q", "--allow-empty", "-m", "x")
+        cfg = C.load(ws)
+        cfg["transcripts"]["sessions"] = [{"id": "s7", "note": "edits the draft from another checkout"}]
+        C.save(ws, cfg)
+        regs, _ = LH.registry(str(Path(root) / "registry"))
+        return repo, ws, regs, elsewhere
+
+    def test_its_prompts_are_recorded_and_it_gets_the_reminder(self):
+        with TempDir() as root:
+            repo, ws, regs, elsewhere = self.setup_named(root)
+            self.assertEqual(LH.session_ws(prompt_payload(elsewhere, session_id="s7"), regs)[0], ws.resolve())
+            self.assertEqual(LH.session_ws(prompt_payload(elsewhere, session_id="s8"), regs), (None, None),
+                             "a neighbour in the same directory is not taken in")
+            out = LH.handle(prompt_payload(elsewhere, session_id="s7", prompt="a synthetic remark"), regs)
+            self.assertIn("〔循环〕", ctx_of(out))
+            self.assertIsNone(LH.handle(prompt_payload(elsewhere, session_id="s8", prompt="not about it"), regs))
+            recs = [json.loads(x) for x in (ws / "human" / "comments.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual([(r["session_id"], r["prompt"]) for r in recs], [("s7", "a synthetic remark")])
+
+    def test_its_draft_writes_by_absolute_path_and_its_stops_ask_for_an_update(self):
+        with TempDir() as root:
+            repo, ws, regs, elsewhere = self.setup_named(root)
+            (elsewhere / "drafts").mkdir()
+            spy = Spy()
+            # each write is judged on its own: the same relative path in the repository the session runs in is not the draft
+            for sid, target, calls in [("s7", repo / "drafts" / "DRAFT-v2.md", ["write:drafts/DRAFT-v2.md"]),
+                                       ("s7", elsewhere / "drafts" / "DRAFT-v3.md", []),
+                                       ("s8", repo / "drafts" / "DRAFT-v2.md", [])]:
+                with self.subTest(sid=sid, target=target.parent.parent.name):
+                    spy.calls = []
+                    payload = tool_payload("PostToolUse", elsewhere, "Write", {"file_path": str(target)})
+                    payload["session_id"] = sid
+                    LH.handle(payload, regs, spawn=spy)
+                    self.assertEqual(spy.calls, calls)
+            spy.calls = ["write:drafts/DRAFT-v2.md"]
+            for sid in ("s7", "s8"):
+                LH.handle({"hook_event_name": "Stop", "session_id": sid, "cwd": str(elsewhere),
+                           "stop_hook_active": False, "last_assistant_message": ""}, regs, spawn=spy)
+            self.assertEqual(spy.calls, ["write:drafts/DRAFT-v2.md", "stop"])
+
+
 class RegistryAndProcessTest(unittest.TestCase):
     def test_a_line_that_does_not_load_is_skipped_and_reported(self):
         with TempDir() as root:
@@ -523,6 +574,36 @@ class BrokenNotchModuleTest(unittest.TestCase):
             r = subprocess.run([sys.executable, "-m", "loop", "update", "--help"], cwd=str(wl / "engine"),
                                capture_output=True, text=True, env=dict(os.environ, PYTHONPATH=str(wl / "engine")))
             self.assertEqual(r.returncode, 0, r.stderr)
+
+
+class LogCapTest(unittest.TestCase):
+    """2026-10-08：cache/ 下的日志没有上限（一份稿子的刘海日志 4.9 MB）。过了上限，下一次启动前挪成 <名>.1。"""
+
+    def test_a_log_past_the_cap_moves_aside_before_the_next_run_appends(self):
+        with TempDir() as root:
+            ws = Path(root) / "ws"
+            (ws / "cache").mkdir(parents=True)
+            log = ws / "cache" / "lintel.log"
+            log.write_bytes(b"x" * (LH.LOG_CAP + 1))
+            with LH.open_log(ws, "lintel.log") as fh:
+                fh.write("new\n")
+            self.assertEqual(log.read_text(), "new\n")
+            self.assertEqual((ws / "cache" / "lintel.log.1").stat().st_size, LH.LOG_CAP + 1)
+            with LH.open_log(ws, "lintel.log") as fh:
+                fh.write("more\n")
+            self.assertEqual(log.read_text(), "new\nmore\n", "under the cap it appends")
+
+    def test_every_detached_run_opens_its_log_through_the_cap(self):
+        from unittest import mock
+        with TempDir() as root:
+            ws = Path(root) / "ws"
+            (ws / "cache").mkdir(parents=True)
+            for name, spawn in (("lintel.log", lambda: LH.spawn_card(ws)), ("lintel.log", lambda: LH.spawn_producer(ws)),
+                                ("update.log", lambda: LH.spawn_update(ws, "test"))):
+                (ws / "cache" / name).write_bytes(b"x" * (LH.LOG_CAP + 1))
+                with mock.patch.object(LH.subprocess, "Popen"):
+                    spawn()
+                self.assertEqual((ws / "cache" / name).stat().st_size, 0, f"{name} moved aside before the run")
 
 
 if __name__ == "__main__":
@@ -991,6 +1072,109 @@ class OutletTodoTest(unittest.TestCase):
                 regs, _bad = LH.registry(str(Path(root) / "registry"))
                 LH.handle(prompt_payload(repo, prompt_id="p2"), regs)
                 self.assertIs(notes(state)[0]["hookup"], False, "taking it out of the config turns it off next prompt")
+
+
+READY_LEDGER = (HOOKUP_LEDGER.replace("状态：未做", "状态：已做 2026-01-03 合成记录")
+                .replace("状态：等作者（合成理由）", "状态：不做 2026-01-03 合成理由"))
+
+
+class OutletVerdictTest(unittest.TestCase):
+    """The note carries the paper's verdict as {"ready": <bool>, "text": <one line>}, for wishing-willow to hold a
+    reply that says the paper is done against it. ready is true only where `loop state` exits 0; text is the first part
+    of the state line (verdict and stage), not the whole line. Any other shape is reported by willow every turn as
+    unreadable, so the shape is asserted exactly. A state that cannot be computed is not ready: no key would read as
+    nothing to check."""
+
+    def _ledger(self, root, ws, text=HOOKUP_LEDGER, **extra):
+        """The ledger, and the sentence index built as `loop update` would: without it the state says the whole-draft
+        scan was not done, which stands in the way of 待作者终审."""
+        from loop import history as H
+        p, regs = OutletTodoTest._ledger(self, root, ws, text, **extra)
+        cfg = C.load(ws)
+        vs = H.load_versions(cfg)
+        H.assign_ids(vs)
+        (Path(ws) / "index" / "sentences.json").write_text(
+            json.dumps({"head": git(cfg["repo"], "rev-parse", "HEAD"), "versions": vs}), encoding="utf-8")
+        return p, regs
+
+    def assertShape(self, v):
+        self.assertIsInstance(v, dict)
+        self.assertEqual(set(v), {"ready", "text"}, v)
+        self.assertIs(type(v["ready"]), bool, "a real boolean: not null, not the string \"false\"")
+        self.assertIsInstance(v["text"], str)
+        self.assertTrue(v["text"].strip(), "a non-empty line")
+        self.assertNotIn("\n", v["text"])
+
+    def note(self, root, repo, regs, pid="p1"):
+        from unittest import mock
+        env, state = willow_outlet(root)
+        with mock.patch.dict(os.environ, env):
+            LH.handle(prompt_payload(repo, prompt_id=pid), regs)
+        [n] = notes(state)
+        return n, env
+
+    def test_open_items_are_not_ready_and_the_text_is_the_head_of_the_line(self):
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            _p, regs = self._ledger(root, ws)
+            n, _env = self.note(root, repo, regs)
+            self.assertShape(n["verdict"])
+            self.assertEqual(n["verdict"], {"ready": False, "text": "论文状态：未就绪（阶段：分析）"})
+            self.assertTrue(n["always"].startswith(n["verdict"]["text"] + "——"), "the line's first part, not all of it")
+            self.assertEqual(n["label"], "写作循环 · t", "willow names the source by the label")
+
+    def test_ready_only_at_the_author_verdict_and_a_refresh_rereads_it(self):
+        from unittest import mock
+        from loop import coverage as V
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            p, regs = self._ledger(root, ws, text=READY_LEDGER)
+            n, env = self.note(root, repo, regs)
+            self.assertShape(n["verdict"])
+            self.assertEqual(n["verdict"], {"ready": True, "text": "论文状态：待作者终审（阶段：分析）"})
+            p.write_text(HOOKUP_LEDGER, encoding="utf-8")
+            with mock.patch.dict(os.environ, env):
+                V.refresh_outlet(ws, C.load(ws))
+                [n] = notes(env["WILLOW_STATE_DIR"])
+            self.assertEqual(n["verdict"], {"ready": False, "text": "论文状态：未就绪（阶段：分析）"})
+
+    def test_submitted_is_ready_only_with_nothing_in_the_way(self):
+        for text, ready in ((READY_LEDGER, True), (HOOKUP_LEDGER, False)):
+            with self.subTest(ready=ready), TempDir() as root:
+                repo, ws, regs = setup(root)
+                _p, regs = self._ledger(root, ws, text=text.replace("阶段：分析", "阶段：已投稿"))
+                n, _env = self.note(root, repo, regs)
+                self.assertShape(n["verdict"])
+                self.assertEqual(n["verdict"], {"ready": ready, "text": "论文状态：已投稿（阶段：已投稿）"})
+
+    def test_no_ledger_and_a_state_that_cannot_be_computed_are_not_ready(self):
+        from unittest import mock
+        from loop import state as S
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            n, _env = self.note(root, repo, regs)
+            self.assertShape(n["verdict"])
+            self.assertEqual(n["verdict"], {"ready": False, "text": "论文状态：没登记主张清单"})
+            _p, regs = self._ledger(root, ws, text=READY_LEDGER)
+            with mock.patch.object(S, "compute", side_effect=RuntimeError("boom")):
+                n, _env = self.note(root, repo, regs, pid="p2")
+            self.assertShape(n["verdict"])
+            self.assertEqual(n["verdict"], {"ready": False, "text": "论文状态：算不出"})
+
+    def test_a_line_that_fails_before_the_state_does_not_leave_the_last_ready_standing(self):
+        """The hook reads the state live_line left behind. When the coverage summary fails to load first, the state of
+        an earlier call in the same process must not be taken for this one's."""
+        from unittest import mock
+        from loop import coverage as V
+        with TempDir() as root:
+            repo, ws, regs = setup(root)
+            _p, regs = self._ledger(root, ws, text=READY_LEDGER)
+            n, _env = self.note(root, repo, regs)
+            self.assertIs(n["verdict"]["ready"], True)
+            with mock.patch.object(V, "load_summary", side_effect=RuntimeError("boom")):
+                n, _env = self.note(root, repo, regs, pid="p2")
+            self.assertShape(n["verdict"])
+            self.assertIs(n["verdict"]["ready"], False)
 
 
 class StateChangeTest(unittest.TestCase):

@@ -67,6 +67,12 @@ CHECKS = {
     # No draft named: no abstract to measure (exit 2), whatever the baseline holds.
     "audit/audit-abstract-numbers.py":
         lambda s, empty: ["python3", str(s), "--baseline", str(empty)],
+    # A manuscript that is not there: nothing read (exit 2).
+    "audit/audit-cross-refs.py":
+        lambda s, empty: ["python3", str(s), "--root", str(empty), str(empty / "main.tex")],
+    # A manuscript that is not there: nothing read (exit 2).
+    "audit/audit-front-matter.py":
+        lambda s, empty: ["python3", str(s), "--root", str(empty), str(empty / "main.tex")],
     "audit/audit-prose-fingerprint.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty)],
     # The prose view feeds the chapter checks; a file it cannot read, or that holds no prose, stops the run (exit 2)
