@@ -71,6 +71,7 @@ Exit: 1 on a hard finding, 2 when no row was checked at all unless
 import argparse
 import fnmatch
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -240,7 +241,17 @@ def main(argv=None):
         if not artifact.is_file():
             artifact = row["_ledger"].parent / row["artifact"]
         if not artifact.is_file():
+            # The two places looked, relative to the base when they are under it: a caller that ran this on a copy of
+            # a repository (the writing loop copies only the files its config lists) can tell a file left out of the
+            # copy from one that is gone.
+            tried = []
+            for p in (base / row["artifact"], row["_ledger"].parent / row["artifact"]):
+                p = Path(os.path.normpath(str(p)))
+                rel = p.relative_to(base).as_posix() if p == base or base in p.parents else str(p)
+                if rel not in tried:
+                    tried.append(rel)
             findings.append({"kind": "artifact-missing", "location": where, "number": number,
+                             "artifact": row["artifact"], "tried": tried,
                              "detail": f"artifact not found: {row['artifact']}"})
         else:
             text = norm(artifact.read_text(encoding="utf-8", errors="replace"))

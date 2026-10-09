@@ -207,12 +207,16 @@ def cmd_coverage(a):
     warn = C.registry_warning(a.workspace)
     if a.json:
         print(json.dumps(dict(s, hook_registry=warn), ensure_ascii=False, indent=1))
+        for line in V.skipped_lines(s):
+            print(line, file=sys.stderr)  # stdout is the JSON; the screen is still told
     else:
         if warn:
             print("注意：" + warn)
         print(V.table(s, a.workspace))
         if s["ran"]:
             print("这次跑了：" + "、".join(s["ran"]))
+        for line in V.skipped_lines(s):
+            print(line)
     return 1 if (V.attention(s) or (s.get("target") or {}).get("problems")) else 0
 
 
