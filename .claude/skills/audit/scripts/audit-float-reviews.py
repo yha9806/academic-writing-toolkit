@@ -80,6 +80,16 @@ wordings someone listed and a new wording in a figure goes past it. With
 --claims, the claims ledger's allowed wordings are set out at the top, so each
 marked sentence can be read against what the paper may say.
 
+It also lists what each float draws in its TikZ pictures: every arrow by the
+elements at its two ends (node text, or a point on a drawn brace), every
+brace, every line that joins two elements, and every fitted group with its
+members. An end that reaches no element (only numbers, a ++ step, the bounding
+box) or is placed partly by a number is marked, and the sheet asks for each
+line to be checked against the method. Words were all a review saw before, and
+a figure whose words are right can still point its arrows at the wrong box.
+The unreviewed finding counts the marked lines. Not read: \foreach, pics,
+edges, matrices, what a macro expands to, and where anything lands on the page.
+
 Exit: 1 on unreviewed, review-open, missing-file or unfollowed; 2 when no float
 is found, the review record is unreadable, or a --pdf or --aux is missing; 0
 otherwise. --render exits 2 when it renders nothing.
@@ -301,6 +311,7 @@ class Ctx:
 
     def __init__(self, gpath=(), tables=None):
         self.gpath, self.tables = list(gpath), dict(tables or {})
+        self.preamble = ""  # TikZ styles a figure's arrows may be drawn with
 
 
 def pulled(tree, text, here, acc, missing, unfollowed, ctx, depth=0):
@@ -388,10 +399,12 @@ def reach(tree, main):
         problems.append({"kind": "unfollowed", "float": f"preamble:{main}", "detail": f"{name} is not there"})
     pre_sources = [pre_text] + [plain(tree.text(p) or "") for p, _ in pre_files if p.endswith(".tex")]
     ctx.gpath = [d for src in pre_sources for group in GPATH.findall(src) for d in re.findall(r"\{([^{}]*)\}", group)]
+    ctx.preamble = "\n".join(pre_sources)
     envs = {name for src in pre_sources for name, inner in NEWENV.findall(src) if inner in BASE_ENVS}
     preamble = None
     if m:
         preamble = {"id": f"preamble:{main}", "env": "preamble", "file": main, "labels": [], "caption": "", "statements": [],
+                    "drawn": [],
                     "pulled": [p for p, _ in pre_files], "missing": [],
                     "fingerprint": fingerprint(pre_text, pre_files)}
     body = {main: ([root, ""], body_text)}
@@ -508,6 +521,321 @@ def statements(texts):
     return out
 
 
+# What a float draws, for the review sheet: each arrow, brace and fitted group of its TikZ pictures, named by the
+# elements at its ends. (10-06: a pipeline figure drew its arrows to bare coordinates in the gaps between boxes, some
+# under the wrong box, and every word it printed was right. The sheet set out the words and none of the lines, so the
+# review read the words and passed the figure.)
+# An end reaches an element when it names a node, a point on a drawn brace, or a coordinate defined from either,
+# offsets from them included. It reaches none when it is only numbers, a step (++) from the last point, or the
+# bounding box; it is partly a number when one side of a perpendicular point (A |- B, A -| B) is a number. Not read:
+# \foreach, pics, edges, matrices, what a macro expands to, and where anything lands on the page.
+_PATH_CMD = re.compile(r"\\(draw|path|fill|filldraw|node|coordinate)(?![A-Za-z@])")
+_STYLE = re.compile(r"(?:^|(?<=[\[,{]))\s*([^\[\](),{}=\\/]+?)\s*/\.(?:append\s+)?style\s*=\s*")
+_OLD_STYLE = re.compile(r"\\tikzstyle\s*\{([^{}]+)\}\s*=\s*")
+_TIP = re.compile(r"^(<{1,2}|\||\{.*\}|[A-Za-z]+(?:\[[^\]]*\])?)?-(>{1,2}|\||\{.*\}|[A-Za-z]+(?:\[[^\]]*\])?)?$", re.S)
+
+
+def _close(s, i):
+    """Index of the bracket that closes s[i] ('[', '(' or '{'), braces counted inside the others; len(s) if none."""
+    o = s[i]
+    c = {"[": "]", "(": ")", "{": "}"}[o]
+    depth = brace = 0
+    j = i
+    while j < len(s):
+        ch = s[j]
+        if ch == "\\":
+            j += 2
+            continue
+        if o != "{" and ch == "{":
+            brace += 1
+        elif o != "{" and ch == "}":
+            brace -= 1
+        elif brace <= 0:
+            if ch == o:
+                depth += 1
+            elif ch == c:
+                depth -= 1
+                if depth == 0:
+                    return j
+        j += 1
+    return len(s)
+
+
+def _split_top(s, sep=","):
+    out, cur, depth, i = [], "", 0, 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\":
+            cur += s[i:i + 2]
+            i += 2
+            continue
+        depth += ch in "[({"
+        depth -= ch in "])}"
+        if ch == sep and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+        i += 1
+    if cur.strip():
+        out.append(cur.strip())
+    return out
+
+
+def _kv(o):
+    """(key, value) at the first top-level '=', or (o, None)."""
+    depth = 0
+    for i, ch in enumerate(o):
+        depth += ch in "[({"
+        depth -= ch in "])}"
+        if ch == "=" and depth == 0:
+            return o[:i].strip(), o[i + 1:].strip()
+    return o.strip(), None
+
+
+def _tikz_styles(text):
+    out = {}
+    for rx in (_STYLE, _OLD_STYLE):
+        for m in rx.finditer(text):
+            j = m.end()
+            if j < len(text) and text[j] in "{[":
+                val = text[j + 1:_close(text, j)]
+            else:
+                k = j
+                while k < len(text) and text[k] not in ",]}":
+                    k += 1
+                val = text[j:k]
+            out[m.group(1).strip()] = val
+    return out
+
+
+def _expand(opts, styles, seen=()):
+    """Each option, and the options of each style it names, followed down."""
+    out = []
+    for o in _split_top(opts):
+        k, v = _kv(o)
+        out.append(o)
+        if k in styles and k not in seen:
+            out += _expand(styles[k], styles, seen + (k,))
+    return out
+
+
+def _tips(options):
+    """(start, end): whether the options put an arrow tip at the start and at the end of the path."""
+    start = end = False
+    for o in options:
+        k, v = _kv(o)
+        spec = v.strip("{} ") if (v is not None and k == "arrows") else (o if v is None else "")
+        m = _TIP.match(spec.strip())
+        if m and len(spec.strip()) > 1 and (m.group(1) or m.group(2)):
+            start, end = start or bool(m.group(1)), end or bool(m.group(2))
+    return start, end
+
+
+def _scan(s):
+    """The top-level pieces of a TikZ path: ('opt'|'pt'|'text'|'word', text)."""
+    out, i = [], 0
+    while i < len(s):
+        ch = s[i]
+        if ch in "[({":
+            j = _close(s, i)
+            out.append(({"[": "opt", "(": "pt", "{": "text"}[ch], s[i + 1:j]))
+            i = j + 1
+        elif ch.isspace():
+            i += 1
+        else:
+            m = re.match(r"--|\|-|-\||\.\.|\+\+|\+|\\?[A-Za-z]+|\S", s[i:])
+            out.append(("word", m.group(0)))
+            i += m.end()
+    return out
+
+
+def _tikz_commands(text):
+    r"""[(command, body)]: each \draw, \path, \fill, \filldraw, \node and \coordinate up to the ; that ends it."""
+    out, pos = [], 0
+    while True:
+        m = _PATH_CMD.search(text, pos)
+        if not m:
+            return out
+        i = m.end()
+        while i < len(text) and text[i] != ";":
+            if text[i] in "[({":
+                i = _close(text, i) + 1
+            elif text[i] == "\\" and _PATH_CMD.match(text, i):
+                break  # a command with no ; of its own: stop before the next one
+            else:
+                i += 2 if text[i] == "\\" else 1
+        out.append((m.group(1), text[m.end():i]))
+        pos = i + 1 if i < len(text) and text[i] == ";" else i
+
+
+def _node_words(t, n=6):
+    t = re.sub(r"\\(?:textcolor|color)\s*\{[^{}]*\}", " ", t or "")
+    words = detex(t).replace("…", " ").split()
+    return " ".join(words[:n]) + (" …" if len(words) > n else "")
+
+
+def drawn(texts, preamble=""):
+    """[{kind, text, flags}] for the arrows, braces, connecting lines and fitted groups a float draws, in source
+    order. flags name the ends that reach no element."""
+    text = "\n".join(plain(x) for x in texts)
+    styles = _tikz_styles(plain(preamble) + "\n" + text)
+    nodes, coords, paths, groups = {}, {}, [], []
+
+    def inline(toks, i, word, path_pts, brace_k):
+        """Read an inline node or coordinate at toks[i] (just after the word); returns the index after it."""
+        nopts, name, txt = [], None, None
+        while i < len(toks):
+            kind, val = toks[i]
+            if kind == "opt":
+                nopts.append(val)
+            elif kind == "word" and val == "at" and i + 1 < len(toks) and toks[i + 1][0] == "pt":
+                i += 1
+            elif kind == "pt" and name is None:
+                name = val.strip()
+            elif kind == "text" and word == "node":
+                txt = val
+                i += 1
+                break
+            else:
+                break
+            i += 1
+        if word == "node" and name:
+            nodes[name] = txt or ""
+        elif word == "coordinate" and name:
+            coords[name] = ("brace", brace_k) if brace_k else list(path_pts)
+        if word == "node":
+            fit = [v for o in _expand(",".join(nopts), styles) for k, v in [_kv(o)] if k == "fit" and v]
+            if fit:
+                groups.append((name, re.findall(r"\(([^()]*)\)", fit[0])))
+        return i, txt
+
+    picture = (False, False)
+    for m in re.finditer(r"\\begin\s*\{tikzpicture\}\s*\[", text):
+        got = _tips(_expand(text[m.end():_close(text, m.end() - 1)], styles))
+        picture = (picture[0] or got[0], picture[1] or got[1])
+    for cmd, body in _tikz_commands(text):
+        toks = _scan(body)
+        if cmd in ("node", "coordinate"):
+            inline(toks, 0, cmd, [], None)
+            if cmd == "coordinate":
+                at = [toks[k + 1][1] for k in range(len(toks) - 1) if toks[k] == ("word", "at") and toks[k + 1][0] == "pt"]
+                names = [v for k, v in toks if k == "pt"]
+                if names and at:
+                    coords[names[0].strip()] = [at[0]]
+            continue
+        lead = []
+        k = 0
+        while k < len(toks) and toks[k][0] == "opt":
+            lead.append(toks[k][1])
+            k += 1
+        options = _expand(",".join(lead), styles)
+        start, end = _tips(options)
+        if cmd in ("draw", "filldraw") and not any(_kv(o)[0] == "-" for o in options):
+            start, end = start or picture[0], end or picture[1]
+        names = {(_kv(o)[0]) for o in options}
+        brace = "decorate" in names and any("brace" in o for o in options if _kv(o)[0] == "decoration")
+        brace_k = None
+        if brace:
+            brace_k = sum(1 for p in paths if p["kind"] == "brace") + 1
+        pts, labels, step, shape, i = [], [], False, False, k
+        while i < len(toks):
+            kind, val = toks[i]
+            shape = shape or (kind == "word" and val in ("rectangle", "circle", "ellipse", "grid", "arc", "cycle"))
+            if kind == "word" and val in ("node", "coordinate"):
+                i, txt = inline(toks, i + 1, val, pts, brace_k)
+                if txt:
+                    labels.append(_node_words(txt))
+                continue
+            if kind == "word" and val in ("let", "edge", "pic", "foreach", "plot"):
+                break  # not read: what follows is not a list of points
+            if kind == "word" and val in ("+", "++"):
+                step = True
+            elif kind == "pt":
+                pts.append(("++" if step else "") + val)
+                step = False
+            i += 1
+        if cmd == "path" and not (start or end) and not brace:
+            continue
+        kind = "brace" if brace else ("arrow" if (start or end) else "line")
+        if len(pts) >= 2 and not (kind == "line" and shape):
+            paths.append({"kind": kind, "pts": pts, "tips": (start, end), "labels": labels, "brace": brace_k})
+
+    def reach(e, seen=()):
+        """(elements, flag) for one end; flag '' when it reaches an element."""
+        e = e.strip()
+        if e.startswith("++") or e.startswith("+"):
+            return [], "a step from the last point"
+        if e.startswith("$"):
+            inner, parts, i = e.strip("$"), [], 0
+            while i < len(inner):
+                if inner[i] == "(":
+                    j = _close(inner, i)
+                    parts.append(inner[i + 1:j])
+                    i = j + 1
+                else:
+                    i += 1
+            got = [reach(x, seen) for x in parts]
+            els = [x for g, _ in got for x in g]
+            return (els, "") if els else ([], next((f for _, f in got if f), "only numbers"))
+        pieces = re.split(r"\s*(?:\|-|-\|)\s*", e)
+        if len(pieces) > 1:
+            got = [reach(x, seen) for x in pieces]
+            els = [x for g, _ in got for x in g]
+            if els and any(f == "only numbers" for _, f in got):
+                return els, "partly a number"
+            return (els, "") if els else ([], next((f for _, f in got if f), "only numbers"))
+        if "," in e or ":" in e or re.fullmatch(r"[-+\d.\s]*", e):
+            return [], "only numbers"
+        name = e if (e in nodes or e in coords) else e.split(".")[0].strip()
+        if name in nodes:
+            return [name], ""
+        if name in coords and name not in seen:
+            d = coords[name]
+            if isinstance(d, tuple):
+                return [f"brace {d[1]}"], ""
+            got = [reach(x, seen + (name,)) for x in d]
+            els = [x for g, _ in got for x in g]
+            return (els, "") if els else ([], next((f for _, f in got if f), "only numbers"))
+        if name.startswith("current "):
+            return [], "the bounding box"
+        return [], f"{name} is not defined in this figure"
+
+    def say(e, other=()):
+        """How the sheet names one end. An end built level with one element and in line with the element at the other
+        end (A -| B, B at the other end) is named by A alone: the arrow runs from A to B."""
+        els, flag = reach(e)
+        els = list(dict.fromkeys(els))
+        if len(els) > 1 and set(els) & set(other) and [x for x in els if x not in other]:
+            els = [x for x in els if x not in other]
+        shown = " / ".join(x if x.startswith("brace ") else f"{_node_words(nodes[x]) or '(empty)'} ({x})" for x in els)
+        return (shown or f"({e.strip()})"), flag
+
+    out = []
+    for p in paths:
+        ea, eb = reach(p["pts"][0])[0], reach(p["pts"][-1])[0]
+        (a, fa), (b, fb) = say(p["pts"][0], eb), say(p["pts"][-1], ea)
+        flags = [f"start: {fa}"] * bool(fa) + [f"end: {fb}"] * bool(fb)
+        if p["kind"] == "line":
+            if not ea or not eb or set(ea) == set(eb):
+                continue  # a rule, a frame or a mark, not a connection between two elements
+        if p["kind"] == "brace":
+            line = f"brace {p['brace']} from {a} to {b}"
+            flags = ["placed by numbers: check which boxes it spans"] if (fa or fb) else []
+        else:
+            s, e_ = p["tips"]
+            arrow = "↔" if (s and e_) else ("←" if s else ("→" if e_ else "—"))
+            line = f"{a} {arrow} {b}"
+            if p["labels"]:
+                line += f" (labelled {'; '.join(p['labels'])})"
+        out.append({"kind": p["kind"], "text": line, "flags": flags})
+    for name, members in groups:
+        shown = [say(m)[0] for m in members]
+        out.append({"kind": "group", "text": f"{say(name)[0] if name else '(unnamed)'} around: " + ", ".join(shown),
+                    "flags": []})
+    return out
+
+
 def claims_allowed(path):
     """The claims ledger's allowed wordings, one per claim, to set a float's words against. [] when unreadable."""
     try:
@@ -596,6 +924,8 @@ def collect(tree, mains):
             floats.append({"id": fid, "env": env, "file": rel, "labels": labels,
                            "caption": caption_of(body), "pulled": [p for p, _ in acc],
                            "statements": statements([body] + [tree.text(p) or "" for p, _ in acc if p.endswith(".tex")]),
+                           "drawn": drawn([body] + [tree.text(p) or "" for p, _ in acc if p.endswith(".tex")],
+                                          ctx.preamble),
                            "missing": missing + [f"{u} (a macro)" for u in unfollowed],
                            "fingerprint": fingerprint(body, acc)})
     # a tabular in a file that a float pulls in is that float's content, not a table of its own
@@ -635,9 +965,12 @@ def judge(item, rows, findings):
         item["status"] = "unreviewed"
         what = ("the preamble changed since; look again at the pages its macros, lengths or fonts reach"
                 if item["env"] == "preamble" else "changed since")
+        flagged = sum(1 for d in item.get("drawn") or [] if d["flags"])
+        ends = (f"; {flagged} of the {len(item['drawn'])} lines it draws reach no element at an end or are placed by "
+                "numbers (--render lists them)") if flagged else ""
         findings.append({"kind": "unreviewed", "float": item["id"],
                          "detail": (f"reviewed at an older version ({older[-1]['fingerprint'].strip()}); {what}"
-                                    if older else "no review")})
+                                    if older else "no review") + ends})
     elif current[-1]["verdict"].strip().lower().startswith("fix"):
         item["status"] = "open"
         findings.append({"kind": "review-open", "float": item["id"],
@@ -689,7 +1022,8 @@ def check(a):
     unf = sum(1 for x in findings if x["kind"] == "unfollowed")
     if unf:
         parts.append(f"跟不进去的引入 {unf} 处")
-    keys = ("id", "env", "file", "labels", "caption", "statements", "fingerprint", "pulled", "missing", "status", "review")
+    keys = ("id", "env", "file", "labels", "caption", "statements", "drawn", "fingerprint", "pulled", "missing", "status",
+            "review")
     reviewers = sorted({f["review"]["reviewer"] for f in floats + preambles if f.get("review")})
     payload = {"schema_version": 3, "base": str(base), "reviews": str(rpath),
                "summary_zh": "；".join(parts),
@@ -806,7 +1140,12 @@ def render(a, payload):
              "⚑ predicts or asserts; a prediction the results did not bear out is a fix.",
              "2. Every number it shows, against the text and the data it was drawn from.",
              "3. Nothing overflows, overlaps or is too small to read; every glyph is in the intended font.",
-             "4. The caption describes what the figure shows now.", ""]
+             "4. The caption describes what the figure shows now.",
+             "5. Every arrow, brace, line and group it draws, against the method: does each run from the element that "
+             "acts to the element it changes, and is each order, flow or containment it implies one the method has? "
+             "An end marked ⚠ reaches no element, so the figure does not say what it points at.",
+             "6. Every excerpt or example it shows: is it verbatim in the source the caption names, and does it imply "
+             "anything about that source (an outcome, a colour, a count) the source does not show?", ""]
     if a.claims:
         allowed = claims_allowed(a.claims)
         if allowed is None:
@@ -825,6 +1164,11 @@ def render(a, payload):
         if says:
             lines += ["- what it says in words (⚑ predicts or asserts: check it against the conclusions):"] \
                 + [f"  - {'⚑ ' if x['asserts'] else ''}{x['text']}" for x in says]
+        draws = f.get("drawn") or []
+        if draws:
+            lines += ["- what it draws (check each against the method; ⚠ an end that reaches no element):"] \
+                + [f"  - {'⚠ ' if x['flags'] else ''}{x['kind']}: {x['text']}"
+                   + (f" [{'; '.join(x['flags'])}]" if x["flags"] else "") for x in draws]
         lines += ["", "```", f"{f['id']}\t{f['fingerprint']}\t<reviewer>\t<date>\t<ok|fix>\t<note>", "```", ""]
     for p, notes in pre_rows:
         lines += [f"## Preamble · `{p['id']}`", "",

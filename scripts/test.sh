@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (255 automated tests, labelled T2-T273: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251 and T253 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (256 automated tests, labelled T2-T274: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -7836,6 +7836,112 @@ assert list(d) == ["main.tex#tabular1"] and d["main.tex#tabular1"]["fingerprint"
 EOF
 }
 
+test_T274() {
+    # What a figure draws, set out for the reviewer: every arrow by the elements at its ends, an end that reaches no
+    # element marked, and braces, connecting lines and fitted groups listed. A rule, a frame and a plain \path are not.
+    # The review sheet carries it under its own check, and the unreviewed finding counts the marked ones.
+    python3 - "$REPO_ROOT/.claude/skills/audit/scripts/audit-float-reviews.py" <<'EOF'
+import json, shutil, subprocess, sys, tempfile
+from pathlib import Path
+S = sys.argv[1]
+PRE = ("\\documentclass{article}\n\\usepackage{tikz}\n\\usetikzlibrary{calc,fit,decorations.pathreplacing}\n"
+       "\\tikzset{pour/.style={-{Latex[length=3pt]}, thick}}\n\\begin{document}\n")
+FIG = r"""\begin{figure}
+\begin{tikzpicture}[flow/.style={-{Stealth[length=4pt]}, gray}, curly/.style={decorate, decoration={brace, amplitude=3pt}}]
+\node[draw] (k) at (0,0) {\textbf{Kettle} boils the water first};
+\node[draw] (c) at (4,0) {\textbf{Cup} holds the finished tea};
+\node[draw] (s) at (4,-2) {\textbf{Saucer} catches the drips};
+\coordinate (gap) at ($(k.east)!0.5!(c.west)$);
+\path (current bounding box.south) coordinate (low);
+\draw[flow] (k.east) -- (c.west);
+\draw[->] (1.5,1) -- (2.5,1);
+\draw[pour] (low) -- (s.south);
+\draw[flow] (5,0 |- s.north) -- (c.south);
+\draw[flow] (s.north -| k.south) -- (k.south);
+\draw[flow] (gap) -- ++(0,1);
+\draw (k.south) -- (s.west);
+\draw (-1,-3) -- (6,-3);
+\draw (k.north west) rectangle (c.south east);
+\path (k) -- (c);
+\draw[curly] (-1,1) -- (5,1) coordinate[pos=0.5] (tip);
+\draw[flow] (tip) -- (c.north);
+\node[fit=(k)(c), inner sep=2pt] (pair) {};
+\end{tikzpicture}
+\caption{Tea, made in two steps.}\label{fig:tea}
+\end{figure}
+\begin{figure}
+\begin{tikzpicture}[->]
+\node (a) at (0,0) {\textbf{Leaf} steeps in the water};
+\node (b) at (3,0) {\textbf{Pot} keeps the tea warm};
+\draw (a) -- (b);
+\draw[-] (a.south) -- (b.south);
+\end{tikzpicture}
+\caption{A pot.}\label{fig:pot}
+\end{figure}
+\end{document}
+"""
+def run(*extra, files=None):
+    d = tempfile.mkdtemp()
+    for k, v in (files or {"main.tex": PRE + FIG}).items():
+        (Path(d) / k).write_text(v)
+    r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--json"]
+                       + list(extra), capture_output=True, text=True)
+    return d, r
+d, r = run()
+out = json.loads(r.stdout)
+fl = {f["id"]: f for f in out["floats"]}
+draws = fl["fig:tea"].get("drawn")
+assert draws is not None, "the payload does not say what the figure draws"
+got = [(x["kind"], x["text"], tuple(x["flags"])) for x in draws]
+text = "\n".join(f"{k}: {t} {list(f)}" for k, t, f in got)
+def one(pred, why):
+    hits = [g for g in got if pred(g)]
+    assert len(hits) == 1, f"{why}: {hits}\n{text}"
+    return hits[0]
+one(lambda g: g[0] == "arrow" and g[1].startswith("Kettle") and "→ Cup" in g[1] and not g[2], "named ends, no mark")
+one(lambda g: g[1] == "(1.5,1) → (2.5,1)" and g[2] == ("start: only numbers", "end: only numbers"), "bare ends")
+one(lambda g: g[1].endswith("(s)") and g[2] == ("start: the bounding box",), "a start at the bounding box")
+one(lambda g: g[1].startswith("Saucer") and "→ Cup" in g[1] and g[2] == ("start: partly a number",),
+    "a start placed partly by a number")
+one(lambda g: g[1].startswith("Saucer") and "→ Kettle" in g[1] and " / " not in g[1] and not g[2],
+    "a perpendicular start named by its own element")
+one(lambda g: g[2] == ("end: a step from the last point",), "an end one step from the last point")
+one(lambda g: g[0] == "line" and g[1].startswith("Kettle") and "— Saucer" in g[1], "a line joining two elements")
+one(lambda g: g[0] == "brace" and g[2] == ("placed by numbers: check which boxes it spans",), "a brace placed by numbers")
+one(lambda g: g[1].startswith("brace 1 →") and "Cup" in g[1] and not g[2], "an arrow from the brace tip")
+one(lambda g: g[0] == "group" and "(pair) around:" in g[1] and "(k)" in g[1] and "(c)" in g[1], "a fitted group")
+assert len(got) == 10, f"a rule, a frame or a plain path was listed, or something was missed:\n{text}"
+pot = [(x["kind"], x["text"]) for x in fl["fig:pot"]["drawn"]]
+assert ("arrow", "Leaf steeps in the water (a) → Pot keeps the tea warm (b)") in pot, pot
+assert sum(1 for k, _ in pot if k == "arrow") == 1 and ("line", "Leaf steeps in the water (a) — Pot keeps the tea warm (b)") in pot, \
+    f"a picture-wide -> was not applied, or an explicit - did not turn it off: {pot}"
+det = [x["detail"] for x in out["findings"] if x["float"] == "fig:tea"]
+assert any("5 of the 10 lines it draws reach no element" in x for x in det), det
+assert not any("reach no element" in x["detail"] for x in out["findings"] if x["float"] == "fig:pot"), out["findings"]
+shutil.rmtree(d)
+# the sheet: the check to make and the list itself (needs pdftoppm, as T242)
+if shutil.which("pdftoppm"):
+    d, _ = run()
+    objs = [b"<< /Type /Catalog /Pages 2 0 R /Dests << /figure.1 [3 0 R /XYZ 0 0 null] >> >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>", b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] >>"]
+    pdf, offs = b"%PDF-1.4\n", []
+    for i, o in enumerate(objs, 1):
+        offs.append(len(pdf)); pdf += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+    x = len(pdf)
+    pdf += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offs)
+    pdf += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, x)
+    (Path(d) / "doc.pdf").write_bytes(pdf)
+    (Path(d) / "doc.aux").write_text("\\newlabel{fig:tea}{{1}{1}{Tea}{figure.1}{}}\n")
+    r = subprocess.run([sys.executable, S, "--base-dir", d, "--main", "main.tex", "--reviews", "r.tsv", "--render",
+                        "--pdf", f"{d}/doc.pdf", "--aux", f"{d}/doc.aux", "--out", f"{d}/sheet"], capture_output=True, text=True)
+    sheet = (Path(d) / "sheet" / "REVIEW.md").read_text()
+    assert "5. Every arrow, brace, line and group it draws, against the method" in sheet, sheet[:1500]
+    assert "- what it draws (check each against the method; ⚠ an end that reaches no element):" in sheet, sheet
+    assert "  - ⚠ arrow: (1.5,1) → (2.5,1) [start: only numbers; end: only numbers]" in sheet, sheet
+    shutil.rmtree(d)
+EOF
+}
+
 run_test "T253 float reviews: a tabular in the running text is its own item, and one inside a float or its input is not listed twice" test_T253
 run_test "T254 claim ledger: a supplement outside --base-dir is read with --also-file, two ledgers together" test_T254
 run_test "T255 number ledger: two ledgers read together, each counting its copies in its own files" test_T255
@@ -7857,6 +7963,7 @@ run_test "T270 prose fingerprint: speculate, speculation and speculative in ever
 run_test "T271 claim positioning: word forms of one method share one source (preregistered, preregistration)" test_T271
 run_test "T272 a number set as 4{,}120 reads as 4,120, and \\, is a space, not a comma" test_T272
 run_test "T273 the comma inside 4,120 groups digits and is not counted as a comma" test_T273
+run_test "T274 float reviews: what a figure draws is set out by the elements at each end, and an end that reaches none is marked" test_T274
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then
