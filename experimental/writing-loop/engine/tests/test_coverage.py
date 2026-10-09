@@ -1516,3 +1516,38 @@ class NumberSourceOutsideSnapshotTest(unittest.TestCase):
             head = git(repo, "rev-parse", "HEAD")
             self.assertIn(f"提交 {head[:7]} 里也没有", rec["summary"])
 
+
+class RunOnlySkipTest(unittest.TestCase):
+    """10-09: `loop coverage <ws> --run --only <id>` on a commit the check had already run at kept that result and said
+    nothing, so a result from an earlier hour was read as a new one. The result is still kept (that is --force's job);
+    the screen says so, with the time of the run it kept."""
+
+    def _coverage(self, *args):
+        import contextlib
+        import io
+        from loop import cli
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            cli.main(["coverage", *args])
+        return out.getvalue(), err.getvalue()
+
+    def test_a_named_check_that_is_not_rerun_says_whose_result_stands_and_how_to_rerun(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            with Probe(probe_check(root)):
+                out, _ = self._coverage(str(ws), "--run", "--only", "probe")
+                self.assertIn("这次跑了：probe", out)
+                at = V.load_run(ws, "probe")["at"]
+                out, _ = self._coverage(str(ws), "--run", "--only", "probe")
+                self.assertEqual(V.load_run(ws, "probe")["at"], at, "kept, not rerun: the behaviour is unchanged")
+                said = [ln for ln in out.splitlines() if "probe" in ln and "--force" in ln]
+                self.assertEqual(len(said), 1, out)
+                self.assertIn("沿用", said[0])
+                self.assertIn(at[:16].replace("T", " "), said[0], "the time of the run that was kept")
+                out, err = self._coverage(str(ws), "--run", "--only", "probe", "--json")
+                self.assertEqual([s["id"] for s in json.loads(out)["skipped"]], ["probe"])
+                self.assertIn("--force", err, "a JSON reader's screen is told too")
+                out, _ = self._coverage(str(ws), "--run", "--only", "probe", "--force")
+                self.assertIn("这次跑了：probe", out)
+                self.assertNotIn("沿用", out)
+                self.assertNotEqual(V.load_run(ws, "probe")["at"], at)

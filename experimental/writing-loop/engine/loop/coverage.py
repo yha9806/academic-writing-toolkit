@@ -944,7 +944,7 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     """Rows for every check, running the due script checks first when do_run. Writes cache/coverage/summary.json."""
     sentences, index_head = current_sentences(ws)
     head = _git(cfg["repo"], "rev-parse", "--verify", f"{cfg['ref']}^{{commit}}")
-    ran = []
+    ran, skipped = [], []
     checks = K.all_checks(cfg)
     if do_run and sentences is not None and head:
         for check in checks:
@@ -953,9 +953,15 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
             if not check.get("auto", True) and not (only and check["id"] in only):
                 continue  # a slow project check runs only when named
             r = row(check, cfg, ws, head, sentences, index_head)
-            if check["kind"] == "script" and (due(r) or (force and r["status"] in (OK, FAILED, STALE, NEVER, ACCEPTED))):
+            rerunnable = r["status"] in (OK, FAILED, STALE, NEVER, ACCEPTED)
+            if check["kind"] == "script" and (due(r) or (force and rerunnable)):
                 run(check, cfg, ws, head, sentences, now=now)
                 ran.append(check["id"])
+            elif only and check["kind"] == "script" and rerunnable:
+                # Named, and kept because nothing it reads has changed (10-09: an hour-old timeout on the same commit
+                # was read as a new one). Kept as before; the caller says whose result stands and how to rerun.
+                skipped.append({"id": check["id"], "status": r["status"], "at": r.get("last_at"),
+                                "commit": r.get("last_commit"), "result": r.get("result")})
     rows = [row(c, cfg, ws, head, sentences, index_head) for c in checks]
     scan = scan_coverage(cfg, head)
     if scan is not None:
@@ -966,7 +972,7 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     summary = {"schema": SCHEMA, "workspace": cfg["name"], "ref": cfg.get("ref"), "head": head,
                "index_head": index_head, "index_behind": bool(head and index_head and head != index_head),
                "computed_at": dt.datetime.fromtimestamp(now or time.time(), dt.timezone.utc).isoformat(),
-               "format": draft_format(cfg), "rows": rows, "counts": counts, "ran": ran,
+               "format": draft_format(cfg), "rows": rows, "counts": counts, "ran": ran, "skipped": skipped,
                "fingerprint": fingerprint(cfg, ws),
                "config_waivers_ignored": sorted((cfg.get("waive") or {}).keys()),
                "target": TG.describe(cfg),
@@ -982,6 +988,20 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     tmp.replace(d / "summary.json")
     refresh_outlet(ws, cfg)
     return summary
+
+
+def skipped_lines(summary):
+    """One line per check named with --only that --run kept instead of rerunning: the run whose result stands, by
+    time and commit, and how to rerun it."""
+    out = []
+    for s in summary.get("skipped") or []:
+        at = str(s.get("at") or "")
+        when = at[:16].replace("T", " ") + " UTC" if at else "时间不明"
+        result = str(s.get("result") or "")
+        result = result if len(result) <= 60 else result[:59] + "…"
+        out.append(f"{s['id']} 没有重跑：沿用 {when}（提交 {s.get('commit') or '?'}）那次的结果「{s.get('status')}"
+                   + (f"：{result}" if result else "") + "」；要重跑加 --force")
+    return out
 
 
 def live_line(ws, cfg):
