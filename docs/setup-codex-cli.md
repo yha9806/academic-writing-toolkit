@@ -1,6 +1,6 @@
 # Setup: Codex skills
 
-AWT provides nine skills for local Codex use. They are advisory: the host
+AWT provides ten skills for local Codex use. They are advisory: the host
 does not enforce what they say.
 
 ## Skills in a checkout or linked workspace
@@ -64,9 +64,14 @@ python scripts/install-codex-skills.py --verify
 ```
 
 An unchanged installation keeps its existing skill files and receipt. An
-update stages and exercises all nine skills before replacing them, carries
-over the `agents/` and `assets/` folders a host has written into an installed
-skill, and backs up the previous folders. Other skill names are left alone.
+update stages the full catalogue and exercises its bundled helpers before
+replacing it, carries over the `agents/` and `assets/` folders a host has written
+into an installed skill, and backs up the previous folders. Other skill names
+are left alone.
+
+The previous catalogues, with or without `/readers`, can update directly.
+An earlier receipt only owns the skills it lists; a newly added name still
+receives the same collision checks.
 
 A skill folder that has been edited outside the installer is refused rather
 than overwritten; `--replace-existing` is how you say the edit may go. The
@@ -87,7 +92,7 @@ replace locally edited AWT skills, inspect the listed collisions and run:
 python scripts/install-codex-skills.py --install-deps --replace-existing
 ```
 
-This option authorises replacement of the nine listed names, including an
+This option authorises replacement of the ten listed names, including an
 unrelated skill with one of those names. Their whole previous folders are
 saved first. Symlink/junction targets are refused even with this option.
 
@@ -144,6 +149,7 @@ explicit-only invocation policy.
 
 | Skill | Purpose |
 |---|---|
+| research-plan | Explore a research direction and plan thesis / paper contributions (experimental) |
 | read | Guided reading with page-anchored PDF extraction |
 | note | Record structured reading notes |
 | map | Show literature coverage and writing progress |
