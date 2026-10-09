@@ -383,11 +383,17 @@ def unlinked(s):
     return MID_LINK.sub("", s)
 
 
+# The comma inside 4,120 groups digits; it is not a pause in the sentence. Counted as one, a sentence that reports
+# three sizes gained three commas and read as denser than the same sentence without the numbers. Left out on both
+# sides: the draft's sentences and the venue's.
+DIGIT_GROUP_COMMA = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
+
+
 def features(s):
     return {
         "words": len(s.split()),
         "clauses": len(clause_tokens(s)),
-        "commas": s.count(","),
+        "commas": s.count(",") - len(DIGIT_GROUP_COMMA.findall(s)),
         "colons": len(re.findall(r":(?!\d)", s)),
         "semicolons": s.count(";"),
         "dashes": len(DASH.findall(s)),
@@ -691,6 +697,63 @@ def duplicated(changes, target, base):
     return in_changes, copies
 
 
+# A sentence that repeats another with a word or two changed. On one manuscript an introduction sentence was rewritten
+# into the abstract's sentence with one word changed; the letter-for-letter check above passed it. Wording is compared
+# word by word (difflib's ratio over the two word lists). At 0.8, one real draft of 953 sentences held 3 such pairs,
+# each an abstract or conclusion sentence said again in the body; at 0.7 it held 12, most of them paraphrases.
+NEAR_RATIO = 0.8
+NEAR_MIN_WORDS = 8
+
+
+def wording(s):
+    return re.findall(r"[a-z0-9]+", REF_LEFTOVER.sub("", s).lower())
+
+
+def near_repeats(changes, target):
+    """{(file, new sentence): [{where, sentence, ratio}]} for changed or added sentences worded like another sentence of
+    the draft (NEAR_RATIO or more) without being the same; a sentence that is the same is duplicates_elsewhere."""
+    draft = [(f, t, same_key(t), wording(t)) for f, ts in target.items() for t in ts]
+    draft = [d for d in draft if len(d[3]) >= NEAR_MIN_WORDS]
+    out = {}
+    for f, _, news in changes:
+        for s in news:
+            w = wording(s)
+            if len(w) < NEAR_MIN_WORDS:
+                continue
+            m = difflib.SequenceMatcher(None, autojunk=False)
+            m.set_seq2(w)
+            hits = []
+            for f2, t, k, w2 in draft:
+                if k == same_key(s):
+                    continue
+                m.set_seq1(w2)
+                if m.real_quick_ratio() >= NEAR_RATIO and m.quick_ratio() >= NEAR_RATIO and m.ratio() >= NEAR_RATIO:
+                    hits.append({"where": f2, "sentence": t, "ratio": round(m.ratio(), 2)})
+            if hits:
+                out[(f, s)] = hits
+    return out
+
+
+# A multiple of chance with no count beside it. On one manuscript "N times more often than chance" stood alone, and
+# the hits and the pool it rested on were in another section; a reader could not tell many hits from one. Inline math
+# is MATH by now, so "$42\times$ chance" is "MATH chance"; "the MATH chance level" is the level, not a multiple. A count
+# is "K of N", "K hits in N" or "K/N", in the sentence or the one either side of it.
+MULTIPLE = re.compile(r"\b(?:\d+(?:\.\d+)?|MATH|several|many|" + "|".join(COUNT_WORDS) + r")\s*(?:times\b|×|-?fold\b)"
+                      r"[^.;]{0,40}?\b(?:chance|random)\b|\bMATH\s+chance\b(?!\s+(?:level|rate))", re.I)
+RAW_COUNT = re.compile(_N + r"\s+(?:[A-Za-z-]+\s+){0,2}?(?:of|in|out\s+of)\s+(?:the\s+)?" + _N + r"\b|\b\d+\s*/\s*\d+\b",
+                       re.I)
+
+
+def multiple_without_count(s, draft_file):
+    """The multiple of chance s states with no count beside it, or None. draft_file: the sentences of s's file."""
+    m = MULTIPLE.search(s)
+    if not m or RAW_COUNT.search(s):
+        return None
+    i = draft_file.index(s) if s in draft_file else None
+    side = [] if i is None else draft_file[max(0, i - 1):i] + draft_file[i + 1:i + 2]
+    return None if any(RAW_COUNT.search(t) for t in side) else m.group(0)
+
+
 def _bound_norm(s):
     """A sentence as the claim ledger stores it: no \\cite, no ~, lower case, spaces collapsed."""
     s = re.sub(r"\\[a-zA-Z]*cite[a-zA-Z]*\*?(?:\[[^\]]*\])*\{[^}]*\}", " ", s).replace("~", " ")
@@ -977,6 +1040,7 @@ def main():
     lost = lost_antecedents(removed, changes, base, units, target) if not a.pairs else {}
     draft = [s for ss in target.values() for s in ss] if not a.pairs else []
     dups, copies = duplicated(changes, target, base) if not a.pairs else ({}, [])
+    nears = near_repeats(changes, target) if not a.pairs else {}
     venue = venue_distribution(fp, a.baseline, a.venue_cache) if a.baseline else None
     results = []
     for where, olds, news in changes:
@@ -990,6 +1054,14 @@ def main():
         if same:
             r["flags"].append("duplicates_elsewhere")
             r["duplicates"] = same
+        near = [d for s in news for d in nears.get((where, s), [])]
+        if near:
+            r["flags"].append("repeats_elsewhere")
+            r["repeats"] = near
+        alone = [x for x in (multiple_without_count(s, target.get(where, []) if not a.pairs else []) for s in news) if x]
+        if alone:
+            r["flags"].append("multiple_without_count")
+            r["multiple"] = alone
         hit = bound_rows(r["old"], r["new"], bound)
         if hit:
             r["flags"].append("bound_in_ledger")
@@ -1028,6 +1100,8 @@ def main():
                      "count_elsewhere": sum(1 for r in results if "count_elsewhere" in r["flags"]),
                      "copied": kinds["copied"],
                      "duplicates_elsewhere": sum(1 for r in results if "duplicates_elsewhere" in r["flags"]),
+                     "repeats_elsewhere": sum(1 for r in results if "repeats_elsewhere" in r["flags"]),
+                     "multiple_without_count": sum(1 for r in results if "multiple_without_count" in r["flags"]),
                      "bound_in_ledger": sum(1 for r in results if "bound_in_ledger" in r["flags"])})
     unjudged = kinds["added"] if venue is None else 0   # judged against DEFAULT_CEILING, not a venue
     linked = Counter(t for r in results for t in r.get("links_added", []))
@@ -1047,6 +1121,8 @@ def main():
                           if r["kind"] == "removed" else {}),
                        **({"shares_elsewhere": r["shares_elsewhere"]} if r.get("shares_elsewhere") else {}),
                        **({"duplicates": r["duplicates"]} if r.get("duplicates") else {}),
+                       **({"repeats": r["repeats"]} if r.get("repeats") else {}),
+                       **({"multiple": r["multiple"]} if r.get("multiple") else {}),
                        **({"ledger_rows": r["ledger_rows"]} if r.get("ledger_rows") else {})}
                       for r in flagged]}
     if a.json:

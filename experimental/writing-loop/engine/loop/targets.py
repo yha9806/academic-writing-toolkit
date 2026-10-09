@@ -98,11 +98,7 @@ def _approval_in_transcripts(cfg, uuid):
     if known.get(uuid) is True:
         return True
     from . import doctor
-    t = cfg.get("transcripts") or {}
-    files = list(doctor.transcript_files(cfg) or [])
-    for s in t.get("also") or []:
-        if isinstance(s, dict) and s.get("cwd_prefix"):
-            files += list(doctor.transcript_files(cfg, s["cwd_prefix"]) or [])
+    files = doctor.all_transcript_files(cfg)
     needle = f'"uuid":"{uuid}'.encode()
     found = False
     for f in files:

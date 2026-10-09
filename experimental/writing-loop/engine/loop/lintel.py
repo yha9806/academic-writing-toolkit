@@ -99,6 +99,9 @@ def activity_id(name):
     return f"loop-{slug}"[:128]
 #: 右翼放得下约 6 个汉字（lintel slots.md §1）；拉丁字母算半个，所以「betaVal 说反」正好是 6。
 LABEL_MAX = 6
+#: lintel 的短字段（标签、徽标、概览最新一行）硬上限，超一个字段整张卡拒收（Validation.swift `Limit.short`）。
+# 显示放不下由 lintel 画法截断；这里只保证不越过拒收线。10-07 一轮改到 8 节、没有标签，节名连起来 67 字，刘海从此不再更新这份稿子。
+SHORT = 64
 #: 展开态总高 ≤470pt（slots.md §3）：三段加四行两行的句子刚好，多了看不到。
 # 展开态分页之后（候选 E）「改了」那一节独占一页，能放下更多行；470pt 里两行一句约放 8 句。
 ROWS_SHOWN = 8
@@ -135,6 +138,30 @@ def _fit(text, w):
             break
         out += ch
     return out.rstrip() + "…"
+
+
+def _fit_keep_end(text, w):
+    """Cut to a display width of w CJK units in the middle, keeping the end. Draft names often differ only at the end
+    (draft-v8 / draft-v9); cutting the end made two drafts read the same on the pill (2026-10-07). The end kept is the
+    last segment after a separator when a head still fits beside it, else about half the room."""
+    text = (text or "").replace("\n", " ").strip()
+    if width(text) <= w:
+        return text
+    room = w - width("…")
+    cut = max(text.rfind(c) for c in "-_. ")
+    tail = text[cut + 1:] if cut >= 0 else ""
+    if not tail or width(tail) > room - width(text[0]):
+        tail = ""
+        for ch in reversed(text):
+            if width(ch + tail) > room / 2:
+                break
+            tail = ch + tail
+    head = ""
+    for ch in text:
+        if width(head + ch) > room - width(tail):
+            break
+        head += ch
+    return head.rstrip() + "…" + tail.lstrip()
 
 
 def _sha(text):
@@ -299,12 +326,14 @@ def _history(hist, names, touches=None):
             # 次行写改到哪；原话不再在面板里重复（弹出卡与展开卡第 2 页有）。没有标签时行头写改到的节。
             where = touched(h, names)
             label = _fit(h["label"], LABEL_MAX) if h.get("label") else None
-            lines = [{"label": "改到", "text": where, "tone": "white55"}] if (label and where) else []
+            tag = label or _clip(where, SHORT) or "改了"
+            # 标签放不下全部节名时，全部节名进「改到」这一行（行的上限宽得多），面板里不丢。
+            lines = [{"label": "改到", "text": where, "tone": "white55"}] if (where and tag != where) else []
             if STRENGTH.get(h.get("strength")):
                 lines.append({"label": "追到", "text": STRENGTH[h["strength"]], "tone": "white55"})   # 缺口 3
             if h["n"] > ROWS_LOCATED:
                 lines.append({"label": "还有", "text": f"{h['n'] - ROWS_LOCATED} 句没列出", "tone": "white55"})   # 缺口 7
-            out.append({"id": h["id"], "tag": label or where or "改了", "badge": f"{h['n']} 句", "duration": h["id"][:7],
+            out.append({"id": h["id"], "tag": tag, "badge": f"{h['n']} 句", "duration": h["id"][:7],
                         "at": _iso(h["time"]) if h["time"] else None, "expandable": True,
                         "lines": lines, "rows": _rows(h, names) or None, "sections": secs([h["id"]])})
             i += 1
@@ -356,8 +385,9 @@ def _detail(summary, lc, bad, notices, overview=None, coverage=NOT_GIVEN, denial
         if history:
             h = history[0]
             where = next((l["text"] for l in h.get("lines") or [] if l["label"] == "改到"), None)
-            ov["latest"] = {"at": h.get("at"), "tag": h["tag"], "badge": (h.get("badge") or "").split(" ")[0] or None,
-                            "where": where, "more": f"这一段 {overview.get('stage_changesets', 0)} 个改动集"}
+            ov["latest"] = {"at": h.get("at"), "tag": _clip(h["tag"], SHORT),
+                            "badge": _clip((h.get("badge") or "").split(" ")[0], SHORT) or None,
+                            "where": _clip(where, SHORT) if where else None, "more": f"这一段 {overview.get('stage_changesets', 0)} 个改动集"}
         d["overview"] = ov
     # 数据条（分镜 ⑥③）：有总览时以总览的格（分镜 ㊾）为底，再加有发现 / 拦下 / 读者 / 构建落后；最多 8 格。
     # 没给拦下明细的旧调用，按提醒行数算（每行一次）。
@@ -722,7 +752,7 @@ def build(summary, *, now, problems=(), notices=(), overview=None, coverage=NOT_
         # 警报（跑挂了、无出处、在跑的跑表）照旧用自己的胶囊。
         n_wait = ring["waiting"]
         tail = f" · 等你 {n_wait}" if n_wait else ""
-        pill, tone = _fit(ws, RING_PILL_MAX - width(tail)) + tail, "white"
+        pill, tone = _fit_keep_end(ws, RING_PILL_MAX - width(tail)) + tail, "white"
         a["pillUntilSeen"] = False
     within = _within(note)
     if within:

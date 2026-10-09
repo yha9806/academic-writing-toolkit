@@ -385,6 +385,25 @@ class RingExportTest(unittest.TestCase):
         self.assertLessEqual(L.width(long["pill"]["title"]), L.RING_PILL_MAX, long["pill"])
         self.assertTrue(long["pill"]["title"].endswith("· 等你 3"), "the name is cut, the count never is")
 
+    def test_drafts_that_differ_only_at_the_end_stay_apart_on_the_pill(self):
+        # 2026-10-07: two versions of one draft both read 「draft… · 等你 3」 -- cutting the end took the only part that differed.
+        pills = [only(L.build(summary(name=n), now=NOW, coverage=RING_COV))["pill"]["title"] for n in ("draft-v8", "draft-v9")]
+        self.assertNotEqual(pills[0], pills[1], pills)
+        for p, v in zip(pills, ("v8", "v9")):
+            self.assertIn(v, p)
+            self.assertTrue(p.endswith("· 等你 3"), p)
+            self.assertLessEqual(L.width(p), L.RING_PILL_MAX, p)
+
+    def test_the_name_is_cut_in_the_middle_and_never_overflows(self):
+        self.assertEqual(L._fit_keep_end("draft-v8", 3), "dra…v8")
+        self.assertEqual(L._fit_keep_end("notes", 3), "notes")
+        for name in ("draft-v8", "chapter-three-v9", "a-rather-long-draft-name", "nodashesatallhere", "稿件第二版-终稿", "x-"):
+            for w in (1.5, 2, 2.5, 3, 4.5, 7.5):
+                got = L._fit_keep_end(name, w)
+                self.assertLessEqual(L.width(got), w, (name, w, got))
+                self.assertEqual(got == name, L.width(name) <= w, (name, w, got))
+                self.assertFalse(got.startswith("…"), ("the start of the name is kept too", name, w, got))
+
     def test_alerts_keep_their_own_pill(self):
         s = with_change(traced=False); s["latest_changeset"]["messages_in_window"] = 3
         self.assertEqual(self.build(s)["pill"]["title"], "15 △")
@@ -669,6 +688,44 @@ class LocateRowsTest(unittest.TestCase):
     def test_at_most_sixteen_rows_reach_the_host(self):
         rows = [{"label": f"X{i}", "new": f"s {i}"} for i in range(30)]
         self.assertEqual(len(only(L.build(self.history_with_rows(rows), now=NOW))["detail"]["history"][0]["rows"]), 16)
+
+
+class ShortFieldsTest(unittest.TestCase):
+    """lintel 的短字段（标签、徽标、概览最新一行）硬上限 64 字，超一个字段整张卡拒收（Validation.swift Limit.short）。
+    10-07：一轮改到 8 节、没有标签，节名连起来 67 字当了标签，刘海从此不再更新这份稿子。"""
+
+    SHORT = 64
+    NAMES = {s: f"§{i} {w}" for i, (s, w) in enumerate(zip("ABCDEFGHI", ["背景", "方法", "数据", "评测", "结果",
+                                                                        "讨论", "局限", "附录", "致谢"]), 3)}
+
+    def entry(self, label=None):
+        rows = [{"label": f"{s}{i}", "section": s, "new": f"n {i}"} for i, s in enumerate(self.NAMES)]
+        lc = change(n=len(rows), label=label)
+        return summary(latest_changeset=lc, section_names=self.NAMES,
+                       history=[{"id": lc["id"], "time": lc["time"], "n": lc["n"], "traced": True, "label": label,
+                                 "verbatim": lc["verbatim"], "status": "one", "rows": rows}])
+
+    def assert_short(self, a):
+        h = a["detail"]["history"][0]
+        for k in ("tag", "badge", "duration"):
+            self.assertLessEqual(len(h.get(k) or ""), self.SHORT, k)
+        latest = a["detail"]["overview"]["latest"]   # the overview really was built
+        for k, v in latest.items():
+            if isinstance(v, str):
+                self.assertLessEqual(len(v), self.SHORT, f"latest.{k}")
+
+    def test_without_a_label_the_sections_stand_in_but_stay_under_the_limit(self):
+        a = only(L.build(self.entry(), now=NOW, overview={"payload": {"stats": []}}))
+        self.assertGreater(len(" · ".join(self.NAMES.values())), self.SHORT)   # the fixture really is too long
+        self.assert_short(a)
+        h = a["detail"]["history"][0]
+        self.assertTrue(h["tag"].startswith("§3 背景 · §4 方法"))
+        self.assertIn("§11 致谢", next(l["text"] for l in h["lines"] if l["label"] == "改到"))   # nothing is lost
+
+    def test_with_a_label_the_overview_where_stays_under_the_limit(self):
+        a = only(L.build(self.entry(label="合并重复"), now=NOW, overview={"payload": {"stats": []}}))
+        self.assert_short(a)
+        self.assertEqual(a["detail"]["history"][0]["tag"], "合并重复")
 
 
 class SummaryViewTest(unittest.TestCase):
@@ -964,7 +1021,7 @@ class QuietTest(unittest.TestCase):
                 rc = main(["lintel", str(ws), "--home", str(home), "--interval", "0", "--rounds", "3"])
             self.assertEqual(rc, 0)
             self.assertIn("heartbeatSeconds", self._card(home))
-            lines = [x for x in out.getvalue().splitlines() if x.startswith("lintel：")]
+            lines = [x for x in out.getvalue().splitlines() if "lintel：" in x]
             self.assertEqual(len(lines), 1, f"three rounds with nothing changed log one line: {lines}")
 
     def test_the_inputs_signature_moves_with_the_inputs_and_not_with_the_producers_own_files(self):
@@ -984,6 +1041,55 @@ class QuietTest(unittest.TestCase):
             (ws / "human").mkdir(exist_ok=True)
             (ws / "human" / "comments.jsonl").write_text("{}\n", encoding="utf-8")
             self.assertNotEqual(_inputs_signature(ws, cfg, home, L.PRODUCER), b)
+
+
+    def test_each_log_line_says_when(self):
+        # 2026-10-08：日志没有时间，中断以后分不清哪一轮跑了、哪一轮没跑（〈八〉）。
+        from loop.cli import main
+        with TempDir() as root:
+            ws, home, _ = self._ws(root)
+            self.assertEqual(main(["update", str(ws)]), 0)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                main(["lintel", str(ws), "--home", str(home), "--interval", "0", "--rounds", "1"])
+            lines = out.getvalue().splitlines()
+            self.assertTrue(lines)
+            for x in lines:
+                self.assertRegex(x, r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ")
+
+    def test_the_producers_own_audit_cache_and_older_log_are_not_inputs(self):
+        # 2026-10-08：总览写进 cache/overview-audit 的缓存被算成输入，每次真有变化都多重算一轮。
+        from loop import config as C
+        from loop.cli import _inputs_signature
+        with TempDir() as root:
+            ws, home, _ = self._ws(root)
+            cfg = C.load(ws)
+            a = _inputs_signature(ws, cfg, home, L.PRODUCER)
+            (ws / "cache" / "overview-audit").mkdir(parents=True, exist_ok=True)
+            (ws / "cache" / "overview-audit" / "0123456789ab-cdef.json").write_text("{}", encoding="utf-8")
+            (ws / "cache" / "lintel.log.1").write_text("lintel：1 张卡\n", encoding="utf-8")
+            self.assertEqual(_inputs_signature(ws, cfg, home, L.PRODUCER), a)
+            (ws / "cache" / "coverage").mkdir(parents=True, exist_ok=True)
+            (ws / "cache" / "coverage" / "summary.json").write_text("{}", encoding="utf-8")
+            self.assertNotEqual(_inputs_signature(ws, cfg, home, L.PRODUCER), a, "the rest of cache/ still counts")
+
+    def test_one_card_is_built_inside_one_round_of_reads(self):
+        import contextlib
+        from unittest import mock
+        from loop.cli import main
+        real, entered = X.round_reads, []
+
+        @contextlib.contextmanager
+        def recording():
+            with real():
+                entered.append(1)
+                yield
+        with TempDir() as root:
+            ws, home, _ = self._ws(root)
+            self.assertEqual(main(["update", str(ws)]), 0)
+            with mock.patch.object(X, "round_reads", recording):
+                self.assertEqual(main(["lintel", str(ws), "--once", "--home", str(home)]), 0)
+        self.assertEqual(entered, [1])
 
 
 if __name__ == "__main__":

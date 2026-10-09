@@ -27,6 +27,13 @@ metric coded only by `main`, the side that revised the text, is reported as unco
 reviser's coding showed a large drop after its own rewrite and a blind coder's showed none. With a blind coder the
 count is the blind coder's.
 
+--ask-relations packets: each reader's two quoted sentences are placed at the turn between them. A turn that more
+than half of the readers who named one share, and at least three, is reported as a place where the order may need
+changing, to check against the story page before adding a connector (one case, 10-07, so a question, not a rule).
+
+A packet not built from a loop workspace, or built as a targeted comparison, is not recorded in the loop; the last
+line says so and why.
+
 --repeat-*: a second panel on the same packet. Its spread per point is the panel's own noise: a change between
 versions no larger than it is reported as inside the noise, whatever its p. Without a repeat the report says the
 comparison has no noise floor (one panel run twice on one text moved a point by three readers of sixteen).
@@ -314,26 +321,87 @@ def _norm(text):
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", str(text).lower())).strip()
 
 
+# A sentence ends at . ! ? before the next one's capital (or at 。！？); an abbreviation or an initial ends none.
+SENT_END = re.compile(r"[.!?][\"\u201d\u2019)\]]*\s+(?=[\"\u201c(\[]?[A-Z0-9])|[\u3002\uff01\uff1f]\s*")
+NOT_END = re.compile(r"(?:\b(?:e\.g|i\.e|cf|vs|al|etc|Fig|Figs|Sec|Eq|Tab|No|approx|resp)|\b[A-Z])\.[\"\u201d\u2019)\]]*\s*$")
+
+
+def _sentences(text):
+    out, start = [], 0
+    for m in SENT_END.finditer(text):
+        if NOT_END.search(text[start:m.end()]):
+            continue
+        out.append(text[start:m.end()].strip())
+        start = m.end()
+    if text[start:].strip():
+        out.append(text[start:].strip())
+    return out
+
+
+def _quotes(answer):
+    """The sentence openings a reader quoted: each "…" in a string, or each item of a list (readers also answer with a
+    list of the two openings, quoted or not)."""
+    if isinstance(answer, list):
+        out = []
+        for x in answer:
+            found = QUOTE.findall(str(x))
+            bare = str(x).strip().strip("\"'\u201c\u201d")
+            out += found or ([bare] if len(bare) >= 12 else [])
+        return out
+    return QUOTE.findall(str(answer))
+
+
+def _opening(sentence, words=6):
+    w = sentence.split()
+    return " ".join(w[:words]) + ("…" if len(w) > words else "")
+
+
 def relations(packet, answers):
     """Where readers had to guess how one sentence follows from another: each quote placed in the paragraph that
-    holds it, readers counted once per paragraph. None when the packet did not ask."""
+    holds it, readers counted once per paragraph; and each reader's two quotes placed at the turn between the two
+    sentences that hold them (an abstract is one paragraph, so the paragraph alone does not say where). None when the
+    packet did not ask."""
     if answers is None:
         return None
     paras = [(p["p"], _norm(p["text"])) for p in packet["paragraphs"]]
-    named, where, unplaced = [], {}, []
+    sents = {}
+    for p in packet["paragraphs"]:
+        ss = _sentences(p["text"])
+        starts, joined = [], ""
+        for x in ss:
+            starts.append(len(joined))
+            joined += _norm(x) + " "
+        sents[p["p"]] = (ss, starts, joined)
+    named, where, unplaced, turns = [], {}, [], {}
     for reader, answer in answers:
-        if NOTHING.match(str(answer)):
+        if NOTHING.match(str(answer)) or answer in ([], None):
             continue
         named.append(reader)
-        hit = set()
-        for q in QUOTE.findall(str(answer)):
+        hit, at = set(), []
+        for q in _quotes(answer):
             q = _norm(q)
             hit |= {p for p, text in paras if q and q in text}
+            for p, (ss, starts, joined) in sents.items():
+                i = joined.find(q) if q else -1
+                if i >= 0:
+                    loc = (p, sum(1 for s0 in starts if s0 <= i))
+                    if loc not in at:
+                        at.append(loc)
+                    break
         if not hit:
             unplaced.append(reader)
         for p in hit:
             where.setdefault(p, []).append(reader)
-    return {"named": named, "unplaced": unplaced,
+        if at:
+            a, b = (sorted(at[:2]) + [None])[:2]
+            turns.setdefault((a, b), []).append(reader)
+    out = []
+    for (a, b), rs in sorted(turns.items(), key=lambda kv: (-len(kv[1]), kv[0][0], kv[0][1] or (0, 0))):
+        out.append({"from": list(a), "to": list(b) if b else None, "readers": sorted(rs),
+                    "flag": len(rs) >= SAME_PLACE, "most": 2 * len(rs) > len(named),
+                    "from_text": _opening(sents[a[0]][0][a[1] - 1]),
+                    "to_text": _opening(sents[b[0]][0][b[1] - 1]) if b else None})
+    return {"named": named, "unplaced": unplaced, "turns": out,
             "paragraphs": {p: {"readers": sorted(v), "flag": len(v) >= SAME_PLACE} for p, v in sorted(where.items())}}
 
 
@@ -466,6 +534,16 @@ def report(packet, readers, rejected, t, hits, agreement, shape, compare, extra=
         L += ["", f"## 句间关系要猜（定向问题 {RELATION_ID}）：{len(rel['named'])} / {n} 位读者指出"]
         for p, v in rel["paragraphs"].items():
             L.append(f"- P{p}：{len(v['readers'])} 位" + (" ⚑" if v["flag"] else "") + f"（{'、'.join(v['readers'])}）")
+        if rel["turns"]:
+            L.append("- 句与句之间（按读者引的两句定位）：")
+            for x in rel["turns"]:
+                L.append(f"  - {_turn(x)}：{len(x['readers'])} 位" + (" ⚑" if x["flag"] else "")
+                         + f"（{'、'.join(x['readers'])}）「{x['from_text']}」" + (f"→「{x['to_text']}」" if x["to"] else ""))
+        for x in (y for y in rel["turns"] if y["most"] and y["flag"]):
+            # 10-07: most readers of one abstract guessed at the same turn; a connector added there did not make it
+            # followable, and putting the steps in the story page's order did. One case, so a question, not a rule.
+            L.append(f"- 过半读者（{len(x['readers'])} / {len(rel['named'])}）卡在 {_turn(x)}：这里可能要重排。"
+                     "先对照讲法页查这一处的先后，再决定加不加连接词：连接词能把关系说出来，改不了先后。")
         if rel["unplaced"]:
             L.append(f"- 引文在稿里找不到、没能定位：{'、'.join(rel['unplaced'])}")
     L += ["", "## 定向问题"]
@@ -483,6 +561,24 @@ def report(packet, readers, rejected, t, hits, agreement, shape, compare, extra=
         L += ["", "## 读者自报的文外知识"] + [f"- {r}：{a}" for r, a in t["outside_knowledge"]]
     L += ["", "## 这个方法的局限", *[f"- {x}" for x in LIMITS]]
     return "\n".join(L) + "\n"
+
+
+def _turn(x):
+    (p, i), to = x["from"], x["to"]
+    if not to:
+        return f"P{p} 第 {i} 句"
+    return f"P{p} 第 {i} 句 → " + (f"第 {to[1]} 句" if to[0] == p else f"P{to[0]} 第 {to[1]} 句")
+
+
+def not_recorded(packet):
+    """Why the loop will not have this panel, or None when it will: said, because a tally the loop did not take reads
+    the same as one it did (10-07: the last line was only the report's path)."""
+    src = packet.get("source") or {}
+    if not src.get("workspace"):
+        return "packet 不是从循环工作区建的（没有 --workspace），结果只在 report.md"
+    if not packet.get("snapshot"):
+        return "packet 读的节与工作区配置的不同（定向比较，没有快照），结果只在 report.md"
+    return None
 
 
 def record(packet, readers, shape, hits):
@@ -573,11 +669,11 @@ def main(argv=None):
                           "by_model": extra["by_model"], "blank": extra["blank"], "repetition": packet.get("repetition"),
                           "misattributed": extra["misattributed"], "injected": extra["injected"], "derived": extra["derived"],
                           "models": extra["models"], "compare_models": extra.get("compare_models"),
-                          "recorded": bool(rec)}, ensure_ascii=False, indent=1))
+                          "recorded": bool(rec), "not_recorded": not_recorded(packet)}, ensure_ascii=False, indent=1))
     else:
         print(text.splitlines()[0])
         print(f"report: {out}" + ("；已记为这一版的读者组" if rec and rec["verdict"] != "failed" else
-                                  "；面板不全，已记为失败" if rec else ""))
+                                  "；面板不全，已记为失败" if rec else f"；没记进循环：{not_recorded(packet)}"))
     return 0
 
 

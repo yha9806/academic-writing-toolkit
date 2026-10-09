@@ -65,7 +65,9 @@ LINKING_OPENER = re.compile(
     r"|In addition(?! to))\b"
     r"|(?:That is|Overall|Still|Otherwise|In practice|Taken together|Put differently)\s*,)")
 NOMINALISATION = r"\b\w+(?:tion|ment|ness|ity)s?\b"
-HEDGE = r"\b(?:may|might|could|appears?|suggests?|seems?|likely|plausibl\w+)\b"
+# [Ss]peculat\w*: speculate(s/d), speculating, speculation(s), speculative(ly) hedge a claim as "may" does. The capital
+# is allowed for these alone: a sentence may open on them, and unlike "May" none of them is also a month.
+HEDGE = r"\b(?:may|might|could|appears?|suggests?|seems?|likely|plausibl\w+|[Ss]peculat\w*)\b"
 
 DISTRIBUTED = ("contrast", "explanatory_colon", "semicolon", "discourse_marker")
 PATTERNS = {
@@ -131,6 +133,12 @@ def strip_markup(text: str, suffix: str) -> str:
         # An environment's name is not prose: \begin{center} used to leave the word "center" behind, and a
         # colon before it ("character by character: center") was counted as an explanatory colon.
         text = re.sub(r"\\(?:begin|end)\{[^}]*\}", " ", text)
+        # A digit group set as 4{,}120 is the number 4,120 on the page, and \, \; \: \! are spaces. Stripping
+        # only the braces or the backslash left "4 , 120" (two extra words in every such sentence) or a comma,
+        # semicolon or colon the reader never sees.
+        text = re.sub(r"(?<=\d)\{,\}(?=\d)", ",", text)
+        text = re.sub(r"(?<=\d)(?<!\\)\\[,;:!](?=\d)", "", text)
+        text = re.sub(r"(?<!\\)\\[,;:!]", " ", text)
         text = re.sub(r"\\[a-zA-Z]+\*?", " ", text)
         text = re.sub(r"[{}$&~\\]", " ", text)
     elif suffix == ".md":

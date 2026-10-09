@@ -30,7 +30,10 @@ report.
    Always consider one about reuse and one about which field the work belongs to.
    When the draft states few links between sentences, pass `--ask-relations`: it asks each reader for the two
    sentences between which they most had to guess how one follows from the other, quoted. Readers asked only what
-   got in their way seldom name a missing link.
+   got in their way seldom name a missing link. The tally places each reader's two quotes at the turn between the
+   sentences that hold them. Where more than half of the readers who named a place, and at least three, name the same
+   turn, it says the order there may need changing: check that turn against the story page before adding a connector.
+   A connector states the relation; it does not change which step comes first (one case, so a question, not a rule).
 
 ## Steps
 
@@ -60,6 +63,8 @@ report.
    each reply unedited as `<dir>/outputs/<persona>_<model>_<n>.json`, e.g. `R1_haiku_1.json`. Each reply carries
    the packet id the prompt names; a reply for another packet, or a copy of another reply, is rejected. Rebuild the
    packet into a new directory for a new version rather than over an old one.
+   Open at most 20 sub-agents at a time; the harness refuses the rest and tells you not to retry. When the panel
+   compares several versions, open one version's readers, collect every reply, then open the next version's.
 
 3. Check the outputs; an incomplete output is not a reading and is named, not repaired:
 
@@ -92,7 +97,8 @@ report.
    The report lists what each reader said got in the way, verbatim, with a keyword sort into kinds (density,
    sentences, links, terms, repetition, numbers, placeholders). The sort is for reading, not a count: to compare
    versions, have a blind coder write `writing:<kind>` rows for `--derived`. A kind, a paragraph re-read, or a
-   paragraph named by `--ask-relations` that three readers share is marked ⚑.
+   paragraph named by `--ask-relations` that three readers share is marked ⚑. A panel the tally does not record in
+   the loop (a packet built with `--text`, or a targeted comparison) ends with `没记进循环：` and the reason.
 
    To compare two versions, run a full panel on each and pass `--compare-packet/--compare-outputs/--compare-judgments`;
    the report puts a two-sided Fisher p beside each point. Run the current version's panel twice and pass the second

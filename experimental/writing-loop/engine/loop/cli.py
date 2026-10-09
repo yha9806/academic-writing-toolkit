@@ -28,6 +28,13 @@ def cmd_init(a):
 def cmd_doctor(a):
     from . import doctor
     problems, facts = doctor.run(a.workspace)
+    # Not in doctor.run: the notch producer reads its problems as "the tool is broken" and stops drawing. A workspace
+    # the hook registry does not list is a loop that never runs for it, which the person setting it up must hear here.
+    warn = C.registry_warning(a.workspace)
+    if warn:
+        problems = problems + [("registry", warn)]
+    else:
+        facts = facts + [("registry", f"钩子登记表里有它（{C.registry_path()}）")]
     for item, msg in facts:
         print(f"  · {item}: {msg}")
     for item, msg in problems:
@@ -197,9 +204,12 @@ def cmd_coverage(a):
         return 2
     only = set(a.only.split(",")) if a.only else None
     s = V.compute(cfg, a.workspace, do_run=a.run, only=only, force=a.force)
+    warn = C.registry_warning(a.workspace)
     if a.json:
-        print(json.dumps(s, ensure_ascii=False, indent=1))
+        print(json.dumps(dict(s, hook_registry=warn), ensure_ascii=False, indent=1))
     else:
+        if warn:
+            print("注意：" + warn)
         print(V.table(s, a.workspace))
         if s["ran"]:
             print("这次跑了：" + "、".join(s["ran"]))
@@ -235,16 +245,19 @@ def cmd_state(a):
         print(f"state：读不出工作区配置：{e}", file=sys.stderr)
         return 2
     st = S.compute(cfg, a.workspace)
+    warn = C.registry_warning(a.workspace)
     if a.json:
-        out = dict(st)
+        out = dict(st, hook_registry=warn)
         out["claims"] = [dict({k: v for k, v in c.items() if k not in ("over", "must", "carry")},
                               over=[r for r, _ in c["over"]], must=[r for r, _ in c["must"]],
                               carry=[r for r, _ in c.get("carry") or []])
                          for c in st.get("claims") or []]
         print(json.dumps(out, ensure_ascii=False, indent=1))
     else:
+        if warn:
+            print("注意：" + warn)
         print(S.table(st))
-    return 0 if st.get("verdict") in (S.AUTHOR, S.SUBMITTED) and not st.get("blockers") else 1
+    return 0 if S.ready(st) else 1
 
 
 def cmd_health(a):
@@ -348,11 +361,16 @@ def _quiet_reason(cfg, ws, now, idle):
 
 def _inputs_signature(ws, cfg, home, producer):
     """卡片读的东西有没有变：工作区里每个文件的大小与修改时间（来源进程自己的日志和 pid 文件不算）、
-    工作区外的清单与台账、lintel 收件箱里待办的动作。"""
+    工作区外的清单与台账、lintel 收件箱里待办的动作。
+
+    cache/overview-audit 也不算：那是来源进程自己算总览时写的缓存。算进去的话，每次真有变化都要多重算一轮
+    （这一轮写了缓存，下一轮看见「变了」又算一遍）。"""
     ws = Path(ws)
-    own = {ws / "cache" / "lintel.log", ws / "cache" / "lintel.pid"}
+    own = {ws / "cache" / "lintel.log", ws / "cache" / "lintel.log.1", ws / "cache" / "lintel.pid"}
     sig = []
-    for root, _dirs, files in os.walk(ws):
+    for root, dirs, files in os.walk(ws):
+        if Path(root) == ws / "cache" and "overview-audit" in dirs:
+            dirs.remove("overview-audit")
         for f in files:
             p = Path(root) / f
             if p in own:
@@ -382,6 +400,12 @@ def _resting(act):
     return a
 
 
+def _say(msg, file=None):
+    """来源进程的一行日志，带本地时间：中断以后才分得清哪一轮跑了、哪一轮没跑（〈八〉）。"""
+    import time as _t
+    print(f"{_t.strftime('%Y-%m-%d %H:%M:%S')} {msg}", file=file or sys.stdout, flush=True)
+
+
 def cmd_lintel(a):
     """把「等你反应的事」交给 lintel 画（plan 阶段 4.2）。
 
@@ -404,10 +428,10 @@ def cmd_lintel(a):
     pidfile = ws / "cache" / "lintel.pid"
     if not a.once:
         if not LN.registered(a.home, a.producer):
-            print(f"lintel 里没有登记来源 {a.producer}：不启动", file=sys.stderr)
+            _say(f"lintel 里没有登记来源 {a.producer}：不启动", file=sys.stderr)
             return 2
         if _producer_alive(pidfile):
-            print("lintel 来源进程已在跑", file=sys.stderr)
+            _say("lintel 来源进程已在跑", file=sys.stderr)
             return 0
         pidfile.parent.mkdir(parents=True, exist_ok=True)
         pidfile.write_text(f"{os.getpid()}\n")
@@ -421,64 +445,65 @@ def cmd_lintel(a):
         if last_acts is not None and sig == last_sig and now_t - last_built < REBUILD_AT_LEAST:
             acts, problems = last_acts, last_problems   # 输入没变：只续心跳，不重算
         else:
-            problems = [f"{item}：{msg}" for item, msg in doctor.run(a.workspace)[0]]
-            summary = None
-            if not problems:
-                t0 = _t.time()
+            with X.round_reads():   # sentences.json 这一轮只解析一次（index.round_reads）
+                problems = [f"{item}：{msg}" for item, msg in doctor.run(a.workspace)[0]]
+                summary = None
+                if not problems:
+                    t0 = _t.time()
+                    try:
+                        if a.rebuild:
+                            files, summary = X.build(cfg)
+                            X.write(cfg, files)
+                            HL.record_ok(a.workspace, "lintel", _t.time() - t0)
+                        else:
+                            summary = X.load_summary(cfg)
+                            if summary is None:
+                                problems.append("索引：index/ 还没建或读不出（钩子触发的 update 会建）")
+                    except Exception as e:  # 引擎抛了 = 工具异常，不是「没有活动」
+                        HL.record_error(a.workspace, f"{type(e).__name__}：{e}")
+                problems += [f"{item}：{msg}" for item, msg in HL.file_problems(a.workspace)]
+                notices = [f"{item}：{msg}" for item, msg in HL.file_notices(a.workspace)]
+                summary = summary or {**EMPTY_SUMMARY, "name": cfg["name"]}
+                ov = None
+                if not problems:
+                    try:
+                        # 面板上点的「是方法署名」：只认这份稿子当前给出的动作（分镜 ㊺）。
+                        for name, ok, why in IB.take_actions(a.home, LN.activity_id(cfg["name"]),
+                                                             lambda act: OV.apply_action(ovw, act, _t.time()), producer=a.producer):
+                            _say(f"收件 {name}：{'记下' if ok else '没收'}（{why}）")
+                        ov = ovw.get(_t.time())
+                    except Exception as e:  # 总览算不出来是工具异常，照样交上去；卡片其余部分照写
+                        HL.record_error(a.workspace, f"总览：{type(e).__name__}：{e}")
+                        problems.append(f"总览：{type(e).__name__}：{e}")
+                from . import coverage as V
+                turn = readers = None
                 try:
-                    if a.rebuild:
-                        files, summary = X.build(cfg)
-                        X.write(cfg, files)
-                        HL.record_ok(a.workspace, "lintel", _t.time() - t0)
-                    else:
-                        summary = X.load_summary(cfg)
-                        if summary is None:
-                            problems.append("索引：index/ 还没建或读不出（钩子触发的 update 会建）")
-                except Exception as e:  # 引擎抛了 = 工具异常，不是「没有活动」
-                    HL.record_error(a.workspace, f"{type(e).__name__}：{e}")
-            problems += [f"{item}：{msg}" for item, msg in HL.file_problems(a.workspace)]
-            notices = [f"{item}：{msg}" for item, msg in HL.file_notices(a.workspace)]
-            summary = summary or {**EMPTY_SUMMARY, "name": cfg["name"]}
-            ov = None
-            if not problems:
-                try:
-                    # 面板上点的「是方法署名」：只认这份稿子当前给出的动作（分镜 ㊺）。
-                    for name, ok, why in IB.take_actions(a.home, LN.activity_id(cfg["name"]),
-                                                         lambda act: OV.apply_action(ovw, act, _t.time()), producer=a.producer):
-                        print(f"收件 {name}：{'记下' if ok else '没收'}（{why}）", flush=True)
-                    ov = ovw.get(_t.time())
-                except Exception as e:  # 总览算不出来是工具异常，照样交上去；卡片其余部分照写
-                    HL.record_error(a.workspace, f"总览：{type(e).__name__}：{e}")
-                    problems.append(f"总览：{type(e).__name__}：{e}")
-            from . import coverage as V
-            turn = readers = None
-            try:
-                # 这一轮在做什么（开工 / 在跑 / 落地）：读不出是引擎的毛病，照样交上去，不当作「没有在跑」
-                from . import turns as TN
-                turn, readers = TN.current(ws, cfg), TN.readers_run(ws)
-            except Exception as e:  # noqa: BLE001
-                problems.append(f"轮次：{type(e).__name__}：{e}")
-            from . import outlet as OUT
-            analysis = None
-            from . import catalogue as K
-            if K.get(cfg, "ring.analysis"):
-                # 分析 on the ring (spec 2026-09-25 §4.5), off unless turned on: the notch was laid out for seven stages.
-                try:
-                    from . import state as S
-                    analysis = [t for t in S.compute(cfg, a.workspace).get("todo") or [] if t.get("kind") == "分析"]
+                    # 这一轮在做什么（开工 / 在跑 / 落地）：读不出是引擎的毛病，照样交上去，不当作「没有在跑」
+                    from . import turns as TN
+                    turn, readers = TN.current(ws, cfg), TN.readers_run(ws)
                 except Exception as e:  # noqa: BLE001
-                    problems.append(f"分析环：{type(e).__name__}：{e}")
-            cov = V.load_summary(a.workspace, cfg)
-            # What the ring sees past the coverage summary: a landing, the register's decisions, the intent card, a freeze
-            # (spec 2026-09-29-ring-rounds-and-stages). One that cannot be read leaves the ring as it was for that part.
-            from . import ringinputs as RI
-            ring_inputs = RI.gather(cfg, a.workspace, cov, problems) if cov else None
-            acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov, analysis=analysis,
-                            ring_inputs=ring_inputs, coverage=cov, turn=turn, readers=readers,
-                            built_at=(HL.load(a.workspace).get("last_ok") or {}).get("t"),
-                            denials=HL.guard_denials(a.workspace), overrides=HL.gate_overrides(a.workspace),
-                            note=OUT.read(a.workspace))
-            last_sig, last_acts, last_problems, last_built = sig, acts, problems, now_t
+                    problems.append(f"轮次：{type(e).__name__}：{e}")
+                from . import outlet as OUT
+                analysis = None
+                from . import catalogue as K
+                if K.get(cfg, "ring.analysis"):
+                    # 分析 on the ring (spec 2026-09-25 §4.5), off unless turned on: the notch was laid out for seven stages.
+                    try:
+                        from . import state as S
+                        analysis = [t for t in S.compute(cfg, a.workspace).get("todo") or [] if t.get("kind") == "分析"]
+                    except Exception as e:  # noqa: BLE001
+                        problems.append(f"分析环：{type(e).__name__}：{e}")
+                cov = V.load_summary(a.workspace, cfg)
+                # What the ring sees past the coverage summary: a landing, the register's decisions, the intent card, a freeze
+                # (spec 2026-09-29-ring-rounds-and-stages). One that cannot be read leaves the ring as it was for that part.
+                from . import ringinputs as RI
+                ring_inputs = RI.gather(cfg, a.workspace, cov, problems) if cov else None
+                acts = LN.build(summary, now=_t.time(), problems=problems, notices=notices, overview=ov, analysis=analysis,
+                                ring_inputs=ring_inputs, coverage=cov, turn=turn, readers=readers,
+                                built_at=(HL.load(a.workspace).get("last_ok") or {}).get("t"),
+                                denials=HL.guard_denials(a.workspace), overrides=HL.gate_overrides(a.workspace),
+                                note=OUT.read(a.workspace))
+                last_sig, last_acts, last_problems, last_built = sig, acts, problems, now_t
         why = None if a.once else _quiet_reason(cfg, ws, now_t, a.idle_exit)
         # 一次性写卡（--once；钩子给没有常驻来源进程的稿件写的就是这种）没人续心跳、也没人收尾：同样不带心跳，
         # 不然几分钟后 lintel 就标「没消息」（10-04 刘海上挂着「171 分钟没消息」）。旁边有常驻进程在续就照常带。
@@ -487,19 +512,19 @@ def cmd_lintel(a):
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:
-            print(e, file=sys.stderr)
+            _say(e, file=sys.stderr)
             return 2
         # 日志只记有变化的轮次（以前每 10 秒一行，一个工作区的日志涨到 5 MB）。
         news = (counts["written"], counts["removed"], len(problems))
         if a.once or why or news != said:
-            print(f"lintel：{len(acts)} 张卡（新写 {counts['written']}、续心跳 {counts['touched']}、"
-                  f"没变 {counts['unchanged']}、撤掉 {counts['removed']}）"
-                  + (f"；工具异常 {len(problems)} 处" if problems else ""), flush=True)
+            _say(f"lintel：{len(acts)} 张卡（新写 {counts['written']}、续心跳 {counts['touched']}、"
+                 f"没变 {counts['unchanged']}、撤掉 {counts['removed']}）"
+                 + (f"；工具异常 {len(problems)} 处" if problems else ""))
             said = (0, 0, len(problems))
         if a.once:
             return 1 if problems else 0
         if why:
-            print(f"lintel：{why}，来源进程收尾退出（下次有活动时钩子再拉起）", flush=True)
+            _say(f"lintel：{why}，来源进程收尾退出（下次有活动时钩子再拉起）")
             try:
                 if pidfile.read_text().strip() == str(os.getpid()):
                     pidfile.unlink()

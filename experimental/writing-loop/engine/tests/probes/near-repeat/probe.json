@@ -1,0 +1,12 @@
+{
+ "failure": "A rewritten introduction sentence repeated the abstract's sentence with one word changed, so the exact-copy check passed it.",
+ "check": "sentence-changes",
+ "argv": [
+  "--target",
+  "{draft}",
+  "--base",
+  "base",
+  "--json"
+ ],
+ "expect_flag": "repeats_elsewhere"
+}

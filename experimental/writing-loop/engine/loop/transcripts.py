@@ -51,14 +51,26 @@ def sources(cfg):
     return [(t["git_branch"], str(t["cwd_prefix"]))] + [(s["git_branch"], str(s["cwd_prefix"])) for s in t.get("also", [])]
 
 
+def named_files(cfg):
+    """{session id: [transcript files]}. Claude Code writes a session to <projects_dir>/<its cwd, escaped>/<id>.jsonl,
+    so a named session is found under whichever project directory it ran in. An id with no file maps to []."""
+    ids = C.session_ids(cfg)
+    root = C.expand((cfg.get("transcripts") or {}).get("projects_dir") or "")
+    if not ids or not root.is_dir():
+        return {sid: [] for sid in ids}
+    return {sid: sorted(p for p in root.glob(f"*/{sid}.jsonl") if p.is_file()) for sid in ids}
+
+
 def session_files(cfg):
     t = cfg["transcripts"]
     root = C.expand(t["projects_dir"])
     prefixes = {C.escaped_project_dir(p) for _, p in sources(cfg)}
     if not root.is_dir():
         return []
-    return sorted({p for d in root.iterdir() if d.is_dir() and any(d.name.startswith(x) for x in prefixes)
-                   for p in d.glob("*.jsonl")})
+    files = {p for d in root.iterdir() if d.is_dir() and any(d.name.startswith(x) for x in prefixes)
+             for p in d.glob("*.jsonl")}
+    files.update(p for found in named_files(cfg).values() for p in found)
+    return sorted(files)
 
 
 def _under(path, root):
@@ -94,9 +106,12 @@ def read(cfg, files=None, scan_cache=None):
 
     scan_cache: optional path to a JSON file remembering, per session file, (size, mtime_ns, holds the branch).
     A file whose size and mtime are unchanged and that did not hold the branch is not read again: most session
-    files under a busy repository belong to other branches. Any change to a file means it is read in full."""
+    files under a busy repository belong to other branches. Any change to a file means it is read in full. A named
+    session's file (transcripts.sessions) is always read, whatever the cache remembers: it may have been cached before
+    its id was named."""
     t = cfg["transcripts"]
     srcs = sources(cfg)
+    ids = set(C.session_ids(cfg))
     files = session_files(cfg) if files is None else files
     humans, assistants, uncl, bad, seen_files, branch_files = {}, {}, {}, 0, [], []
     tool_cmds, calls = {}, []
@@ -123,12 +138,13 @@ def read(cfg, files=None, scan_cache=None):
     for f in files:
         st = f.stat()
         known = scan.get(str(f))
-        if isinstance(known, list) and known == [st.st_size, st.st_mtime_ns, False]:
+        named = Path(f).stem in ids
+        if not named and isinstance(known, list) and known == [st.st_size, st.st_mtime_ns, False]:
             seen_files.append((str(f), st.st_size))
             continue
         data = f.read_bytes()
         seen_files.append((str(f), len(data)))
-        holds = bool(needle.search(data))
+        holds = named or bool(needle.search(data))
         scan[str(f)] = [len(data), st.st_mtime_ns, holds] if len(data) == st.st_size else None
         if not holds:
             continue
@@ -141,7 +157,8 @@ def read(cfg, files=None, scan_cache=None):
             except json.JSONDecodeError:
                 bad += 1  # a session being written can end mid-line
                 continue
-            if r.get("isSidechain") or not any(r.get("gitBranch") == b and str(r.get("cwd", "")).startswith(p) for b, p in srcs):
+            if r.get("isSidechain") or not (r.get("sessionId") in ids or
+                                            any(r.get("gitBranch") == b and str(r.get("cwd", "")).startswith(p) for b, p in srcs)):
                 continue
             typ = r.get("type")
             att = r.get("attachment") if typ == "attachment" else None

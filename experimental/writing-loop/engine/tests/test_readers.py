@@ -715,5 +715,74 @@ The load holds when $L \le C$ and $a \cdot b \geq 41.75$, with $\alpha = \frac{1
             self.assertTrue(json.loads((Path(root) / "both" / "packet.json").read_text())["snapshot"])
 
 
+ABSTRACT = ("River gauges drift before floods. We ask whether drift warns early. On ten rivers, drift rose before nine "
+            "floods. A cheap fix recalibrates every gauge weekly. It hides the drift that gives the warning, e.g. Tay "
+            "and Dee. Gauges should log drift, not erase it.\n")
+TURN = '"On ten rivers, drift rose" and "A cheap fix recalibrates"'
+
+
+class RelationTurnsTest(unittest.TestCase):
+    """Where readers had to guess how one sentence follows another, placed at the turn between the two sentences they
+    quoted, not only in a paragraph: an abstract is one paragraph, and "P1: 12 readers" did not say where (10-07, K12).
+    Synthetic text only."""
+
+    def run_panel(self, root, answers):
+        root = Path(root)
+        (root / "abstract.txt").write_text(ABSTRACT, encoding="utf-8")
+        out = root / "packet"
+        r = script("build-reader-packet.py", "--text", root / "abstract.txt", "--out", out, "--ask-relations")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        packet = json.loads((out / "packet.json").read_text(encoding="utf-8"))
+        d = panel(root, packet)
+        for f in d.glob("*.json"):
+            o = json.loads(f.read_text(encoding="utf-8"))
+            o["relation_guessed"] = answers.get(f.stem, "none")
+            f.write_text(json.dumps(o), encoding="utf-8")
+        r = script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout), (out / "report.md").read_text(encoding="utf-8"), out, d
+
+    def test_most_readers_guessing_at_one_turn_is_placed_there_and_said_to_be_about_order(self):
+        answers = {"R1_small_1": TURN, "R1_small_2": TURN, "R1_large_1": TURN.upper(),
+                   "R2_small_1": ["On ten rivers, drift rose", "A cheap fix recalibrates"],   # a list, unquoted
+                   "R2_large_1": '"A cheap fix recalibrates" then "It hides the drift"'}
+        with TempDir() as root:
+            got, text, _, _ = self.run_panel(root, answers)
+            self.assertEqual(got["rejected"], [], "a list of the two openings is an answer")
+            turns = got["tally"]["relations"]["turns"]
+            self.assertEqual([(t["from"], t["to"], len(t["readers"]), t["flag"], t["most"]) for t in turns],
+                             [([1, 3], [1, 4], 4, True, True), ([1, 4], [1, 5], 1, False, False)])
+            self.assertIn("P1 第 3 句 → 第 4 句：4 位 ⚑", text)
+            self.assertIn("「On ten rivers, drift rose before…」→「A cheap fix recalibrates every gauge…」", text)
+            self.assertIn("过半读者（4 / 5）卡在 P1 第 3 句 → 第 4 句：这里可能要重排", text)
+
+    def test_readers_spread_over_several_turns_are_not_called_an_order_problem(self):
+        other = '"River gauges drift before" and "We ask whether drift"'
+        answers = {"R1_small_1": TURN, "R1_small_2": TURN, "R1_large_1": TURN,
+                   "R2_small_1": other, "R2_small_2": other, "R2_large_1": other}
+        with TempDir() as root:
+            got, text, _, _ = self.run_panel(root, answers)
+            turns = got["tally"]["relations"]["turns"]
+            self.assertEqual(sorted((t["from"][1], t["to"][1], t["flag"], t["most"]) for t in turns),
+                             [(1, 2, True, False), (3, 4, True, False)])
+            self.assertNotIn("可能要重排", text)
+
+    def test_an_abbreviation_ends_no_sentence(self):
+        answers = {"R1_small_1": '"It hides the drift" and "Gauges should log drift"'}
+        with TempDir() as root:
+            got, _, _, _ = self.run_panel(root, answers)
+            self.assertEqual([(t["from"], t["to"]) for t in got["tally"]["relations"]["turns"]], [([1, 5], [1, 6])])
+
+    def test_a_panel_the_loop_cannot_record_says_so(self):
+        # 10-07: a packet built from a file, not a loop workspace, was tallied and the last line was only the report's
+        # path, which reads like the loop has it.
+        with TempDir() as root:
+            got, _, out, d = self.run_panel(root, {})
+            self.assertFalse(got["recorded"])
+            self.assertIn("--workspace", got["not_recorded"])
+            r = script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d)
+            self.assertIn("没记进循环", r.stdout.strip().splitlines()[-1])
+
+
 if __name__ == "__main__":
     unittest.main()

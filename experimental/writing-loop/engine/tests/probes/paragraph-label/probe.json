@@ -1,0 +1,11 @@
+{
+ "failure": "A run-in \\paragraph carried a \\label that \\ref used; the paragraph has no number, so the reference printed the number of the section around it.",
+ "check": "cross-refs",
+ "argv": [
+  "--root",
+  "{draft}",
+  "--json",
+  "{draft}/draft.tex"
+ ],
+ "expect_flag": "label-after-unnumbered-heading"
+}

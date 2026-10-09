@@ -49,11 +49,7 @@ def landing(cfg):
 
 def _transcript_files(cfg):
     from . import doctor
-    t = cfg.get("transcripts") or {}
-    files = list(doctor.transcript_files(cfg) or [])
-    for s in t.get("also") or []:
-        if isinstance(s, dict) and s.get("cwd_prefix"):
-            files += list(doctor.transcript_files(cfg, s["cwd_prefix"]) or [])
+    files = doctor.all_transcript_files(cfg)
     return files
 
 
