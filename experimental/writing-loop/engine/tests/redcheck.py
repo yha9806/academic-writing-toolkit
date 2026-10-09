@@ -741,6 +741,18 @@ MUTATIONS = [
      'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
     ("risks", 'catalogue.py', '"outside": _sentence_outside,', '"outside": _venue_outside,',
      'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
+    # 谁接受的（spec 2026-10-05-who-accepted-a-sentence）：要有「作者读过」标记，且那句话在会话记录里查得到。
+    ("whoaccepted", 'coverage.py', '    mine = [k for k in ok if read_by_author(cfg, acc[k][1], seen)]',
+     '    mine = list(ok)',
+     'test_coverage.RealCheckTest.test_a_flag_the_author_accepted_counts_in_the_committed_run_and_moves_the_base'),
+    ("whoaccepted", 'coverage.py', '    m = AUTHOR_READ.search(who or "")',
+     '    m = re.search(r"([0-9a-f]{8}[0-9a-f-]*)", who or "")',
+     'test_coverage.RealCheckTest.test_an_acceptance_counts_as_the_authors_reading_only_with_a_mark_whose_message_is_on_record'),
+    ("whoaccepted", 'coverage.py', '        seen[m.group(1)] = bool(TG._approval_in_transcripts(cfg, m.group(1)))',
+     '        seen[m.group(1)] = True',
+     'test_coverage.RealCheckTest.test_an_acceptance_counts_as_the_authors_reading_only_with_a_mark_whose_message_is_on_record'),
+    ("whoaccepted", 'coverage.py', '    if not (m and cfg.get("transcripts")):', '    if not m:',
+     'test_coverage.RealCheckTest.test_an_acceptance_counts_as_the_authors_reading_only_with_a_mark_whose_message_is_on_record'),
     # 10-08：按「4 , 120」接受的句子，改成按页面印法（4,120）读后仍算接受；只认句子列就是算键原文的行。
     ("rendering", 'coverage.py', '                alias[sentence_key(SPACED_DIGIT_GROUP.sub(",", cells[3]))] = given', '                pass',
      'test_coverage.AcceptedRenderingTest.test_an_acceptance_given_to_a_spaced_digit_group_follows_the_corrected_rendering'),
