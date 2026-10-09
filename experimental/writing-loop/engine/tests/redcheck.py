@@ -856,6 +856,12 @@ MUTATIONS = [
      'test_method_ledger.MethodLedgerTest.test_a_run_in_heading_is_not_part_of_the_sentence'),
     ("method", 'skill:audit/scripts/audit-method-ledger.py', '            if sentence and ck.sentence_present(loc, sentence):\n                errors.append(("retired-but-present"', '            if False:\n                errors.append(("retired-but-present"',
      'test_method_ledger.MethodLedgerTest.test_a_retired_row_needs_its_commit_and_its_sentence_gone'),
+    # 退役行不再替新句作保（10-09）：退役句的一截写回稿里要报 unledgered；退役句整句回来只报 retired-but-present 一次。
+    ("method", 'skill:audit/scripts/audit-method-ledger.py', '    ledgered = [body(s) for s in vouching]', '    ledgered = [body(r.get("sentence") or "") for r in rows]',
+     'test_method_ledger.MethodLedgerTest.test_a_retired_row_vouches_for_no_new_sentence'),
+    ("method", 'skill:audit/scripts/audit-method-ledger.py', '                errors.append(("retired-but-present", rid, loc))\n                vouching.append(sentence)\n',
+     '                errors.append(("retired-but-present", rid, loc))\n',
+     'test_method_ledger.MethodLedgerTest.test_a_retired_row_needs_its_commit_and_its_sentence_gone'),
     ("method", 'skill:audit/scripts/audit-method-ledger.py', '            for rid in sorted(known - now):', '            for rid in []:',
      'test_method_ledger.MethodLedgerTest.test_a_row_that_vanishes_is_reported_until_it_is_retired'),
     ("method", 'skill:audit/scripts/audit-method-ledger.py', '                    if outside:\n                        self.outside.append(path)', '                    if False:\n                        self.outside.append(path)',

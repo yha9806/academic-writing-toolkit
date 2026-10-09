@@ -516,6 +516,10 @@ def audit(a):
     ck = Checker(a)
     flags = re.compile(a.note_flags or NOTE_FLAGS, re.I)
     errors, pending, seen, with_pointer = [], 0, {}, 0
+    # The sentences rows vouch for, for the --full sweep. A retired row vouches for none: its sentence was deleted, and
+    # counting it let a new sentence that is part of it pass as ledgered. One whose sentence is back stays in, since
+    # retired-but-present already names that sentence and saying it again as unledgered adds nothing.
+    vouching = []
     for r in rows:
         rid = (r.get("id") or "").strip()
         if rid in seen:
@@ -530,7 +534,9 @@ def audit(a):
                 errors.append(("bad-verdict", rid, f"retired 要带删去它的提交号，且提交要在仓里：{verdict[:40]}"))
             if sentence and ck.sentence_present(loc, sentence):
                 errors.append(("retired-but-present", rid, loc))
+                vouching.append(sentence)
             continue
+        vouching.append(sentence)
         if not ck.sentence_present(loc, sentence):
             errors.append(("sentence-changed", rid, loc))
         if (r.get("claim_type") or "").strip() == "none":
@@ -563,7 +569,7 @@ def audit(a):
                 errors.append(("pointer-missing", rid, "commit:" + sha))
     if not with_pointer:
         raise Stop("台账里没有一行带可检查的出处，不把这当成通过")
-    ledgered = [body(r.get("sentence") or "") for r in rows]
+    ledgered = [body(s) for s in vouching]
     for f in a.full:
         raw = ck.tree.read(f)
         if raw is None:

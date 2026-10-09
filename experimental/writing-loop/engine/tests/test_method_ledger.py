@@ -165,6 +165,25 @@ class MethodLedgerTest(unittest.TestCase):
             code, out, _ = run(ms, e0, commit)
             self.assertEqual(kinds(out), ["bad-verdict"])
 
+    def test_a_retired_row_vouches_for_no_new_sentence(self):
+        # A retired row's sentence was deleted. Its words used to stay in the "ledgered" list, so a new sentence that
+        # happened to be part of it was never reported as unledgered.
+        with TempDir() as root:
+            e0, commit = e0_repo(root)
+            ms = manuscript(root)
+            head = git(ms, "rev-parse", "HEAD")
+            gone = {"id": "L-004", "loc": "sections/data.tex:4", "claim_type": "procedure", "pointer": "",
+                    "sentence": "Since the spring survey, North Gate keeps a copy of every reading.",
+                    "verdict": f"retired {head}"}
+            (ms / "method-ledger.tsv").write_text(ledger_text(ROWS + [gone]), encoding="utf-8")
+            code, out, err = run(ms, e0, commit)
+            self.assertEqual((code, out["errors"]), (0, []), ("retired and gone is history, not an error", out, err))
+            (ms / "sections" / "data.tex").write_text(DATA + "North Gate keeps a copy of every reading.\n", encoding="utf-8")
+            code, out, err = run(ms, e0, commit)
+            self.assertEqual(code, 1, (out, err))
+            self.assertEqual(kinds(out), ["unledgered"])
+            self.assertIn("North Gate keeps a copy", out["errors"][0]["detail"])
+
     def test_a_row_that_vanishes_is_reported_until_it_is_retired(self):
         # G3: a rebuild dropped rows and the check saw nothing, since a row that is gone does not exist for it.
         with TempDir() as root:
