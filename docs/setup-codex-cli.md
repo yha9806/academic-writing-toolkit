@@ -107,6 +107,56 @@ the network unless `--install-deps` needs to prepare a runtime.
 
 ## Receipts and recovery
 
+### Export a selected local plugin
+
+To distribute a selected group through Codex's plugin installer, prepare a
+local package instead of installing the global skill catalogue:
+
+```bash
+python3 scripts/export-codex-plugin.py --out ./local-plugin --install-deps \
+  --skill audit --skill export --skill integrate --skill map \
+  --skill note --skill read --skill review --skill verify-refs \
+  --preserve-policy-from ~/.agents/skills
+```
+
+Omit `--preserve-policy-from` when there are no existing local choices to
+carry over. It retains selected skills' `agents/openai.yaml` files and their
+`disable-model-invocation`, `user-invocable` and `allowed-tools` fields; it
+does not copy local instruction bodies. Missing policy-source skills use
+upstream defaults. The catalogue's default remains all nine skills when no
+`--skill` options are provided. Duplicate selections are de-duplicated.
+
+`--install-deps` uses the same pinned requirements as the global installer in
+a private runtime beside the output. Alternatively, pass `--python` with a
+prepared interpreter. Node helpers use the installed Node executable.
+
+The exporter prepares resources through the existing Codex installer and
+checks referenced helpers. Selections containing audit, export, map and
+verify-refs also run its real offline reference, word-count, DOCX and ZIP
+smoke checks. It writes a `.codex-plugin/plugin.json` manifest and a source,
+selection and file-hash receipt. Package versions include the source commit
+and prepared-content digest.
+
+An existing identical output is unchanged. A different or foreign output is
+refused; choose a new directory and keep the previous package for rollback.
+The command does not register, install, enable or disable anything in Codex.
+Retain the host's existing enabled/disabled settings when installing the
+result through a local marketplace.
+
+This is a local package for the selected Python runtime. Keep that runtime
+available; the readers workflow also retains its source-checkout engine
+reference. Export on the destination machine instead of treating the output
+as a portable release archive. Generated receipts can contain local paths
+and should remain local.
+
+Verify the export command with:
+
+```bash
+python3 scripts/test-codex-plugin.py
+```
+
+### Global installer recovery
+
 The installer prints the exact destination, source commit, file count,
 receipt and backup location. `sourceDirty` records whether the tool checkout
 had local changes. The current receipt stores SHA-256 hashes for all installed
