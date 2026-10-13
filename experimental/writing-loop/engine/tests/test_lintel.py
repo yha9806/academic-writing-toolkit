@@ -942,7 +942,7 @@ class ResidentTest(unittest.TestCase):
 
 class QuietTest(unittest.TestCase):
     """K10 功耗（2026-10-01）：常驻来源进程只起不停，每 10 秒把整套状态从头算一遍。已投稿或长时间没有活动就收尾退出，
-    退出前把卡片改成不带心跳的一份（不然 lintel 会把它标成「没消息」）；输入没变就只续心跳；日志只记有变化的轮次。"""
+    退出前把卡片改成不带心跳的一份（不然 lintel 会把它标成「没消息」），并撤下刘海（2026-10-13）；输入没变就只续心跳；日志只记有变化的轮次。"""
 
     def _ws(self, root, stage="分析"):
         from loop import config as C
@@ -961,6 +961,18 @@ class QuietTest(unittest.TestCase):
     def _card(self, home):
         return json.loads(next((home / "producers" / L.PRODUCER / "activities").glob("loop-*.json")).read_text(encoding="utf-8"))
 
+    def _off_the_notch(self, card):
+        # 2026-10-13: five cards sat on the notch with open true and stale false, days after their producers had gone.
+        # lintel's main slot drops a card that is stale; its detached island drops a manuscript that is not open.
+        self.assertTrue(card["stale"], "lintel keeps an activity that is not stale in the notch's main slot")
+        self.assertFalse(card["open"], "lintel's detached island keeps any open manuscript that moved in the last three days")
+        self.assertIn("closedAt", card)
+
+    def _on_the_notch(self, card):
+        self.assertFalse(card["stale"])
+        self.assertTrue(card["open"])
+        self.assertNotIn("closedAt", card)
+
     def test_a_submitted_paper_rests_its_card_and_the_producer_exits(self):
         from loop.cli import main
         with TempDir() as root:
@@ -970,6 +982,7 @@ class QuietTest(unittest.TestCase):
             card = self._card(home)
             self.assertNotIn("heartbeatSeconds", card, "a resting card carries no heartbeat, or lintel marks it silent")
             self.assertFalse(card["running"])
+            self._off_the_notch(card)
             self.assertFalse((ws / "cache" / "lintel.pid").exists(), "the producer takes its pidfile with it")
 
     def test_a_workspace_with_no_activity_for_the_idle_window_rests(self):
@@ -987,6 +1000,7 @@ class QuietTest(unittest.TestCase):
                            "--idle-exit", "1800", "--now", str(NOW)])
             self.assertEqual(rc, 0)
             self.assertNotIn("heartbeatSeconds", self._card(home))
+            self._off_the_notch(self._card(home))
             self.assertIn("分钟没有活动", out.getvalue())
 
     def test_a_one_shot_card_with_no_producer_rests(self):
@@ -1000,6 +1014,7 @@ class QuietTest(unittest.TestCase):
             card = self._card(home)
             self.assertNotIn("heartbeatSeconds", card, "no one renews a one-shot card, so it carries no heartbeat")
             self.assertFalse(card["running"])
+            self._off_the_notch(card)
 
     def test_a_one_shot_card_beside_a_live_producer_keeps_its_heartbeat(self):
         from unittest import mock
@@ -1010,6 +1025,15 @@ class QuietTest(unittest.TestCase):
             with mock.patch("loop.cli._producer_alive", return_value=True):
                 self.assertEqual(main(["lintel", str(ws), "--once", "--home", str(home)]), 0)
             self.assertIn("heartbeatSeconds", self._card(home), "the resident producer renews it")
+            self._on_the_notch(self._card(home))
+
+    def test_a_resting_card_that_says_the_engine_is_broken_stays_on_the_notch(self):
+        # Retiring it would make a broken tool look quiet, and quiet looks the same as fine (cmd_lintel).
+        a = L.rest(only(L.build(summary(), now=NOW, problems=["索引：读不出"])), now=NOW)
+        self.assertEqual(a["rank"], "anomaly")
+        self.assertNotIn("heartbeatSeconds", a)
+        self._on_the_notch(a)
+        self._off_the_notch(L.rest(only(L.build(summary(), now=NOW)), now=NOW))
 
     def test_an_active_workspace_keeps_its_heartbeat_and_logs_only_changes(self):
         from loop.cli import main
@@ -1021,6 +1045,7 @@ class QuietTest(unittest.TestCase):
                 rc = main(["lintel", str(ws), "--home", str(home), "--interval", "0", "--rounds", "3"])
             self.assertEqual(rc, 0)
             self.assertIn("heartbeatSeconds", self._card(home))
+            self._on_the_notch(self._card(home))
             lines = [x for x in out.getvalue().splitlines() if "lintel：" in x]
             self.assertEqual(len(lines), 1, f"three rounds with nothing changed log one line: {lines}")
 

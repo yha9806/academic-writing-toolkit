@@ -796,11 +796,33 @@ def registered(home=None, producer=PRODUCER):
     return isinstance(producers, dict) and producer in producers
 
 
+def rest(act, *, now):
+    """The card left for lintel when no producer process will rewrite it: the resident producer is exiting (submitted,
+    or idle past its window), or a one-shot write found none alive. No heartbeat (no one renews it, and past the limit
+    lintel marks it silent) and not running.
+
+    It also leaves the notch, which takes two fields because lintel has two filters there (lintel 5dd9452): the main
+    slot drops an activity that is `stale` (Ordering.awake), the detached island drops a manuscript that is not `open`
+    (Detached.manuscript keeps any open one that moved in the last three days). 2026-10-13: five cards still said open
+    and not stale days after their producers had gone, and had to be moved out by hand. Not open is also what the
+    field means (Activity.open: the source is still there); it takes the manuscript off the window's list too. The next
+    producer to start writes the card live again.
+
+    A card that says the engine is broken stays: retiring it would make a broken tool look quiet (cmd_lintel)."""
+    a = dict(act)
+    a.pop("heartbeatSeconds", None)
+    a["running"] = False
+    a["inProgress"] = False
+    if a.get("rank") != "anomaly":
+        a.update(open=False, stale=True, closedAt=_iso(now))
+    return a
+
+
 def sync(acts, *, home=HOME, producer=PRODUCER, now=None, heartbeat=HEARTBEAT):
     """写进 lintel 的活动目录。返回 {"written","touched","unchanged","removed"}。
 
     写法照协议：先写临时文件再改名（读的人永远看到完整的一份）。只清掉旧版六张卡留下的文件；
-    别的稿件的活动由它们自己的产出管，这里不碰。"""
+    别的稿件的活动由它们自己的产出管，这里不碰。稿件收尾也不删文件：来源进程退出前写一份 `rest()` 过的卡，宿主据此撤下刘海。"""
     if not registered(home, producer):
         raise NotRegistered(f"lintel 里没有登记来源 {producer}（{home}/registry.json）：没登记就不写，也不建目录")
     now = time.time() if now is None else now

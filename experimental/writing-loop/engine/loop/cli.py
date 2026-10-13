@@ -391,15 +391,6 @@ def _inputs_signature(ws, cfg, home, producer):
     return hash(tuple(sorted(sig)))
 
 
-def _resting(act):
-    """收尾时留给 lintel 的那一份：不带心跳（不然过了心跳时限会被标成「没消息」），也不算在跑。"""
-    a = dict(act)
-    a.pop("heartbeatSeconds", None)
-    a["running"] = False
-    a["inProgress"] = False
-    return a
-
-
 def _say(msg, file=None):
     """来源进程的一行日志，带本地时间：中断以后才分得清哪一轮跑了、哪一轮没跑（〈八〉）。"""
     import time as _t
@@ -507,8 +498,9 @@ def cmd_lintel(a):
         why = None if a.once else _quiet_reason(cfg, ws, now_t, a.idle_exit)
         # 一次性写卡（--once；钩子给没有常驻来源进程的稿件写的就是这种）没人续心跳、也没人收尾：同样不带心跳，
         # 不然几分钟后 lintel 就标「没消息」（10-04 刘海上挂着「171 分钟没消息」）。旁边有常驻进程在续就照常带。
+        # 收尾的卡同时撤下刘海（LN.rest；10-13 五张卡在来源进程退出几天后还挂着）。
         if why or (a.once and not _producer_alive(pidfile)):
-            acts = [_resting(x) for x in acts]
+            acts = [LN.rest(x, now=now_t) for x in acts]
         try:
             counts = LN.sync(acts, home=a.home, producer=a.producer)
         except LN.NotRegistered as e:
