@@ -771,7 +771,10 @@ MUTATIONS = [
     # 常驻来源进程省电（K10，2026-10-01）：拿掉一处，来源进程就会照旧只起不停、全量重算、每轮记一行。
     ("quiet", 'cli.py', '    return stage if stage and S.SUBMITTED_STAGE.search(stage) else None', '    return None', 'test_lintel.QuietTest.test_a_submitted_paper_rests_its_card_and_the_producer_exits'),
     ("quiet", 'cli.py', '        if last is not None and now - last > idle:', '        if False:', 'test_lintel.QuietTest.test_a_workspace_with_no_activity_for_the_idle_window_rests'),
-    ("quiet", 'cli.py', '    a.pop("heartbeatSeconds", None)\n', '', 'test_lintel.QuietTest.test_a_submitted_paper_rests_its_card_and_the_producer_exits'),
+    ("quiet", 'lintel.py', '    a.pop("heartbeatSeconds", None)\n', '', 'test_lintel.QuietTest.test_a_submitted_paper_rests_its_card_and_the_producer_exits'),
+    # 收尾的卡撤下刘海（2026-10-13）：拿掉就留在刘海上；例外拿掉，跑挂了的卡也被撤走。
+    ("quiet", 'lintel.py', '        a.update(open=False, stale=True, closedAt=_iso(now))', '        pass', 'test_lintel.QuietTest.test_a_workspace_with_no_activity_for_the_idle_window_rests'),
+    ("quiet", 'lintel.py', '    if a.get("rank") != "anomaly":', '    if True:', 'test_lintel.QuietTest.test_a_resting_card_that_says_the_engine_is_broken_stays_on_the_notch'),
     ("quiet", 'cli.py', '        if why or (a.once and not _producer_alive(pidfile)):', '        if why:', 'test_lintel.QuietTest.test_a_one_shot_card_with_no_producer_rests'),
     ("quiet", 'cli.py', '        if why or (a.once and not _producer_alive(pidfile)):', '        if why or a.once:', 'test_lintel.QuietTest.test_a_one_shot_card_beside_a_live_producer_keeps_its_heartbeat'),
     ("quiet", 'cli.py', '            said = (0, 0, len(problems))', '            said = None', 'test_lintel.QuietTest.test_an_active_workspace_keeps_its_heartbeat_and_logs_only_changes'),
