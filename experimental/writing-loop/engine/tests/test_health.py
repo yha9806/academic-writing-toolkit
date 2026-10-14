@@ -135,6 +135,13 @@ class DetachedTest(unittest.TestCase):
                 time.sleep(0.05)
             self.assertEqual(HL.load(ws)["last_ok"]["reason"], "spawned")
             self.assertTrue((ws / "index" / "sources.json").exists())
+            # last_ok is written before the coverage pass, which the detached update still runs into cache/coverage/runs.
+            # Leaving now let the temp dir's cleanup race those writes ("Directory not empty: 'runs'" on CI, 10-09).
+            # The lock goes only after the coverage pass, so the update is done writing once it is gone.
+            lock = ws / "cache" / "update.lock"
+            while time.time() < deadline + 20 and lock.exists():
+                time.sleep(0.05)
+            self.assertFalse(lock.exists(), "the detached update did not finish")
 
 
 
