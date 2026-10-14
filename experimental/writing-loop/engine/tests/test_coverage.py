@@ -846,8 +846,44 @@ class RealCheckTest(unittest.TestCase):
                 rec = V.load_run(ws, "sentence-changes")
                 self.assertEqual(rec["verdict"], "ok", rec["summary"])
                 self.assertIn("已接受 1", rec["summary"])
+                self.assertIn("作者读过 0 句", rec["summary"], "a row that only says author is not a reading on record")
                 self.assertEqual(rec["clean_head"], git(repo, "rev-parse", "HEAD"))
                 self.assertEqual(rec["accepted"], [key])
+
+    def test_an_acceptance_counts_as_the_authors_reading_only_with_a_mark_whose_message_is_on_record(self):
+        # spec 2026-10-05-who-accepted-a-sentence: on one manuscript a clean run rested on 19 acceptances, each written
+        # by the model that wrote the sentence, and it read like a run the author had read.
+        from fixtures import make_transcripts
+        said = "abcdef12-0000-4000-8000-000000000001"
+        with TempDir() as root:
+            plain = INTRO.replace("Inspections are rare.", "Inspections are few.")
+            repo, ws = setup(root, [({"sections/01_intro.tex": plain}, "v2", 1_700_000_100)])
+            cfg = C.load(ws)
+            make_transcripts(root, cfg["transcripts"]["cwd_prefix"], cfg["transcripts"]["git_branch"],
+                             [{"type": "user", "uuid": said, "timestamp": "2026-10-05T00:00:00Z",
+                               "message": {"role": "user", "content": "读过了，这句可以"}}])
+            for who, mine in (("作者 10-05 按默认（句子由 Claude 写，作者未逐句读）", False),
+                              (f"作者 uuid {said}（按默认）", False),
+                              (f"作者读过：uuid {said}", True),
+                              (f"author-read: uuid {said[:8]}", True),
+                              ("作者读过：uuid deadbeef-0000-4000-8000-000000000009", False)):
+                self.assertEqual(V.read_by_author(cfg, who), mine, who)
+            self.assertFalse(V.read_by_author({**cfg, "transcripts": None}, f"作者读过：uuid {said}"),
+                             "without transcripts nothing can be found on record")
+            with Probe(K.by_id("sentence-changes")):
+                V.compute(cfg, ws, do_run=True)
+                bad = plain.replace("Inspections are few.", "Inspections, which the county still schedules, are few.")
+                commit(repo, {"sections/01_intro.tex": bad}, "v3", 1_700_000_200)
+                reindex(ws)
+                V.compute(cfg, ws, do_run=True)
+                key = V.sentence_key(V.load_run(ws, "sentence-changes")["result"]["issues"][0]["new"])
+                V.accepted_path(cfg).write_text(f"{key}\tthe schedule is the finding\t作者读过：uuid {said}\t…\n",
+                                                encoding="utf-8")
+                V.compute(cfg, ws, do_run=True)
+                rec = V.load_run(ws, "sentence-changes")
+                self.assertEqual(rec["verdict"], "ok", rec["summary"])
+                self.assertIn("已接受 1 句（作者读过 1 句）", rec["summary"])
+                self.assertEqual(rec["accepted_by_author"], [key])
 
     def test_an_uncommitted_rewrite_is_read_and_holds_the_turn_until_fixed_or_accepted(self):
         # About two thirds of one session's writes to a draft went through scripts run in a shell, which a gate on the
@@ -1530,3 +1566,96 @@ class AcceptedRenderingTest(unittest.TestCase):
             self.assertEqual(acc[V.sentence_key(spaced)], ("size is the finding", "author"))
             self.assertNotIn(V.sentence_key("The survey is 4,120 long."), acc,
                              "a sentence column that is not the keyed text carries no acceptance")
+
+
+class NumberSourceOutsideSnapshotTest(unittest.TestCase):
+    """10-07 and 10-09: a number ledger whose source files the config did not list in inputs.number_artifacts read
+    every row as artifact-missing, and the row said only 「硬错 N」, as if the files were gone. The loop copies the draft
+    and the listed files, nothing else. A source the commit has and the copy does not is said as that; it is still a
+    hard finding, since the run did not read it. Synthetic files throughout."""
+
+    LEDGER = "printed\tin_artifact\tscope\tartifact\tlocator\n12\t12\t-\t{artifact}\tgauge reading 12\n"
+
+    def _setup(self, root, ledger_path, artifact, files):
+        files = {ledger_path: self.LEDGER.format(artifact=artifact), **files}
+        repo, ws = setup(root, [(files, "ledger", 1_700_000_050)])
+        cfg = C.load(ws)
+        cfg.setdefault("inputs", {})["number_ledger"] = ledger_path
+        C.save(ws, cfg)
+        reindex(ws)
+        return repo, ws
+
+    def _run(self, ws):
+        with Probe(K.by_id("number-ledger")):
+            V.compute(C.load(ws), ws, do_run=True)
+        return V.load_run(ws, "number-ledger")
+
+    def test_a_source_the_commit_has_and_the_config_does_not_list_is_said_to_be_outside_the_copy(self):
+        with TempDir() as root:
+            repo, ws = self._setup(root, "numbers.tsv", "results/gauges.txt",
+                                   {"results/gauges.txt": "gauge reading 12\n"})
+            rec = self._run(ws)
+            self.assertEqual(rec["result"]["hard_finding_count"], 1, rec["summary"])
+            self.assertTrue(rec["summary"].startswith("硬错 1"), "still counted as a hard finding: " + rec["summary"])
+            self.assertIn("inputs.number_artifacts", rec["summary"])
+            self.assertIn("results/gauges.txt", rec["summary"])
+            self.assertIn("快照", rec["summary"])
+            cfg = C.load(ws)
+            cfg["inputs"]["number_artifacts"] = ["results/gauges.txt"]
+            C.save(ws, cfg)
+            rec = self._run(ws)
+            self.assertEqual(rec["result"]["hard_finding_count"], 0, rec["summary"])
+            self.assertNotIn("快照", rec["summary"], "listed, copied and read: nothing to say")
+
+    def test_a_source_beside_the_ledger_is_looked_for_where_the_audit_looks(self):
+        with TempDir() as root:
+            repo, ws = self._setup(root, "numbers/numbers.tsv", "gauges.txt",
+                                   {"numbers/gauges.txt": "gauge reading 12\n"})
+            rec = self._run(ws)
+            self.assertIn("inputs.number_artifacts", rec["summary"])
+            self.assertIn("numbers/gauges.txt", rec["summary"])
+
+    def test_a_source_the_commit_does_not_have_is_not_blamed_on_the_copy(self):
+        with TempDir() as root:
+            repo, ws = self._setup(root, "numbers.tsv", "results/gauges.txt", {})
+            rec = self._run(ws)
+            self.assertEqual(rec["result"]["hard_finding_count"], 1, rec["summary"])
+            self.assertNotIn("inputs.number_artifacts", rec["summary"])
+            head = git(repo, "rev-parse", "HEAD")
+            self.assertIn(f"提交 {head[:7]} 里也没有", rec["summary"])
+
+
+class RunOnlySkipTest(unittest.TestCase):
+    """10-09: `loop coverage <ws> --run --only <id>` on a commit the check had already run at kept that result and said
+    nothing, so a result from an earlier hour was read as a new one. The result is still kept (that is --force's job);
+    the screen says so, with the time of the run it kept."""
+
+    def _coverage(self, *args):
+        import contextlib
+        import io
+        from loop import cli
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            cli.main(["coverage", *args])
+        return out.getvalue(), err.getvalue()
+
+    def test_a_named_check_that_is_not_rerun_says_whose_result_stands_and_how_to_rerun(self):
+        with TempDir() as root:
+            repo, ws = setup(root)
+            with Probe(probe_check(root)):
+                out, _ = self._coverage(str(ws), "--run", "--only", "probe")
+                self.assertIn("这次跑了：probe", out)
+                at = V.load_run(ws, "probe")["at"]
+                out, _ = self._coverage(str(ws), "--run", "--only", "probe")
+                self.assertEqual(V.load_run(ws, "probe")["at"], at, "kept, not rerun: the behaviour is unchanged")
+                said = [ln for ln in out.splitlines() if "probe" in ln and "--force" in ln]
+                self.assertEqual(len(said), 1, out)
+                self.assertIn("沿用", said[0])
+                self.assertIn(at[:16].replace("T", " "), said[0], "the time of the run that was kept")
+                out, err = self._coverage(str(ws), "--run", "--only", "probe", "--json")
+                self.assertEqual([s["id"] for s in json.loads(out)["skipped"]], ["probe"])
+                self.assertIn("--force", err, "a JSON reader's screen is told too")
+                out, _ = self._coverage(str(ws), "--run", "--only", "probe", "--force")
+                self.assertIn("这次跑了：probe", out)
+                self.assertNotIn("沿用", out)
+                self.assertNotEqual(V.load_run(ws, "probe")["at"], at)

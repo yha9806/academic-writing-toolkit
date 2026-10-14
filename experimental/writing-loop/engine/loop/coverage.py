@@ -616,6 +616,12 @@ def run(check, cfg, ws, head, sentences, now=None, timeout=TIMEOUT, record=True)
                     rec["result"] = json.loads(r.stdout)
                 except ValueError:
                     pass
+            if check.get("note") and verdict != "failed" and isinstance(rec.get("result"), dict):
+                # What the check cannot know about the copy it ran on (a source the copy left out): added, never in
+                # place of its own count.
+                note = check["note"](ctx, rec["result"])
+                if note:
+                    rec["summary"] = f"{rec['summary']}（{note}）"
         except subprocess.TimeoutExpired:
             rec.update({"exit": None, "verdict": "failed", "summary": f"超时（{check.get('timeout') or timeout} 秒）"})
         except OSError as e:
@@ -643,9 +649,31 @@ def _apply_acceptances(rec, cfg):
     if not ok:
         return
     rec["accepted"] = ok
-    rec["summary"] = (rec.get("summary") or "") + f"，已接受 {len(ok)} 句"
+    # Who released each sentence (spec 2026-10-05-who-accepted-a-sentence): on one manuscript every acceptance of a
+    # clean run had been written by the model that wrote the sentence, and the run read like one the author had read.
+    seen = {}
+    mine = [k for k in ok if read_by_author(cfg, acc[k][1], seen)]
+    rec["accepted_by_author"] = mine
+    rec["summary"] = (rec.get("summary") or "") + f"，已接受 {len(ok)} 句（作者读过 {len(mine)} 句）"
     if len(ok) == len(keys):
         rec["verdict"] = "ok"
+
+
+AUTHOR_READ = re.compile(r"(?:作者读过|author-read)\s*[:：]\s*uuid\s+([0-9a-f][0-9a-f-]{7,})")
+
+
+def read_by_author(cfg, who, seen=None):
+    """An acceptance counts as the author's only when its "who decided" cell carries 作者读过：uuid <id> and that message
+    is on record in this workspace's transcripts. Anything else, including a general approval given before the wording
+    existed, counts as the model's: free text cannot tell the two apart. `seen` keeps one lookup per uuid in a run (a
+    uuid not on record is not cached on disk, and the transcripts can run to hundreds of megabytes)."""
+    m = AUTHOR_READ.search(who or "")
+    if not (m and cfg.get("transcripts")):
+        return False
+    seen = {} if seen is None else seen
+    if m.group(1) not in seen:
+        seen[m.group(1)] = bool(TG._approval_in_transcripts(cfg, m.group(1)))
+    return seen[m.group(1)]
 
 
 BASE_WHY = {"clean": "上次无标出", "pin": "base_ref", "parent": "上一提交", "head": "当前提交"}
@@ -938,7 +966,7 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     """Rows for every check, running the due script checks first when do_run. Writes cache/coverage/summary.json."""
     sentences, index_head = current_sentences(ws)
     head = _git(cfg["repo"], "rev-parse", "--verify", f"{cfg['ref']}^{{commit}}")
-    ran = []
+    ran, skipped = [], []
     checks = K.all_checks(cfg)
     if do_run and sentences is not None and head:
         for check in checks:
@@ -947,9 +975,15 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
             if not check.get("auto", True) and not (only and check["id"] in only):
                 continue  # a slow project check runs only when named
             r = row(check, cfg, ws, head, sentences, index_head)
-            if check["kind"] == "script" and (due(r) or (force and r["status"] in (OK, FAILED, STALE, NEVER, ACCEPTED))):
+            rerunnable = r["status"] in (OK, FAILED, STALE, NEVER, ACCEPTED)
+            if check["kind"] == "script" and (due(r) or (force and rerunnable)):
                 run(check, cfg, ws, head, sentences, now=now)
                 ran.append(check["id"])
+            elif only and check["kind"] == "script" and rerunnable:
+                # Named, and kept because nothing it reads has changed (10-09: an hour-old timeout on the same commit
+                # was read as a new one). Kept as before; the caller says whose result stands and how to rerun.
+                skipped.append({"id": check["id"], "status": r["status"], "at": r.get("last_at"),
+                                "commit": r.get("last_commit"), "result": r.get("result")})
     rows = [row(c, cfg, ws, head, sentences, index_head) for c in checks]
     scan = scan_coverage(cfg, head)
     if scan is not None:
@@ -960,7 +994,7 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     summary = {"schema": SCHEMA, "workspace": cfg["name"], "ref": cfg.get("ref"), "head": head,
                "index_head": index_head, "index_behind": bool(head and index_head and head != index_head),
                "computed_at": dt.datetime.fromtimestamp(now or time.time(), dt.timezone.utc).isoformat(),
-               "format": draft_format(cfg), "rows": rows, "counts": counts, "ran": ran,
+               "format": draft_format(cfg), "rows": rows, "counts": counts, "ran": ran, "skipped": skipped,
                "fingerprint": fingerprint(cfg, ws),
                "config_waivers_ignored": sorted((cfg.get("waive") or {}).keys()),
                "target": TG.describe(cfg),
@@ -976,6 +1010,20 @@ def compute(cfg, ws, do_run=False, now=None, only=None, force=False):
     tmp.replace(d / "summary.json")
     refresh_outlet(ws, cfg)
     return summary
+
+
+def skipped_lines(summary):
+    """One line per check named with --only that --run kept instead of rerunning: the run whose result stands, by
+    time and commit, and how to rerun it."""
+    out = []
+    for s in summary.get("skipped") or []:
+        at = str(s.get("at") or "")
+        when = at[:16].replace("T", " ") + " UTC" if at else "时间不明"
+        result = str(s.get("result") or "")
+        result = result if len(result) <= 60 else result[:59] + "…"
+        out.append(f"{s['id']} 没有重跑：沿用 {when}（提交 {s.get('commit') or '?'}）那次的结果「{s.get('status')}"
+                   + (f"：{result}" if result else "") + "」；要重跑加 --force")
+    return out
 
 
 def live_line(ws, cfg):

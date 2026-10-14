@@ -122,6 +122,20 @@ The next sentence must survive.
                          "Caption: Dials.", "The next sentence must survive."):
                 self.assertIn(kept, text)
 
+    def test_a_draft_named_by_one_pattern_string_is_read_as_one_pattern(self):
+        # draft.glob may be one string, the engine's default form (loop/doctor.py reads it so). The packet iterated it
+        # as a list, so each character became a pattern and "/" made Path.glob raise: no packet at all.
+        with TempDir() as root:
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            cfg["draft"]["glob"] = "sections/*_intro.tex"
+            C.save(ws, cfg)
+            reindex(ws)
+            out, packet = self.build(root, ws)
+            self.assertIn("Inspections are rare.", (out / "manuscript.txt").read_text(encoding="utf-8"))
+            self.assertEqual(packet["source"]["draft_changed"], (repo / "sections" / "01_intro.tex").stat().st_mtime,
+                             "the draft's own file on disk, matched by the whole pattern")
+
     def test_personas_and_questions_can_come_from_the_workspace(self):
         with TempDir() as root:
             repo, ws = setup(root)
