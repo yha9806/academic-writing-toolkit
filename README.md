@@ -109,6 +109,11 @@ The former packaged Codex plugin (`plugins/`)
 was decommissioned with the v0.1 rebuild; it remains installable from the
 immutable [v0.5.0 tag](https://github.com/yha9806/academic-writing-toolkit/releases/tag/v0.5.0).
 
+For a selected local Codex plugin, the supported
+[export command](docs/setup-codex-cli.md#export-a-selected-local-plugin)
+reuses the same helper preparation and can preserve existing invocation and
+tool policies. It leaves global skill installation and enablement unchanged.
+
 ## Use the full repository from source
 
 Use this route when you want the complete skill sources, examples, validators,

@@ -63,6 +63,8 @@ jobs:
       - run: python -m pip install -r scripts/codex-skills-requirements.txt
       - name: Test isolated installs, updates, collisions, rollback and real helpers
         run: python scripts/test-codex-skills.py
+      - name: Test selected Codex plugin export and policy preservation
+        run: python scripts/test-codex-plugin.py
       - name: Install with a fresh private runtime
         run: python scripts/install-codex-skills.py --dest "${{ runner.temp }}/awt-user/skills" --install-deps
       - name: Repeat installation and verify the published receipt
