@@ -1,0 +1,4 @@
+interface:
+  display_name: "研究方向与论文规划"
+  short_description: "从模糊想法梳理研究价值、现实条件、证据需求与论文规划，并根据新证据调整下一步"
+  default_prompt: "使用 $research-plan，结合我的想法与现有条件，梳理研究方向、最小验证和论文规划。"

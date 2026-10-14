@@ -568,6 +568,7 @@ SKILL_ROLES = {
     "read": "逐页读文献、写带页码的笔记；不对稿件下判断",
     "integrate": "把笔记整合进章节：整合计划、编辑范围、升级规则；不对稿件下判断",
     "export": "把章节转成 Word 与 ZIP；不对稿件下判断",
+    "research-plan": "动笔之前或中途讨论研究方向、可行性与论文规划，写研究讨论记录；不读稿件、不对稿件下判断",
 }
 
 # check-fails-closed.py's NOT_CHECKS, acknowledged here: moving a check there to escape the wiring invariant has to
