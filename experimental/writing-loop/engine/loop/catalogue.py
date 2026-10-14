@@ -23,6 +23,8 @@ Per check:
             base coverage.resolve_base picks (the check's last clean head, else this ref) is archived beside the
             draft, in BASE_DIR, and the run record names it.
   argv      function(ctx) -> argument list, run with cwd = the archived tree.
+  note      optional function(ctx, result) -> text or None, added to the run's summary in brackets: what the check's
+            own one-line result cannot know about the copy it ran on.
 """
 import os
 import sys
@@ -165,6 +167,46 @@ def _numbers_inputs(cfg):
     for i, p in enumerate(get(cfg, "inputs.number_artifacts") or []):
         out[f"artifact{i}"] = p
     return out
+
+
+def _numbers_note(ctx, data):
+    """What 「硬错 N」 leaves out when a ledger's source was not found. The audit runs on a copy that holds the draft,
+    the ledgers and the files inputs.number_artifacts lists, nothing else, so a source the list leaves out reads as
+    artifact-missing although the commit has it (10-07, 10-09: dozens of rows read as lost files). Said apart from a
+    source the commit does not have either. Still hard findings: the run did not read those sources. None when no
+    source was missing, or when the finding does not say where the audit looked."""
+    import subprocess
+    miss = [f for f in (data.get("findings") or []) if isinstance(f, dict) and f.get("kind") == "artifact-missing"
+            and isinstance(f.get("tried"), list)]
+    head, repo = ctx.get("head"), (ctx.get("cfg") or {}).get("repo")
+    if not miss or not head or not repo:
+        return None
+    known = {}
+
+    def in_commit(p):
+        if p not in known:
+            known[p] = subprocess.run(["git", "-C", str(Path(repo).expanduser()), "cat-file", "-e", f"{head}:{p}"],
+                                      capture_output=True).returncode == 0
+        return known[p]
+
+    outside, files, gone = 0, [], 0
+    for f in miss:
+        hit = next((p for p in f["tried"] if isinstance(p, str) and p and not os.path.isabs(p)
+                    and not p.startswith("../") and in_commit(p)), None)
+        if hit:
+            outside += 1
+            if hit not in files:
+                files.append(hit)
+        else:
+            gone += 1
+    bits = []
+    if outside:
+        names = "、".join(files[:3]) + (f" 等 {len(files)} 个文件" if len(files) > 3 else "")
+        bits.append(f"其中 {outside} 条是出处不在循环的快照里：{names} 在提交 {head[:7]} 里有，但 inputs.number_artifacts "
+                    "没列，循环只复制列出的文件，不是文件丢了")
+    if gone:
+        bits.append(f"{gone} 条出处在提交 {head[:7]} 里也没有")
+    return "；".join(bits) or None
 
 
 def method_ledger_cfg(cfg):
@@ -418,7 +460,7 @@ CHECKS = [
      "formats": ["latex", "markdown"], "instead": {},
      "scope": {"kind": "numbers"}, "needs": ["inputs.number_ledger"],
      "inputs": _numbers_inputs, "outside": _no_outside, "also": True,
-     "argv": _numbers_argv},
+     "argv": _numbers_argv, "note": _numbers_note},
     {"id": "method-ledger", "name": "文字对代码", "kind": "script", "scripts": ["audit/audit-method-ledger.py"],
      "formats": ["latex"], "instead": {},
      "scope": {"kind": "tree"}, "needs": ["inputs.method_ledger"], "optin": True, "tree": True,
