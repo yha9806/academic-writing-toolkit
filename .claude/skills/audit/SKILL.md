@@ -255,7 +255,8 @@ writes nothing. Nothing to examine exits 2.
    of rewrites cannot move them, and neither reads a proposal that has not been
    applied. Every proposed rewrite, and every sentence a correction adds, goes
    through this first, as an `id, old, new` TSV (leave `old` empty for an
-   added sentence; the file is read without quoting):
+   added sentence; the file is read without quoting, and a bare `%` in a cell
+   is a percent sign, not a LaTeX comment):
 
    ```
    python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs <rewrites.tsv> --baseline <venue-corpus-dir>

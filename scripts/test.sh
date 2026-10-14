@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (255 automated tests, labelled T2-T273: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251 and T253 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (256 automated tests, labelled T2-T275: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251 and T253 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3930,6 +3930,55 @@ assert 'comma' not in s['flags'], s['flags']
 "
 }
 
+test_T275() {
+    # A pairs cell is one line of a TSV. A bare % in it was read as a LaTeX comment, so the rest of the cell was cut,
+    # and a rewrite whose change came after a percentage reported "no sentence changed". In a cell a bare % is a
+    # percent sign, plain or beside markup; the loop itself writes cells as prose with the draft's \% already turned
+    # into " %". A comment in a .tex draft read with --target/--base is still not prose.
+    local tmp out code out2 code2
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base" "$tmp/draft"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+rows = [
+    ("a", "Dry wells rose from 31% to 47% over the survey.",
+          "Dry wells rose from 31% to 47% over the survey, which the county ran twice; most were shallow."),
+    ("b", "The pumps at \\emph{North Ford} failed on 12% of nights.",
+          "The pumps at \\emph{North Ford} failed on 12% of nights, although the crew checked them daily."),
+    ("c", "Dry wells rose from 31 % to 47 % over the survey.",
+          "Dry wells rose from 31 % to 47 % over the survey: the county ran it twice."),
+]
+(d / "pairs.tsv").write_text("id\told\tnew\n" + "".join("%s\t%s\t%s\n" % r for r in rows))
+base = "The pump ran all night. % check the log\nThe crew left at dawn.\n"
+(d / "base" / "ch.tex").write_text(base)
+(d / "draft" / "ch.tex").write_text(base.replace("% check the log", "% check the log, which the night shift kept; ask twice"))
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    out2=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/draft" --base "$tmp/base" --json 2>/dev/null)
+    code2=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "pairs: exit $code, expected 1 (flagged)"; echo "$out" | head -20; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+got = {r['where']: r for r in d['sentences']}
+assert d['changed'] == 3, (d['changed'], sorted(got))
+assert 'shallow' in got['a']['new'] and '47%' in got['a']['new'], got['a']['new']
+assert {'semicolon', 'clause'} <= set(got['a']['flags']), got['a']['flags']
+assert 'daily' in got['b']['new'] and 'emph' not in got['b']['new'], got['b']['new']
+assert 'clause' in got['b']['flags'], got['b']['flags']
+assert 'colon' in got['c']['flags'], got['c']['flags']
+" || return 1
+    [ "$code2" -eq 0 ] || { echo "target/base: exit $code2, expected 0 (the change is inside a comment)"; echo "$out2" | head -20; return 1; }
+    echo "$out2" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['changed'] == 0, [(r['where'], r['new']) for r in d['sentences']]
+"
+}
+
 # --- T254-T255: a supplement's ledgers and files --------------------------------
 test_T254() {
     # Text moved into a supplement outside --base-dir: its ledger row reads as edited away until the supplement is
@@ -7857,6 +7906,7 @@ run_test "T270 prose fingerprint: speculate, speculation and speculative in ever
 run_test "T271 claim positioning: word forms of one method share one source (preregistered, preregistration)" test_T271
 run_test "T272 a number set as 4{,}120 reads as 4,120, and \\, is a space, not a comma" test_T272
 run_test "T273 the comma inside 4,120 groups digits and is not counted as a comma" test_T273
+run_test "T275 changed-sentence audit: a bare % in a pairs cell is a percent sign, not a comment that cuts the rest" test_T275
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then
