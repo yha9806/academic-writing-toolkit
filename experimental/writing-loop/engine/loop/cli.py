@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+import uuid
 from pathlib import Path
 
 from . import config as C
@@ -85,19 +86,75 @@ def cmd_rebuild(a):
 STALE_LOCK = 600.0
 
 
+def _alive(pid):
+    """Whether process `pid` is running: True, False, or None when this platform cannot tell.
+
+    Windows: os.kill(pid, 0) is not a probe there. Signal 0 is CTRL_C_EVENT, which would interrupt the holder's
+    console group, and any other value terminates the process. So Windows answers None and the lock falls back to its
+    age (STALE_LOCK), the rule this lock had before it recorded a pid."""
+    if os.name == "nt":
+        return None
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:  # it exists and belongs to another user
+        return True
+    except OSError:
+        return None
+    return True
+
+
+def _holder(lock):
+    """(pid, token) written in the lock, or (None, None) when there are none to read: a lock from before this format,
+    or one caught between its creation and the write of its first line."""
+    try:
+        parts = lock.read_text(encoding="utf-8").split()
+    except (OSError, UnicodeDecodeError):
+        return None, None
+    if len(parts) >= 2 and parts[0].isdigit():
+        return int(parts[0]), parts[1]
+    return None, None
+
+
+def _abandoned(lock):
+    """A lock is taken over only when its holder is gone. An update that runs past STALE_LOCK is slow, not dead: taking
+    its lock by age alone ran two updates of one workspace side by side (10-09, found on a real workspace). The age
+    decides only when the pid cannot be read or cannot be probed. (A dead holder's pid reused by an unrelated process
+    keeps the lock held until that process ends.)"""
+    pid, _ = _holder(lock)
+    alive = _alive(pid) if pid else None
+    if alive is not None:
+        return not alive
+    return time.time() - lock.stat().st_mtime > STALE_LOCK
+
+
 def _acquire(lock):
-    """An exclusive lock file; one left behind by a killed update is taken over after STALE_LOCK seconds."""
+    """An exclusive lock file holding "<pid> <token>"; one whose holder has exited is taken over (see _abandoned).
+    Returns (fd, token), or None when another update holds it."""
+    token = uuid.uuid4().hex
     for _ in range(2):
         try:
-            return os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
             try:
-                if time.time() - lock.stat().st_mtime <= STALE_LOCK:
+                if not _abandoned(lock):
                     return None
                 lock.unlink()
             except FileNotFoundError:
                 pass
+            continue
+        os.write(fd, f"{os.getpid()} {token}\n".encode("ascii"))
+        return fd, token
     return None
+
+
+def _release(lock, fd, token):
+    """Remove the lock only while it is still this update's. If it was taken over meanwhile, the file is the new
+    holder's, and deleting it would let a third update start alongside that one."""
+    os.close(fd)
+    if _holder(lock)[1] == token:
+        lock.unlink(missing_ok=True)
 
 
 def cmd_update(a):
@@ -118,11 +175,12 @@ def cmd_update(a):
     lock, dirty = ws / "cache" / "update.lock", ws / "cache" / "update.dirty"
     summary = None
     while True:
-        fd = _acquire(lock)
-        if fd is None:
+        held = _acquire(lock)
+        if held is None:
             dirty.touch()
             print("另一次更新正在进行：已记为待重跑")
             return 0
+        fd, token = held
         try:
             while True:
                 dirty.unlink(missing_ok=True)
@@ -143,8 +201,7 @@ def cmd_update(a):
                 if not dirty.exists():
                     break
         finally:
-            os.close(fd)
-            lock.unlink(missing_ok=True)
+            _release(lock, fd, token)
         if not dirty.exists():  # a request that arrived between the last check and the unlock
             break
     print(_summary_line(summary))
