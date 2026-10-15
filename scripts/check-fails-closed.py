@@ -64,6 +64,9 @@ CHECKS = {
         lambda s, empty: ["python3", str(s), "--base-dir", str(empty)],
     "audit/audit-prose-structure.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty), "--baseline", str(empty)],
+    # No draft named: no abstract to measure (exit 2), whatever the baseline holds.
+    "audit/audit-abstract-numbers.py":
+        lambda s, empty: ["python3", str(s), "--baseline", str(empty)],
     # A manuscript that is not there: nothing read (exit 2).
     "audit/audit-cross-refs.py":
         lambda s, empty: ["python3", str(s), "--root", str(empty), str(empty / "main.tex")],
