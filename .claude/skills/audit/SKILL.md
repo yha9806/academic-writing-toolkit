@@ -312,7 +312,15 @@ writes nothing. Nothing to examine exits 2.
    that restates the clause before it, so `--forbid colon` rules out both.
    Links added at the opening of a sentence are reported apart from those set
    off inside one (`links_added_opening`); an author who asks for openings
-   that link is not answered by a `, however,` mid-sentence.
+   that link is not answered by a `, however,` mid-sentence. With a venue
+   corpus each added link carries the number of venue documents that use that
+   form (`links_in_venue`), and a form none uses is named with the venue's
+   forms of the same type: "by contrast" against "in contrast".
+
+   "after", "before" and "until" count as clauses only when a verb follows
+   before the next punctuation; "at once", "such as" and a question named
+   inside the sentence ("such as Where is it?", or in quotation marks) do not
+   count at all.
 
    Keep the file after the author has read it, with two more columns:
    `verdict` (accepted, or rejected; revised counts as rejected; empty while
@@ -327,6 +335,29 @@ writes nothing. Nothing to examine exits 2.
    is read as a whole; the run record and the summary name that base. A
    flagged sentence keeps the base where it was until the sentence is fixed,
    or until the author accepts it by moving `draft.base_ref` forward.
+
+   **G2b. Words against the venue's words**
+
+   The distribution audits do not read words. A draft for a venue that
+   spells the American way can carry "catalogue", say "by contrast" where
+   every venue paper that uses the link says "in contrast", and reach for
+   "bridge this gap", which literature on the topic uses and the venue does
+   not:
+
+   ```
+   python3 .claude/skills/audit/scripts/audit-terminology.py --target <draft> --baseline <venue-corpus-dir> [--domain <literature-dir>] [--families <concepts.tsv>]
+   ```
+
+   It reports spellings of the kind fewer venue documents use, one concept
+   written two ways inside the draft (a word spelled both ways, a compound
+   closed up in one place and hyphenated or open in another, two terms of a
+   concept listed in `--families`, a TSV with columns `concept`, `term`), and
+   stock phrases no venue document uses, each with the number of venue (and
+   `--domain`) documents that use it. Linking forms the venue does not use
+   are listed as a hint. Every text is read without its reference list, and
+   the report says how many documents had no reference heading to cut. The
+   counts say what the venue does; a term the field has no other word for
+   stays.
 
    **G3. Topic and contribution type against the venue (before choosing it)**
 

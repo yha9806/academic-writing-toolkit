@@ -494,6 +494,13 @@ CHECKS = [
      "inputs": _none, "outside": _venue_outside,
      "argv": lambda ctx: _py(ctx, "audit/audit-prose-structure.py") + [
          "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "target.venue_corpus.dir")).expanduser()), "--json"]},
+    {"id": "terminology-venue", "name": "术语·对照目标刊物", "kind": "script",
+     "scripts": ["audit/audit-terminology.py"],
+     "formats": ["latex", "markdown"], "instead": {},
+     "scope": {"kind": "all"}, "needs": ["target.venue_corpus.dir"], "config_keys": ["target.venue"],
+     "inputs": _none, "outside": _venue_outside,
+     "argv": lambda ctx: _py(ctx, "audit/audit-terminology.py") + [
+         "--target", ".", "--baseline", str(Path(get(ctx["cfg"], "target.venue_corpus.dir")).expanduser()), "--json"]},
     {"id": "structure-bibliography", "name": "句子结构·对照参考文献", "kind": "script",
      "scripts": ["audit/audit-prose-structure.py"],
      "formats": ["latex", "markdown"], "instead": {},

@@ -137,6 +137,17 @@ PATTERNS = {
 
 TEXT_SUFFIXES = {".md", ".tex", ".txt"}
 STOP_HEADINGS = re.compile(r"\n\s*(?:References|REFERENCES|Bibliography|Works Cited)\s*\n")
+# The reference list is cut at the last heading above, unless that heading comes before this share of the text: a
+# document whose only such line sits near the top (a list of contents) would otherwise lose nearly all of its prose.
+# Counting phrases in a corpus without the cut gave author names and venue names as the commonest ones (2026-10-28).
+REFERENCES_FLOOR = 0.3
+
+
+def cut_references(text: str, pattern=STOP_HEADINGS) -> str:
+    m = list(pattern.finditer(text))
+    if m and m[-1].start() >= REFERENCES_FLOOR * len(text):
+        return text[: m[-1].start()]
+    return text
 
 
 # --- extraction --------------------------------------------------------------
@@ -201,10 +212,7 @@ def strip_markup(text: str, suffix: str) -> str:
         text = re.sub(r"```.*?```", " ", text, flags=re.S)
         text = re.sub(r"(?m)^\s*\|.*$", " ", text)
         text = re.sub(r"(?m)^#+\s*", "", text)
-    m = list(STOP_HEADINGS.finditer(text))
-    if m:
-        text = text[: m[-1].start()]
-    return re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"\s+", " ", cut_references(text)).strip()
 
 
 def load(path: Path) -> Optional[str]:

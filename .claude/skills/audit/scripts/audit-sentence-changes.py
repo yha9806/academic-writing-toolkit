@@ -115,11 +115,28 @@ HERE = Path(__file__).resolve().parent
 SUB_WORDS = {"which", "where", "when", "while", "whereas", "although", "though", "because", "since", "unless",
              "whether", "if", "after", "before", "until", "who", "whom", "whose", "once", "whereby", "wherein"}
 SUB = re.compile(r"\b(" + "|".join(sorted(SUB_WORDS)) + r")\b", re.I)
-# after / before / since / until followed by a number or an -ing word are prepositions ("since 2019", "after training");
-# "once a year" and "once more" are adverbs.
-TEMPORAL_PREP = re.compile(r"\b(?:after|before|since|until)\s+(?:\d|\w+ing\b)|\bonce\s+(?:a|an|per|every|more|again|or|and)\b"
-                           r"|\bonce[.,;]", re.I)
-AS_CLAUSE = re.compile(r"\bas\s+(?:(?:the|a|an|this|these|those|it|they|we|he|she|its|their|our)\s+)?\w+\s+"
+# "since" followed by a number or an -ing word is a preposition ("since 2019"); otherwise it gives a reason, which in
+# this prose it does far more often than it gives a date. "once a year", "once more" and "at once" are adverbs.
+TEMPORAL_PREP = re.compile(r"\bsince\s+(?:\d|\w+ing\b)|\bonce\s+(?:a|an|per|every|more|again|or|and)\b|\bonce(?=[.,;])"
+                           r"|\b(?:all\s+)?at\s+once\b", re.I)
+# after / before / until open a clause only when a verb follows before the next punctuation: "after we move it",
+# "before the record was checked". "after a survey", "until dawn" and "after training" are prepositions. Without a
+# tagger the verb is read from an auxiliary or modal, a subject pronoun right after the word, or a past tense after a
+# noun; a present tense with no auxiliary ("before the model answers") is missed and read as a preposition.
+# 2026-10-28: an added sentence that gave "after" as a preposition in an example was counted a clause, and so was
+# "at once" before a comma (the comma stayed on the word, so the adverb rule above never removed it).
+TEMPORAL_SUB = {"after", "before", "until"}
+FINITE = {"is", "are", "was", "were", "am", "has", "have", "had", "do", "does", "did", "can", "could", "will", "would",
+          "may", "might", "must", "should", "shall"}
+SUBJECTS = {"we", "they", "it", "he", "she", "i", "you"}
+DETERMINERS = {"a", "an", "the", "this", "these", "those", "its", "their", "our", "his", "her", "each", "every", "no",
+               "any", "some", "such"}
+CLAUSE_SPAN_END = re.compile(r"[,;:.?!()\"\u201c\u201d]|\b(?:" + "|".join(sorted(SUB_WORDS)) + r")\b", re.I)
+# A question or a phrase quoted inside a sentence is mentioned, not used: the "When" in 'the prompt "When was it
+# made?"' opens no clause of the sentence. A subordinator capitalised mid-sentence with a question mark after it is a
+# question named without quotes ("such as Where is it?"). "such as" introduces an example, not a clause.
+QUOTED = re.compile(r"\"[^\"]{1,160}\"|\u201c[^\u201d]{1,160}\u201d|``.{1,160}?''|\u2018[^\u2019]{1,160}\u2019")
+AS_CLAUSE = re.compile(r"(?<!such\s)\bas\s+(?:(?:the|a|an|this|these|those|it|they|we|he|she|its|their|our)\s+)?\w+\s+"
                        r"(?:is|are|was|were|has|have|had|did|does|do|can|could|will|would|may|might|must|should|"
                        r"required|requires|expected|noted|shown|described|reported|suggested)\b", re.I)
 SO_THAT = re.compile(r"\b(?:so|such)\s+that\b", re.I)
@@ -216,7 +233,8 @@ STOPWORDS = {"the", "a", "an", "of", "in", "for", "with", "by", "and", "or", "to
 LIMITS = ("not measured: adjectives outside the suffix and word lists, nouns used as modifiers, relative clauses "
           "opened by 'that', a comma splice beyond the comma it adds, a pronoun (it, they) a removal left without its "
           "antecedent, a noun a revision dropped, a repeat reworded rather than copied, a colon that opens a list told "
-          "apart from one that restates; the writing loop reads committed versions only")
+          "apart from one that restates, a clause after 'after', 'before' or 'until' whose verb is a present tense "
+          "with no auxiliary; the writing loop reads committed versions only")
 # On 2026-10-28, 3 of the 5 rewrites an author rejected carried no flag (see the rounds in the docstring).
 ACCEPTANCE = ("no flag is not acceptance: a style round is accepted by the author reading before and after blind "
               "(blind-pair.py)")
@@ -333,10 +351,31 @@ def _words(s):
     return re.findall(r"[A-Za-z][A-Za-z'-]*", s)
 
 
+def _verb_follows(rest):
+    """Whether the words after after / before / until hold a verb before the next punctuation or subordinator."""
+    ws = re.findall(r"[A-Za-z']+", CLAUSE_SPAN_END.split(rest, maxsplit=1)[0])[:8]
+    if not ws or ws[0].lower().endswith("ing"):
+        return False
+    if ws[0].lower() in SUBJECTS:
+        return True
+    return any(w.lower() in FINITE or (i and re.fullmatch(r"[a-z]{2,}ed", w.lower())
+                                         and ws[i - 1].lower() not in DETERMINERS)
+               for i, w in enumerate(ws))
+
+
 def clause_tokens(s):
-    toks = [m.group(1).lower() for m in SUB.finditer(s)]
+    s = QUOTED.sub(" ", s)
+    toks = []
+    for m in SUB.finditer(s):
+        w = m.group(1)
+        # A question named mid-sentence; a heading glued to a sentence ("1 Introduction Before ...") is not one.
+        if w[0].isupper() and s[:m.start()].strip(" (\"'\u201c\u2018") and "?" in s[m.end():]:
+            continue
+        if w.lower() in TEMPORAL_SUB and not _verb_follows(s[m.end():]):
+            continue
+        toks.append(w.lower())
     for m in TEMPORAL_PREP.finditer(s):
-        w = m.group(0).split()[0].lower()
+        w = re.search(r"since|once", m.group(0), re.I).group(0).lower()
         if w in toks:
             toks.remove(w)
     toks += ["as"] * len(AS_CLAUSE.findall(s)) + ["so that"] * len(SO_THAT.findall(s))
@@ -900,11 +939,11 @@ def venue_distribution(fp, baseline, cache=None):
             got = json.loads(Path(cache).read_text(encoding="utf-8"))
             if got.get("key") == key:
                 return {"documents": got["documents"], "sentences": got["sentences"], "columns": got["columns"],
-                        "cached": True}
+                        "link_docs": got["link_docs"], "cached": True}
         except (OSError, ValueError, KeyError):
             pass
     docs = fp.collect(Path(baseline))
-    kept, sents = 0, []
+    kept, sents, link_docs = 0, [], Counter()
     for _, text, _ in docs:
         if hasattr(fp, "word_share") and fp.word_share(text) < getattr(fp, "MIN_WORD_SHARE", 0.3):
             continue
@@ -912,15 +951,47 @@ def venue_distribution(fp, baseline, cache=None):
         if ss:
             kept += 1
             sents.extend(ss)
+            link_docs.update({t for s in ss for t in links(s)})
     if kept < MIN_VENUE_DOCUMENTS or len(sents) < MIN_VENUE_SENTENCES:
         die(f"the baseline {baseline} gave {len(sents)} sentences from {kept} documents; percentiles need at least "
             f"{MIN_VENUE_SENTENCES} sentences from {MIN_VENUE_DOCUMENTS} documents")
     cols = {k: sorted(features(s)[k] for s in sents) for k in FEATURES}
+    link_docs = dict(sorted(link_docs.items()))
     if cache:
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
-        Path(cache).write_text(json.dumps({"key": key, "documents": kept, "sentences": len(sents), "columns": cols}),
-                               encoding="utf-8")
-    return {"documents": kept, "sentences": len(sents), "columns": cols}
+        Path(cache).write_text(json.dumps({"key": key, "documents": kept, "sentences": len(sents), "columns": cols,
+                                           "link_docs": link_docs}), encoding="utf-8")
+    return {"documents": kept, "sentences": len(sents), "columns": cols, "link_docs": link_docs}
+
+
+def link_type(form):
+    """The fingerprint's type for a link written as form (lower case), or None."""
+    head = form[:1].upper() + form[1:]
+    for s in (head + ", the gauge reads the river.", head + " the float, the gauge reads the river."):
+        m = FP.opening_link(s) if FP else None
+        if m and m[1].strip(" ,").lower() == form:
+            return m[0]
+    return None
+
+
+# A link a rewrite adds is put beside the venue's own use of that form: the number of venue documents in which it
+# opens a sentence or is set off by commas inside one. On 2026-10-28 a draft added "by contrast", which none of the
+# venue's 16 papers used that way, where 9 used "in contrast". A form no venue document uses is named with the forms
+# of the same type that the venue does use, most documents first. It is a hint, not a flag.
+def links_in_venue(venue, forms):
+    if not venue or not forms:
+        return None
+    docs = venue["link_docs"]
+    absent = {}
+    for f in sorted(forms):
+        if docs.get(f, 0):
+            continue
+        kind = link_type(f)
+        same = sorted(((g, n) for g, n in docs.items() if g != f and kind and link_type(g) == kind),
+                      key=lambda x: (-x[1], x[0]))[:3]
+        absent[f] = {"type": kind, "venue_uses": dict(same)}
+    return {"documents": venue["documents"], "forms": {f: docs.get(f, 0) for f in sorted(forms)},
+            "not_in_venue": absent}
 
 
 def percentile(col, x):
@@ -1153,11 +1224,13 @@ def main():
     linked = Counter(t for r in results for t in r.get("links_added", []))
     opened = Counter(t for r in results for t in r.get("links_added_opening", []))
     forbidden = [r for r in results if r.get("forbidden")]
+    in_venue = links_in_venue(venue, linked)
     out = {"schema_version": 2, "compared": compared, "changed": len(results) - removed_flagged, "flagged": len(flagged),
            "ledgers_missing": MISSING_LEDGERS,
            "added_without_venue": unjudged,
            "links_added": dict(sorted(linked.items())),
            "links_added_opening": dict(sorted(opened.items())),
+           "links_in_venue": in_venue,
            "forbid": sorted(set(a.forbid)), "forbidden": len(forbidden),
            "venue": ({"documents": venue["documents"], "sentences": venue["sentences"],
                       "p90": {k: at(venue["columns"][k], VENUE_PCT) for k in ("words",) + DENSITY},
@@ -1228,9 +1301,14 @@ def main():
         if linked:
             n = sum(1 for r in results if r.get("links_added"))
             inside = linked - opened
+            nv = (lambda k: f" (venue {in_venue['forms'][k]} of {in_venue['documents']})") if in_venue else (lambda k: "")
             print(f"\nlinking adverbials added, not flagged: {sum(linked.values())} in {n} sentence(s); opening a "
-                  f"sentence: {', '.join(f'{k} x{v}' for k, v in sorted(opened.items())) or 'none'}; inside one: "
-                  f"{', '.join(f'{k} x{v}' for k, v in sorted(inside.items())) or 'none'}")
+                  f"sentence: {', '.join(f'{k} x{v}{nv(k)}' for k, v in sorted(opened.items())) or 'none'}; inside one: "
+                  f"{', '.join(f'{k} x{v}{nv(k)}' for k, v in sorted(inside.items())) or 'none'}")
+            for k, x in (in_venue or {}).get("not_in_venue", {}).items():
+                print(f"  no venue document uses '{k}'" + (f"; its {x['type']} links there: "
+                      + ", ".join(f"{g} ({c} of {in_venue['documents']})" for g, c in x["venue_uses"].items())
+                      if x["venue_uses"] else ""))
         if MISSING_LEDGERS:
             print(f"\nclaim ledger not found, so edits to bound sentences were not named: {', '.join(MISSING_LEDGERS)}")
         print(f"\n{LIMITS}")

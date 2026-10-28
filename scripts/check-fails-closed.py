@@ -79,6 +79,9 @@ CHECKS = {
     # Nothing to compare: no prose in the draft, and no version before it.
     "audit/audit-sentence-changes.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty), "--base", str(empty)],
+    # No draft prose and no venue documents (exit 2).
+    "audit/audit-terminology.py":
+        lambda s, empty: ["python3", str(s), "--target", str(empty), "--baseline", str(empty)],
     # A reader panel's three steps: nothing to read, nothing to check, nothing to tally (exit 2 each).
     "readers/build-reader-packet.py":
         lambda s, empty: ["python3", str(s), "--text", str(empty / "empty.bib"), "--out", str(empty / "packet")],
