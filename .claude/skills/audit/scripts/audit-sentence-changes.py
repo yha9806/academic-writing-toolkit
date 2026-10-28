@@ -38,6 +38,12 @@ without --baseline, one) is flagged wh: an addition by its count, a rewrite when
 wh-clause as a prepositional phrase moves the cost rather than removing it: 9 of 13 such rewrites in one round were
 flagged for prepositions or modifiers instead.
 
+Twenty-five added sentences or more, against a venue, are read as new prose and judged as a block (see BLOCK_MIN):
+each is held only to the venue's 98th percentile, punctuation is left to the fingerprint audit, and the block's
+long-sentence share, short-sentence share and length lag-1 are placed among windows of as many sentences in the
+venue's documents. Held one by one to the 75th, a new section is written with no long sentence. A split that cuts out
+a piece under the venue's 10th percentile of length is flagged short; a sentence compressed whole is not.
+
 Adverbs are words ending in -ly and a closed list of others (also, still, only, even, very, often, instead ...);
 connectives such as however, thus and consequently are not counted. Modifiers stand in for a part-of-speech
 tagger, which this stdlib script does not have: participles after a noun ("the images collected from", "applied to
@@ -75,7 +81,8 @@ Rounds since, each set against the script frozen before it:
   other flags); the writer kept both with a reason, and the author then asked for no semicolons. The 3 not flagged
   were a sentence given a leading "In contrast,", a rewording, and a sentence cut to seven words with ", however,"
   inside. --forbid and links_added_opening were written after this round, so it is their training data, not a test
-  of them.
+  of them. The short flag, written later the same day, is for a split's piece; the seven-word sentence was recorded
+  as a rewrite of a 20-word one, so it does not name it and the round still reads 2/0/3/0.
 
 --forbid names a construction the author has ruled out, whatever the venue does: a sentence that gains one (an added
 sentence that has one) is flagged forbidden as well, and that flag is not cleared by a reason to keep the sentence.
@@ -231,6 +238,31 @@ REMOVED_QUALIFIER = re.compile(
 PIECE_MIN = 0.60   # share of a sentence's content words found in another before one is read as part of the other
 VENUE_PCT = 90      # a revision that grows past this is long or dense for the venue
 ADDITION_PCT = 75   # an added sentence has nothing to be compared with, so it is held to a typical published one
+# Twenty-five added sentences or more, against a venue, are new prose: a new section rather than a sentence slipped
+# into a paragraph. Held one by one to the 75th percentile, every sentence of a new section stays under it and the
+# section loses its long sentences; on 2026-10-28 a section written against this audit had no sentence of 35 words
+# or more (the venue's papers: 18-49% of their words) and a negative length lag-1. Judged that way, 59% of 960
+# published sentences (60 from each of 16 CVPR/ICCV/ECCV papers, against the other 15) were flagged, and 41% at the
+# 90th. So a block is held sentence by sentence only to the 98th percentile (7% of those sentences flagged), its
+# punctuation rates are left to the fingerprint audit, and its shape is judged whole: the share of words in
+# sentences of 35 or more, the share of sentences under the short ceiling, and the lag-1 of their lengths, each
+# placed among windows of the same number of sentences in every venue document (every fifth start) and outside
+# when beyond the 2.5th-97.5th percentile band. Against whole papers instead of windows, 13 of 16 published chunks
+# were outside on something; against windows, 2 of 16. --forbid and wh still apply sentence by sentence.
+BLOCK_MIN = 25
+BLOCK_PCT = 98
+LONG_WORDS = 35
+WINDOW_STEP = 5
+BAND = (2.5, 97.5)
+# A split that cuts out a piece shorter than the venue's 10th percentile of sentence length is flagged short: it adds
+# a sentence boundary, and a short sentence after a long one is the long-short rhythm an author reads as machine
+# prose. On 2026-10-28 an author rejected a sentence cut to seven words that no flag had named. A sentence compressed
+# whole is not flagged, however short: "The survey counted bridges with cracked piers." is the plainer rewrite this
+# audit is meant to let through, and a short flag on every compression would bury it. The seven-word sentence was
+# recorded as a rewrite of a 20-word one, so this flag does not name it either. The 16 papers above put the 10th
+# percentile at 10 words, the default.
+SHORT_PCT = 10
+SHORT_DEFAULT = 10
 FP = None
 MIN_VENUE_SENTENCES = 1000
 MIN_VENUE_DOCUMENTS = 5
@@ -964,11 +996,11 @@ def venue_distribution(fp, baseline, cache=None):
             got = json.loads(Path(cache).read_text(encoding="utf-8"))
             if got.get("key") == key:
                 return {"documents": got["documents"], "sentences": got["sentences"], "columns": got["columns"],
-                        "link_docs": got["link_docs"], "cached": True}
+                        "link_docs": got["link_docs"], "doc_lengths": got["doc_lengths"], "cached": True}
         except (OSError, ValueError, KeyError):
             pass
     docs = fp.collect(Path(baseline))
-    kept, sents, link_docs = 0, [], Counter()
+    kept, sents, link_docs, doc_lengths = 0, [], Counter(), []
     for _, text, _ in docs:
         if hasattr(fp, "word_share") and fp.word_share(text) < getattr(fp, "MIN_WORD_SHARE", 0.3):
             continue
@@ -977,6 +1009,7 @@ def venue_distribution(fp, baseline, cache=None):
             kept += 1
             sents.extend(ss)
             link_docs.update({t for s in ss for t in links(s)})
+            doc_lengths.append([len(s.split()) for s in ss])
     if kept < MIN_VENUE_DOCUMENTS or len(sents) < MIN_VENUE_SENTENCES:
         die(f"the baseline {baseline} gave {len(sents)} sentences from {kept} documents; percentiles need at least "
             f"{MIN_VENUE_SENTENCES} sentences from {MIN_VENUE_DOCUMENTS} documents")
@@ -985,8 +1018,41 @@ def venue_distribution(fp, baseline, cache=None):
     if cache:
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
         Path(cache).write_text(json.dumps({"key": key, "documents": kept, "sentences": len(sents), "columns": cols,
-                                           "link_docs": link_docs}), encoding="utf-8")
-    return {"documents": kept, "sentences": len(sents), "columns": cols, "link_docs": link_docs}
+                                           "link_docs": link_docs, "doc_lengths": doc_lengths}), encoding="utf-8")
+    return {"documents": kept, "sentences": len(sents), "columns": cols, "link_docs": link_docs,
+            "doc_lengths": doc_lengths}
+
+
+def shape(lengths, short_at):
+    """A run of sentence lengths: share of words in long sentences, share of short sentences, lag-1 (None if flat)."""
+    n = len(lengths)
+    mean = sum(lengths) / n
+    den = sum((v - mean) ** 2 for v in lengths)
+    return {"long_share": sum(v for v in lengths if v >= LONG_WORDS) / sum(lengths),
+            "short_share": sum(1 for v in lengths if v < short_at) / n,
+            "lag1": (sum((lengths[i] - mean) * (lengths[i + 1] - mean) for i in range(n - 1)) / den) if den else None}
+
+
+def block_shape(lengths, venue, short_at):
+    """The added sentences' shape among windows of as many sentences in each venue document."""
+    n = len(lengths)
+    windows = [shape(d[i:i + n], short_at) for d in venue["doc_lengths"] for i in range(0, len(d) - n + 1, WINDOW_STEP)]
+    out = {"sentences": n, "per_sentence_pct": BLOCK_PCT, "windows": len(windows), "metrics": {}, "outside": []}
+    if not windows:
+        out["note"] = f"no venue document has {n} sentences, so the block's shape was not judged"
+        return out
+    mine = shape(lengths, short_at)
+    for k, v in mine.items():
+        col = sorted(w[k] for w in windows if w[k] is not None)
+        if v is None or not col:
+            out["metrics"][k] = {"value": v, "note": "not computed (every length the same)" if v is None else "no windows"}
+            continue
+        lo, hi = at(col, BAND[0]), at(col, BAND[1])
+        out["metrics"][k] = {"value": round(v, 4), "percentile": percentile(col, v), "band": [round(lo, 4), round(hi, 4)],
+                             "outside": v < lo or v > hi}
+        if v < lo or v > hi:
+            out["outside"].append(k)
+    return out
 
 
 def link_type(form):
@@ -1042,7 +1108,7 @@ DEFAULT_CEILING = {"words": 31, "clauses": 1, "commas": 2, "prepositions": 3, "a
 
 # ---------------------------------------------------------------- judging
 
-def judge(olds, news, venue, forbid=()):
+def judge(olds, news, venue, forbid=(), block=False, short_at=SHORT_DEFAULT):
     """One group: the old sentences (none for an addition) and the new ones."""
     kind = ("added" if not olds else "split" if len(news) > 1 and len(olds) == 1
             else "merged" if len(olds) > 1 else "revised")
@@ -1090,9 +1156,9 @@ def judge(olds, news, venue, forbid=()):
             flags.append("merged")
     else:
         for k, name in (("colons", "colon"), ("semicolons", "semicolon"), ("dashes", "dash")):
-            if fn[k]:
+            if fn[k] and not block:
                 flags.append(name)
-        if any(worded_parentheses(s) for s in news):
+        if any(worded_parentheses(s) for s in news) and not block:
             flags.append("parenthesis")
         added = {k: [t for s in news for t in f(s)] for k, f in
                  (("clauses", clause_tokens), ("adverbs", adverb_tokens), ("modifiers", modifier_tokens),
@@ -1100,8 +1166,14 @@ def judge(olds, news, venue, forbid=()):
         added = {k: v for k, v in added.items() if v}
         if any(features(s)["wh"] > wh_ceiling for s in news):
             flags.append("wh")
+    short = []
+    if fo and kind == "split":
+        before = max(features(o)["words"] for o in old_text)
+        short = [x for x in raw_news if features(x)["words"] < min(short_at, before)]
+        if short:
+            flags.append("short")
     pct, dense_hits = {}, set()
-    pct_used = ADDITION_PCT if fo is None else VENUE_PCT
+    pct_used = (BLOCK_PCT if block else ADDITION_PCT) if fo is None else VENUE_PCT
     ceiling = ({k: at(venue["columns"][k], pct_used) for k in ("words",) + DENSITY} if venue else DEFAULT_CEILING)
     # Without a venue, only additions are held to the default ceilings: a revision is already judged against the
     # sentence it replaced.
@@ -1125,7 +1197,8 @@ def judge(olds, news, venue, forbid=()):
         flags.append("forbidden")
     return {"old": " ".join(old_text) or None, "new": " ".join(raw_news), "kind": kind, "features_old": fo,
             "features_new": fn, "added": added, "links_added": links_added, "links_added_opening": at_opening,
-            "forbidden": forbidden, "dense": sorted(dense_hits),
+            "forbidden": forbidden, "dense": sorted(dense_hits), "short": short,
+            "lengths": [features(x)["words"] for x in raw_news],
             "venue_percentile": pct,
             "flags": sorted(set(flags), key=flags.index), "pieces": len(news), "olds": len(olds)}
 
@@ -1193,9 +1266,12 @@ def main():
     dups, copies = duplicated(changes, target, base) if not a.pairs else ({}, [])
     nears = near_repeats(changes, target) if not a.pairs else {}
     venue = venue_distribution(fp, a.baseline, a.venue_cache) if a.baseline else None
+    added_count = sum(len(news) for _, olds, news in changes if not olds)
+    block = bool(venue) and added_count >= BLOCK_MIN
+    short_at = at(venue["columns"]["words"], SHORT_PCT) if venue else SHORT_DEFAULT
     results = []
     for where, olds, news in changes:
-        r = judge(olds, news, venue, a.forbid)
+        r = judge(olds, news, venue, a.forbid, block, short_at)
         r["where"] = where
         found = shares_elsewhere(olds, news, draft) if draft else []
         if found:
@@ -1259,12 +1335,17 @@ def main():
     opened = Counter(t for r in results for t in r.get("links_added_opening", []))
     forbidden = [r for r in results if r.get("forbidden")]
     in_venue = links_in_venue(venue, linked)
+    shaped = (block_shape([n for r in results if r["kind"] == "added" for n in r["lengths"]], venue, short_at)
+              if block else None)
     out = {"schema_version": 2, "compared": compared, "changed": len(results) - removed_flagged, "flagged": len(flagged),
            "ledgers_missing": MISSING_LEDGERS,
            "added_without_venue": unjudged,
            "links_added": dict(sorted(linked.items())),
            "links_added_opening": dict(sorted(opened.items())),
            "links_in_venue": in_venue,
+           "block": shaped,
+           "short_ceiling": ({"value": short_at, "from": f"venue p{SHORT_PCT}"} if venue
+                             else {"value": SHORT_DEFAULT, "from": "default"}),
            "wh_ceiling": ({"value": at(venue["columns"]["wh"], WH_PCT), "from": f"venue p{WH_PCT}",
                            "venue_share_two_or_more": round(sum(1 for v in venue["columns"]["wh"] if v >= 2)
                                                             / len(venue["columns"]["wh"]), 4)}
@@ -1272,7 +1353,10 @@ def main():
            "forbid": sorted(set(a.forbid)), "forbidden": len(forbidden),
            "venue": ({"documents": venue["documents"], "sentences": venue["sentences"],
                       "p90": {k: at(venue["columns"][k], VENUE_PCT) for k in ("words",) + DENSITY},
-                      "p75": {k: at(venue["columns"][k], ADDITION_PCT) for k in ("words",) + DENSITY}}
+                      "p75": {k: at(venue["columns"][k], ADDITION_PCT) for k in ("words",) + DENSITY},
+                      "added_held_to": {"pct": BLOCK_PCT if block else ADDITION_PCT,
+                                        **{k: at(venue["columns"][k], BLOCK_PCT if block else ADDITION_PCT)
+                                           for k in ("words",) + DENSITY}}}
                      if venue else None),
            "limits": LIMITS, "acceptance": ACCEPTANCE,
            "verdicts": verdict_table(results) if verdicts else None,
@@ -1296,10 +1380,23 @@ def main():
         if venue:
             print(f"venue: {venue['sentences']} sentences from {venue['documents']} documents; p90 "
                   + ", ".join(f"{k} {v}" for k, v in out["venue"]["p90"].items())
-                  + "; added sentences held to p75 " + ", ".join(f"{k} {v}" for k, v in out["venue"]["p75"].items()))
+                  + f"; added sentences held to p{out['venue']['added_held_to']['pct']} "
+                  + ", ".join(f"{k} {v}" for k, v in out["venue"]["added_held_to"].items() if k != "pct"))
         elif unjudged:
             print(f"{unjudged} added sentence(s) held to default ceilings, not to a venue: give --baseline "
                   + "(" + ", ".join(f"{k} {v}" for k, v in DEFAULT_CEILING.items()) + ")")
+        if shaped:
+            print(f"{shaped['sentences']} added sentences read as new prose: each held to the venue's p{BLOCK_PCT}, "
+                  "punctuation left to the fingerprint audit; the block's shape against "
+                  f"{shaped['windows']} windows of as many venue sentences:")
+            for k, m in shaped["metrics"].items():
+                print(f"  {k} {m['value']}" + (f" (percentile {m['percentile']}, band {m['band'][0]}-{m['band'][1]})"
+                                               + ("  OUTSIDE" if m["outside"] else "") if "band" in m else f" ({m['note']})"))
+            if shaped.get("note"):
+                print(f"  {shaped['note']}")
+        elif not venue and added_count >= BLOCK_MIN:
+            print(f"{added_count} added sentences: with --baseline they are read as new prose and judged as a block, "
+                  "not one by one against default ceilings")
         wc = out["wh_ceiling"]
         print(f"wh-words (what, where, whether, which, who, how, why, when ...): a sentence with more than "
               f"{wc['value']} is flagged wh ({wc['from']}"
@@ -1356,7 +1453,7 @@ def main():
             print(f"\nclaim ledger not found, so edits to bound sentences were not named: {', '.join(MISSING_LEDGERS)}")
         print(f"\n{LIMITS}")
         print(ACCEPTANCE)
-    sys.exit(1 if flagged else 0)
+    sys.exit(1 if flagged or (shaped and shaped["outside"]) else 0)
 
 
 if __name__ == "__main__":

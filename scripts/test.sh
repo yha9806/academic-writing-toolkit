@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (270 automated tests, labelled T2-T288: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T279 links by type, the stretch without one and forbidden constructions + T280 the blind read + T281-T282 clauses that are not clauses and links the venue uses + T283 a reference heading near the top + T284-T286 terminology against the venue + T287-T288 wh-clauses, sentence by sentence and per document) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (272 automated tests, labelled T2-T290: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T279 links by type, the stretch without one and forbidden constructions + T280 the blind read + T281-T282 clauses that are not clauses and links the venue uses + T283 a reference heading near the top + T284-T286 terminology against the venue + T287-T288 wh-clauses, sentence by sentence and per document + T289-T290 new prose as a block and sentences cut short) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -4484,6 +4484,91 @@ PYEOF
     return $rc
 }
 
+test_T289() {
+    # Twenty-five added sentences or more, held against a venue, are new prose and are judged as a block: held one by
+    # one to the venue's 75th percentile, every sentence of a new section stays under it, and the section loses its
+    # long sentences (in 16 venue papers, 59% of published sentences were flagged when judged that way). Each is held
+    # to the 98th percentile instead, punctuation is left to the fingerprint audit, and the block's long-sentence
+    # share, short-sentence share and length lag-1 are placed among windows of the same length in the venue. A block
+    # of even mid-length sentences is outside on long sentences; a block shaped like the venue is not; three added
+    # sentences are still judged one by one.
+    local tmp out code like few
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools, random
+d = pathlib.Path(sys.argv[1])
+words = ["".join(c) for c in itertools.product("abcdefg", repeat=3)]
+CHOICES = [9, 12, 15, 18, 20, 22, 26, 30, 40, 45, 50]
+def sent(n, w):
+    body = ("the %s gauge reads the river level at the north bridge every day " % w).split()
+    out = (body * (n // len(body) + 1))[:n]
+    return " ".join(out).capitalize() + "."
+for i in range(6):
+    rng = random.Random(i)
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join(sent(rng.choice(CHOICES), words[(i * 200 + j) % len(words)])
+                                                         for j in range(200)))
+rows = ["id\told\tnew"]
+for j in range(30):
+    rows.append("u%02d\t\t%s" % (j, sent(24, words[j])))
+(d / "even.tsv").write_text("\n".join(rows) + "\n")
+rows = ["id\told\tnew"]
+rng = random.Random(99)
+for j in range(30):
+    s = sent(rng.choice(CHOICES), words[j])
+    rows.append("v%02d\t\t%s" % (j, s[:-1] + ": a note." if j == 3 else s))
+(d / "like.tsv").write_text("\n".join(rows) + "\n")
+(d / "few.tsv").write_text("id\told\tnew\nf1\t\tThe gauge reads one thing: the river level at the bridge.\n")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/even.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    code=$?
+    like=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/like.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    few=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/few.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1 (the even block is outside)"; return 1; }
+    python3 - "$out" "$like" "$few" <<'PYEOF'
+import json, sys
+even, like, few = (json.loads(x) for x in sys.argv[1:4])
+b = even["block"]
+assert b["sentences"] == 30 and b["per_sentence_pct"] == 98, b
+assert "long_share" in b["outside"] and b["metrics"]["long_share"]["value"] == 0, b
+assert all(r["flags"] == [] for r in even["sentences"]), [r["flags"] for r in even["sentences"]]
+assert like["block"]["outside"] == [], like["block"]
+assert all(r["flags"] == [] for r in like["sentences"]), [(r["where"], r["flags"]) for r in like["sentences"] if r["flags"]]
+assert few["block"] is None, few["block"]
+assert "colon" in few["sentences"][0]["flags"], few["sentences"][0]
+PYEOF
+}
+
+test_T290() {
+    # A split that cuts out a piece shorter than the venue's 10th percentile (10 words without a venue) is flagged
+    # short. A sentence compressed whole is not, however short: that is the plainer rewrite this audit lets through.
+    # A piece of ordinary length, a sentence that was already that short, and an added short sentence are not
+    # flagged for it either.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    {
+        printf 'id\told\tnew\n'
+        printf 'a\tThe gauge reads the river level at the north bridge twice a day in winter.\tThe gauge reads the river. It does so at the north bridge twice a day in winter.\n'
+        printf 'b\tThe gauge reads the river level at the north bridge twice a day in winter.\tThe gauge reads the level twice a day.\n'
+        printf 'c\tThe gauge reads the river level at the north bridge twice a day in winter.\tThe gauge reads the river level at the bridge twice a day.\n'
+        printf 'd\tThe gauge reads the level.\tThe gauge reads the levels.\n'
+        printf 'e\t\tThe gauge reads the river.\n'
+        printf 'f\tThe gauge reads the river level at the north bridge twice a day in winter.\tThe gauge reads the river level at the north bridge. It does so twice a day in the winter months.\n'
+    } > "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+by = {r['where']: r for r in d['sentences']}
+assert 'short' in by['a']['flags'] and by['a']['short'] == ['The gauge reads the river.'], by['a']
+for k in 'bcdef':
+    assert 'short' not in by[k]['flags'], (k, by[k]['flags'])
+assert d['short_ceiling'] == {'value': 10, 'from': 'default'}, d.get('short_ceiling')
+"
+}
+
 # --- T254-T255: a supplement's ledgers and files --------------------------------
 test_T254() {
     # Text moved into a supplement outside --base-dir: its ledger row reads as edited away until the supplement is
@@ -8532,6 +8617,8 @@ run_test "T285 terminology: one concept written two ways in the draft (spelling,
 run_test "T286 terminology: a spelling under a prefix, and a linking form the venue does not use as a hint" test_T286
 run_test "T287 changed-sentence audit: wh-words counted apart, a sentence above the ceiling flagged wh" test_T287
 run_test "T288 structure audit: wh-words per 100 words and the share of sentences with two or more" test_T288
+run_test "T289 changed-sentence audit: 25 added sentences are new prose, judged as a block against windows of the venue" test_T289
+run_test "T290 changed-sentence audit: a split that cuts out a piece below the venue's 10th percentile is flagged short" test_T290
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

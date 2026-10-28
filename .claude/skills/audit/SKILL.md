@@ -332,6 +332,18 @@ writes nothing. Nothing to examine exits 2.
    flags instead, and read the sentence rather than trading one flag for
    another.
 
+   A new section is not a set of rewrites. With a venue corpus, 25 added
+   sentences or more are read as new prose: each is held only to the venue's
+   98th percentile, and the block's long-sentence share, short-sentence share
+   and length lag-1 are set against windows of as many sentences in the
+   venue (`block`). Held one by one to the 75th, every sentence of a new
+   section stays under it and the section ends with no long sentence; judged
+   that way, 59% of published sentences were flagged. Punctuation in new prose
+   is the fingerprint audit's to measure; `--forbid` still applies to each
+   sentence. A split that cuts out a piece below the venue's 10th percentile
+   of length is flagged `short`; a sentence compressed whole is not, since a
+   plainer rewrite is what this audit is meant to let through.
+
    Keep the file after the author has read it, with two more columns:
    `verdict` (accepted, or rejected; revised counts as rejected; empty while
    not judged) and `reason`. Run the audit on it again and it sets the flags

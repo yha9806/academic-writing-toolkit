@@ -435,6 +435,11 @@ def interpret(check_id, code, stdout, stderr):
                 summary += f"；与别处几乎一样 {compared['repeats_elsewhere']}"
             if compared.get("multiple_without_count"):
                 summary += f"；倍数旁没有命中数 {compared['multiple_without_count']}"
+            # Twenty-five added sentences or more are judged as one block of new prose: it can be outside on its
+            # shape with no sentence flagged, and 「标出 0 句」 alone would read as clean.
+            block = data.get("block") or {}
+            if block.get("outside"):
+                summary += f"；新写的 {block.get('sentences')} 句整体出界：{'、'.join(block['outside'])}"
         elif "total" in data and "unit" in data and isinstance(data.get("chapters"), list):
             summary = f"{data['total']} 词（{len(data['chapters'])} 个文件）"
         elif "hard_finding_count" in data:
