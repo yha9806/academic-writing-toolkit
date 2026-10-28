@@ -17,9 +17,19 @@ Measured per document:
   dash_per_100w    em dashes per 100 words
   opens_with_sub   share of sentences that open with a subordinator (Where / When / If / Whether / Although ...)
   length_lag1      lag-1 autocorrelation of sentence length (published prose is positive: long sentences cluster)
+  wh_per_100w      wh-words per 100 words: what, where, whether, which, who, whom, whose, how, why, when
+  wh2_share        share of sentences that hold two or more of them
 
 "that" is not counted: it is a determiner, a complementiser and a relativiser, and telling them apart needs a
-parser; counting it inflates whichever side one set out to find. Every subordinator below is unambiguous.
+parser; counting it inflates whichever side one set out to find. after, before, since and until are prepositions
+as often as they open a clause ("after training"); they are counted either way here, on the baseline as on the
+draft, and audit-sentence-changes.py tells them apart sentence by sentence.
+
+The wh-words were added on 2026-10-28, when an author found a draft with "too many clauses" whose clause rates were
+in range: what- and where-clauses came one sentence after another, and "what" and "how" are not on the subordinator
+list. In 16 CVPR/ICCV/ECCV papers the rate ran 0.38-1.11 per 100 words and 0.5-5.4% of sentences held two or more.
+A question in quotation marks is a mention and is not counted. Rewriting a wh-clause as a prepositional phrase
+moves the cost rather than removing it: the changed-sentence audit then reports prepositions or modifiers.
 
 Text is read by audit-prose-fingerprint.py's own `load` (markup stripped from .tex/.md, pdftotext for PDFs), so the
 two audits read the same prose. A target that is a directory is read whole, every file joined; each baseline
@@ -45,11 +55,13 @@ HERE = Path(__file__).resolve().parent
 SUB = re.compile(r"\b(?:which|where|when|while|whereas|although|though|because|since|unless|whether|if|after|"
                  r"before|until|who|whom|whose)\b", re.I)
 OPENER = re.compile(r"^(?:Where|When|If|Whether|Although|Though|While|Because|Since|Unless|Once|Whereas)\b")
+WH = re.compile(r"\b(?:what|where|whether|which|who|whom|whose|how|why|when)\b", re.I)
+QUOTED = re.compile(r"\"[^\"]{1,160}\"|\u201c[^\u201d]{1,160}\u201d|``.{1,160}?''|\u2018[^\u2019]{1,160}\u2019")
 DASH = re.compile(r"---|—")
 SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 MIN_SENTENCES = 25
 KEYS = ["median_len", "long_share", "sub_per_100w", "sub_per_comma", "comma_per_100w", "dash_per_100w",
-        "opens_with_sub", "length_lag1"]
+        "opens_with_sub", "length_lag1", "wh_per_100w", "wh2_share"]
 
 
 def die(msg):
@@ -94,6 +106,7 @@ def measure(text):
     words = sum(len(s.split()) for s in sents)
     sub = sum(len(SUB.findall(s)) for s in sents)
     commas = sum(s.count(",") for s in sents)
+    wh = [len(WH.findall(QUOTED.sub(" ", s))) for s in sents]
     return {"sentences": len(sents), "words": words,
             "median_len": statistics.median(len(s.split()) for s in sents),
             "long_share": sum(len(s.split()) for s in sents if len(s.split()) >= 35) / words,
@@ -102,7 +115,9 @@ def measure(text):
             "comma_per_100w": 100 * commas / words,
             "dash_per_100w": 100 * sum(len(DASH.findall(s)) for s in sents) / words,
             "opens_with_sub": sum(1 for s in sents if OPENER.match(s)) / len(sents),
-            "length_lag1": lag1(lengths)}
+            "length_lag1": lag1(lengths),
+            "wh_per_100w": 100 * sum(wh) / words,
+            "wh2_share": sum(1 for n in wh if n >= 2) / len(sents)}
 
 
 def read_target(load, target):

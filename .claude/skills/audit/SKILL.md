@@ -322,6 +322,16 @@ writes nothing. Nothing to examine exits 2.
    inside the sentence ("such as Where is it?", or in quotation marks) do not
    count at all.
 
+   Wh-words (what, where, whether, which, who, how, why, when ...) are counted
+   on their own, and a sentence holding more than the venue's 95th percentile
+   (one, in practice) is flagged `wh`. A few are normal; one after another is
+   what an author reads as "too many clauses". `audit-prose-structure.py`
+   reports the same for the whole document: wh-words per 100 words and the
+   share of sentences with two or more. Rewriting a wh-clause as a
+   prepositional phrase moves the cost: expect `prepositions` or `modifier`
+   flags instead, and read the sentence rather than trading one flag for
+   another.
+
    Keep the file after the author has read it, with two more columns:
    `verdict` (accepted, or rejected; revised counts as rejected; empty while
    not judged) and `reason`. Run the audit on it again and it sets the flags

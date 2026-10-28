@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (268 automated tests, labelled T2-T286: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T279 links by type, the stretch without one and forbidden constructions + T280 the blind read + T281-T282 clauses that are not clauses and links the venue uses + T283 a reference heading near the top + T284-T286 terminology against the venue) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (270 automated tests, labelled T2-T288: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T279 links by type, the stretch without one and forbidden constructions + T280 the blind read + T281-T282 clauses that are not clauses and links the venue uses + T283 a reference heading near the top + T284-T286 terminology against the venue + T287-T288 wh-clauses, sentence by sentence and per document) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -4403,6 +4403,87 @@ assert d['issues'] == 1, d['issues']
 "
 }
 
+test_T287() {
+    # Wh-words (what, where, whether, which, who, whom, whose, how, why, when) are counted on their own, "what" and
+    # "how" included, which the clause list leaves out. A sentence that holds more than the venue's 95th percentile
+    # (one, without a venue) is flagged wh: an added one by its count, a rewrite only when it gained them. A
+    # question in quotation marks is a mention and is not counted. On 2026-10-28 an author found a draft with "too
+    # many clauses" that the clause flag had not caught: they were what- and where-clauses.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    {
+        printf 'id\told\tnew\n'
+        printf 'a\t\tWe ask what the gauge reads and where the float sits.\n'
+        printf 'b\t\tWe ask what the gauge reads at the bridge.\n'
+        printf 'c\tThe gauge reads the river level.\tThe gauge reads how high the river is and why it rises.\n'
+        printf 'd\tWe ask what the gauge reads and where the float sits.\tWe ask what the gauge reads and where the old float sits.\n'
+        printf 'e\t\tThe prompt "What is it and where is it?" is read in two ways.\n'
+    } > "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    text=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" 2>/dev/null)
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1"; return 1; }
+    printf '%s' "$text" | grep -q "wh: what, where" || { echo "text report does not name the wh-words"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+by = {r['where']: r for r in d['sentences']}
+assert by['a']['features_new']['wh'] == 2 and 'wh' in by['a']['flags'], by['a']
+assert by['a']['added']['wh'] == ['what', 'where'], by['a']['added']
+assert by['b']['features_new']['wh'] == 1 and 'wh' not in by['b']['flags'], by['b']
+assert 'wh' in by['c']['flags'] and by['c']['added']['wh'] == ['how', 'why'], by['c']
+assert 'wh' not in by['d']['flags'], by['d']
+assert by['e']['features_new']['wh'] == 0 and 'wh' not in by['e']['flags'], by['e']
+assert d['wh_ceiling'] == {'value': 1, 'from': 'default'}, d.get('wh_ceiling')
+"
+}
+
+test_T288() {
+    # The structure audit reports wh-words per 100 words and the share of sentences that hold two or more, each
+    # against the baseline's range: a draft that leans on what- and where-clauses sentence after sentence is outside
+    # it on both, a draft like the baseline is not.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+toks = iter("".join(c) for c in itertools.product("abcdefghij", repeat=4))
+def doc(n, one, two):
+    out = []
+    for i in range(n):
+        w = next(toks)
+        if i < two:
+            out.append("We ask what the %s stage scored and where it kept the rank. " % w)
+        elif i < two + one:
+            out.append("We ask what the %s stage scored in the pool. " % w)
+        else:
+            out.append("The %s stage scored the pool and kept the rank. " % w)
+    return "".join(out)
+for i in range(20):
+    (d / "base" / ("paper%02d.txt" % i)).write_text(doc(200, 20 + i, i % 3))
+(d / "heavy.txt").write_text(doc(200, 40, 40))
+(d / "like.txt").write_text(doc(200, 30, 1))
+PYEOF
+    for t in heavy like; do
+        python3 .claude/skills/audit/scripts/audit-prose-structure.py --target "$tmp/$t.txt" --baseline "$tmp/base" \
+            --json > "$tmp/$t.json" 2>/dev/null
+    done
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+h, l = (json.loads((d / ("%s.json" % t)).read_text()) for t in ("heavy", "like"))
+for k in ("wh_per_100w", "wh2_share"):
+    assert k in h["outliers"] and h["metrics"][k]["outside"], (k, h["metrics"].get(k))
+    assert k not in l["outliers"], (k, l["metrics"].get(k))
+assert abs(h["metrics"]["wh2_share"]["value"] - 0.2) < 1e-9, h["metrics"]["wh2_share"]
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
 # --- T254-T255: a supplement's ledgers and files --------------------------------
 test_T254() {
     # Text moved into a supplement outside --base-dir: its ledger row reads as edited away until the supplement is
@@ -8449,6 +8530,8 @@ run_test "T283 fingerprint: a reference heading before 30% of the text does not 
 run_test "T284 terminology: a British spelling and a stock phrase the venue does not use; reference lists not counted" test_T284
 run_test "T285 terminology: one concept written two ways in the draft (spelling, compound, --families); exits 0 and 2" test_T285
 run_test "T286 terminology: a spelling under a prefix, and a linking form the venue does not use as a hint" test_T286
+run_test "T287 changed-sentence audit: wh-words counted apart, a sentence above the ceiling flagged wh" test_T287
+run_test "T288 structure audit: wh-words per 100 words and the share of sentences with two or more" test_T288
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

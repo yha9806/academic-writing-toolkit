@@ -32,6 +32,12 @@ sentences (pooled across its documents: one sentence is compared with published 
 revision that grows past the 90th is flagged for that too. Without --baseline additions are held to default ceilings
 measured on one journal, and the report says so.
 
+Wh-words (what, where, whether, which, who, whom, whose, how, why, when) are counted apart from clauses, "what" and
+"how" included. A sentence that holds more than the venue's 95th percentile (one, in 16 CVPR/ICCV/ECCV papers;
+without --baseline, one) is flagged wh: an addition by its count, a rewrite when it gained them. Rewriting a
+wh-clause as a prepositional phrase moves the cost rather than removing it: 9 of 13 such rewrites in one round were
+flagged for prepositions or modifiers instead.
+
 Adverbs are words ending in -ly and a closed list of others (also, still, only, even, very, often, instead ...);
 connectives such as however, thus and consequently are not counted. Modifiers stand in for a part-of-speech
 tagger, which this stdlib script does not have: participles after a noun ("the images collected from", "applied to
@@ -208,7 +214,7 @@ SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z(])")
 # markup stripping collapses the line breaks that would otherwise have marked it.
 BREAK = " \u00b6 "
 FEATURES = ["words", "clauses", "commas", "colons", "semicolons", "dashes", "parentheses", "adverbs", "modifiers",
-            "prepositions", "opener"]
+            "prepositions", "opener", "wh"]
 # A revision is "longer" when it gains at least this many words. In the round the thresholds were set on, the
 # rejected rewrites that grew gained well over this, and no accepted revision gained more than two.
 LONGER_WORDS = 3
@@ -351,6 +357,24 @@ def _words(s):
     return re.findall(r"[A-Za-z][A-Za-z'-]*", s)
 
 
+# Wh-words are counted on their own: what, where, whether, which, who, whom, whose, how, why and when. "what" and
+# "how" open noun clauses and embedded questions that the clause list above leaves out; "when" is counted here too,
+# as a time clause is also one more wh-clause to hold. On 2026-10-28 an author found a draft with "too many
+# clauses" after the clause flag had passed it: the sentences carried what- and where-clauses one after another. In
+# 16 CVPR/ICCV/ECCV papers 18% of sentences (median by paper) hold one and 1.9% hold two or more (at most 5.4%); a
+# sentence is flagged wh above the venue's 95th percentile, which there is one. A question quoted or named inside a
+# sentence is a mention and is not counted, as for clauses.
+WH = re.compile(r"\b(what|where|whether|which|who|whom|whose|how|why|when)\b", re.I)
+WH_PCT = 95
+DEFAULT_WH = 1
+
+
+def wh_tokens(s):
+    s = QUOTED.sub(" ", s)
+    return [m.group(1).lower() for m in WH.finditer(s)
+            if not (m.group(1)[0].isupper() and s[:m.start()].strip(" (\"'\u201c\u2018") and "?" in s[m.end():])]
+
+
 def _verb_follows(rest):
     """Whether the words after after / before / until hold a verb before the next punctuation or subordinator."""
     ws = re.findall(r"[A-Za-z']+", CLAUSE_SPAN_END.split(rest, maxsplit=1)[0])[:8]
@@ -471,6 +495,7 @@ def features(s):
         "modifiers": len(modifier_tokens(s)),
         "prepositions": len(PREP.findall(s)),
         "opener": 1 if OPENER.match(s) else 0,
+        "wh": len(wh_tokens(s)),
     }
 
 
@@ -1029,6 +1054,7 @@ def judge(olds, news, venue, forbid=()):
     fn = summed(news)
     fo = summed(olds) if olds else None
     flags, added = [], {}
+    wh_ceiling = at(venue["columns"]["wh"], WH_PCT) if venue else DEFAULT_WH
     if fo:
         if fn["words"] - fo["words"] >= LONGER_WORDS:
             flags.append("longer")
@@ -1053,6 +1079,11 @@ def judge(olds, news, venue, forbid=()):
                 added[k] = g
         if fn["prepositions"] - fo["prepositions"] >= MORE_PREPOSITIONS:
             flags.append("prepositions")
+        g = gained(olds, news, wh_tokens)
+        if g:
+            added["wh"] = g
+            if any(features(s)["wh"] > wh_ceiling for s in news):
+                flags.append("wh")
         if fn["opener"] and not fo["opener"]:
             flags.append("opener")
         if kind == "merged":
@@ -1064,8 +1095,11 @@ def judge(olds, news, venue, forbid=()):
         if any(worded_parentheses(s) for s in news):
             flags.append("parenthesis")
         added = {k: [t for s in news for t in f(s)] for k, f in
-                 (("clauses", clause_tokens), ("adverbs", adverb_tokens), ("modifiers", modifier_tokens))}
+                 (("clauses", clause_tokens), ("adverbs", adverb_tokens), ("modifiers", modifier_tokens),
+                  ("wh", wh_tokens))}
         added = {k: v for k, v in added.items() if v}
+        if any(features(s)["wh"] > wh_ceiling for s in news):
+            flags.append("wh")
     pct, dense_hits = {}, set()
     pct_used = ADDITION_PCT if fo is None else VENUE_PCT
     ceiling = ({k: at(venue["columns"][k], pct_used) for k in ("words",) + DENSITY} if venue else DEFAULT_CEILING)
@@ -1231,6 +1265,10 @@ def main():
            "links_added": dict(sorted(linked.items())),
            "links_added_opening": dict(sorted(opened.items())),
            "links_in_venue": in_venue,
+           "wh_ceiling": ({"value": at(venue["columns"]["wh"], WH_PCT), "from": f"venue p{WH_PCT}",
+                           "venue_share_two_or_more": round(sum(1 for v in venue["columns"]["wh"] if v >= 2)
+                                                            / len(venue["columns"]["wh"]), 4)}
+                          if venue else {"value": DEFAULT_WH, "from": "default"}),
            "forbid": sorted(set(a.forbid)), "forbidden": len(forbidden),
            "venue": ({"documents": venue["documents"], "sentences": venue["sentences"],
                       "p90": {k: at(venue["columns"][k], VENUE_PCT) for k in ("words",) + DENSITY},
@@ -1262,6 +1300,11 @@ def main():
         elif unjudged:
             print(f"{unjudged} added sentence(s) held to default ceilings, not to a venue: give --baseline "
                   + "(" + ", ".join(f"{k} {v}" for k, v in DEFAULT_CEILING.items()) + ")")
+        wc = out["wh_ceiling"]
+        print(f"wh-words (what, where, whether, which, who, how, why, when ...): a sentence with more than "
+              f"{wc['value']} is flagged wh ({wc['from']}"
+              + (f"; {100 * wc['venue_share_two_or_more']:.1f}% of venue sentences hold two or more)"
+                 if "venue_share_two_or_more" in wc else ")"))
         if a.forbid:
             print(f"forbidden ({', '.join(sorted(set(a.forbid)))}): {len(forbidden)} sentence(s) gain one; change them, "
                   "a reason to keep them does not clear this")
