@@ -348,10 +348,13 @@ def main():
     ap.add_argument("--families", help="TSV with columns concept, term: the names one concept goes by")
     ap.add_argument("--phrases", help="more stock phrases, one per line")
     ap.add_argument("--min-baseline", type=int, default=5)
+    ap.add_argument("--skip-command", action="append", default=[], metavar="NAME",
+                    help="in .tex, drop \\NAME and its arguments before reading (repeatable): a placeholder macro")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     gate = module("sentence_changes", "audit-sentence-changes.py")
     fp = module("fingerprint", "audit-prose-fingerprint.py")
+    fp.SKIP_COMMANDS[:] = a.skip_command
 
     drafted = [(f, read(f, fp, gate)[0]) for f in files(a.target)]
     drafted = [(f, t) for f, t in drafted if t]

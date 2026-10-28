@@ -981,6 +981,7 @@ def _venue_key(baseline):
     h = hashlib.sha256()
     for f in (Path(__file__).resolve(), HERE / "audit-prose-fingerprint.py"):
         h.update(f.read_bytes())
+    h.update("\0".join(getattr(FP, "SKIP_COMMANDS", [])).encode("utf-8"))
     for f in sorted(p for p in Path(baseline).rglob("*") if p.is_file()):
         st = f.stat()
         h.update(f"{f.relative_to(baseline)}\0{st.st_size}\0{st.st_mtime_ns}\0".encode("utf-8"))
@@ -1229,10 +1230,13 @@ def main():
     ap.add_argument("--forbid", action="append", default=[], choices=[n for _, n in FORBIDDABLE],
                     help="a construction the author has ruled out (repeatable): a sentence that gains one is flagged "
                          "forbidden, which a reason to keep it does not clear")
+    ap.add_argument("--skip-command", action="append", default=[], metavar="NAME",
+                    help="in .tex, drop \\NAME and its arguments before reading (repeatable): a placeholder macro")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     global FP
     fp = FP = fingerprint()
+    fp.SKIP_COMMANDS[:] = a.skip_command
     removed = []
     carriers = read_carriers(a.carriers) if a.carriers else []
     bound = read_bound(a.ledger) if a.ledger else []

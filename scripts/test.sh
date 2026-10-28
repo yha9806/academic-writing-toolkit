@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (272 automated tests, labelled T2-T290: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T279 links by type, the stretch without one and forbidden constructions + T280 the blind read + T281-T282 clauses that are not clauses and links the venue uses + T283 a reference heading near the top + T284-T286 terminology against the venue + T287-T288 wh-clauses, sentence by sentence and per document + T289-T290 new prose as a block and sentences cut short) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (275 automated tests, labelled T2-T293: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T279 links by type, the stretch without one and forbidden constructions + T280 the blind read + T281-T282 clauses that are not clauses and links the venue uses + T283 a reference heading near the top + T284-T286 terminology against the venue + T287-T288 wh-clauses, sentence by sentence and per document + T289-T290 new prose as a block and sentences cut short + T291-T293 placeholder commands left out of LaTeX prose) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -4569,6 +4569,132 @@ assert d['short_ceiling'] == {'value': 10, 'from': 'default'}, d.get('short_ceil
 "
 }
 
+test_T291() {
+    # --skip-command NAME drops a placeholder macro with its arguments when the changed-sentence audit reads LaTeX:
+    # the placeholder's words and semicolon are not an added sentence, and the sentence added beside it still is.
+    # Without the option the placeholder's text is read, as before.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    printf '%s\n' '\begin{document}' '\section{Data}' \
+        'The gauge reads the river level at the north bridge twice a day.' '' \
+        'The crews log each reading by hand before noon.' '\end{document}' > "$tmp/base.tex"
+    printf '%s\n' '\begin{document}' '\section{Data}' \
+        'The gauge reads the river level at the north bridge twice a day.' \
+        '\SLOT{Table 2: readings per gauge, see \textbf{the spring log}; counts wait for the pool}' '' \
+        'The crews log each reading by hand before noon.' \
+        '\paragraph{Gauges.} The crews also log the weather at each bridge.' '\end{document}' > "$tmp/target.tex"
+    python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/target.tex" --base "$tmp/base.tex" \
+        --skip-command SLOT --json > "$tmp/skip.json" 2>"$tmp/skip.err"
+    python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/target.tex" --base "$tmp/base.tex" \
+        --json > "$tmp/read.json" 2>/dev/null
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+skip = json.loads((d / "skip.json").read_text() or "null")
+assert skip, (d / "skip.err").read_text()
+new = [r["new"] for r in skip["sentences"]]
+assert new == ["The crews also log the weather at each bridge."], new
+assert skip["compared"]["target_sentences"] == 3, skip["compared"]
+read = json.loads((d / "read.json").read_text())
+assert any("spring log" in r["new"] for r in read["sentences"]), read["sentences"]
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
+test_T292() {
+    # The fingerprint drops each command named with --skip-command, its star, optional and brace arguments with
+    # it, nested braces included; a longer command name that starts the same is kept, and so is a placeholder whose
+    # brace never closes. The fingerprint and structure audits read a draft with placeholders and headings skipped
+    # exactly as they read the same draft without them.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF' || { rm -rf "$tmp"; return 1; }
+import importlib.util, sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("fp", ".claude/skills/audit/scripts/audit-prose-fingerprint.py")
+fp = importlib.util.module_from_spec(spec); sys.argv = ["x"]; spec.loader.exec_module(fp)
+got = fp.drop_commands("A. \\SLOT*[x]{a {b} c}{d} B. \\SLOTS{kept} \\SLOT{open", ["SLOT"])
+assert got == "A.   B. \\SLOTS{kept} \\SLOT{open", repr(got)
+fp.SKIP_COMMANDS = ["SLOT", "section"]
+text = fp.strip_markup("\\begin{document}\\section{Long Title Words}\nThe gauge reads.\n\\SLOT{a; b}\n\\end{document}", ".tex")
+assert text == "The gauge reads.", text
+(d / "base").mkdir()
+toks = iter("".join(c) for c in itertools.product("abcdefghij", repeat=4))
+def doc(n):
+    return "".join("The %s gauge reads the river, and the crew logs it by %s. " % (next(toks), "noon" if i % 3 else "hand before the bridge closes for the night") for i in range(n))
+for i in range(20):
+    (d / "base" / ("paper%02d.txt" % i)).write_text(doc(200 + i))
+body = [doc(1) for _ in range(120)]
+plain = "\\begin{document}\n" + "\n".join(body) + "\n\\end{document}\n"
+marked = body[:]
+marked.insert(40, "\\section{Three Long Heading Words}")
+marked.insert(60, "\\SLOT{Table 2: readings per gauge; counts wait for the pool, see \\textbf{the log}}")
+marked.insert(90, "\\SLOT{Implication, worded after the results; one more clause where it waits}")
+(d / "plain.tex").write_text(plain)
+(d / "marked.tex").write_text("\\begin{document}\n" + "\n".join(marked) + "\n\\end{document}\n")
+PYEOF
+    local s=.claude/skills/audit/scripts
+    python3 $s/audit-prose-fingerprint.py --target "$tmp/plain.tex" --baseline "$tmp/base" --allow-overlap --json > "$tmp/fp-plain.json" 2>/dev/null
+    python3 $s/audit-prose-fingerprint.py --target "$tmp/marked.tex" --baseline "$tmp/base" --skip-command SLOT \
+        --skip-command section --allow-overlap --json > "$tmp/fp-skip.json" 2>/dev/null
+    python3 $s/audit-prose-fingerprint.py --target "$tmp/marked.tex" --baseline "$tmp/base" --allow-overlap --json > "$tmp/fp-read.json" 2>/dev/null
+    python3 $s/audit-prose-structure.py --target "$tmp/plain.tex" --baseline "$tmp/base" --json > "$tmp/st-plain.json" 2>/dev/null
+    python3 $s/audit-prose-structure.py --target "$tmp/marked.tex" --baseline "$tmp/base" --skip-command SLOT \
+        --skip-command section --json > "$tmp/st-skip.json" 2>/dev/null
+    python3 $s/audit-prose-structure.py --target "$tmp/marked.tex" --baseline "$tmp/base" --json > "$tmp/st-read.json" 2>/dev/null
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+r = {n: json.loads((d / ("%s.json" % n)).read_text() or "null") for n in
+     ("fp-plain", "fp-skip", "fp-read", "st-plain", "st-skip", "st-read")}
+assert all(r.values()), [n for n, v in r.items() if not v]
+val = lambda m: {k: v.get("value") for k, v in m.items()}
+assert r["fp-skip"]["target_words"] == r["fp-plain"]["target_words"], (r["fp-skip"]["target_words"], r["fp-plain"]["target_words"])
+assert val(r["fp-skip"]["metrics"]) == val(r["fp-plain"]["metrics"])
+assert r["fp-read"]["metrics"]["semicolon_per_1k"]["value"] > 0, r["fp-read"]["metrics"]["semicolon_per_1k"]
+for k in ("target_words", "target_sentences"):
+    assert r["st-skip"][k] == r["st-plain"][k], (k, r["st-skip"][k], r["st-plain"][k])
+assert val(r["st-skip"]["metrics"]) == val(r["st-plain"]["metrics"])
+assert r["st-read"]["target_words"] > r["st-plain"]["target_words"], r["st-read"]["target_words"]
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
+test_T293() {
+    # The terminology audit takes --skip-command too: a British spelling inside a placeholder is not the draft's
+    # spelling. Without the option it is reported, as before.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue" "$tmp/draft"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+for i in range(6):
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join("The %d gauge reads the color of the river at the bridge." % j for j in range(60)))
+(d / "draft" / "main.tex").write_text("\\begin{document}\n" + " ".join(["The gauge reads the color of the river at the bridge."] * 30)
+    + "\n\\SLOT{The colour key waits for the spring log}\n\\end{document}\n")
+PYEOF
+    local s=.claude/skills/audit/scripts/audit-terminology.py
+    python3 $s --target "$tmp/draft" --baseline "$tmp/venue" --skip-command SLOT --json > "$tmp/skip.json" 2>"$tmp/skip.err"
+    python3 $s --target "$tmp/draft" --baseline "$tmp/venue" --json > "$tmp/read.json" 2>/dev/null
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+skip = json.loads((d / "skip.json").read_text() or "null")
+assert skip, (d / "skip.err").read_text()
+assert skip["spelling"] == [], skip["spelling"]
+read = json.loads((d / "read.json").read_text())
+assert [r["form"] for r in read["spelling"]] == ["colour"], read["spelling"]
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
 # --- T254-T255: a supplement's ledgers and files --------------------------------
 test_T254() {
     # Text moved into a supplement outside --base-dir: its ledger row reads as edited away until the supplement is
@@ -8619,6 +8745,9 @@ run_test "T287 changed-sentence audit: wh-words counted apart, a sentence above 
 run_test "T288 structure audit: wh-words per 100 words and the share of sentences with two or more" test_T288
 run_test "T289 changed-sentence audit: 25 added sentences are new prose, judged as a block against windows of the venue" test_T289
 run_test "T290 changed-sentence audit: a split that cuts out a piece below the venue's 10th percentile is flagged short" test_T290
+run_test "T291 changed-sentence audit: --skip-command drops a placeholder macro and its arguments from LaTeX prose" test_T291
+run_test "T292 fingerprint and structure audits: --skip-command reads a draft as if its placeholders and headings were not there" test_T292
+run_test "T293 terminology audit: a spelling inside a skipped placeholder is not the draft's" test_T293
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

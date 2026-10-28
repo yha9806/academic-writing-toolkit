@@ -180,6 +180,67 @@ def read_pdf(path: Path) -> Optional[str]:
     return re.sub(r"-\n", "", out.stdout)
 
 
+# Commands named with --skip-command go with their arguments before the rest of the markup is stripped. An author's
+# placeholder such as \SLOT{Table 2: counts per domain; they wait for the pool} is not prose, and stripping only the
+# command name left its words, colons and semicolons in every count: on 2026-10-28 a draft's 13 placeholders held all
+# 4 of its semicolons. A heading can be skipped the same way (--skip-command section).
+SKIP_COMMANDS: List[str] = []
+
+
+def drop_commands(text: str, names, fill: str = " ") -> str:
+    """Each \\name, with its star and the optional and brace arguments that follow it on the same line, replaced by
+    `fill`. Nested braces are part of the argument. A brace that never closes leaves the command where it is."""
+    if not names:
+        return text
+    pat = re.compile(r"\\(?:%s)(?![A-Za-z])\*?" % "|".join(map(re.escape, names)))
+    out, i = [], 0
+    while True:
+        m = pat.search(text, i)
+        if not m:
+            out.append(text[i:])
+            return "".join(out)
+        j, ok = m.end(), True
+        while True:
+            k = j
+            while k < len(text) and text[k] in " \t":
+                k += 1
+            if k < len(text) and text[k] == "[":
+                e = text.find("]", k)
+                if e < 0:
+                    break
+                j = e + 1
+            elif k < len(text) and text[k] == "{":
+                e = _closing(text, k)
+                if e < 0:
+                    ok = False
+                    break
+                j = e + 1
+            else:
+                break
+        if ok:
+            out.append(text[i:m.start()] + fill)
+        else:
+            out.append(text[i:m.end()])
+        i = j if ok else m.end()
+
+
+def _closing(text: str, start: int) -> int:
+    depth, i = 0, start
+    while i < len(text):
+        c = text[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+
 def strip_markup(text: str, suffix: str) -> str:
     """Remove markup that is not prose the reader sees."""
     if suffix == ".tex":
@@ -190,6 +251,7 @@ def strip_markup(text: str, suffix: str) -> str:
         if len(body) == 2:
             text = body[1]
         text = re.sub(r"(?m)^\s*%.*$", "", text)
+        text = drop_commands(text, SKIP_COMMANDS)
         # Alt text and comments are not read aloud in the flow of the argument,
         # but they do drift, so they are measured separately by --include-alt.
         text = re.sub(r"\\Description\{(?:[^{}]|\{[^{}]*\})*\}", " ", text)
@@ -590,11 +652,15 @@ def main() -> int:
     ap.add_argument("--allow-overlap", action="store_true",
                     help="report percentiles even when that scan finds one. Use only "
                          "when the overlap is intended and you can say why")
+    ap.add_argument("--skip-command", action="append", default=[], metavar="NAME",
+                    help="in .tex, drop \\NAME and its arguments before counting (repeatable): a placeholder macro, "
+                         "or section to leave headings out")
     ap.add_argument("--json", action="store_true", dest="emit_json")
     ap.add_argument("--per-file", action="store_true", dest="per_file",
                     help="with a directory target, also measure each file alone and report where each "
                          "rhetorical device peaks (see DEVICE_KEYS)")
     args = ap.parse_args()
+    SKIP_COMMANDS[:] = args.skip_command
 
     target = Path(args.target)
     if not target.exists():

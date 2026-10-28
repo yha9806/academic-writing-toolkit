@@ -140,12 +140,16 @@ def main(argv=None):
     ap.add_argument("--baseline", required=True)
     ap.add_argument("--exclude", action="append", default=[], help="skip baseline files whose name matches")
     ap.add_argument("--min-baseline", type=int, default=20)
+    ap.add_argument("--skip-command", action="append", default=[], metavar="NAME",
+                    help="in .tex, drop \\NAME and its arguments before measuring (repeatable): a placeholder macro, "
+                         "or section to leave headings out")
     ap.add_argument("--json", action="store_true")
     try:
         a = ap.parse_args(argv)
     except SystemExit as e:
         sys.exit(2 if e.code else 0)
     fp = reader()
+    fp.SKIP_COMMANDS[:] = a.skip_command
     load = fp.load
     target, base = Path(a.target), Path(a.baseline)
     if not target.exists():

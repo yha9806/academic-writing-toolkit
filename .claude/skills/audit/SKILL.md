@@ -344,6 +344,16 @@ writes nothing. Nothing to examine exits 2.
    of length is flagged `short`; a sentence compressed whole is not, since a
    plainer rewrite is what this audit is meant to let through.
 
+   A draft that keeps placeholders in the LaTeX (`\SLOT{...}` or any macro
+   the author uses for text still to be written) is read with
+   `--skip-command SLOT` (repeatable): the command goes with its arguments,
+   nested braces included. Without it only the command name is stripped and
+   the placeholder's words, colons and semicolons are read as prose. The
+   fingerprint, structure and terminology audits take the same option;
+   `--skip-command section` (or `paragraph`) also leaves headings out of the
+   fingerprint and structure counts, where a heading otherwise runs into the
+   sentence after it.
+
    Keep the file after the author has read it, with two more columns:
    `verdict` (accepted, or rejected; revised counts as rejected; empty while
    not judged) and `reason`. Run the audit on it again and it sets the flags
