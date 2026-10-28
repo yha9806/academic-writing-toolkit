@@ -33,7 +33,9 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-SCHEMA_VERSION = 3
+# 4: linking_opener_share counts sequence words and linking phrases as well, so a value is not comparable with one
+# from schema 3; the share by type and the longest run without a link were added.
+SCHEMA_VERSION = 4
 
 # --- constructions -----------------------------------------------------------
 # Each is a family of surface forms, not a single string. The corrective
@@ -48,22 +50,76 @@ DISCOURSE = (
     r"\b(?:[Hh]owever|[Mm]oreover|[Ff]urthermore|[Tt]hus|[Tt]herefore"
     r"|[Nn]evertheless|[Cc]onsequently|[Nn]onetheless)\b"
 )
-# A sentence that opens with a linking adverbial says how it stands to the sentence before it: a contrast, a
-# consequence, an example, an addition. Published papers open a steady share of their sentences this way; a draft
-# that opens almost none of them leaves the reader to supply every relation. The count is of sentences, not of
-# words, and only of the opening: "however" in mid-sentence is the discourse-marker rate above.
-# Not counted: enumerators (First, Second, Finally), which order a list without saying how its items relate, and
-# subordinators (Although, Because, While), which relate two clauses inside one sentence. "Instead of" and
-# "In addition to" open a phrase, not a link. Words that are links only when a comma follows them need the comma.
-# The list is closed: a link it does not name is not counted. audit-sentence-changes.py reads it from here.
-LINKING_OPENER = re.compile(
-    r"^[\"'\u201c\u2018]?(?:"
-    r"(?:However|Thus|Therefore|Hence|Moreover|Furthermore|Consequently|Nevertheless|Nonetheless|Accordingly"
-    r"|Conversely|Similarly|Likewise|Indeed|Yet|Additionally|Specifically|Notably|Importantly|Meanwhile"
-    r"|As a result|As a consequence|In contrast|By contrast|For example|For instance|In particular"
-    r"|On the other hand|In other words|In turn|In summary|In short|To this end|Even so|Instead(?! of)"
-    r"|In addition(?! to))\b"
-    r"|(?:That is|Overall|Still|Otherwise|In practice|Taken together|Put differently)\s*,)")
+# A sentence that opens with a link says how it stands to the sentence before it: a contrast, an addition, a
+# consequence, a step in a sequence, an example, a comparison, a summary. Published papers open a steady share of
+# their sentences this way; a draft that opens almost none of them leaves the reader to supply every relation. The
+# count is of sentences, not of words, and only of the opening: "however" in mid-sentence is the discourse-marker
+# rate above.
+# Two kinds. A linking word stands alone ("However,", "More recently,"); one that is a link only when a comma follows
+# it carries the comma in the list. A linking phrase names what the sentence is set against ("Unlike these designs,",
+# "Following [12],") and counts when a comma closes it within PHRASE_WORDS words; audit-sentence-changes.py takes the
+# words out of a rewrite before comparing it, never the phrases, which carry content.
+# Enumerators and time words (First, Finally, More recently) are links of sequence. On 2026-10-28 an author asked for
+# sentence openings that carry "logic and order", and the list before this one left the order out. In 25 published
+# related-work sections (CVPR, ICCV, ECCV; 585 sentences) it found 70 sentences opening with a link and this one finds
+# 113; 24 of the 43 added are links of sequence, and on a reading of each (not by an author) none is a false match.
+# Not counted: subordinators (Although, Because, While), which relate two clauses inside one sentence, and
+# "Instead of", which swaps one thing for another inside the sentence. The type is the reading a form usually has;
+# nothing here reads meaning. The list is closed: a link it does not name is not counted.
+LINK_TYPES = ("contrast", "addition", "cause", "sequence", "example", "comparison", "summary")
+LINK_WORDS = {
+    "contrast": ["However", "Nevertheless", "Nonetheless", "Yet(?! another)", "In contrast", "By contrast", "On the other hand",
+                 "Conversely", "Instead(?! of)", "Even so", "Still,", "Otherwise,", "That said,", "In practice,"],
+    "addition": ["Moreover", "Furthermore", "Additionally", "In addition(?! to)", "Indeed", "Notably", "Importantly",
+                 "More importantly", "Most importantly", "Also,", "Besides,", "Further,", "Again,"],
+    "cause": ["Thus", "Therefore", "Hence", "Consequently", "Accordingly", "As a result", "As a consequence",
+              "To this end", "For this reason", "For these reasons", "In turn", "Because of this"],
+    "sequence": ["Meanwhile", "Then", "Next", "Subsequently", "Afterwards", "Initially", "Eventually",
+                 "More recently", "Most recently", "Recently,", "Later,", "Earlier,", "At first,", "First,", "Second,",
+                 "Third,", "Fourth,", "Firstly,", "Secondly,", "Thirdly,", "Finally,", "Lastly,"],
+    "example": ["For example", "For instance", "In particular", "Specifically", "That is,", "In other words",
+                "Put differently,", "Namely,"],
+    "comparison": ["Similarly", "Likewise", "In comparison", "By comparison", "Analogously", "Correspondingly"],
+    "summary": ["In summary", "In short", "In sum", "In conclusion", "To summarize", "To sum up", "Taken together",
+                "Overall,", "All in all,"],
+}
+LINK_PHRASES = {
+    "contrast": ["In contrast to", "As opposed to", "Contrary to", "Despite", "In spite of"],
+    "addition": ["In addition to", "Beyond", "Besides", "Apart from", "Aside from"],
+    "sequence": ["Following", "Building on", "Building upon", "Inspired by"],
+    "comparison": ["Unlike", "Similar to", "Like", "Compared with", "Compared to", "In comparison with",
+                   "In comparison to", "Closer to", "Related to", "As with"],
+}
+PHRASE_WORDS = 20
+_QUOTE = "[\"'\u201c\u2018]?"
+
+
+def _word_pattern(form: str) -> str:
+    # not \b: "Next-generation models" opens with an adjective, not with a step
+    return form[:-1] + r"\s*," if form.endswith(",") else form + r"(?![\w-])"
+
+
+# Longest first: "In contrast to" before "In contrast", "More recently" before "Recently,".
+_WORDS = sorted(((t, f) for t, fs in LINK_WORDS.items() for f in fs), key=lambda x: -len(x[1]))
+_PHRASES = sorted(((t, f) for t, fs in LINK_PHRASES.items() for f in fs), key=lambda x: -len(x[1]))
+LINKING_WORD = re.compile("^" + _QUOTE + "(?:" + "|".join("(?P<w{}>{})".format(i, _word_pattern(f))
+                                                          for i, (_, f) in enumerate(_WORDS)) + ")")
+LINKING_PHRASE = re.compile("^" + _QUOTE + "(?:" + "|".join("(?P<p{}>{})".format(i, f)
+                                                            for i, (_, f) in enumerate(_PHRASES)) + r")\s+(?=[^\s,])")
+
+
+def opening_link(sentence: str) -> Optional[Tuple[str, str, str]]:
+    """(type, the linking words as written, "word" or "phrase") when the sentence opens with a link, else None."""
+    s = sentence.strip()
+    m = LINKING_PHRASE.match(s)
+    if m and "," in " ".join(s[m.end():].split()[:PHRASE_WORDS]):
+        i = int(m.lastgroup[1:])
+        return _PHRASES[i][0], m.group(m.lastgroup), "phrase"
+    m = LINKING_WORD.match(s)
+    if m:
+        i = int(m.lastgroup[1:])
+        return _WORDS[i][0], m.group(m.lastgroup).rstrip(" ,"), "word"
+    return None
 NOMINALISATION = r"\b\w+(?:tion|ment|ness|ity)s?\b"
 # [Ss]peculat\w*: speculate(s/d), speculating, speculation(s), speculative(ly) hedge a claim as "may" does. The capital
 # is allowed for these alone: a sentence may open on them, and unlike "May" none of them is also a month.
@@ -244,13 +300,41 @@ def sentence_lengths(text: str) -> List[Optional[int]]:
     return out
 
 
-def linking_opener_share(text: str) -> Optional[float]:
-    """Share of sentences that open with a linking adverbial (LINKING_OPENER). Sentences are split and kept as in
-    sentence_lengths, so the denominator is the same set of sentences the length metrics read."""
-    kept = [s for s in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text) if 4 <= len(s.split()) <= 120]
-    if len(kept) < 30:
+def kept_sentences(text: str) -> List[str]:
+    """Sentences split and kept as in sentence_lengths, so the openers are read on the sentences the length metrics
+    read."""
+    return [s for s in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text) if 4 <= len(s.split()) <= 120]
+
+
+def opening_links(text: str) -> List[Optional[Tuple[str, str, str]]]:
+    """opening_link() of each kept sentence, in reading order."""
+    return [opening_link(s) for s in kept_sentences(text)]
+
+
+def linking_opener_share(links: Sequence[Optional[tuple]], kind: Optional[str] = None) -> Optional[float]:
+    """Share of sentences that open with a link (of one type, when kind is given)."""
+    if len(links) < 30:
         return None
-    return sum(1 for s in kept if LINKING_OPENER.match(s.strip())) / len(kept)
+    return sum(1 for x in links if x and (kind is None or x[0] == kind)) / len(links)
+
+
+def longest_unlinked(links: Sequence[Optional[tuple]]) -> int:
+    """The most sentences in a row that open with no link."""
+    best = run = 0
+    for x in links:
+        run = 0 if x else run + 1
+        best = max(best, run)
+    return best
+
+
+def windowed_unlinked(links: Sequence[Optional[tuple]], n: int) -> Optional[float]:
+    """The longest unlinked run a stretch of n sentences of this document typically has: the median, over every
+    window of n consecutive sentences, of the longest run inside it. A run is longer in a longer text, so a section
+    of 50 sentences set against whole papers of 400 would always look well linked; the window makes the lengths
+    equal. None when the document is shorter than n."""
+    if n < 1 or len(links) < n:
+        return None
+    return statistics.median(longest_unlinked(links[i:i + n]) for i in range(len(links) - n + 1))
 
 
 def lag1(values: Sequence[Optional[int]]) -> Optional[float]:
@@ -327,7 +411,12 @@ def measure(text: str) -> Dict[str, Optional[float]]:
     lengths = sentence_lengths(text)
     out["sentence_length_cv"] = cv([n for n in lengths if n is not None])
     out["sentence_length_lag1"] = lag1(lengths)
-    out["linking_opener_share"] = linking_opener_share(text)
+    links = opening_links(text)
+    out["linking_opener_share"] = linking_opener_share(links)
+    for kind in LINK_TYPES:
+        out["linking_opener_" + kind] = linking_opener_share(links, kind)
+    out["linking_opener_longest_gap"] = longest_unlinked(links) if links else None
+    out["_links"] = links   # kept for the windowed baseline in main(); not a metric
     out["repeat_4gram_per_1k"] = repeat_ngram_rate(text)
     verbs = re.findall(r"\b[Ww]e ([a-z]+)\b", text)
     out["first_person_verb_diversity"] = (len(set(verbs)) / len(verbs)) if verbs else None
@@ -376,6 +465,15 @@ def percentile(value: Optional[float], population: List[float]) -> Optional[floa
 
 
 # --- reporting ---------------------------------------------------------------
+# A style round is accepted by the author reading blind, not by these numbers. On 2026-10-28 an author read two
+# versions of one related-work paragraph without knowing which was which and chose the one from before the style
+# round. On the whole section, that version had 9 of this audit's metrics outside the range as it then measured them
+# (schema 3; linking opener share 0) and 4 of audit-prose-structure.py's against published related-work sections; the
+# version after the round had 3 and 0 (n = 1 paragraph, one author). The rewrite had added a semicolon, a colon and a
+# short sentence, and the author wanted no semicolons and more sentence openings that carry logic and order.
+# blind-pair.py runs such a read.
+ACCEPTANCE = ("Inside the range is not acceptance: a style round is accepted by the author's blind read of before\n"
+              "and after (blind-pair.py), and once an author preferred the version these metrics placed outside it.")
 KEY_ORDER = [
     ("contrast_per_1k", "corrective diptych  /1k"),
     ("contrast_gap_cv", "  gap CV (bunching)"),
@@ -386,6 +484,8 @@ KEY_ORDER = [
     ("sentence_length_cv", "sentence length CV"),
     ("sentence_length_lag1", "sentence length lag-1"),
     ("linking_opener_share", "linking opener share"),
+] + [("linking_opener_" + kind, "  " + kind) for kind in LINK_TYPES] + [
+    ("linking_opener_longest_gap", "  most sentences without"),
     ("repeat_4gram_per_1k", "repeated 4-gram  /1k"),
     ("nominalisation_per_1k", "nominalisation  /1k"),
     ("hedge_per_1k", "hedging  /1k"),
@@ -470,6 +570,11 @@ def main() -> int:
                          "it is usually they who set the extreme")
     ap.add_argument("--min-baseline", type=int, default=5,
                     help="refuse to report percentiles below this many baseline documents")
+    ap.add_argument("--min-words", type=int, default=1500, metavar="N",
+                    help="baseline documents shorter than this are listed as too short and left out (default 1500). "
+                         "Lower it to compare a related-work section with published related-work sections, which "
+                         "run 300-1,300 words: the linking openers are counted per sentence and read fine there, "
+                         "while the per-1k rates of a 300-word document move by 3 for each occurrence")
     ap.add_argument("--overlap-threshold", type=float, default=1.0, metavar="PCT",
                     help="a baseline document sharing more than this percentage of "
                          "the target's 4-grams is reported as a suspected draft or "
@@ -527,7 +632,7 @@ def main() -> int:
                 # needs sentences, skipped it.
                 garbled.append({"file": p.name, "word_share": round(share, 3)})
                 continue
-            if words < 1500:
+            if words < args.min_words:
                 # A document also leaves the baseline by being too short to
                 # measure, and that exit had no name. `baseline_skipped` held
                 # only the unreadable ones, so a corpus of 179 files reported
@@ -565,6 +670,7 @@ def main() -> int:
               "baseline_sufficient": len(base_rows) >= args.min_baseline,
               "baseline_skipped": skipped,
               "baseline_too_short": too_short,
+              "baseline_min_words": args.min_words,
               "baseline_garbled": garbled,
               "target_pipeline": target_pipelines,
               "baseline_pipeline_mix": base_pipelines,
@@ -576,13 +682,29 @@ def main() -> int:
               "overlap_threshold_pct": args.overlap_threshold,
               "preconditions_checked": preconditions_ok,
               "overlap_waived": waived,
+              "acceptance": ACCEPTANCE.replace("\n", " "),
               "metrics": {}}
 
     outliers, edges = [], []
+    n_links = len(mine["_links"])
     for key, _ in KEY_ORDER:
-        pop = [r[key] for r in base_rows if r.get(key) is not None]
+        if key == "linking_opener_longest_gap":
+            # set against stretches of the target's own length (windowed_unlinked), never against whole papers
+            pop = [w for w in (windowed_unlinked(r["_links"], n_links) for r in base_rows) if w is not None]
+        else:
+            pop = [r[key] for r in base_rows if r.get(key) is not None]
         entry = {"value": mine.get(key)}
-        if enough and pop and mine.get(key) is not None:
+        if base_rows:
+            entry["baseline_n"] = len(pop)
+        if key == "linking_opener_longest_gap" and base_rows and not pop:
+            entry["baseline_note"] = ("no baseline document has {} sentences, so there is no stretch of this "
+                                      "length to compare with".format(n_links))
+        elif enough and 0 < len(pop) < args.min_baseline:
+            # The shares need 30 sentences, and a related-work section has about 24: of 18 published ones, 4 had
+            # enough. The document count above said 18 while the percentile came from 4.
+            entry["baseline_note"] = ("only {} of the {} baseline documents are long enough for this metric; "
+                                      "--min-baseline is {}".format(len(pop), len(base_rows), args.min_baseline))
+        if enough and len(pop) >= args.min_baseline and mine.get(key) is not None:
             pop_sorted = sorted(pop)
             entry.update({
                 "baseline_median": statistics.median(pop_sorted),
@@ -599,6 +721,21 @@ def main() -> int:
             elif entry["edge"]:
                 edges.append(key)
         report["metrics"][key] = entry
+    # The shares need 30 sentences; a paragraph read on its own still has openings, so they are listed whatever its
+    # length.
+    run, start, begins = 0, None, None
+    for i, x in enumerate(mine["_links"]):
+        run = 0 if x else run + 1
+        if run and run == mine["linking_opener_longest_gap"] and start is None:
+            start = i - run + 1
+    if start is not None:
+        begins = " ".join(kept_sentences(text)[start].split()[:8])
+    report["linking_openers"] = {
+        "sentences": n_links,
+        "linked": sum(1 for x in mine["_links"] if x),
+        "by_type": {kind: [x[1] for x in mine["_links"] if x and x[0] == kind] for kind in LINK_TYPES},
+        "longest_without": mine["linking_opener_longest_gap"],
+        "longest_without_begins": begins}
 
     # Per-section evenness needs no baseline at all, which makes it the one
     # measurement here that is never blocked -- and the one whose absence used
@@ -728,7 +865,18 @@ def main() -> int:
                     line += "  *"
                 elif e.get("edge"):
                     line += "  ~"
+            elif enough and e.get("baseline_n") is not None and e["baseline_n"] < args.min_baseline:
+                line += "  (baseline: {} document(s) long enough)".format(e["baseline_n"])
             print(line)
+        lo = report["linking_openers"]
+        if lo["sentences"]:
+            found = "; ".join("{} {}".format(kind, ", ".join(forms)) for kind, forms in lo["by_type"].items() if forms)
+            print("\nsentences that open with a link to the one before: {} of {}{}; most in a row without: {}{}".format(
+                lo["linked"], lo["sentences"], " (" + found + ")" if found else "", lo["longest_without"],
+                ", from \"{} ...\"".format(lo["longest_without_begins"]) if lo["longest_without_begins"] else ""))
+            note = report["metrics"]["linking_opener_longest_gap"].get("baseline_note")
+            if note:
+                print("  " + note)
         if report.get("per_file"):
             print("\nper file, /1k: " + ", ".join(label for _, label in DEVICE_KEYS) + "  (* too short to judge)")
             for name, f in report["per_file"].items():
@@ -752,6 +900,7 @@ def main() -> int:
         print("\nNote: none of these values is a target to hit. Editing to move a "
               "number\nrather than to fix a sentence produces a different artefact, "
               "not a better one.")
+        print(ACCEPTANCE)
 
     # 2, not 1: 1 means "measured, and something is outside the range"; 2 means
     # "not measured, because the baseline could not be trusted". Without the

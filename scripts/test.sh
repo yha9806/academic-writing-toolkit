@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (257 automated tests, labelled T2-T275: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (262 automated tests, labelled T2-T280: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T279 links by type, the stretch without one and forbidden constructions + T280 the blind read) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3613,16 +3613,16 @@ assert d['links_added'] == {'as a result': 1, 'for example': 1, 'however': 1, 'i
 }
 
 test_T257() {
-    # The fingerprint counts sentences that open with a linking adverbial, as a share of sentences. Enumerators
-    # (First, Second), subordinators (Although) and "Instead of" do not count; a link that needs a comma counts
-    # only with it.
+    # The fingerprint counts sentences that open with a linking adverbial, as a share of sentences. Subordinators
+    # (Although), "Instead of" and a time word without its comma (Recently installed) do not count; a link that needs
+    # a comma counts only with it. (Enumerators such as First, counted since T276 as links of sequence, are not here.)
     local tmp none some
     tmp=$(mktemp -d) || return 1
     python3 - "$tmp" <<'PYEOF'
 import sys, pathlib
 d = pathlib.Path(sys.argv[1])
 plain = "The gauge reads the river level twice a day at the north bridge. "
-notlink = ["First, the gauge reads the river level at the north bridge. ",
+notlink = ["Recently installed gauges read the river level at the north bridge. ",
            "Although the float sticks, the gauge reads the level at the north bridge. ",
            "Instead of the float, the gauge reads the level at the north bridge. ",
            "Overall accuracy of the gauge stays high at the north bridge. "]
@@ -3977,6 +3977,205 @@ import json, sys
 d = json.load(sys.stdin)
 assert d['changed'] == 0, [(r['where'], r['new']) for r in d['sentences']]
 "
+}
+
+# --- T276-T280: links that carry logic and order, forbidden constructions, the blind read ----------------------
+test_T276() {
+    # An author asked for sentence openings that carry "logic and order" (2026-10-28). Links of sequence (More
+    # recently, First) and linking phrases (Unlike X,) count, each under its type; a subordinator (While), a
+    # hyphenated adjective (Next-generation), a time word without its comma (Recently installed) and a phrase that no
+    # comma closes do not, nor does "Yet another". The fingerprint also says that its numbers are not acceptance.
+    local tmp none some
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+plain = "The gauge reads the river level twice a day at the north bridge. "
+link = ["More recently, the gauge reads the river level at the north bridge. ",
+        "First, the gauge reads the river level at the north bridge. ",
+        "Unlike the old float, the gauge reads the river level at the north bridge. ",
+        "Besides, the gauge reads the river level at the north bridge. "]
+notlink = ["While the float sticks, the gauge reads the level at the north bridge. ",
+           "Next-generation gauges read the river level at the north bridge. ",
+           "Recently installed gauges read the river level at the north bridge. ",
+           "Unlike the float the gauge reads the river level at the north bridge every single morning before the "
+           "survey team arrives on the site at dawn. ",
+           "Yet another gauge reads the river level at the north bridge. "]
+(d / "none.txt").write_text((plain * 6 + "".join(notlink)) * 5, encoding="utf-8")
+(d / "some.txt").write_text((plain * 6 + "".join(link)) * 5, encoding="utf-8")
+PYEOF
+    none=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/none.txt" --json 2>/dev/null)
+    some=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/some.txt" --json 2>/dev/null)
+    rm -rf "$tmp"
+    python3 - "$none" "$some" <<'PYEOF'
+import json, sys
+none, some = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+m = some["metrics"]
+assert abs(m["linking_opener_share"]["value"] - 0.4) < 1e-9, m["linking_opener_share"]
+assert abs(m["linking_opener_sequence"]["value"] - 0.2) < 1e-9, m["linking_opener_sequence"]
+assert abs(m["linking_opener_comparison"]["value"] - 0.1) < 1e-9, m["linking_opener_comparison"]
+assert abs(m["linking_opener_addition"]["value"] - 0.1) < 1e-9, m["linking_opener_addition"]
+assert m["linking_opener_contrast"]["value"] == 0.0, m["linking_opener_contrast"]
+by = some["linking_openers"]["by_type"]
+assert sorted(set(by["sequence"])) == ["First", "More recently"] and len(by["sequence"]) == 10, by
+assert by["comparison"] == ["Unlike"] * 5 and by["addition"] == ["Besides"] * 5, by
+assert none["metrics"]["linking_opener_share"]["value"] == 0.0, none["metrics"]["linking_opener_share"]
+assert none["linking_openers"]["linked"] == 0 and none["linking_openers"]["longest_without"] == 55, none["linking_openers"]
+assert "not acceptance" in some["acceptance"] and "blind" in some["acceptance"], some.get("acceptance")
+PYEOF
+}
+
+test_T277() {
+    # The most sentences in a row that open with no link is set against stretches of the target's own length in each
+    # baseline document, so a paragraph is not compared with whole papers. --min-words admits short documents
+    # (published related-work sections); a metric that too few of them are long enough for gets no percentile and
+    # says how many were. A target longer than every baseline document gets a note instead of a percentile.
+    local tmp a b long
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+linked = "However, the gauge reads the river level at the north bridge. "
+plain = "The gauge reads the river level twice a day at the north bridge. "
+for i in range(6):
+    n = 20 if i < 4 else 40          # two documents long enough for the shares (30 sentences), four not
+    (d / "base" / ("doc%d.txt" % i)).write_text((linked + plain) * (n // 2), encoding="utf-8")
+p = "The pump lifts water from the old well behind the farm. "
+q = "Then the pump lifts water from the old well behind the farm. "
+(d / "a.txt").write_text("The crew starts the engine at dawn. " + p * 7, encoding="utf-8")
+(d / "b.txt").write_text((q + p) * 4, encoding="utf-8")
+(d / "long.txt").write_text(p * 50, encoding="utf-8")
+PYEOF
+    run() { python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/$1.txt" --baseline "$tmp/base" \
+                --min-words 100 --json 2>/dev/null; }
+    a=$(run a); b=$(run b); long=$(run long)
+    rm -rf "$tmp"
+    python3 - "$a" "$b" "$long" <<'PYEOF'
+import json, sys
+a, b, long = (json.loads(x) for x in sys.argv[1:4])
+assert a["baseline_documents"] == 6 and a["baseline_min_words"] == 100, (a["baseline_documents"], a["baseline_too_short"])
+ga = a["metrics"]["linking_opener_longest_gap"]
+assert ga["value"] == 8 and ga["baseline_n"] == 6 and ga["baseline_max"] == 1 and ga["outside_range"], ga
+assert a["linking_openers"]["longest_without_begins"] == "The crew starts the engine at dawn.", a["linking_openers"]
+gb = b["metrics"]["linking_opener_longest_gap"]
+assert gb["value"] == 1 and not gb["outside_range"], gb
+assert b["linking_openers"]["by_type"]["sequence"] == ["Then"] * 4, b["linking_openers"]
+share = long["metrics"]["linking_opener_share"]
+assert share["baseline_n"] == 2 and "percentile" not in share and "only 2 of the 6" in share["baseline_note"], share
+gl = long["metrics"]["linking_opener_longest_gap"]
+assert gl["value"] == 50 and "percentile" not in gl and "50 sentences" in gl["baseline_note"], gl
+PYEOF
+}
+
+test_T278() {
+    # --forbid names a construction the author has ruled out. A sentence that gains one, or an added sentence that has
+    # one, is flagged forbidden and counted apart; one that only keeps what it had is not. A colon is forbidden only
+    # when asked for. Without --forbid nothing is forbidden and the semicolon is the usual flag. The report also says
+    # that no flag is not acceptance.
+    local tmp one two none c1 c2 c3
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'a\tThe gauge reads the river level twice a day.\tThe gauge reads the river level twice a day; the float reads it once.\n' >> "$tmp/pairs.tsv"
+    printf 'b\tThe gauge reads the river level twice a day.\tThe gauge reads one thing: the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'c\t\tThe float reads it once; the gauge reads it twice.\n' >> "$tmp/pairs.tsv"
+    printf 'd\tThe gauge reads the level; the float reads it once.\tThe gauge reads the river level; the float reads it once.\n' >> "$tmp/pairs.tsv"
+    one=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --forbid semicolon --json 2>/dev/null)
+    c1=$?
+    two=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --forbid semicolon --forbid colon --json 2>/dev/null)
+    c2=$?
+    none=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    c3=$?
+    rm -rf "$tmp"
+    [ "$c1" -eq 1 ] && [ "$c2" -eq 1 ] && [ "$c3" -eq 1 ] || { echo "exits $c1 $c2 $c3, expected 1 1 1"; return 1; }
+    python3 - "$one" "$two" "$none" <<'PYEOF'
+import json, sys
+one, two, none = (json.loads(x) for x in sys.argv[1:4])
+by = lambda d: {r["where"]: r for r in d["sentences"]}
+o, t, n = by(one), by(two), by(none)
+assert one["forbid"] == ["semicolon"] and one["forbidden"] == 2, (one["forbid"], one["forbidden"])
+assert o["a"]["forbidden"] == ["semicolon"] and "forbidden" in o["a"]["flags"], o["a"]
+assert o["c"]["forbidden"] == ["semicolon"], o["c"]
+assert o["b"]["forbidden"] == [] and "colon" in o["b"]["flags"] and "forbidden" not in o["b"]["flags"], o["b"]
+assert o["d"]["forbidden"] == [], o["d"]
+assert {i["where"] for i in one["issues"] if i.get("forbidden")} == {"a", "c"}, one["issues"]
+assert two["forbidden"] == 3 and t["b"]["forbidden"] == ["colon"], (two["forbidden"], t["b"])
+assert none["forbidden"] == 0 and all("forbidden" not in r["flags"] for r in none["sentences"]), none["sentences"]
+assert "semicolon" in n["a"]["flags"], n["a"]
+assert "not acceptance" in one["acceptance"], one.get("acceptance")
+PYEOF
+}
+
+test_T279() {
+    # A link added at the opening of a sentence is reported apart from one set off inside it: an author asked for
+    # openings that link, and ", however," mid-sentence is not that. Linking words of sequence are links too, so
+    # adding one is not flagged; a linking phrase ("Unlike the old float,") says something and is judged like any
+    # other words.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'a\tThe gauge reads the river level twice a day.\tHowever, the gauge reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'b\tThe gauge reads the river level twice a day.\tThe gauge, however, reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'c\tThe gauge reads the river level twice a day.\tMore recently, the gauge reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'd\tThe gauge reads the river level twice a day.\tThen the gauge reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'e\tThe gauge reads the river level twice a day.\tUnlike the old float, the gauge reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1 (e is flagged)"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+by = {r['where']: r for r in d['sentences']}
+for k in 'abcd':
+    assert by[k]['flags'] == [], (k, by[k]['flags'])
+assert by['a']['links_added_opening'] == ['however'] and by['b']['links_added_opening'] == [], (by['a'], by['b'])
+assert by['b']['links_added'] == ['however'], by['b']
+assert by['c']['links_added'] == ['more recently'] and by['d']['links_added_opening'] == ['then'], (by['c'], by['d'])
+assert by['e']['links_added_opening'] == ['unlike'] and by['e']['flags'], by['e']
+assert d['links_added_opening'] == {'however': 1, 'more recently': 1, 'then': 1, 'unlike': 1}, d['links_added_opening']
+"
+}
+
+test_T280() {
+    # blind-pair.py: the order of A and B is fixed and committed (salted sha256) before the read, the secret may not
+    # sit with the texts the author is given, a pick must be recorded before the order is shown and only once, and a
+    # secret or a text that does not match the commitment is refused.
+    local tmp s
+    tmp=$(mktemp -d) || return 1
+    s=.claude/skills/audit/scripts/blind-pair.py
+    printf 'The version from before the round.\n' > "$tmp/before.txt"
+    printf 'The version from after the round.\n' > "$tmp/after.txt"
+    python3 "$s" prepare --first "$tmp/before.txt" --second "$tmp/after.txt" --out "$tmp/read" \
+        --secret "$tmp/read/key.txt" >/dev/null 2>&1 && { echo "a secret inside --out was accepted"; rm -rf "$tmp"; return 1; }
+    [ -e "$tmp/read/A.txt" ] && { echo "a refused prepare wrote A.txt"; rm -rf "$tmp"; return 1; }
+    python3 "$s" prepare --first "$tmp/before.txt" --second "$tmp/after.txt" --out "$tmp/read" \
+        --secret "$tmp/private/key.txt" --labels before,after >/dev/null 2>&1 || { echo "prepare failed"; rm -rf "$tmp"; return 1; }
+    python3 "$s" reveal --out "$tmp/read" --secret "$tmp/private/key.txt" >/dev/null 2>&1 \
+        && { echo "revealed before a pick"; rm -rf "$tmp"; return 1; }
+    python3 "$s" choose --out "$tmp/read" --pick A --note "A reads more like a person" >/dev/null 2>&1 \
+        || { echo "choose failed"; rm -rf "$tmp"; return 1; }
+    python3 "$s" choose --out "$tmp/read" --pick B >/dev/null 2>&1 && { echo "a second pick was accepted"; rm -rf "$tmp"; return 1; }
+    printf 'A=after;B=before;salt=00\n' > "$tmp/forged.txt"
+    python3 "$s" reveal --out "$tmp/read" --secret "$tmp/forged.txt" >/dev/null 2>&1 \
+        && { echo "a forged secret was accepted"; rm -rf "$tmp"; return 1; }
+    python3 "$s" reveal --out "$tmp/read" --secret "$tmp/private/key.txt" >/dev/null 2>&1 \
+        || { echo "reveal failed"; rm -rf "$tmp"; return 1; }
+    python3 - "$tmp" <<'PYEOF' || { rm -rf "$tmp"; return 1; }
+import hashlib, json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+c = json.loads((d / "read" / "commitment.json").read_text())
+key = (d / "private" / "key.txt").read_text().strip()
+assert hashlib.sha256(key.encode()).hexdigest() == c["commitment"], (key, c)
+r = json.loads((d / "read" / "reveal.json").read_text())
+texts = {"before": (d / "before.txt").read_bytes(), "after": (d / "after.txt").read_bytes()}
+assert (d / "read" / "A.txt").read_bytes() == texts[r["A"]] and (d / "read" / "B.txt").read_bytes() == texts[r["B"]], r
+assert r["pick"] == "A" and r["picked"] == r["A"] and r["note"] == "A reads more like a person", r
+PYEOF
+    printf 'swapped\n' > "$tmp/read/B.txt"
+    python3 "$s" reveal --out "$tmp/read" --secret "$tmp/private/key.txt" >/dev/null 2>&1 \
+        && { echo "a swapped text was accepted"; rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
 }
 
 # --- T254-T255: a supplement's ledgers and files --------------------------------
@@ -8014,6 +8213,11 @@ run_test "T272 a number set as 4{,}120 reads as 4,120, and \\, is a space, not a
 run_test "T273 the comma inside 4,120 groups digits and is not counted as a comma" test_T273
 run_test "T274 float reviews: what a figure draws is set out by the elements at each end, and an end that reaches none is marked" test_T274
 run_test "T275 changed-sentence audit: a bare % in a pairs cell is a percent sign, not a comment that cuts the rest" test_T275
+run_test "T276 fingerprint: links of sequence and linking phrases count, each under its type" test_T276
+run_test "T277 fingerprint: the most sentences without a link, against stretches of the same length; --min-words; too few long enough" test_T277
+run_test "T278 changed-sentence audit: --forbid makes a gained semicolon (or colon) forbidden, apart from the flags a reason can keep" test_T278
+run_test "T279 changed-sentence audit: a link added at the opening is reported apart from one inside the sentence" test_T279
+run_test "T280 blind-pair: the order is committed before the read, a pick comes before the reveal, a forged secret is refused" test_T280
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

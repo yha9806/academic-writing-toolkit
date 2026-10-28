@@ -4,7 +4,8 @@
     python3 audit-sentence-changes.py --target <file or dir> --base <file or dir> [--baseline <dir>] [--carriers <file>] [--json]
     python3 audit-sentence-changes.py --pairs <tsv with columns id, old, new> [--baseline <dir>] [--json]
     (a pairs file may add the columns verdict and reason once the author has read the rewrites)
-    (either form: --venue-cache <file> keeps the venue's measured sentences between runs)
+    (either form: --venue-cache <file> keeps the venue's measured sentences between runs, and --forbid semicolon,
+     --forbid colon or --forbid dash names a construction the author has ruled out)
 
 audit-prose-fingerprint.py and audit-prose-structure.py measure a whole document: rates per 1,000 words and
 distributions across sections. A dozen rewritten sentences barely move those rates, and neither audit reads a
@@ -57,6 +58,22 @@ pairs file a verdict column (accepted or rejected, as the author decided; revise
 yet judged) and a reason column, and the report sets the flags against the verdicts, naming the script by its hash
 so that the thresholds that judged are the ones frozen before the round. The flags are prompts to re-read a sentence, not targets: a revision
 may need a clause to stay faithful to its source, and then the flag is the reason to check that it earns it.
+
+Rounds since, each set against the script frozen before it:
+- 2026-10-28, the related-work section of a computer-vision conference manuscript (the pairs and the author's words
+  stay in the manuscript's private repository). Script dd0b39005caa: 16 changed sentences, 5 with a verdict, all 5
+  rejected; flagged and rejected 2, not flagged but rejected 3, kept 0. The verdicts were not given sentence by
+  sentence: the author chose, blind, between two versions of one paragraph, and the 5 changed sentences of the
+  version not chosen inherit the rejection. With nothing kept the round says nothing about flags on sentences an
+  author keeps. Of the 2 flagged, one had gained a semicolon and the other a colon opening three items (each with
+  other flags); the writer kept both with a reason, and the author then asked for no semicolons. The 3 not flagged
+  were a sentence given a leading "In contrast,", a rewording, and a sentence cut to seven words with ", however,"
+  inside. --forbid and links_added_opening were written after this round, so it is their training data, not a test
+  of them.
+
+--forbid names a construction the author has ruled out, whatever the venue does: a sentence that gains one (an added
+sentence that has one) is flagged forbidden as well, and that flag is not cleared by a reason to keep the sentence.
+The exit code is still 1; the report counts forbidden sentences apart, first.
 
 A sentence removed without a successor (nothing in the target revises, splits or merges it) is judged too. Every check
 of the draft rewards deletion: word and rate ceilings fall, a sentence nobody wrote cannot be flagged. On one
@@ -198,8 +215,11 @@ STOPWORDS = {"the", "a", "an", "of", "in", "for", "with", "by", "and", "or", "to
              "that", "this", "it", "its", "on", "at", "as", "from", "not", "we", "our", "their", "they", "than"}
 LIMITS = ("not measured: adjectives outside the suffix and word lists, nouns used as modifiers, relative clauses "
           "opened by 'that', a comma splice beyond the comma it adds, a pronoun (it, they) a removal left without its "
-          "antecedent, a noun a revision dropped, a repeat reworded rather than copied; the writing loop reads committed "
-          "versions only")
+          "antecedent, a noun a revision dropped, a repeat reworded rather than copied, a colon that opens a list told "
+          "apart from one that restates; the writing loop reads committed versions only")
+# On 2026-10-28, 3 of the 5 rewrites an author rejected carried no flag (see the rounds in the docstring).
+ACCEPTANCE = ("no flag is not acceptance: a style round is accepted by the author reading before and after blind "
+              "(blind-pair.py)")
 
 
 def die(msg):
@@ -359,9 +379,12 @@ def worded_parentheses(s):
 
 # A link to the sentence before ("However,", "For example,", ", in turn,") is not what makes a rewrite long or dense,
 # and a draft that states too few of them is its own problem (the fingerprint's linking opener share). Before a
-# rewrite is set against the sentence it replaced, a sentence-initial linking adverbial (the fingerprint's
-# LINKING_OPENER) and a linking adverbial set off by commas inside the sentence are taken out of both, so adding one
-# is not a comma, an adverb, an opener or three more words. What was added is reported as links_added, unflagged.
+# rewrite is set against the sentence it replaced, a sentence-initial linking word (the fingerprint's opening_link,
+# kind "word") and a linking adverbial set off by commas inside the sentence are taken out of both, so adding one
+# is not a comma, an adverb, an opener or three more words. A linking phrase ("Unlike these designs,") is left in:
+# its words say something, and they are judged like any others. What was added is reported as links_added,
+# unflagged, and links_added_opening holds the ones that open the sentence: on 2026-10-28 an author asked for
+# openings that link, and a rewrite that only adds ", however," inside a sentence is not that.
 # Held against the venue, a sentence is measured whole, as the venue's own sentences are.
 MID_LINK = re.compile(r",\s+(?:however|therefore|thus|hence|moreover|furthermore|consequently|nevertheless|nonetheless|"
                       r"accordingly|conversely|similarly|likewise|indeed|instead|specifically|notably|in turn|"
@@ -369,17 +392,23 @@ MID_LINK = re.compile(r",\s+(?:however|therefore|thus|hence|moreover|furthermore
                       r"that is|in addition),(?=\s)", re.I)
 
 
+def opening(s):
+    """The link that opens s, lower-cased, or None."""
+    m = FP.opening_link(s) if FP else None
+    return m[1].strip(" ,\"'\u201c\u2018").lower() if m else None
+
+
 def links(s):
-    """The linking adverbials unlinked() takes out, lower-cased, in order."""
-    m = FP.LINKING_OPENER.match(s) if FP else None
-    found = [m.group(0).strip(" ,\"'\u201c\u2018").lower()] if m else []
-    return found + [x.group(0).strip(" ,").lower() for x in MID_LINK.finditer(s)]
+    """The links s holds, lower-cased, in order: the one that opens it, then those set off by commas inside it."""
+    first = opening(s)
+    return ([first] if first else []) + [x.group(0).strip(" ,").lower() for x in MID_LINK.finditer(s)]
 
 
 def unlinked(s):
-    m = FP.LINKING_OPENER.match(s) if FP else None
-    if m:
-        rest = s[m.end():].lstrip(" ,")
+    m = FP.opening_link(s) if FP else None
+    if m and m[2] == "word":
+        lead = re.match(r"\s*[\"'\u201c\u2018]?" + re.escape(m[1]), s)
+        rest = s[lead.end():].lstrip(" ,") if lead else ""
         s = rest[:1].upper() + rest[1:] if rest else s
     return MID_LINK.sub("", s)
 
@@ -905,6 +934,9 @@ def at(col, pct):
 
 
 DENSITY = ("clauses", "commas", "prepositions", "adverbs", "modifiers")
+# What --forbid can rule out, by the feature that counts it. A colon is any colon not followed by a digit: the script
+# cannot tell one that opens a list from one that restates the clause before it, so forbidding colons forbids both.
+FORBIDDABLE = (("semicolons", "semicolon"), ("colons", "colon"), ("dashes", "dash"))
 # Ceilings for an added sentence when no venue corpus is given: the 75th percentiles of one journal's published papers
 # as this script measures them. A venue corpus replaces them, and the report says which was used. Why the 75th: on the
 # sentences added in one real round, the 90th flagged none, the 50th flagged about half (most for a single "also" or
@@ -914,12 +946,14 @@ DEFAULT_CEILING = {"words": 31, "clauses": 1, "commas": 2, "prepositions": 3, "a
 
 # ---------------------------------------------------------------- judging
 
-def judge(olds, news, venue):
+def judge(olds, news, venue, forbid=()):
     """One group: the old sentences (none for an addition) and the new ones."""
     kind = ("added" if not olds else "split" if len(news) > 1 and len(olds) == 1
             else "merged" if len(olds) > 1 else "revised")
     raw_news, old_text = news, olds
     links_added = sorted((Counter(t for x in news for t in links(x)) - Counter(t for x in olds for t in links(x))).elements())
+    at_opening = sorted((Counter(opening(x) for x in news if opening(x))
+                         - Counter(opening(x) for x in olds if opening(x))).elements())
     olds, news = [unlinked(x) for x in olds], [unlinked(x) for x in news]
     fn = summed(news)
     fo = summed(olds) if olds else None
@@ -980,8 +1014,13 @@ def judge(olds, news, venue):
                     dense_hits.add(k)
         if dense_hits:
             flags.append("dense_for_venue")
+    # A construction the author has ruled out (--forbid): the flag above asks for a reason, this one does not take one.
+    forbidden = [name for k, name in FORBIDDABLE if name in forbid and fn[k] > (fo[k] if fo else 0)]
+    if forbidden:
+        flags.append("forbidden")
     return {"old": " ".join(old_text) or None, "new": " ".join(raw_news), "kind": kind, "features_old": fo,
-            "features_new": fn, "added": added, "links_added": links_added, "dense": sorted(dense_hits),
+            "features_new": fn, "added": added, "links_added": links_added, "links_added_opening": at_opening,
+            "forbidden": forbidden, "dense": sorted(dense_hits),
             "venue_percentile": pct,
             "flags": sorted(set(flags), key=flags.index), "pieces": len(news), "olds": len(olds)}
 
@@ -1009,6 +1048,9 @@ def main():
     ap.add_argument("--carriers", help="patterns (one per line) that a removed sentence must not take with it unflagged")
     ap.add_argument("--ledger", action="append", default=[],
                     help="a claim ledger (TSV with a 'claim' column); an edit that takes a bound claim out is flagged")
+    ap.add_argument("--forbid", action="append", default=[], choices=[n for _, n in FORBIDDABLE],
+                    help="a construction the author has ruled out (repeatable): a sentence that gains one is flagged "
+                         "forbidden, which a reason to keep it does not clear")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     global FP
@@ -1048,7 +1090,7 @@ def main():
     venue = venue_distribution(fp, a.baseline, a.venue_cache) if a.baseline else None
     results = []
     for where, olds, news in changes:
-        r = judge(olds, news, venue)
+        r = judge(olds, news, venue, a.forbid)
         r["where"] = where
         found = shares_elsewhere(olds, news, draft) if draft else []
         if found:
@@ -1109,18 +1151,23 @@ def main():
                      "bound_in_ledger": sum(1 for r in results if "bound_in_ledger" in r["flags"])})
     unjudged = kinds["added"] if venue is None else 0   # judged against DEFAULT_CEILING, not a venue
     linked = Counter(t for r in results for t in r.get("links_added", []))
+    opened = Counter(t for r in results for t in r.get("links_added_opening", []))
+    forbidden = [r for r in results if r.get("forbidden")]
     out = {"schema_version": 2, "compared": compared, "changed": len(results) - removed_flagged, "flagged": len(flagged),
            "ledgers_missing": MISSING_LEDGERS,
            "added_without_venue": unjudged,
            "links_added": dict(sorted(linked.items())),
+           "links_added_opening": dict(sorted(opened.items())),
+           "forbid": sorted(set(a.forbid)), "forbidden": len(forbidden),
            "venue": ({"documents": venue["documents"], "sentences": venue["sentences"],
                       "p90": {k: at(venue["columns"][k], VENUE_PCT) for k in ("words",) + DENSITY},
                       "p75": {k: at(venue["columns"][k], ADDITION_PCT) for k in ("words",) + DENSITY}}
                      if venue else None),
-           "limits": LIMITS,
+           "limits": LIMITS, "acceptance": ACCEPTANCE,
            "verdicts": verdict_table(results) if verdicts else None,
            "sentences": results,
            "issues": [{"where": r["where"], "flags": r["flags"], "added": r["added"], "new": r["new"],
+                       **({"forbidden": r["forbidden"]} if r.get("forbidden") else {}),
                        **({"old": r["old"], "carried": r["carried"], "antecedent": r["antecedent"]}
                           if r["kind"] == "removed" else {}),
                        **({"shares_elsewhere": r["shares_elsewhere"]} if r.get("shares_elsewhere") else {}),
@@ -1142,6 +1189,11 @@ def main():
         elif unjudged:
             print(f"{unjudged} added sentence(s) held to default ceilings, not to a venue: give --baseline "
                   + "(" + ", ".join(f"{k} {v}" for k, v in DEFAULT_CEILING.items()) + ")")
+        if a.forbid:
+            print(f"forbidden ({', '.join(sorted(set(a.forbid)))}): {len(forbidden)} sentence(s) gain one; change them, "
+                  "a reason to keep them does not clear this")
+            for r in forbidden:
+                print(f"  [{r['where']}] {', '.join(r['forbidden'])}: {r['new']}")
         for r in flagged:
             if r["kind"] == "removed":
                 print(f"\n[{r['where']}] removed: {', '.join(r['carried'] + ['took an antecedent'] * bool(r['antecedent']) + ['bound in the claim ledger'] * bool(r.get('ledger_rows')))}")
@@ -1175,11 +1227,14 @@ def main():
                   f"not flagged but rejected {vt['unflagged_rejected']}, not flagged and kept {vt['unflagged_accepted']}")
         if linked:
             n = sum(1 for r in results if r.get("links_added"))
-            print(f"\nlinking adverbials added, not flagged: {sum(linked.values())} in {n} sentence(s) ("
-                  + ", ".join(f"{k} x{v}" for k, v in sorted(linked.items())) + ")")
+            inside = linked - opened
+            print(f"\nlinking adverbials added, not flagged: {sum(linked.values())} in {n} sentence(s); opening a "
+                  f"sentence: {', '.join(f'{k} x{v}' for k, v in sorted(opened.items())) or 'none'}; inside one: "
+                  f"{', '.join(f'{k} x{v}' for k, v in sorted(inside.items())) or 'none'}")
         if MISSING_LEDGERS:
             print(f"\nclaim ledger not found, so edits to bound sentences were not named: {', '.join(MISSING_LEDGERS)}")
         print(f"\n{LIMITS}")
+        print(ACCEPTANCE)
     sys.exit(1 if flagged else 0)
 
 

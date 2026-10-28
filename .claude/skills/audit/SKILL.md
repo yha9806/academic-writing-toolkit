@@ -249,6 +249,34 @@ writes nothing. Nothing to examine exits 2.
    baseline says nothing, and reading it as a pass is the failure this scan
    was added for. Method and stop rules: `references/prose-polish-method.md`.
 
+   Sentence openings are reported by what they link: contrast, addition,
+   cause, sequence (First, Then, More recently), example, comparison
+   (Unlike X,) and summary, each as a share of sentences, with the most
+   sentences in a row that open with no link. That run is set against
+   stretches of the same length in each baseline document, never against
+   whole papers, and a paragraph read on its own still gets it. A
+   related-work section is best set against published related-work sections,
+   which run 300-1,300 words: pass `--min-words 200`. Most of them have
+   under 30 sentences, too few for the shares, and a metric that fewer than
+   `--min-baseline` documents are long enough for gets no percentile and
+   says how many were.
+
+   **None of this accepts a style round. The author's blind read does.** On
+   one real round the author preferred the version these metrics placed
+   further outside the venue range. Before showing a rewrite as better, put
+   the two versions to the author blind:
+
+   ```
+   python3 .claude/skills/audit/scripts/blind-pair.py prepare --first <before> --second <after> --labels before,after --out <dir> --secret <file outside dir>
+   python3 .claude/skills/audit/scripts/blind-pair.py choose --out <dir> --pick A|B --note "<the author's words>"
+   python3 .claude/skills/audit/scripts/blind-pair.py reveal --out <dir> --secret <file>
+   ```
+
+   The order is random and committed as a salted sha256 before the read;
+   `reveal` refuses until a pick is recorded and checks the secret and both
+   texts against the commitment. Report the pick and the author's words, not
+   the percentiles, as the round's result.
+
    **G2. Rewritten sentences, one at a time (before anyone reads a proposal)**
 
    The fingerprint and structure audits measure whole documents, so a handful
@@ -276,12 +304,23 @@ writes nothing. Nothing to examine exits 2.
    it, and re-run until nothing is flagged or each remaining flag is one you
    can defend. Show the author the rewrites only after that.
 
+   When the author has ruled a construction out, whatever the venue does,
+   say so with `--forbid semicolon` (or `colon`, `dash`; repeatable). A
+   sentence that gains one is then flagged `forbidden`, listed first and
+   counted apart, and a reason to keep it does not clear that flag: change
+   the sentence. The script cannot tell a colon that opens a list from one
+   that restates the clause before it, so `--forbid colon` rules out both.
+   Links added at the opening of a sentence are reported apart from those set
+   off inside one (`links_added_opening`); an author who asks for openings
+   that link is not answered by a `, however,` mid-sentence.
+
    Keep the file after the author has read it, with two more columns:
    `verdict` (accepted, or rejected; revised counts as rejected; empty while
    not judged) and `reason`. Run the audit on it again and it sets the flags
    against the verdicts and names the script by its hash. The thresholds were
    fitted on one round; a later round's verdicts, judged by the version frozen
-   before that round, are their only test.
+   before that round, are their only test. The rounds so far are recorded in
+   the script's docstring, with what each can and cannot say.
 
    Once applied, the writing loop runs the same audit on each commit against
    the last commit at which it flagged nothing, so a round of several commits

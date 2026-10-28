@@ -616,7 +616,7 @@ SKILL_ROLES = {
 # be done in two places, on purpose.
 NOT_CHECKS_ACK = {
     "export/convert_to_docx.py", "audit/citations.mjs", "audit/quote-fidelity.mjs", "audit/pdf-pages.mjs",
-    "audit/build-venue-baseline.py", "audit/venue-topic-fit.py",
+    "audit/build-venue-baseline.py", "audit/venue-topic-fit.py", "audit/blind-pair.py",
 }
 
 
