@@ -79,6 +79,9 @@ CHECKS = {
     # Nothing to compare: no prose in the draft, and no version before it.
     "audit/audit-sentence-changes.py":
         lambda s, empty: ["python3", str(s), "--target", str(empty), "--base", str(empty)],
+    # No draft prose and no venue documents (exit 2).
+    "audit/audit-terminology.py":
+        lambda s, empty: ["python3", str(s), "--target", str(empty), "--baseline", str(empty)],
     # A reader panel's three steps: nothing to read, nothing to check, nothing to tally (exit 2 each).
     "readers/build-reader-packet.py":
         lambda s, empty: ["python3", str(s), "--text", str(empty / "empty.bib"), "--out", str(empty / "packet")],
@@ -120,6 +123,7 @@ NOT_CHECKS = {
     "audit/quote-fidelity.mjs": "library: quote graders (pure functions) used by the fidelity audit; no claim of its own",
     "audit/pdf-pages.mjs": "library: page labelling of pdftotext output used by the fidelity audit; no claim of its own",
     "audit/build-venue-baseline.py": "corpus builder: fetches a venue's papers from arXiv and writes a manifest; makes no pass/fail claim about a manuscript, and its own corpus floor exits 2 (T176)",
+    "audit/blind-pair.py": "blind read: shuffles two versions for the author and proves the order afterwards; the author's pick is the result, not a pass or a fail, and a missing pick, a forged secret or a swapped text exits 2 (T280)",
     "audit/venue-topic-fit.py": "venue survey: places a manuscript's topic among a venue's articles and tallies coded contribution types; a position is not a pass or a fail, and an empty corpus, an uncoded row or an unknown code exits 2 (T211, T212)",
 }
 

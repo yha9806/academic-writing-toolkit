@@ -249,6 +249,34 @@ writes nothing. Nothing to examine exits 2.
    baseline says nothing, and reading it as a pass is the failure this scan
    was added for. Method and stop rules: `references/prose-polish-method.md`.
 
+   Sentence openings are reported by what they link: contrast, addition,
+   cause, sequence (First, Then, More recently), example, comparison
+   (Unlike X,) and summary, each as a share of sentences, with the most
+   sentences in a row that open with no link. That run is set against
+   stretches of the same length in each baseline document, never against
+   whole papers, and a paragraph read on its own still gets it. A
+   related-work section is best set against published related-work sections,
+   which run 300-1,300 words: pass `--min-words 200`. Most of them have
+   under 30 sentences, too few for the shares, and a metric that fewer than
+   `--min-baseline` documents are long enough for gets no percentile and
+   says how many were.
+
+   **None of this accepts a style round. The author's blind read does.** On
+   one real round the author preferred the version these metrics placed
+   further outside the venue range. Before showing a rewrite as better, put
+   the two versions to the author blind:
+
+   ```
+   python3 .claude/skills/audit/scripts/blind-pair.py prepare --first <before> --second <after> --labels before,after --out <dir> --secret <file outside dir>
+   python3 .claude/skills/audit/scripts/blind-pair.py choose --out <dir> --pick A|B --note "<the author's words>"
+   python3 .claude/skills/audit/scripts/blind-pair.py reveal --out <dir> --secret <file>
+   ```
+
+   The order is random and committed as a salted sha256 before the read;
+   `reveal` refuses until a pick is recorded and checks the secret and both
+   texts against the commitment. Report the pick and the author's words, not
+   the percentiles, as the round's result.
+
    **G2. Rewritten sentences, one at a time (before anyone reads a proposal)**
 
    The fingerprint and structure audits measure whole documents, so a handful
@@ -276,18 +304,92 @@ writes nothing. Nothing to examine exits 2.
    it, and re-run until nothing is flagged or each remaining flag is one you
    can defend. Show the author the rewrites only after that.
 
+   When the author has ruled a construction out, whatever the venue does,
+   say so with `--forbid semicolon` (or `colon`, `dash`; repeatable). A
+   sentence that gains one is then flagged `forbidden`, listed first and
+   counted apart, and a reason to keep it does not clear that flag: change
+   the sentence. The script cannot tell a colon that opens a list from one
+   that restates the clause before it, so `--forbid colon` rules out both.
+   Links added at the opening of a sentence are reported apart from those set
+   off inside one (`links_added_opening`); an author who asks for openings
+   that link is not answered by a `, however,` mid-sentence. With a venue
+   corpus each added link carries the number of venue documents that use that
+   form (`links_in_venue`), and a form none uses is named with the venue's
+   forms of the same type: "by contrast" against "in contrast".
+
+   "after", "before" and "until" count as clauses only when a verb follows
+   before the next punctuation; "at once", "such as" and a question named
+   inside the sentence ("such as Where is it?", or in quotation marks) do not
+   count at all.
+
+   Wh-words (what, where, whether, which, who, how, why, when ...) are counted
+   on their own, and a sentence holding more than the venue's 95th percentile
+   (one, in practice) is flagged `wh`. A few are normal; one after another is
+   what an author reads as "too many clauses". `audit-prose-structure.py`
+   reports the same for the whole document: wh-words per 100 words and the
+   share of sentences with two or more. Rewriting a wh-clause as a
+   prepositional phrase moves the cost: expect `prepositions` or `modifier`
+   flags instead, and read the sentence rather than trading one flag for
+   another.
+
+   A new section is not a set of rewrites. With a venue corpus, 25 added
+   sentences or more are read as new prose: each is held only to the venue's
+   98th percentile, and the block's long-sentence share, short-sentence share
+   and length lag-1 are set against windows of as many sentences in the
+   venue (`block`). Held one by one to the 75th, every sentence of a new
+   section stays under it and the section ends with no long sentence; judged
+   that way, 59% of published sentences were flagged. Punctuation in new prose
+   is the fingerprint audit's to measure; `--forbid` still applies to each
+   sentence. A split that cuts out a piece below the venue's 10th percentile
+   of length is flagged `short`; a sentence compressed whole is not, since a
+   plainer rewrite is what this audit is meant to let through.
+
+   A draft that keeps placeholders in the LaTeX (`\SLOT{...}` or any macro
+   the author uses for text still to be written) is read with
+   `--skip-command SLOT` (repeatable): the command goes with its arguments,
+   nested braces included. Without it only the command name is stripped and
+   the placeholder's words, colons and semicolons are read as prose. The
+   fingerprint, structure and terminology audits take the same option;
+   `--skip-command section` (or `paragraph`) also leaves headings out of the
+   fingerprint and structure counts, where a heading otherwise runs into the
+   sentence after it.
+
    Keep the file after the author has read it, with two more columns:
    `verdict` (accepted, or rejected; revised counts as rejected; empty while
    not judged) and `reason`. Run the audit on it again and it sets the flags
    against the verdicts and names the script by its hash. The thresholds were
    fitted on one round; a later round's verdicts, judged by the version frozen
-   before that round, are their only test.
+   before that round, are their only test. The rounds so far are recorded in
+   the script's docstring, with what each can and cannot say.
 
    Once applied, the writing loop runs the same audit on each commit against
    the last commit at which it flagged nothing, so a round of several commits
    is read as a whole; the run record and the summary name that base. A
    flagged sentence keeps the base where it was until the sentence is fixed,
    or until the author accepts it by moving `draft.base_ref` forward.
+
+   **G2b. Words against the venue's words**
+
+   The distribution audits do not read words. A draft for a venue that
+   spells the American way can carry "catalogue", say "by contrast" where
+   every venue paper that uses the link says "in contrast", and reach for
+   "bridge this gap", which literature on the topic uses and the venue does
+   not:
+
+   ```
+   python3 .claude/skills/audit/scripts/audit-terminology.py --target <draft> --baseline <venue-corpus-dir> [--domain <literature-dir>] [--families <concepts.tsv>]
+   ```
+
+   It reports spellings of the kind fewer venue documents use, one concept
+   written two ways inside the draft (a word spelled both ways, a compound
+   closed up in one place and hyphenated or open in another, two terms of a
+   concept listed in `--families`, a TSV with columns `concept`, `term`), and
+   stock phrases no venue document uses, each with the number of venue (and
+   `--domain`) documents that use it. Linking forms the venue does not use
+   are listed as a hint. Every text is read without its reference list, and
+   the report says how many documents had no reference heading to cut. The
+   counts say what the venue does; a term the field has no other word for
+   stays.
 
    **G3. Topic and contribution type against the venue (before choosing it)**
 

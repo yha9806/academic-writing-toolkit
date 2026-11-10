@@ -4,7 +4,8 @@
     python3 audit-sentence-changes.py --target <file or dir> --base <file or dir> [--baseline <dir>] [--carriers <file>] [--json]
     python3 audit-sentence-changes.py --pairs <tsv with columns id, old, new> [--baseline <dir>] [--json]
     (a pairs file may add the columns verdict and reason once the author has read the rewrites)
-    (either form: --venue-cache <file> keeps the venue's measured sentences between runs)
+    (either form: --venue-cache <file> keeps the venue's measured sentences between runs, and --forbid semicolon,
+     --forbid colon or --forbid dash names a construction the author has ruled out)
 
 audit-prose-fingerprint.py and audit-prose-structure.py measure a whole document: rates per 1,000 words and
 distributions across sections. A dozen rewritten sentences barely move those rates, and neither audit reads a
@@ -30,6 +31,18 @@ colon, semicolon, dash or worded parenthesis, and for length or density above th
 sentences (pooled across its documents: one sentence is compared with published sentences, not with documents); a
 revision that grows past the 90th is flagged for that too. Without --baseline additions are held to default ceilings
 measured on one journal, and the report says so.
+
+Wh-words (what, where, whether, which, who, whom, whose, how, why, when) are counted apart from clauses, "what" and
+"how" included. A sentence that holds more than the venue's 95th percentile (one, in 16 CVPR/ICCV/ECCV papers;
+without --baseline, one) is flagged wh: an addition by its count, a rewrite when it gained them. Rewriting a
+wh-clause as a prepositional phrase moves the cost rather than removing it: 9 of 13 such rewrites in one round were
+flagged for prepositions or modifiers instead.
+
+Twenty-five added sentences or more, against a venue, are read as new prose and judged as a block (see BLOCK_MIN):
+each is held only to the venue's 98th percentile, punctuation is left to the fingerprint audit, and the block's
+long-sentence share, short-sentence share and length lag-1 are placed among windows of as many sentences in the
+venue's documents. Held one by one to the 75th, a new section is written with no long sentence. A split that cuts out
+a piece under the venue's 10th percentile of length is flagged short; a sentence compressed whole is not.
 
 Adverbs are words ending in -ly and a closed list of others (also, still, only, even, very, often, instead ...);
 connectives such as however, thus and consequently are not counted. Modifiers stand in for a part-of-speech
@@ -57,6 +70,23 @@ pairs file a verdict column (accepted or rejected, as the author decided; revise
 yet judged) and a reason column, and the report sets the flags against the verdicts, naming the script by its hash
 so that the thresholds that judged are the ones frozen before the round. The flags are prompts to re-read a sentence, not targets: a revision
 may need a clause to stay faithful to its source, and then the flag is the reason to check that it earns it.
+
+Rounds since, each set against the script frozen before it:
+- 2026-10-28, the related-work section of a computer-vision conference manuscript (the pairs and the author's words
+  stay in the manuscript's private repository). Script dd0b39005caa: 16 changed sentences, 5 with a verdict, all 5
+  rejected; flagged and rejected 2, not flagged but rejected 3, kept 0. The verdicts were not given sentence by
+  sentence: the author chose, blind, between two versions of one paragraph, and the 5 changed sentences of the
+  version not chosen inherit the rejection. With nothing kept the round says nothing about flags on sentences an
+  author keeps. Of the 2 flagged, one had gained a semicolon and the other a colon opening three items (each with
+  other flags); the writer kept both with a reason, and the author then asked for no semicolons. The 3 not flagged
+  were a sentence given a leading "In contrast,", a rewording, and a sentence cut to seven words with ", however,"
+  inside. --forbid and links_added_opening were written after this round, so it is their training data, not a test
+  of them. The short flag, written later the same day, is for a split's piece; the seven-word sentence was recorded
+  as a rewrite of a 20-word one, so it does not name it and the round still reads 2/0/3/0.
+
+--forbid names a construction the author has ruled out, whatever the venue does: a sentence that gains one (an added
+sentence that has one) is flagged forbidden as well, and that flag is not cleared by a reason to keep the sentence.
+The exit code is still 1; the report counts forbidden sentences apart, first.
 
 A sentence removed without a successor (nothing in the target revises, splits or merges it) is judged too. Every check
 of the draft rewards deletion: word and rate ceilings fall, a sentence nobody wrote cannot be flagged. On one
@@ -98,11 +128,28 @@ HERE = Path(__file__).resolve().parent
 SUB_WORDS = {"which", "where", "when", "while", "whereas", "although", "though", "because", "since", "unless",
              "whether", "if", "after", "before", "until", "who", "whom", "whose", "once", "whereby", "wherein"}
 SUB = re.compile(r"\b(" + "|".join(sorted(SUB_WORDS)) + r")\b", re.I)
-# after / before / since / until followed by a number or an -ing word are prepositions ("since 2019", "after training");
-# "once a year" and "once more" are adverbs.
-TEMPORAL_PREP = re.compile(r"\b(?:after|before|since|until)\s+(?:\d|\w+ing\b)|\bonce\s+(?:a|an|per|every|more|again|or|and)\b"
-                           r"|\bonce[.,;]", re.I)
-AS_CLAUSE = re.compile(r"\bas\s+(?:(?:the|a|an|this|these|those|it|they|we|he|she|its|their|our)\s+)?\w+\s+"
+# "since" followed by a number or an -ing word is a preposition ("since 2019"); otherwise it gives a reason, which in
+# this prose it does far more often than it gives a date. "once a year", "once more" and "at once" are adverbs.
+TEMPORAL_PREP = re.compile(r"\bsince\s+(?:\d|\w+ing\b)|\bonce\s+(?:a|an|per|every|more|again|or|and)\b|\bonce(?=[.,;])"
+                           r"|\b(?:all\s+)?at\s+once\b", re.I)
+# after / before / until open a clause only when a verb follows before the next punctuation: "after we move it",
+# "before the record was checked". "after a survey", "until dawn" and "after training" are prepositions. Without a
+# tagger the verb is read from an auxiliary or modal, a subject pronoun right after the word, or a past tense after a
+# noun; a present tense with no auxiliary ("before the model answers") is missed and read as a preposition.
+# 2026-10-28: an added sentence that gave "after" as a preposition in an example was counted a clause, and so was
+# "at once" before a comma (the comma stayed on the word, so the adverb rule above never removed it).
+TEMPORAL_SUB = {"after", "before", "until"}
+FINITE = {"is", "are", "was", "were", "am", "has", "have", "had", "do", "does", "did", "can", "could", "will", "would",
+          "may", "might", "must", "should", "shall"}
+SUBJECTS = {"we", "they", "it", "he", "she", "i", "you"}
+DETERMINERS = {"a", "an", "the", "this", "these", "those", "its", "their", "our", "his", "her", "each", "every", "no",
+               "any", "some", "such"}
+CLAUSE_SPAN_END = re.compile(r"[,;:.?!()\"\u201c\u201d]|\b(?:" + "|".join(sorted(SUB_WORDS)) + r")\b", re.I)
+# A question or a phrase quoted inside a sentence is mentioned, not used: the "When" in 'the prompt "When was it
+# made?"' opens no clause of the sentence. A subordinator capitalised mid-sentence with a question mark after it is a
+# question named without quotes ("such as Where is it?"). "such as" introduces an example, not a clause.
+QUOTED = re.compile(r"\"[^\"]{1,160}\"|\u201c[^\u201d]{1,160}\u201d|``.{1,160}?''|\u2018[^\u2019]{1,160}\u2019")
+AS_CLAUSE = re.compile(r"(?<!such\s)\bas\s+(?:(?:the|a|an|this|these|those|it|they|we|he|she|its|their|our)\s+)?\w+\s+"
                        r"(?:is|are|was|were|has|have|had|did|does|do|can|could|will|would|may|might|must|should|"
                        r"required|requires|expected|noted|shown|described|reported|suggested)\b", re.I)
 SO_THAT = re.compile(r"\b(?:so|such)\s+that\b", re.I)
@@ -174,7 +221,7 @@ SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z(])")
 # markup stripping collapses the line breaks that would otherwise have marked it.
 BREAK = " \u00b6 "
 FEATURES = ["words", "clauses", "commas", "colons", "semicolons", "dashes", "parentheses", "adverbs", "modifiers",
-            "prepositions", "opener"]
+            "prepositions", "opener", "wh"]
 # A revision is "longer" when it gains at least this many words. In the round the thresholds were set on, the
 # rejected rewrites that grew gained well over this, and no accepted revision gained more than two.
 LONGER_WORDS = 3
@@ -191,6 +238,31 @@ REMOVED_QUALIFIER = re.compile(
 PIECE_MIN = 0.60   # share of a sentence's content words found in another before one is read as part of the other
 VENUE_PCT = 90      # a revision that grows past this is long or dense for the venue
 ADDITION_PCT = 75   # an added sentence has nothing to be compared with, so it is held to a typical published one
+# Twenty-five added sentences or more, against a venue, are new prose: a new section rather than a sentence slipped
+# into a paragraph. Held one by one to the 75th percentile, every sentence of a new section stays under it and the
+# section loses its long sentences; on 2026-10-28 a section written against this audit had no sentence of 35 words
+# or more (the venue's papers: 18-49% of their words) and a negative length lag-1. Judged that way, 59% of 960
+# published sentences (60 from each of 16 CVPR/ICCV/ECCV papers, against the other 15) were flagged, and 41% at the
+# 90th. So a block is held sentence by sentence only to the 98th percentile (7% of those sentences flagged), its
+# punctuation rates are left to the fingerprint audit, and its shape is judged whole: the share of words in
+# sentences of 35 or more, the share of sentences under the short ceiling, and the lag-1 of their lengths, each
+# placed among windows of the same number of sentences in every venue document (every fifth start) and outside
+# when beyond the 2.5th-97.5th percentile band. Against whole papers instead of windows, 13 of 16 published chunks
+# were outside on something; against windows, 2 of 16. --forbid and wh still apply sentence by sentence.
+BLOCK_MIN = 25
+BLOCK_PCT = 98
+LONG_WORDS = 35
+WINDOW_STEP = 5
+BAND = (2.5, 97.5)
+# A split that cuts out a piece shorter than the venue's 10th percentile of sentence length is flagged short: it adds
+# a sentence boundary, and a short sentence after a long one is the long-short rhythm an author reads as machine
+# prose. On 2026-10-28 an author rejected a sentence cut to seven words that no flag had named. A sentence compressed
+# whole is not flagged, however short: "The survey counted bridges with cracked piers." is the plainer rewrite this
+# audit is meant to let through, and a short flag on every compression would bury it. The seven-word sentence was
+# recorded as a rewrite of a 20-word one, so this flag does not name it either. The 16 papers above put the 10th
+# percentile at 10 words, the default.
+SHORT_PCT = 10
+SHORT_DEFAULT = 10
 FP = None
 MIN_VENUE_SENTENCES = 1000
 MIN_VENUE_DOCUMENTS = 5
@@ -198,8 +270,12 @@ STOPWORDS = {"the", "a", "an", "of", "in", "for", "with", "by", "and", "or", "to
              "that", "this", "it", "its", "on", "at", "as", "from", "not", "we", "our", "their", "they", "than"}
 LIMITS = ("not measured: adjectives outside the suffix and word lists, nouns used as modifiers, relative clauses "
           "opened by 'that', a comma splice beyond the comma it adds, a pronoun (it, they) a removal left without its "
-          "antecedent, a noun a revision dropped, a repeat reworded rather than copied; the writing loop reads committed "
-          "versions only")
+          "antecedent, a noun a revision dropped, a repeat reworded rather than copied, a colon that opens a list told "
+          "apart from one that restates, a clause after 'after', 'before' or 'until' whose verb is a present tense "
+          "with no auxiliary; the writing loop reads committed versions only")
+# On 2026-10-28, 3 of the 5 rewrites an author rejected carried no flag (see the rounds in the docstring).
+ACCEPTANCE = ("no flag is not acceptance: a style round is accepted by the author reading before and after blind "
+              "(blind-pair.py)")
 
 
 def die(msg):
@@ -313,10 +389,49 @@ def _words(s):
     return re.findall(r"[A-Za-z][A-Za-z'-]*", s)
 
 
+# Wh-words are counted on their own: what, where, whether, which, who, whom, whose, how, why and when. "what" and
+# "how" open noun clauses and embedded questions that the clause list above leaves out; "when" is counted here too,
+# as a time clause is also one more wh-clause to hold. On 2026-10-28 an author found a draft with "too many
+# clauses" after the clause flag had passed it: the sentences carried what- and where-clauses one after another. In
+# 16 CVPR/ICCV/ECCV papers 18% of sentences (median by paper) hold one and 1.9% hold two or more (at most 5.4%); a
+# sentence is flagged wh above the venue's 95th percentile, which there is one. A question quoted or named inside a
+# sentence is a mention and is not counted, as for clauses.
+WH = re.compile(r"\b(what|where|whether|which|who|whom|whose|how|why|when)\b", re.I)
+WH_PCT = 95
+DEFAULT_WH = 1
+
+
+def wh_tokens(s):
+    s = QUOTED.sub(" ", s)
+    return [m.group(1).lower() for m in WH.finditer(s)
+            if not (m.group(1)[0].isupper() and s[:m.start()].strip(" (\"'\u201c\u2018") and "?" in s[m.end():])]
+
+
+def _verb_follows(rest):
+    """Whether the words after after / before / until hold a verb before the next punctuation or subordinator."""
+    ws = re.findall(r"[A-Za-z']+", CLAUSE_SPAN_END.split(rest, maxsplit=1)[0])[:8]
+    if not ws or ws[0].lower().endswith("ing"):
+        return False
+    if ws[0].lower() in SUBJECTS:
+        return True
+    return any(w.lower() in FINITE or (i and re.fullmatch(r"[a-z]{2,}ed", w.lower())
+                                         and ws[i - 1].lower() not in DETERMINERS)
+               for i, w in enumerate(ws))
+
+
 def clause_tokens(s):
-    toks = [m.group(1).lower() for m in SUB.finditer(s)]
+    s = QUOTED.sub(" ", s)
+    toks = []
+    for m in SUB.finditer(s):
+        w = m.group(1)
+        # A question named mid-sentence; a heading glued to a sentence ("1 Introduction Before ...") is not one.
+        if w[0].isupper() and s[:m.start()].strip(" (\"'\u201c\u2018") and "?" in s[m.end():]:
+            continue
+        if w.lower() in TEMPORAL_SUB and not _verb_follows(s[m.end():]):
+            continue
+        toks.append(w.lower())
     for m in TEMPORAL_PREP.finditer(s):
-        w = m.group(0).split()[0].lower()
+        w = re.search(r"since|once", m.group(0), re.I).group(0).lower()
         if w in toks:
             toks.remove(w)
     toks += ["as"] * len(AS_CLAUSE.findall(s)) + ["so that"] * len(SO_THAT.findall(s))
@@ -359,9 +474,12 @@ def worded_parentheses(s):
 
 # A link to the sentence before ("However,", "For example,", ", in turn,") is not what makes a rewrite long or dense,
 # and a draft that states too few of them is its own problem (the fingerprint's linking opener share). Before a
-# rewrite is set against the sentence it replaced, a sentence-initial linking adverbial (the fingerprint's
-# LINKING_OPENER) and a linking adverbial set off by commas inside the sentence are taken out of both, so adding one
-# is not a comma, an adverb, an opener or three more words. What was added is reported as links_added, unflagged.
+# rewrite is set against the sentence it replaced, a sentence-initial linking word (the fingerprint's opening_link,
+# kind "word") and a linking adverbial set off by commas inside the sentence are taken out of both, so adding one
+# is not a comma, an adverb, an opener or three more words. A linking phrase ("Unlike these designs,") is left in:
+# its words say something, and they are judged like any others. What was added is reported as links_added,
+# unflagged, and links_added_opening holds the ones that open the sentence: on 2026-10-28 an author asked for
+# openings that link, and a rewrite that only adds ", however," inside a sentence is not that.
 # Held against the venue, a sentence is measured whole, as the venue's own sentences are.
 MID_LINK = re.compile(r",\s+(?:however|therefore|thus|hence|moreover|furthermore|consequently|nevertheless|nonetheless|"
                       r"accordingly|conversely|similarly|likewise|indeed|instead|specifically|notably|in turn|"
@@ -369,17 +487,23 @@ MID_LINK = re.compile(r",\s+(?:however|therefore|thus|hence|moreover|furthermore
                       r"that is|in addition),(?=\s)", re.I)
 
 
+def opening(s):
+    """The link that opens s, lower-cased, or None."""
+    m = FP.opening_link(s) if FP else None
+    return m[1].strip(" ,\"'\u201c\u2018").lower() if m else None
+
+
 def links(s):
-    """The linking adverbials unlinked() takes out, lower-cased, in order."""
-    m = FP.LINKING_OPENER.match(s) if FP else None
-    found = [m.group(0).strip(" ,\"'\u201c\u2018").lower()] if m else []
-    return found + [x.group(0).strip(" ,").lower() for x in MID_LINK.finditer(s)]
+    """The links s holds, lower-cased, in order: the one that opens it, then those set off by commas inside it."""
+    first = opening(s)
+    return ([first] if first else []) + [x.group(0).strip(" ,").lower() for x in MID_LINK.finditer(s)]
 
 
 def unlinked(s):
-    m = FP.LINKING_OPENER.match(s) if FP else None
-    if m:
-        rest = s[m.end():].lstrip(" ,")
+    m = FP.opening_link(s) if FP else None
+    if m and m[2] == "word":
+        lead = re.match(r"\s*[\"'\u201c\u2018]?" + re.escape(m[1]), s)
+        rest = s[lead.end():].lstrip(" ,") if lead else ""
         s = rest[:1].upper() + rest[1:] if rest else s
     return MID_LINK.sub("", s)
 
@@ -403,6 +527,7 @@ def features(s):
         "modifiers": len(modifier_tokens(s)),
         "prepositions": len(PREP.findall(s)),
         "opener": 1 if OPENER.match(s) else 0,
+        "wh": len(wh_tokens(s)),
     }
 
 
@@ -856,6 +981,7 @@ def _venue_key(baseline):
     h = hashlib.sha256()
     for f in (Path(__file__).resolve(), HERE / "audit-prose-fingerprint.py"):
         h.update(f.read_bytes())
+    h.update("\0".join(getattr(FP, "SKIP_COMMANDS", [])).encode("utf-8"))
     for f in sorted(p for p in Path(baseline).rglob("*") if p.is_file()):
         st = f.stat()
         h.update(f"{f.relative_to(baseline)}\0{st.st_size}\0{st.st_mtime_ns}\0".encode("utf-8"))
@@ -871,11 +997,11 @@ def venue_distribution(fp, baseline, cache=None):
             got = json.loads(Path(cache).read_text(encoding="utf-8"))
             if got.get("key") == key:
                 return {"documents": got["documents"], "sentences": got["sentences"], "columns": got["columns"],
-                        "cached": True}
+                        "link_docs": got["link_docs"], "doc_lengths": got["doc_lengths"], "cached": True}
         except (OSError, ValueError, KeyError):
             pass
     docs = fp.collect(Path(baseline))
-    kept, sents = 0, []
+    kept, sents, link_docs, doc_lengths = 0, [], Counter(), []
     for _, text, _ in docs:
         if hasattr(fp, "word_share") and fp.word_share(text) < getattr(fp, "MIN_WORD_SHARE", 0.3):
             continue
@@ -883,15 +1009,81 @@ def venue_distribution(fp, baseline, cache=None):
         if ss:
             kept += 1
             sents.extend(ss)
+            link_docs.update({t for s in ss for t in links(s)})
+            doc_lengths.append([len(s.split()) for s in ss])
     if kept < MIN_VENUE_DOCUMENTS or len(sents) < MIN_VENUE_SENTENCES:
         die(f"the baseline {baseline} gave {len(sents)} sentences from {kept} documents; percentiles need at least "
             f"{MIN_VENUE_SENTENCES} sentences from {MIN_VENUE_DOCUMENTS} documents")
     cols = {k: sorted(features(s)[k] for s in sents) for k in FEATURES}
+    link_docs = dict(sorted(link_docs.items()))
     if cache:
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
-        Path(cache).write_text(json.dumps({"key": key, "documents": kept, "sentences": len(sents), "columns": cols}),
-                               encoding="utf-8")
-    return {"documents": kept, "sentences": len(sents), "columns": cols}
+        Path(cache).write_text(json.dumps({"key": key, "documents": kept, "sentences": len(sents), "columns": cols,
+                                           "link_docs": link_docs, "doc_lengths": doc_lengths}), encoding="utf-8")
+    return {"documents": kept, "sentences": len(sents), "columns": cols, "link_docs": link_docs,
+            "doc_lengths": doc_lengths}
+
+
+def shape(lengths, short_at):
+    """A run of sentence lengths: share of words in long sentences, share of short sentences, lag-1 (None if flat)."""
+    n = len(lengths)
+    mean = sum(lengths) / n
+    den = sum((v - mean) ** 2 for v in lengths)
+    return {"long_share": sum(v for v in lengths if v >= LONG_WORDS) / sum(lengths),
+            "short_share": sum(1 for v in lengths if v < short_at) / n,
+            "lag1": (sum((lengths[i] - mean) * (lengths[i + 1] - mean) for i in range(n - 1)) / den) if den else None}
+
+
+def block_shape(lengths, venue, short_at):
+    """The added sentences' shape among windows of as many sentences in each venue document."""
+    n = len(lengths)
+    windows = [shape(d[i:i + n], short_at) for d in venue["doc_lengths"] for i in range(0, len(d) - n + 1, WINDOW_STEP)]
+    out = {"sentences": n, "per_sentence_pct": BLOCK_PCT, "windows": len(windows), "metrics": {}, "outside": []}
+    if not windows:
+        out["note"] = f"no venue document has {n} sentences, so the block's shape was not judged"
+        return out
+    mine = shape(lengths, short_at)
+    for k, v in mine.items():
+        col = sorted(w[k] for w in windows if w[k] is not None)
+        if v is None or not col:
+            out["metrics"][k] = {"value": v, "note": "not computed (every length the same)" if v is None else "no windows"}
+            continue
+        lo, hi = at(col, BAND[0]), at(col, BAND[1])
+        out["metrics"][k] = {"value": round(v, 4), "percentile": percentile(col, v), "band": [round(lo, 4), round(hi, 4)],
+                             "outside": v < lo or v > hi}
+        if v < lo or v > hi:
+            out["outside"].append(k)
+    return out
+
+
+def link_type(form):
+    """The fingerprint's type for a link written as form (lower case), or None."""
+    head = form[:1].upper() + form[1:]
+    for s in (head + ", the gauge reads the river.", head + " the float, the gauge reads the river."):
+        m = FP.opening_link(s) if FP else None
+        if m and m[1].strip(" ,").lower() == form:
+            return m[0]
+    return None
+
+
+# A link a rewrite adds is put beside the venue's own use of that form: the number of venue documents in which it
+# opens a sentence or is set off by commas inside one. On 2026-10-28 a draft added "by contrast", which none of the
+# venue's 16 papers used that way, where 9 used "in contrast". A form no venue document uses is named with the forms
+# of the same type that the venue does use, most documents first. It is a hint, not a flag.
+def links_in_venue(venue, forms):
+    if not venue or not forms:
+        return None
+    docs = venue["link_docs"]
+    absent = {}
+    for f in sorted(forms):
+        if docs.get(f, 0):
+            continue
+        kind = link_type(f)
+        same = sorted(((g, n) for g, n in docs.items() if g != f and kind and link_type(g) == kind),
+                      key=lambda x: (-x[1], x[0]))[:3]
+        absent[f] = {"type": kind, "venue_uses": dict(same)}
+    return {"documents": venue["documents"], "forms": {f: docs.get(f, 0) for f in sorted(forms)},
+            "not_in_venue": absent}
 
 
 def percentile(col, x):
@@ -905,6 +1097,9 @@ def at(col, pct):
 
 
 DENSITY = ("clauses", "commas", "prepositions", "adverbs", "modifiers")
+# What --forbid can rule out, by the feature that counts it. A colon is any colon not followed by a digit: the script
+# cannot tell one that opens a list from one that restates the clause before it, so forbidding colons forbids both.
+FORBIDDABLE = (("semicolons", "semicolon"), ("colons", "colon"), ("dashes", "dash"))
 # Ceilings for an added sentence when no venue corpus is given: the 75th percentiles of one journal's published papers
 # as this script measures them. A venue corpus replaces them, and the report says which was used. Why the 75th: on the
 # sentences added in one real round, the 90th flagged none, the 50th flagged about half (most for a single "also" or
@@ -914,16 +1109,19 @@ DEFAULT_CEILING = {"words": 31, "clauses": 1, "commas": 2, "prepositions": 3, "a
 
 # ---------------------------------------------------------------- judging
 
-def judge(olds, news, venue):
+def judge(olds, news, venue, forbid=(), block=False, short_at=SHORT_DEFAULT):
     """One group: the old sentences (none for an addition) and the new ones."""
     kind = ("added" if not olds else "split" if len(news) > 1 and len(olds) == 1
             else "merged" if len(olds) > 1 else "revised")
     raw_news, old_text = news, olds
     links_added = sorted((Counter(t for x in news for t in links(x)) - Counter(t for x in olds for t in links(x))).elements())
+    at_opening = sorted((Counter(opening(x) for x in news if opening(x))
+                         - Counter(opening(x) for x in olds if opening(x))).elements())
     olds, news = [unlinked(x) for x in olds], [unlinked(x) for x in news]
     fn = summed(news)
     fo = summed(olds) if olds else None
     flags, added = [], {}
+    wh_ceiling = at(venue["columns"]["wh"], WH_PCT) if venue else DEFAULT_WH
     if fo:
         if fn["words"] - fo["words"] >= LONGER_WORDS:
             flags.append("longer")
@@ -948,21 +1146,35 @@ def judge(olds, news, venue):
                 added[k] = g
         if fn["prepositions"] - fo["prepositions"] >= MORE_PREPOSITIONS:
             flags.append("prepositions")
+        g = gained(olds, news, wh_tokens)
+        if g:
+            added["wh"] = g
+            if any(features(s)["wh"] > wh_ceiling for s in news):
+                flags.append("wh")
         if fn["opener"] and not fo["opener"]:
             flags.append("opener")
         if kind == "merged":
             flags.append("merged")
     else:
         for k, name in (("colons", "colon"), ("semicolons", "semicolon"), ("dashes", "dash")):
-            if fn[k]:
+            if fn[k] and not block:
                 flags.append(name)
-        if any(worded_parentheses(s) for s in news):
+        if any(worded_parentheses(s) for s in news) and not block:
             flags.append("parenthesis")
         added = {k: [t for s in news for t in f(s)] for k, f in
-                 (("clauses", clause_tokens), ("adverbs", adverb_tokens), ("modifiers", modifier_tokens))}
+                 (("clauses", clause_tokens), ("adverbs", adverb_tokens), ("modifiers", modifier_tokens),
+                  ("wh", wh_tokens))}
         added = {k: v for k, v in added.items() if v}
+        if any(features(s)["wh"] > wh_ceiling for s in news):
+            flags.append("wh")
+    short = []
+    if fo and kind == "split":
+        before = max(features(o)["words"] for o in old_text)
+        short = [x for x in raw_news if features(x)["words"] < min(short_at, before)]
+        if short:
+            flags.append("short")
     pct, dense_hits = {}, set()
-    pct_used = ADDITION_PCT if fo is None else VENUE_PCT
+    pct_used = (BLOCK_PCT if block else ADDITION_PCT) if fo is None else VENUE_PCT
     ceiling = ({k: at(venue["columns"][k], pct_used) for k in ("words",) + DENSITY} if venue else DEFAULT_CEILING)
     # Without a venue, only additions are held to the default ceilings: a revision is already judged against the
     # sentence it replaced.
@@ -980,8 +1192,14 @@ def judge(olds, news, venue):
                     dense_hits.add(k)
         if dense_hits:
             flags.append("dense_for_venue")
+    # A construction the author has ruled out (--forbid): the flag above asks for a reason, this one does not take one.
+    forbidden = [name for k, name in FORBIDDABLE if name in forbid and fn[k] > (fo[k] if fo else 0)]
+    if forbidden:
+        flags.append("forbidden")
     return {"old": " ".join(old_text) or None, "new": " ".join(raw_news), "kind": kind, "features_old": fo,
-            "features_new": fn, "added": added, "links_added": links_added, "dense": sorted(dense_hits),
+            "features_new": fn, "added": added, "links_added": links_added, "links_added_opening": at_opening,
+            "forbidden": forbidden, "dense": sorted(dense_hits), "short": short,
+            "lengths": [features(x)["words"] for x in raw_news],
             "venue_percentile": pct,
             "flags": sorted(set(flags), key=flags.index), "pieces": len(news), "olds": len(olds)}
 
@@ -1009,10 +1227,16 @@ def main():
     ap.add_argument("--carriers", help="patterns (one per line) that a removed sentence must not take with it unflagged")
     ap.add_argument("--ledger", action="append", default=[],
                     help="a claim ledger (TSV with a 'claim' column); an edit that takes a bound claim out is flagged")
+    ap.add_argument("--forbid", action="append", default=[], choices=[n for _, n in FORBIDDABLE],
+                    help="a construction the author has ruled out (repeatable): a sentence that gains one is flagged "
+                         "forbidden, which a reason to keep it does not clear")
+    ap.add_argument("--skip-command", action="append", default=[], metavar="NAME",
+                    help="in .tex, drop \\NAME and its arguments before reading (repeatable): a placeholder macro")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     global FP
     fp = FP = fingerprint()
+    fp.SKIP_COMMANDS[:] = a.skip_command
     removed = []
     carriers = read_carriers(a.carriers) if a.carriers else []
     bound = read_bound(a.ledger) if a.ledger else []
@@ -1046,9 +1270,12 @@ def main():
     dups, copies = duplicated(changes, target, base) if not a.pairs else ({}, [])
     nears = near_repeats(changes, target) if not a.pairs else {}
     venue = venue_distribution(fp, a.baseline, a.venue_cache) if a.baseline else None
+    added_count = sum(len(news) for _, olds, news in changes if not olds)
+    block = bool(venue) and added_count >= BLOCK_MIN
+    short_at = at(venue["columns"]["words"], SHORT_PCT) if venue else SHORT_DEFAULT
     results = []
     for where, olds, news in changes:
-        r = judge(olds, news, venue)
+        r = judge(olds, news, venue, a.forbid, block, short_at)
         r["where"] = where
         found = shares_elsewhere(olds, news, draft) if draft else []
         if found:
@@ -1109,18 +1336,37 @@ def main():
                      "bound_in_ledger": sum(1 for r in results if "bound_in_ledger" in r["flags"])})
     unjudged = kinds["added"] if venue is None else 0   # judged against DEFAULT_CEILING, not a venue
     linked = Counter(t for r in results for t in r.get("links_added", []))
+    opened = Counter(t for r in results for t in r.get("links_added_opening", []))
+    forbidden = [r for r in results if r.get("forbidden")]
+    in_venue = links_in_venue(venue, linked)
+    shaped = (block_shape([n for r in results if r["kind"] == "added" for n in r["lengths"]], venue, short_at)
+              if block else None)
     out = {"schema_version": 2, "compared": compared, "changed": len(results) - removed_flagged, "flagged": len(flagged),
            "ledgers_missing": MISSING_LEDGERS,
            "added_without_venue": unjudged,
            "links_added": dict(sorted(linked.items())),
+           "links_added_opening": dict(sorted(opened.items())),
+           "links_in_venue": in_venue,
+           "block": shaped,
+           "short_ceiling": ({"value": short_at, "from": f"venue p{SHORT_PCT}"} if venue
+                             else {"value": SHORT_DEFAULT, "from": "default"}),
+           "wh_ceiling": ({"value": at(venue["columns"]["wh"], WH_PCT), "from": f"venue p{WH_PCT}",
+                           "venue_share_two_or_more": round(sum(1 for v in venue["columns"]["wh"] if v >= 2)
+                                                            / len(venue["columns"]["wh"]), 4)}
+                          if venue else {"value": DEFAULT_WH, "from": "default"}),
+           "forbid": sorted(set(a.forbid)), "forbidden": len(forbidden),
            "venue": ({"documents": venue["documents"], "sentences": venue["sentences"],
                       "p90": {k: at(venue["columns"][k], VENUE_PCT) for k in ("words",) + DENSITY},
-                      "p75": {k: at(venue["columns"][k], ADDITION_PCT) for k in ("words",) + DENSITY}}
+                      "p75": {k: at(venue["columns"][k], ADDITION_PCT) for k in ("words",) + DENSITY},
+                      "added_held_to": {"pct": BLOCK_PCT if block else ADDITION_PCT,
+                                        **{k: at(venue["columns"][k], BLOCK_PCT if block else ADDITION_PCT)
+                                           for k in ("words",) + DENSITY}}}
                      if venue else None),
-           "limits": LIMITS,
+           "limits": LIMITS, "acceptance": ACCEPTANCE,
            "verdicts": verdict_table(results) if verdicts else None,
            "sentences": results,
            "issues": [{"where": r["where"], "flags": r["flags"], "added": r["added"], "new": r["new"],
+                       **({"forbidden": r["forbidden"]} if r.get("forbidden") else {}),
                        **({"old": r["old"], "carried": r["carried"], "antecedent": r["antecedent"]}
                           if r["kind"] == "removed" else {}),
                        **({"shares_elsewhere": r["shares_elsewhere"]} if r.get("shares_elsewhere") else {}),
@@ -1138,10 +1384,33 @@ def main():
         if venue:
             print(f"venue: {venue['sentences']} sentences from {venue['documents']} documents; p90 "
                   + ", ".join(f"{k} {v}" for k, v in out["venue"]["p90"].items())
-                  + "; added sentences held to p75 " + ", ".join(f"{k} {v}" for k, v in out["venue"]["p75"].items()))
+                  + f"; added sentences held to p{out['venue']['added_held_to']['pct']} "
+                  + ", ".join(f"{k} {v}" for k, v in out["venue"]["added_held_to"].items() if k != "pct"))
         elif unjudged:
             print(f"{unjudged} added sentence(s) held to default ceilings, not to a venue: give --baseline "
                   + "(" + ", ".join(f"{k} {v}" for k, v in DEFAULT_CEILING.items()) + ")")
+        if shaped:
+            print(f"{shaped['sentences']} added sentences read as new prose: each held to the venue's p{BLOCK_PCT}, "
+                  "punctuation left to the fingerprint audit; the block's shape against "
+                  f"{shaped['windows']} windows of as many venue sentences:")
+            for k, m in shaped["metrics"].items():
+                print(f"  {k} {m['value']}" + (f" (percentile {m['percentile']}, band {m['band'][0]}-{m['band'][1]})"
+                                               + ("  OUTSIDE" if m["outside"] else "") if "band" in m else f" ({m['note']})"))
+            if shaped.get("note"):
+                print(f"  {shaped['note']}")
+        elif not venue and added_count >= BLOCK_MIN:
+            print(f"{added_count} added sentences: with --baseline they are read as new prose and judged as a block, "
+                  "not one by one against default ceilings")
+        wc = out["wh_ceiling"]
+        print(f"wh-words (what, where, whether, which, who, how, why, when ...): a sentence with more than "
+              f"{wc['value']} is flagged wh ({wc['from']}"
+              + (f"; {100 * wc['venue_share_two_or_more']:.1f}% of venue sentences hold two or more)"
+                 if "venue_share_two_or_more" in wc else ")"))
+        if a.forbid:
+            print(f"forbidden ({', '.join(sorted(set(a.forbid)))}): {len(forbidden)} sentence(s) gain one; change them, "
+                  "a reason to keep them does not clear this")
+            for r in forbidden:
+                print(f"  [{r['where']}] {', '.join(r['forbidden'])}: {r['new']}")
         for r in flagged:
             if r["kind"] == "removed":
                 print(f"\n[{r['where']}] removed: {', '.join(r['carried'] + ['took an antecedent'] * bool(r['antecedent']) + ['bound in the claim ledger'] * bool(r.get('ledger_rows')))}")
@@ -1175,12 +1444,20 @@ def main():
                   f"not flagged but rejected {vt['unflagged_rejected']}, not flagged and kept {vt['unflagged_accepted']}")
         if linked:
             n = sum(1 for r in results if r.get("links_added"))
-            print(f"\nlinking adverbials added, not flagged: {sum(linked.values())} in {n} sentence(s) ("
-                  + ", ".join(f"{k} x{v}" for k, v in sorted(linked.items())) + ")")
+            inside = linked - opened
+            nv = (lambda k: f" (venue {in_venue['forms'][k]} of {in_venue['documents']})") if in_venue else (lambda k: "")
+            print(f"\nlinking adverbials added, not flagged: {sum(linked.values())} in {n} sentence(s); opening a "
+                  f"sentence: {', '.join(f'{k} x{v}{nv(k)}' for k, v in sorted(opened.items())) or 'none'}; inside one: "
+                  f"{', '.join(f'{k} x{v}{nv(k)}' for k, v in sorted(inside.items())) or 'none'}")
+            for k, x in (in_venue or {}).get("not_in_venue", {}).items():
+                print(f"  no venue document uses '{k}'" + (f"; its {x['type']} links there: "
+                      + ", ".join(f"{g} ({c} of {in_venue['documents']})" for g, c in x["venue_uses"].items())
+                      if x["venue_uses"] else ""))
         if MISSING_LEDGERS:
             print(f"\nclaim ledger not found, so edits to bound sentences were not named: {', '.join(MISSING_LEDGERS)}")
         print(f"\n{LIMITS}")
-    sys.exit(1 if flagged else 0)
+        print(ACCEPTANCE)
+    sys.exit(1 if flagged or (shaped and shaped["outside"]) else 0)
 
 
 if __name__ == "__main__":

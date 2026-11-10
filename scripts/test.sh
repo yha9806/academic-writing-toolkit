@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (257 automated tests, labelled T2-T275: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (275 automated tests, labelled T2-T293: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T279 links by type, the stretch without one and forbidden constructions + T280 the blind read + T281-T282 clauses that are not clauses and links the venue uses + T283 a reference heading near the top + T284-T286 terminology against the venue + T287-T288 wh-clauses, sentence by sentence and per document + T289-T290 new prose as a block and sentences cut short + T291-T293 placeholder commands left out of LaTeX prose) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3613,16 +3613,16 @@ assert d['links_added'] == {'as a result': 1, 'for example': 1, 'however': 1, 'i
 }
 
 test_T257() {
-    # The fingerprint counts sentences that open with a linking adverbial, as a share of sentences. Enumerators
-    # (First, Second), subordinators (Although) and "Instead of" do not count; a link that needs a comma counts
-    # only with it.
+    # The fingerprint counts sentences that open with a linking adverbial, as a share of sentences. Subordinators
+    # (Although), "Instead of" and a time word without its comma (Recently installed) do not count; a link that needs
+    # a comma counts only with it. (Enumerators such as First, counted since T276 as links of sequence, are not here.)
     local tmp none some
     tmp=$(mktemp -d) || return 1
     python3 - "$tmp" <<'PYEOF'
 import sys, pathlib
 d = pathlib.Path(sys.argv[1])
 plain = "The gauge reads the river level twice a day at the north bridge. "
-notlink = ["First, the gauge reads the river level at the north bridge. ",
+notlink = ["Recently installed gauges read the river level at the north bridge. ",
            "Although the float sticks, the gauge reads the level at the north bridge. ",
            "Instead of the float, the gauge reads the level at the north bridge. ",
            "Overall accuracy of the gauge stays high at the north bridge. "]
@@ -3977,6 +3977,722 @@ import json, sys
 d = json.load(sys.stdin)
 assert d['changed'] == 0, [(r['where'], r['new']) for r in d['sentences']]
 "
+}
+
+# --- T276-T280: links that carry logic and order, forbidden constructions, the blind read ----------------------
+test_T276() {
+    # An author asked for sentence openings that carry "logic and order" (2026-10-28). Links of sequence (More
+    # recently, First) and linking phrases (Unlike X,) count, each under its type; a subordinator (While), a
+    # hyphenated adjective (Next-generation), a time word without its comma (Recently installed) and a phrase that no
+    # comma closes do not, nor does "Yet another". The fingerprint also says that its numbers are not acceptance.
+    local tmp none some
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+plain = "The gauge reads the river level twice a day at the north bridge. "
+link = ["More recently, the gauge reads the river level at the north bridge. ",
+        "First, the gauge reads the river level at the north bridge. ",
+        "Unlike the old float, the gauge reads the river level at the north bridge. ",
+        "Besides, the gauge reads the river level at the north bridge. "]
+notlink = ["While the float sticks, the gauge reads the level at the north bridge. ",
+           "Next-generation gauges read the river level at the north bridge. ",
+           "Recently installed gauges read the river level at the north bridge. ",
+           "Unlike the float the gauge reads the river level at the north bridge every single morning before the "
+           "survey team arrives on the site at dawn. ",
+           "Yet another gauge reads the river level at the north bridge. "]
+(d / "none.txt").write_text((plain * 6 + "".join(notlink)) * 5, encoding="utf-8")
+(d / "some.txt").write_text((plain * 6 + "".join(link)) * 5, encoding="utf-8")
+PYEOF
+    none=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/none.txt" --json 2>/dev/null)
+    some=$(python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/some.txt" --json 2>/dev/null)
+    rm -rf "$tmp"
+    python3 - "$none" "$some" <<'PYEOF'
+import json, sys
+none, some = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+m = some["metrics"]
+assert abs(m["linking_opener_share"]["value"] - 0.4) < 1e-9, m["linking_opener_share"]
+assert abs(m["linking_opener_sequence"]["value"] - 0.2) < 1e-9, m["linking_opener_sequence"]
+assert abs(m["linking_opener_comparison"]["value"] - 0.1) < 1e-9, m["linking_opener_comparison"]
+assert abs(m["linking_opener_addition"]["value"] - 0.1) < 1e-9, m["linking_opener_addition"]
+assert m["linking_opener_contrast"]["value"] == 0.0, m["linking_opener_contrast"]
+by = some["linking_openers"]["by_type"]
+assert sorted(set(by["sequence"])) == ["First", "More recently"] and len(by["sequence"]) == 10, by
+assert by["comparison"] == ["Unlike"] * 5 and by["addition"] == ["Besides"] * 5, by
+assert none["metrics"]["linking_opener_share"]["value"] == 0.0, none["metrics"]["linking_opener_share"]
+assert none["linking_openers"]["linked"] == 0 and none["linking_openers"]["longest_without"] == 55, none["linking_openers"]
+assert "not acceptance" in some["acceptance"] and "blind" in some["acceptance"], some.get("acceptance")
+PYEOF
+}
+
+test_T277() {
+    # The most sentences in a row that open with no link is set against stretches of the target's own length in each
+    # baseline document, so a paragraph is not compared with whole papers. --min-words admits short documents
+    # (published related-work sections); a metric that too few of them are long enough for gets no percentile and
+    # says how many were. A target longer than every baseline document gets a note instead of a percentile.
+    local tmp a b long
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+linked = "However, the gauge reads the river level at the north bridge. "
+plain = "The gauge reads the river level twice a day at the north bridge. "
+for i in range(6):
+    n = 20 if i < 4 else 40          # two documents long enough for the shares (30 sentences), four not
+    (d / "base" / ("doc%d.txt" % i)).write_text((linked + plain) * (n // 2), encoding="utf-8")
+p = "The pump lifts water from the old well behind the farm. "
+q = "Then the pump lifts water from the old well behind the farm. "
+(d / "a.txt").write_text("The crew starts the engine at dawn. " + p * 7, encoding="utf-8")
+(d / "b.txt").write_text((q + p) * 4, encoding="utf-8")
+(d / "long.txt").write_text(p * 50, encoding="utf-8")
+PYEOF
+    run() { python3 .claude/skills/audit/scripts/audit-prose-fingerprint.py --target "$tmp/$1.txt" --baseline "$tmp/base" \
+                --min-words 100 --json 2>/dev/null; }
+    a=$(run a); b=$(run b); long=$(run long)
+    rm -rf "$tmp"
+    python3 - "$a" "$b" "$long" <<'PYEOF'
+import json, sys
+a, b, long = (json.loads(x) for x in sys.argv[1:4])
+assert a["baseline_documents"] == 6 and a["baseline_min_words"] == 100, (a["baseline_documents"], a["baseline_too_short"])
+ga = a["metrics"]["linking_opener_longest_gap"]
+assert ga["value"] == 8 and ga["baseline_n"] == 6 and ga["baseline_max"] == 1 and ga["outside_range"], ga
+assert a["linking_openers"]["longest_without_begins"] == "The crew starts the engine at dawn.", a["linking_openers"]
+gb = b["metrics"]["linking_opener_longest_gap"]
+assert gb["value"] == 1 and not gb["outside_range"], gb
+assert b["linking_openers"]["by_type"]["sequence"] == ["Then"] * 4, b["linking_openers"]
+share = long["metrics"]["linking_opener_share"]
+assert share["baseline_n"] == 2 and "percentile" not in share and "only 2 of the 6" in share["baseline_note"], share
+gl = long["metrics"]["linking_opener_longest_gap"]
+assert gl["value"] == 50 and "percentile" not in gl and "50 sentences" in gl["baseline_note"], gl
+PYEOF
+}
+
+test_T278() {
+    # --forbid names a construction the author has ruled out. A sentence that gains one, or an added sentence that has
+    # one, is flagged forbidden and counted apart; one that only keeps what it had is not. A colon is forbidden only
+    # when asked for. Without --forbid nothing is forbidden and the semicolon is the usual flag. The report also says
+    # that no flag is not acceptance.
+    local tmp one two none c1 c2 c3
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'a\tThe gauge reads the river level twice a day.\tThe gauge reads the river level twice a day; the float reads it once.\n' >> "$tmp/pairs.tsv"
+    printf 'b\tThe gauge reads the river level twice a day.\tThe gauge reads one thing: the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'c\t\tThe float reads it once; the gauge reads it twice.\n' >> "$tmp/pairs.tsv"
+    printf 'd\tThe gauge reads the level; the float reads it once.\tThe gauge reads the river level; the float reads it once.\n' >> "$tmp/pairs.tsv"
+    one=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --forbid semicolon --json 2>/dev/null)
+    c1=$?
+    two=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --forbid semicolon --forbid colon --json 2>/dev/null)
+    c2=$?
+    none=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    c3=$?
+    rm -rf "$tmp"
+    [ "$c1" -eq 1 ] && [ "$c2" -eq 1 ] && [ "$c3" -eq 1 ] || { echo "exits $c1 $c2 $c3, expected 1 1 1"; return 1; }
+    python3 - "$one" "$two" "$none" <<'PYEOF'
+import json, sys
+one, two, none = (json.loads(x) for x in sys.argv[1:4])
+by = lambda d: {r["where"]: r for r in d["sentences"]}
+o, t, n = by(one), by(two), by(none)
+assert one["forbid"] == ["semicolon"] and one["forbidden"] == 2, (one["forbid"], one["forbidden"])
+assert o["a"]["forbidden"] == ["semicolon"] and "forbidden" in o["a"]["flags"], o["a"]
+assert o["c"]["forbidden"] == ["semicolon"], o["c"]
+assert o["b"]["forbidden"] == [] and "colon" in o["b"]["flags"] and "forbidden" not in o["b"]["flags"], o["b"]
+assert o["d"]["forbidden"] == [], o["d"]
+assert {i["where"] for i in one["issues"] if i.get("forbidden")} == {"a", "c"}, one["issues"]
+assert two["forbidden"] == 3 and t["b"]["forbidden"] == ["colon"], (two["forbidden"], t["b"])
+assert none["forbidden"] == 0 and all("forbidden" not in r["flags"] for r in none["sentences"]), none["sentences"]
+assert "semicolon" in n["a"]["flags"], n["a"]
+assert "not acceptance" in one["acceptance"], one.get("acceptance")
+PYEOF
+}
+
+test_T279() {
+    # A link added at the opening of a sentence is reported apart from one set off inside it: an author asked for
+    # openings that link, and ", however," mid-sentence is not that. Linking words of sequence are links too, so
+    # adding one is not flagged; a linking phrase ("Unlike the old float,") says something and is judged like any
+    # other words.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'a\tThe gauge reads the river level twice a day.\tHowever, the gauge reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'b\tThe gauge reads the river level twice a day.\tThe gauge, however, reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'c\tThe gauge reads the river level twice a day.\tMore recently, the gauge reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'd\tThe gauge reads the river level twice a day.\tThen the gauge reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    printf 'e\tThe gauge reads the river level twice a day.\tUnlike the old float, the gauge reads the river level twice a day.\n' >> "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1 (e is flagged)"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+by = {r['where']: r for r in d['sentences']}
+for k in 'abcd':
+    assert by[k]['flags'] == [], (k, by[k]['flags'])
+assert by['a']['links_added_opening'] == ['however'] and by['b']['links_added_opening'] == [], (by['a'], by['b'])
+assert by['b']['links_added'] == ['however'], by['b']
+assert by['c']['links_added'] == ['more recently'] and by['d']['links_added_opening'] == ['then'], (by['c'], by['d'])
+assert by['e']['links_added_opening'] == ['unlike'] and by['e']['flags'], by['e']
+assert d['links_added_opening'] == {'however': 1, 'more recently': 1, 'then': 1, 'unlike': 1}, d['links_added_opening']
+"
+}
+
+test_T280() {
+    # blind-pair.py: the order of A and B is fixed and committed (salted sha256) before the read, the secret may not
+    # sit with the texts the author is given, a pick must be recorded before the order is shown and only once, and a
+    # secret or a text that does not match the commitment is refused.
+    local tmp s
+    tmp=$(mktemp -d) || return 1
+    s=.claude/skills/audit/scripts/blind-pair.py
+    printf 'The version from before the round.\n' > "$tmp/before.txt"
+    printf 'The version from after the round.\n' > "$tmp/after.txt"
+    python3 "$s" prepare --first "$tmp/before.txt" --second "$tmp/after.txt" --out "$tmp/read" \
+        --secret "$tmp/read/key.txt" >/dev/null 2>&1 && { echo "a secret inside --out was accepted"; rm -rf "$tmp"; return 1; }
+    [ -e "$tmp/read/A.txt" ] && { echo "a refused prepare wrote A.txt"; rm -rf "$tmp"; return 1; }
+    python3 "$s" prepare --first "$tmp/before.txt" --second "$tmp/after.txt" --out "$tmp/read" \
+        --secret "$tmp/private/key.txt" --labels before,after >/dev/null 2>&1 || { echo "prepare failed"; rm -rf "$tmp"; return 1; }
+    python3 "$s" reveal --out "$tmp/read" --secret "$tmp/private/key.txt" >/dev/null 2>&1 \
+        && { echo "revealed before a pick"; rm -rf "$tmp"; return 1; }
+    python3 "$s" choose --out "$tmp/read" --pick A --note "A reads more like a person" >/dev/null 2>&1 \
+        || { echo "choose failed"; rm -rf "$tmp"; return 1; }
+    python3 "$s" choose --out "$tmp/read" --pick B >/dev/null 2>&1 && { echo "a second pick was accepted"; rm -rf "$tmp"; return 1; }
+    printf 'A=after;B=before;salt=00\n' > "$tmp/forged.txt"
+    python3 "$s" reveal --out "$tmp/read" --secret "$tmp/forged.txt" >/dev/null 2>&1 \
+        && { echo "a forged secret was accepted"; rm -rf "$tmp"; return 1; }
+    python3 "$s" reveal --out "$tmp/read" --secret "$tmp/private/key.txt" >/dev/null 2>&1 \
+        || { echo "reveal failed"; rm -rf "$tmp"; return 1; }
+    python3 - "$tmp" <<'PYEOF' || { rm -rf "$tmp"; return 1; }
+import hashlib, json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+c = json.loads((d / "read" / "commitment.json").read_text())
+key = (d / "private" / "key.txt").read_text().strip()
+assert hashlib.sha256(key.encode()).hexdigest() == c["commitment"], (key, c)
+r = json.loads((d / "read" / "reveal.json").read_text())
+texts = {"before": (d / "before.txt").read_bytes(), "after": (d / "after.txt").read_bytes()}
+assert (d / "read" / "A.txt").read_bytes() == texts[r["A"]] and (d / "read" / "B.txt").read_bytes() == texts[r["B"]], r
+assert r["pick"] == "A" and r["picked"] == r["A"] and r["note"] == "A reads more like a person", r
+PYEOF
+    printf 'swapped\n' > "$tmp/read/B.txt"
+    python3 "$s" reveal --out "$tmp/read" --secret "$tmp/private/key.txt" >/dev/null 2>&1 \
+        && { echo "a swapped text was accepted"; rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+}
+
+test_T281() {
+    # A word that can open a clause does not always open one. "after a survey" and "until dawn" are prepositions,
+    # "at once" is an adverb, a question quoted or named inside a sentence ("such as Where is it?") is a mention, and
+    # "such as" opens an example, not a clause. Each was counted as a clause in an added sentence on 2026-10-28; the
+    # true clauses beside them are still counted.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    {
+        printf 'id\told\tnew\n'
+        printf 'p1\t\tWe ask whether the map was drawn after a survey of the coast.\n'
+        printf 'p2\t\tThe record names several places at once, from the file to the object.\n'
+        printf 'p3\t\tA prompt such as Where is it? can be read at two levels.\n'
+        printf 'p4\t\tThe prompt "When was it made?" is read in two ways.\n'
+        printf 'p5\t\tThe gauge stayed in the river until dawn and before the survey.\n'
+        printf 'p6\t\tThe record lists the places at once in a single table.\n'
+        printf 't1\t\tThe gauge drifts after we move it to the north bridge.\n'
+        printf 't2\t\tThe label was added before the record was checked.\n'
+        printf 't3\t\tWe keep the float since a gauge may fail in winter.\n'
+        printf 't4\t\tOnce the gauge has been read, the float is lifted.\n'
+        printf 't5\t\tWhere the gauge fails, the float is read instead.\n'
+        printf 't6\t\tThe level was read after the survey team arrived.\n'
+        printf 't7\t\tThe float was moved until it reached the bridge.\n'
+        printf 't8\t\tThe float rises as the river is filling.\n'
+    } > "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -le 1 ] || { echo "exit $code"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+got = {r['where']: r['added'].get('clauses', []) for r in d['sentences']}
+want = {'p1': ['whether'], 'p2': [], 'p3': [], 'p4': [], 'p5': [], 'p6': [],
+        't1': ['after'], 't2': ['before'], 't3': ['since'], 't4': ['once'], 't5': ['where'], 't6': ['after'],
+        't7': ['until'], 't8': ['as']}
+bad = {k: (got.get(k), v) for k, v in want.items() if got.get(k) != v}
+assert not bad, bad
+"
+}
+
+test_T282() {
+    # A link a rewrite adds is reported with the number of venue documents that use that form, opening a sentence or
+    # set off by commas inside one: on 2026-10-28 a draft added "by contrast", which none of the venue's 16 papers
+    # used, while 9 used "in contrast". A form the venue does not use is named with the forms of the same type it
+    # does use. Nothing is flagged for it: it is a hint.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+words = ["".join(c) for c in itertools.product("abcdefg", repeat=3)]
+for i in range(6):
+    sents = ["The %s stage kept the %s rank in the pool today." % (words[(i * 200 + j) % len(words)],
+                                                                  words[(i * 200 + j) % len(words)]) for j in range(200)]
+    if i < 4:
+        sents[10] = "In contrast, the pool kept the rank of the stage today."
+    if i < 2:
+        sents[20] = "The pool, however, kept the rank of the stage today."
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join(sents))
+(d / "pairs.tsv").write_text(
+    "id\told\tnew\n"
+    "a\tThe gauge reads the river level twice a day.\tBy contrast, the gauge reads the river level twice a day.\n"
+    "b\tThe gauge reads the river level twice a day.\tIn contrast, the gauge reads the river level twice a day.\n"
+    "c\tThe gauge reads the river level twice a day.\tThe gauge, however, reads the river level twice a day.\n")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    code=$?
+    text=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/venue" 2>/dev/null)
+    rm -rf "$tmp"
+    [ "$code" -le 1 ] || { echo "exit $code"; return 1; }
+    printf '%s' "$text" | grep -q "by contrast x1 (venue 0 of 6" || { echo "text report lacks the venue count"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+v = d['links_in_venue']
+assert v['documents'] == 6, v
+assert v['forms'] == {'by contrast': 0, 'however': 2, 'in contrast': 4}, v['forms']
+assert v['not_in_venue'] == {'by contrast': {'type': 'contrast', 'venue_uses': {'in contrast': 4, 'however': 2}}}, v['not_in_venue']
+by = {r['where']: r for r in d['sentences']}
+assert all(r['flags'] == [] for r in by.values()), {k: r['flags'] for k, r in by.items()}
+"
+}
+
+test_T283() {
+    # The reference list is cut at the last line that holds only References or Bibliography, unless that line comes
+    # before 30% of the text: a document whose only such line is near the top would otherwise lose nearly all of its
+    # prose. Text after a late References line is still dropped.
+    python3 - <<'PYEOF'
+import importlib.util
+spec = importlib.util.spec_from_file_location("fp", ".claude/skills/audit/scripts/audit-prose-fingerprint.py")
+fp = importlib.util.module_from_spec(spec); spec.loader.exec_module(fp)
+body = " ".join(["The gauge reads the river level at the bridge."] * 40)
+early = "Contents\nReferences\n" + body
+late = body + "\nReferences\n[1] A. Author. Bridge this gap. 2020.\n"
+assert "gauge" in fp.strip_markup(early, ".txt"), "an early References line cut the whole document"
+assert len(fp.strip_markup(early, ".txt").split()) >= 300, len(fp.strip_markup(early, ".txt").split())
+assert "Bridge this gap" not in fp.strip_markup(late, ".txt"), "the reference list was kept"
+PYEOF
+}
+
+test_T284() {
+    # Terminology against the venue: a British spelling in a draft for a venue that writes American, and a stock
+    # phrase no venue document uses, are both reported with the venue's counts. A word or phrase that appears only in
+    # a venue document's reference list (its heading after a page break too), or only in the draft's own reference
+    # list, is not counted.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue" "$tmp/draft"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+for i in range(6):
+    body = " ".join(["The %d gauge reads the color of the river and its behavior at the bridge." % j for j in range(60)])
+    refs = ""
+    if i == 0:
+        refs = "\nReferences\n[1] A. Author. Colour, behaviour and how to bridge this gap. 2020.\n"
+    if i == 1:
+        # pdftotext puts a form feed at a page break, so the heading can open with one
+        refs = "\n\x0cReferences\n\n[2] C. Writer. Colour, and we bridge this gap. 2021.\n"
+    (d / "venue" / ("doc%d.txt" % i)).write_text(body + refs)
+(d / "draft" / "main.md").write_text(
+    "# Method\n\nThe gauge reads the colour of the river at the bridge. "
+    "We bridge this gap with a second gauge at the north bridge. "
+    + " ".join(["The gauge reads the river at the bridge every day."] * 30)
+    + "\n\n# References\n\n[1] B. Writer. Behaviour of rivers. 2019.\n")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-terminology.py --target "$tmp/draft" --baseline "$tmp/venue" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+sp = {r['form']: r for r in d['spelling']}
+assert set(sp) == {'colour'}, sp
+assert sp['colour']['venue_docs'] == 0 and sp['colour']['other'] == 'color' and sp['colour']['other_venue_docs'] == 6, sp
+assert {k: d['venue']['spelling'][k] for k in ('american', 'british')} == {'american': 6, 'british': 0}, d['venue']
+st = {r['phrase']: r for r in d['stock']}
+assert 'bridge this gap' in st and st['bridge this gap']['venue_docs'] == 0, st
+assert d['venue']['documents'] == 6, d['venue']
+"
+}
+
+test_T285() {
+    # Terminology inside the draft: one word spelled two ways, one compound written two ways (hyphen, space or
+    # closed), and two names of one concept from a --families file are each reported with the draft's counts and the
+    # venue's. A clean draft exits 0; no draft prose, or a baseline too small, exits 2.
+    local tmp out code clean c2 c3
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue" "$tmp/draft" "$tmp/clean" "$tmp/tiny" "$tmp/empty"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+for i in range(6):
+    body = " ".join(["The %d gauge was preregistered and reads the color of the river with an SVM." % j for j in range(60)])
+    (d / "venue" / ("doc%d.txt" % i)).write_text(body)
+(d / "tiny" / "doc0.txt").write_text("The gauge reads the river. " * 100)
+(d / "draft" / "main.md").write_text(
+    "The gauge reads the colour of the river. The float reads its color. The study was preregistered. "
+    "The second study was pre-registered as well. We ask an SVM and then a GBM about the gauge. "
+    + " ".join(["The gauge reads the river at the bridge every day."] * 30))
+(d / "clean" / "main.md").write_text(" ".join(["The gauge reads the river at the bridge every day."] * 30))
+(d / "families.tsv").write_text("concept\tterm\nmodel\tSVM\nmodel\tGBM\nmodel\tsupport vector machine\n")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-terminology.py --target "$tmp/draft" --baseline "$tmp/venue" --families "$tmp/families.tsv" --json 2>/dev/null)
+    code=$?
+    python3 .claude/skills/audit/scripts/audit-terminology.py --target "$tmp/clean" --baseline "$tmp/venue" >/dev/null 2>&1
+    clean=$?
+    python3 .claude/skills/audit/scripts/audit-terminology.py --target "$tmp/empty" --baseline "$tmp/venue" >/dev/null 2>&1
+    c2=$?
+    python3 .claude/skills/audit/scripts/audit-terminology.py --target "$tmp/draft" --baseline "$tmp/tiny" >/dev/null 2>&1
+    c3=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] && [ "$clean" -eq 0 ] && [ "$c2" -eq 2 ] && [ "$c3" -eq 2 ] || { echo "exits $code $clean $c2 $c3, expected 1 0 2 2"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+drift = {r['kind']: r for r in d['drift']}
+assert drift['spelling']['forms'] == {'colour': 1, 'color': 1}, drift
+assert drift['compound']['forms'] == {'preregistered': 1, 'pre-registered': 1}, drift
+assert drift['compound']['venue_docs'] == {'preregistered': 6, 'pre-registered': 0}, drift
+fam = drift['family']
+assert fam['concept'] == 'model' and fam['forms'] == {'SVM': 1, 'GBM': 1}, fam
+assert fam['venue_docs'] == {'SVM': 6, 'GBM': 0, 'support vector machine': 0}, fam
+"
+}
+
+test_T286() {
+    # A listed spelling under a prefix is that spelling (recoloured is British like coloured). A linking form the draft
+    # uses and no venue document uses (by contrast, where the venue writes in contrast) is named with the venue's forms
+    # of the same type; it is a hint, so a draft with nothing else to report exits 0.
+    local tmp out code only
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue" "$tmp/draft" "$tmp/only"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+for i in range(6):
+    sents = ["The %d gauge reads the color of the river at the north bridge." % j for j in range(60)]
+    if i < 4:
+        sents[5] = "In contrast, the pool kept the rank of the stage at the bridge today."
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join(sents))
+fill = " ".join(["The gauge reads the river at the bridge every day."] * 30)
+(d / "draft" / "main.md").write_text("By contrast, the float reads the river level at the bridge. "
+                                     "The gauge was recoloured last year. " + fill)
+(d / "only" / "main.md").write_text("By contrast, the float reads the river level at the bridge. " + fill)
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-terminology.py --target "$tmp/draft" --baseline "$tmp/venue" --json 2>/dev/null)
+    code=$?
+    python3 .claude/skills/audit/scripts/audit-terminology.py --target "$tmp/only" --baseline "$tmp/venue" >/dev/null 2>&1
+    only=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] && [ "$only" -eq 0 ] || { echo "exits $code $only, expected 1 0"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+sp = {r['form']: r for r in d['spelling']}
+assert 'recoloured' in sp and sp['recoloured']['other'] == 'recolored', sp
+assert d['links'] == [{'form': 'by contrast', 'draft_count': 1, 'venue_docs': 0, 'type': 'contrast',
+                       'venue_uses': {'in contrast': 4}}], d['links']
+assert d['issues'] == 1, d['issues']
+"
+}
+
+test_T287() {
+    # Wh-words (what, where, whether, which, who, whom, whose, how, why, when) are counted on their own, "what" and
+    # "how" included, which the clause list leaves out. A sentence that holds more than the venue's 95th percentile
+    # (one, without a venue) is flagged wh: an added one by its count, a rewrite only when it gained them. A
+    # question in quotation marks is a mention and is not counted. On 2026-10-28 an author found a draft with "too
+    # many clauses" that the clause flag had not caught: they were what- and where-clauses.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    {
+        printf 'id\told\tnew\n'
+        printf 'a\t\tWe ask what the gauge reads and where the float sits.\n'
+        printf 'b\t\tWe ask what the gauge reads at the bridge.\n'
+        printf 'c\tThe gauge reads the river level.\tThe gauge reads how high the river is and why it rises.\n'
+        printf 'd\tWe ask what the gauge reads and where the float sits.\tWe ask what the gauge reads and where the old float sits.\n'
+        printf 'e\t\tThe prompt "What is it and where is it?" is read in two ways.\n'
+    } > "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    text=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" 2>/dev/null)
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1"; return 1; }
+    printf '%s' "$text" | grep -q "wh: what, where" || { echo "text report does not name the wh-words"; return 1; }
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+by = {r['where']: r for r in d['sentences']}
+assert by['a']['features_new']['wh'] == 2 and 'wh' in by['a']['flags'], by['a']
+assert by['a']['added']['wh'] == ['what', 'where'], by['a']['added']
+assert by['b']['features_new']['wh'] == 1 and 'wh' not in by['b']['flags'], by['b']
+assert 'wh' in by['c']['flags'] and by['c']['added']['wh'] == ['how', 'why'], by['c']
+assert 'wh' not in by['d']['flags'], by['d']
+assert by['e']['features_new']['wh'] == 0 and 'wh' not in by['e']['flags'], by['e']
+assert d['wh_ceiling'] == {'value': 1, 'from': 'default'}, d.get('wh_ceiling')
+"
+}
+
+test_T288() {
+    # The structure audit reports wh-words per 100 words and the share of sentences that hold two or more, each
+    # against the baseline's range: a draft that leans on what- and where-clauses sentence after sentence is outside
+    # it on both, a draft like the baseline is not.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+toks = iter("".join(c) for c in itertools.product("abcdefghij", repeat=4))
+def doc(n, one, two):
+    out = []
+    for i in range(n):
+        w = next(toks)
+        if i < two:
+            out.append("We ask what the %s stage scored and where it kept the rank. " % w)
+        elif i < two + one:
+            out.append("We ask what the %s stage scored in the pool. " % w)
+        else:
+            out.append("The %s stage scored the pool and kept the rank. " % w)
+    return "".join(out)
+for i in range(20):
+    (d / "base" / ("paper%02d.txt" % i)).write_text(doc(200, 20 + i, i % 3))
+(d / "heavy.txt").write_text(doc(200, 40, 40))
+(d / "like.txt").write_text(doc(200, 30, 1))
+PYEOF
+    for t in heavy like; do
+        python3 .claude/skills/audit/scripts/audit-prose-structure.py --target "$tmp/$t.txt" --baseline "$tmp/base" \
+            --json > "$tmp/$t.json" 2>/dev/null
+    done
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+h, l = (json.loads((d / ("%s.json" % t)).read_text()) for t in ("heavy", "like"))
+for k in ("wh_per_100w", "wh2_share"):
+    assert k in h["outliers"] and h["metrics"][k]["outside"], (k, h["metrics"].get(k))
+    assert k not in l["outliers"], (k, l["metrics"].get(k))
+assert abs(h["metrics"]["wh2_share"]["value"] - 0.2) < 1e-9, h["metrics"]["wh2_share"]
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
+test_T289() {
+    # Twenty-five added sentences or more, held against a venue, are new prose and are judged as a block: held one by
+    # one to the venue's 75th percentile, every sentence of a new section stays under it, and the section loses its
+    # long sentences (in 16 venue papers, 59% of published sentences were flagged when judged that way). Each is held
+    # to the 98th percentile instead, punctuation is left to the fingerprint audit, and the block's long-sentence
+    # share, short-sentence share and length lag-1 are placed among windows of the same length in the venue. A block
+    # of even mid-length sentences is outside on long sentences; a block shaped like the venue is not; three added
+    # sentences are still judged one by one.
+    local tmp out code like few
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools, random
+d = pathlib.Path(sys.argv[1])
+words = ["".join(c) for c in itertools.product("abcdefg", repeat=3)]
+CHOICES = [9, 12, 15, 18, 20, 22, 26, 30, 40, 45, 50]
+def sent(n, w):
+    body = ("the %s gauge reads the river level at the north bridge every day " % w).split()
+    out = (body * (n // len(body) + 1))[:n]
+    return " ".join(out).capitalize() + "."
+for i in range(6):
+    rng = random.Random(i)
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join(sent(rng.choice(CHOICES), words[(i * 200 + j) % len(words)])
+                                                         for j in range(200)))
+rows = ["id\told\tnew"]
+for j in range(30):
+    rows.append("u%02d\t\t%s" % (j, sent(24, words[j])))
+(d / "even.tsv").write_text("\n".join(rows) + "\n")
+rows = ["id\told\tnew"]
+rng = random.Random(99)
+for j in range(30):
+    s = sent(rng.choice(CHOICES), words[j])
+    rows.append("v%02d\t\t%s" % (j, s[:-1] + ": a note." if j == 3 else s))
+(d / "like.tsv").write_text("\n".join(rows) + "\n")
+(d / "few.tsv").write_text("id\told\tnew\nf1\t\tThe gauge reads one thing: the river level at the bridge.\n")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/even.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    code=$?
+    like=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/like.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    few=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/few.tsv" --baseline "$tmp/venue" --json 2>/dev/null)
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1 (the even block is outside)"; return 1; }
+    python3 - "$out" "$like" "$few" <<'PYEOF'
+import json, sys
+even, like, few = (json.loads(x) for x in sys.argv[1:4])
+b = even["block"]
+assert b["sentences"] == 30 and b["per_sentence_pct"] == 98, b
+assert "long_share" in b["outside"] and b["metrics"]["long_share"]["value"] == 0, b
+assert all(r["flags"] == [] for r in even["sentences"]), [r["flags"] for r in even["sentences"]]
+assert like["block"]["outside"] == [], like["block"]
+assert all(r["flags"] == [] for r in like["sentences"]), [(r["where"], r["flags"]) for r in like["sentences"] if r["flags"]]
+assert few["block"] is None, few["block"]
+assert "colon" in few["sentences"][0]["flags"], few["sentences"][0]
+PYEOF
+}
+
+test_T290() {
+    # A split that cuts out a piece shorter than the venue's 10th percentile (10 words without a venue) is flagged
+    # short. A sentence compressed whole is not, however short: that is the plainer rewrite this audit lets through.
+    # A piece of ordinary length, a sentence that was already that short, and an added short sentence are not
+    # flagged for it either.
+    local tmp out
+    tmp=$(mktemp -d) || return 1
+    {
+        printf 'id\told\tnew\n'
+        printf 'a\tThe gauge reads the river level at the north bridge twice a day in winter.\tThe gauge reads the river. It does so at the north bridge twice a day in winter.\n'
+        printf 'b\tThe gauge reads the river level at the north bridge twice a day in winter.\tThe gauge reads the level twice a day.\n'
+        printf 'c\tThe gauge reads the river level at the north bridge twice a day in winter.\tThe gauge reads the river level at the bridge twice a day.\n'
+        printf 'd\tThe gauge reads the level.\tThe gauge reads the levels.\n'
+        printf 'e\t\tThe gauge reads the river.\n'
+        printf 'f\tThe gauge reads the river level at the north bridge twice a day in winter.\tThe gauge reads the river level at the north bridge. It does so twice a day in the winter months.\n'
+    } > "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    rm -rf "$tmp"
+    echo "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+by = {r['where']: r for r in d['sentences']}
+assert 'short' in by['a']['flags'] and by['a']['short'] == ['The gauge reads the river.'], by['a']
+for k in 'bcdef':
+    assert 'short' not in by[k]['flags'], (k, by[k]['flags'])
+assert d['short_ceiling'] == {'value': 10, 'from': 'default'}, d.get('short_ceiling')
+"
+}
+
+test_T291() {
+    # --skip-command NAME drops a placeholder macro with its arguments when the changed-sentence audit reads LaTeX:
+    # the placeholder's words and semicolon are not an added sentence, and the sentence added beside it still is.
+    # Without the option the placeholder's text is read, as before.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    printf '%s\n' '\begin{document}' '\section{Data}' \
+        'The gauge reads the river level at the north bridge twice a day.' '' \
+        'The crews log each reading by hand before noon.' '\end{document}' > "$tmp/base.tex"
+    printf '%s\n' '\begin{document}' '\section{Data}' \
+        'The gauge reads the river level at the north bridge twice a day.' \
+        '\SLOT{Table 2: readings per gauge, see \textbf{the spring log}; counts wait for the pool}' '' \
+        'The crews log each reading by hand before noon.' \
+        '\paragraph{Gauges.} The crews also log the weather at each bridge.' '\end{document}' > "$tmp/target.tex"
+    python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/target.tex" --base "$tmp/base.tex" \
+        --skip-command SLOT --json > "$tmp/skip.json" 2>"$tmp/skip.err"
+    python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/target.tex" --base "$tmp/base.tex" \
+        --json > "$tmp/read.json" 2>/dev/null
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+skip = json.loads((d / "skip.json").read_text() or "null")
+assert skip, (d / "skip.err").read_text()
+new = [r["new"] for r in skip["sentences"]]
+assert new == ["The crews also log the weather at each bridge."], new
+assert skip["compared"]["target_sentences"] == 3, skip["compared"]
+read = json.loads((d / "read.json").read_text())
+assert any("spring log" in r["new"] for r in read["sentences"]), read["sentences"]
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
+test_T292() {
+    # The fingerprint drops each command named with --skip-command, its star, optional and brace arguments with
+    # it, nested braces included; a longer command name that starts the same is kept, and so is a placeholder whose
+    # brace never closes. The fingerprint and structure audits read a draft with placeholders and headings skipped
+    # exactly as they read the same draft without them.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    python3 - "$tmp" <<'PYEOF' || { rm -rf "$tmp"; return 1; }
+import importlib.util, sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("fp", ".claude/skills/audit/scripts/audit-prose-fingerprint.py")
+fp = importlib.util.module_from_spec(spec); sys.argv = ["x"]; spec.loader.exec_module(fp)
+got = fp.drop_commands("A. \\SLOT*[x]{a {b} c}{d} B. \\SLOTS{kept} \\SLOT{open", ["SLOT"])
+assert got == "A.   B. \\SLOTS{kept} \\SLOT{open", repr(got)
+fp.SKIP_COMMANDS = ["SLOT", "section"]
+text = fp.strip_markup("\\begin{document}\\section{Long Title Words}\nThe gauge reads.\n\\SLOT{a; b}\n\\end{document}", ".tex")
+assert text == "The gauge reads.", text
+(d / "base").mkdir()
+toks = iter("".join(c) for c in itertools.product("abcdefghij", repeat=4))
+def doc(n):
+    return "".join("The %s gauge reads the river, and the crew logs it by %s. " % (next(toks), "noon" if i % 3 else "hand before the bridge closes for the night") for i in range(n))
+for i in range(20):
+    (d / "base" / ("paper%02d.txt" % i)).write_text(doc(200 + i))
+body = [doc(1) for _ in range(120)]
+plain = "\\begin{document}\n" + "\n".join(body) + "\n\\end{document}\n"
+marked = body[:]
+marked.insert(40, "\\section{Three Long Heading Words}")
+marked.insert(60, "\\SLOT{Table 2: readings per gauge; counts wait for the pool, see \\textbf{the log}}")
+marked.insert(90, "\\SLOT{Implication, worded after the results; one more clause where it waits}")
+(d / "plain.tex").write_text(plain)
+(d / "marked.tex").write_text("\\begin{document}\n" + "\n".join(marked) + "\n\\end{document}\n")
+PYEOF
+    local s=.claude/skills/audit/scripts
+    python3 $s/audit-prose-fingerprint.py --target "$tmp/plain.tex" --baseline "$tmp/base" --allow-overlap --json > "$tmp/fp-plain.json" 2>/dev/null
+    python3 $s/audit-prose-fingerprint.py --target "$tmp/marked.tex" --baseline "$tmp/base" --skip-command SLOT \
+        --skip-command section --allow-overlap --json > "$tmp/fp-skip.json" 2>/dev/null
+    python3 $s/audit-prose-fingerprint.py --target "$tmp/marked.tex" --baseline "$tmp/base" --allow-overlap --json > "$tmp/fp-read.json" 2>/dev/null
+    python3 $s/audit-prose-structure.py --target "$tmp/plain.tex" --baseline "$tmp/base" --json > "$tmp/st-plain.json" 2>/dev/null
+    python3 $s/audit-prose-structure.py --target "$tmp/marked.tex" --baseline "$tmp/base" --skip-command SLOT \
+        --skip-command section --json > "$tmp/st-skip.json" 2>/dev/null
+    python3 $s/audit-prose-structure.py --target "$tmp/marked.tex" --baseline "$tmp/base" --json > "$tmp/st-read.json" 2>/dev/null
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+r = {n: json.loads((d / ("%s.json" % n)).read_text() or "null") for n in
+     ("fp-plain", "fp-skip", "fp-read", "st-plain", "st-skip", "st-read")}
+assert all(r.values()), [n for n, v in r.items() if not v]
+val = lambda m: {k: v.get("value") for k, v in m.items()}
+assert r["fp-skip"]["target_words"] == r["fp-plain"]["target_words"], (r["fp-skip"]["target_words"], r["fp-plain"]["target_words"])
+assert val(r["fp-skip"]["metrics"]) == val(r["fp-plain"]["metrics"])
+assert r["fp-read"]["metrics"]["semicolon_per_1k"]["value"] > 0, r["fp-read"]["metrics"]["semicolon_per_1k"]
+for k in ("target_words", "target_sentences"):
+    assert r["st-skip"][k] == r["st-plain"][k], (k, r["st-skip"][k], r["st-plain"][k])
+assert val(r["st-skip"]["metrics"]) == val(r["st-plain"]["metrics"])
+assert r["st-read"]["target_words"] > r["st-plain"]["target_words"], r["st-read"]["target_words"]
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
+}
+
+test_T293() {
+    # The terminology audit takes --skip-command too: a British spelling inside a placeholder is not the draft's
+    # spelling. Without the option it is reported, as before.
+    local tmp
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue" "$tmp/draft"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+for i in range(6):
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join("The %d gauge reads the color of the river at the bridge." % j for j in range(60)))
+(d / "draft" / "main.tex").write_text("\\begin{document}\n" + " ".join(["The gauge reads the color of the river at the bridge."] * 30)
+    + "\n\\SLOT{The colour key waits for the spring log}\n\\end{document}\n")
+PYEOF
+    local s=.claude/skills/audit/scripts/audit-terminology.py
+    python3 $s --target "$tmp/draft" --baseline "$tmp/venue" --skip-command SLOT --json > "$tmp/skip.json" 2>"$tmp/skip.err"
+    python3 $s --target "$tmp/draft" --baseline "$tmp/venue" --json > "$tmp/read.json" 2>/dev/null
+    python3 - "$tmp" <<'PYEOF'
+import json, sys, pathlib
+d = pathlib.Path(sys.argv[1])
+skip = json.loads((d / "skip.json").read_text() or "null")
+assert skip, (d / "skip.err").read_text()
+assert skip["spelling"] == [], skip["spelling"]
+read = json.loads((d / "read.json").read_text())
+assert [r["form"] for r in read["spelling"]] == ["colour"], read["spelling"]
+PYEOF
+    local rc=$?
+    rm -rf "$tmp"
+    return $rc
 }
 
 # --- T254-T255: a supplement's ledgers and files --------------------------------
@@ -8014,6 +8730,24 @@ run_test "T272 a number set as 4{,}120 reads as 4,120, and \\, is a space, not a
 run_test "T273 the comma inside 4,120 groups digits and is not counted as a comma" test_T273
 run_test "T274 float reviews: what a figure draws is set out by the elements at each end, and an end that reaches none is marked" test_T274
 run_test "T275 changed-sentence audit: a bare % in a pairs cell is a percent sign, not a comment that cuts the rest" test_T275
+run_test "T276 fingerprint: links of sequence and linking phrases count, each under its type" test_T276
+run_test "T277 fingerprint: the most sentences without a link, against stretches of the same length; --min-words; too few long enough" test_T277
+run_test "T278 changed-sentence audit: --forbid makes a gained semicolon (or colon) forbidden, apart from the flags a reason can keep" test_T278
+run_test "T279 changed-sentence audit: a link added at the opening is reported apart from one inside the sentence" test_T279
+run_test "T280 blind-pair: the order is committed before the read, a pick comes before the reveal, a forged secret is refused" test_T280
+run_test "T281 changed-sentence audit: after/before/until as prepositions, at once, a named question and such as are not clauses" test_T281
+run_test "T282 changed-sentence audit: an added link is reported with the venue documents that use that form" test_T282
+run_test "T283 fingerprint: a reference heading before 30% of the text does not cut it" test_T283
+run_test "T284 terminology: a British spelling and a stock phrase the venue does not use; reference lists not counted" test_T284
+run_test "T285 terminology: one concept written two ways in the draft (spelling, compound, --families); exits 0 and 2" test_T285
+run_test "T286 terminology: a spelling under a prefix, and a linking form the venue does not use as a hint" test_T286
+run_test "T287 changed-sentence audit: wh-words counted apart, a sentence above the ceiling flagged wh" test_T287
+run_test "T288 structure audit: wh-words per 100 words and the share of sentences with two or more" test_T288
+run_test "T289 changed-sentence audit: 25 added sentences are new prose, judged as a block against windows of the venue" test_T289
+run_test "T290 changed-sentence audit: a split that cuts out a piece below the venue's 10th percentile is flagged short" test_T290
+run_test "T291 changed-sentence audit: --skip-command drops a placeholder macro and its arguments from LaTeX prose" test_T291
+run_test "T292 fingerprint and structure audits: --skip-command reads a draft as if its placeholders and headings were not there" test_T292
+run_test "T293 terminology audit: a spelling inside a skipped placeholder is not the draft's" test_T293
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then
