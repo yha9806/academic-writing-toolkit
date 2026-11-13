@@ -3,6 +3,7 @@
 
     python3 build-reader-packet.py --workspace <loop workspace> --out <dir> [--sections A,I] [--questions q.tsv] [--aux main.aux]
     python3 build-reader-packet.py --text <file> --out <dir> [--format text|latex] [--bib refs.bib] [--questions q.tsv] [--aux main.aux]
+    (either form: --personas <file> sets the readers, one `id<TAB>persona` per line or a JSON object)
 
 With --workspace the paragraphs come from the writing loop's index (the tracked draft at its head, the sections
 named in the workspace's target.readers.sections unless --sections is given), and packet.json records which
@@ -27,6 +28,16 @@ packet.json (residual_commands). Figures and their descriptions are dropped. Dir
 reader after the free questions. A third column may give the answer's key phrases (`key ‖ key`), for the judges: they
 never reach a reader and do not change the packet id. A question whose key phrase the first paragraph prints verbatim
 is flagged in packet.json (copyable_questions): a reader can answer it by copying, so it cannot tell who understood.
+
+--personas names the readers: one `id<TAB>persona` per line (# comments and blank lines skipped) or one JSON object
+{id: persona}; an id is letters and digits, as the outputs' file names need. It overrides the workspace's
+target.readers.personas, is recorded in packet.json (personas, source.personas_file) and is part of the packet id.
+
+A Chinese manuscript (Han characters half of the units, or a quarter with Chinese punctuation: the rule of the audit
+skill's chinese-prose.py) with no personas given gets Chinese personas (PERSONAS_ZH); its prompt asks for the first
+8-12 characters of a sentence where an English one asks for the first 4-6 words, names the venue "its target venue"
+when none is given (an English one says "a journal"), and its size is printed and recorded in characters, a Latin
+word or number counted as one. The rest of the prompt is the English one.
 
 Output in --out: manuscript.txt, prompt_<persona>.txt per persona, packet.json, blank_reader.json.
 
@@ -60,6 +71,36 @@ PERSONAS = {
     "R1": "a researcher in the manuscript's field whose first language is not English; you read English papers daily",
     "R2": "a senior reviewer for the target venue whose first language is English",
 }
+DEFAULT_PERSONAS = dict(PERSONAS)
+# For a Chinese manuscript neither default is its reader: both read English papers.
+PERSONAS_ZH = {
+    "R1": "一位该领域的中文研究者，日常阅读中文学术论著",
+    "R2": "一位为该书稿或刊物审稿的资深中文审稿人",
+}
+PERSONA_ID = re.compile(r"^[A-Za-z0-9]+$")   # tally-readers.py reads the persona from <persona>_<model>_<n>.json
+
+# Whether the manuscript is Chinese: the rule of the audit skill's chinese-prose.py (is_chinese), copied rather than
+# imported because an installed readers skill need not have the audit skill beside it. A test holds the copy to it.
+HAN_RANGE = "\u3007\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
+HAN = re.compile(f"[{HAN_RANGE}]")
+UNIT = re.compile(f"[{HAN_RANGE}]|[\u3040-\u30ff\uac00-\ud7af]|[A-Za-z0-9]+(?:[.,'\u2019\\-][A-Za-z0-9]+)*")
+KANA_HANGUL = re.compile("[\u3040-\u30ff\uac00-\ud7af]")
+ZH_PUNCT = re.compile("[\uff0c\u3002\uff1b\uff1a\uff01\uff1f\u3001\uff08\uff09\u300c\u300d]")
+
+
+def units(text):
+    """Han characters, kana and hangul one by one; a Latin word or a number as one."""
+    return UNIT.findall(text or "")
+
+
+def is_chinese(text):
+    if not text or not HAN.search(text):
+        return False
+    us = units(text)
+    if sum(1 for u in us if KANA_HANGUL.fullmatch(u)) >= 0.05 * len(us):
+        return False
+    share = sum(1 for u in us if HAN.fullmatch(u)) / len(us)
+    return share >= 0.5 or (share >= 0.25 and bool(ZH_PUNCT.search(text)))
 
 INSTRUCTIONS = """READER INSTRUCTIONS
 You are a reader, not an editor. Persona: {persona}. You have NOT read this manuscript before and know nothing about
@@ -72,7 +113,7 @@ once, carrying forward what you have read.
 For EACH paragraph report:
 - "believe": one sentence: what you now believe the manuscript is claiming or doing, given everything so far
 - "expect": one sentence: what you expect to read next
-- "reread": the first 4-6 words (verbatim) of any sentence in this paragraph you had to go back and re-read
+- "reread": {opening} (verbatim) of any sentence in this paragraph you had to go back and re-read
 - "guessed": words or phrases (verbatim) whose meaning you had to guess
 
 After the last paragraph report:
@@ -98,6 +139,9 @@ MANUSCRIPT
 RELATION_ID = "relation_guessed"
 RELATION_QUESTION = ('the two sentences, one right after the other, between which you most had to guess how the '
                      'second follows from the first: quote the first 4-6 words of each in double quotes (or "none")')
+# A Chinese sentence has no words to count off; tally-readers.py places a quote of 8-12 characters as it does 4-6 words.
+OPENING = {"en": "the first 4-6 words", "zh": "the first 8-12 characters"}
+RELATION_QUESTION_ZH = RELATION_QUESTION.replace(OPENING["en"], OPENING["zh"])
 
 
 def die(msg, code=2):
@@ -453,10 +497,11 @@ def repetition(rendered, sections):
             "longest_verbatim_words": m.size, "longest_verbatim": " ".join(i[m.b:m.b + m.size])}
 
 
-def blank_reader(rendered, questions, packet_id):
+def blank_reader(rendered, questions, packet_id, chinese=False):
     """A reader who copies the first paragraph into every answer (reader id BLANK)."""
     first = rendered[0]["text"]
-    sentences = [s for s in re.split(r"(?<=[.!?])\s+", first) if s.strip()]
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+" if not chinese else "(?<=[\u3002\uff01\uff1f])", first)
+                 if s.strip()]
     out = {"reader": "BLANK", "packet": packet_id,
            "note": "Not a reader: every answer is copied from the first paragraph. Judge it like the others; a point "
                    "it carries can be scored by copying.",
@@ -464,6 +509,38 @@ def blank_reader(rendered, questions, packet_id):
     for q in questions:
         out[q["id"]] = first
     return out
+
+
+def read_personas(path):
+    """{id: persona} from --personas: a JSON object, or one `id<TAB>persona` per line. A file that names no persona, or
+    one it cannot read, stops the build: a packet with no reader in it is not a panel."""
+    try:
+        raw = Path(path).read_text(encoding="utf-8")
+    except OSError as e:
+        die(f"cannot read --personas {path}: {e}")
+    if raw.lstrip().startswith("{"):
+        try:
+            got = json.loads(raw)
+        except ValueError as e:
+            die(f"--personas {path} is not a JSON object: {e}")
+        if not isinstance(got, dict) or not all(isinstance(v, str) and v.strip() for v in got.values()):
+            die(f"--personas {path}: every persona must be a non-empty string")
+        got = {str(k).strip(): v.strip() for k, v in got.items()}
+    else:
+        got = {}
+        for i, line in enumerate(raw.splitlines(), 1):
+            if not line.strip() or line.startswith("#"):
+                continue
+            pid, _, persona = line.partition("\t")
+            if not pid.strip() or not persona.strip():
+                die(f"{path}:{i}: a persona is `id<TAB>persona`")
+            got[pid.strip()] = persona.strip()
+    if not got:
+        die(f"--personas {path} names no persona")
+    bad = [k for k in got if not PERSONA_ID.match(k)]
+    if bad:
+        die(f"--personas {path}: an id is letters and digits (it names the outputs <id>_<model>_<n>.json): {', '.join(bad)}")
+    return got
 
 
 def read_questions(path):
@@ -497,6 +574,8 @@ def main(argv=None):
                     help=f"add the directed question {RELATION_ID}: where the reader had to guess how one sentence "
                          "follows from the one before (tally-readers.py places the quotes in paragraphs)")
     ap.add_argument("--venue", help="how the prompt names the venue (default: the workspace's target.venue)")
+    ap.add_argument("--personas", help="the readers: id<TAB>persona per line, or a JSON object (overrides the "
+                                       "workspace's target.readers.personas and the defaults)")
     ap.add_argument("--aux", help="the compiled .aux, for the numbers cross-references show on the page")
     ap.add_argument("--format", choices=("text", "latex"),
                     help="how --text is read (default: latex for a .tex file, plain text otherwise)")
@@ -527,14 +606,23 @@ def main(argv=None):
         text = re.sub(r"\s+", " ", joined).strip() if plain else readable(joined, bib, unknown, refs, residual)
         rendered.append({"p": i, "text": text, "sids": [s for _, s, _ in para if s], "hashes": [h for _, _, h in para]})
     manuscript = "\n\n".join(f"[P{r['p']}] {r['text']}" for r in rendered)
+    chinese = is_chinese(" ".join(r["text"] for r in rendered))
+    if a.personas:
+        chosen = read_personas(a.personas)
+        PERSONAS.clear()
+        PERSONAS.update(chosen)
+        source["personas_file"] = str(Path(a.personas).resolve())
+    elif chinese and PERSONAS == DEFAULT_PERSONAS:
+        PERSONAS.clear()
+        PERSONAS.update(PERSONAS_ZH)
     keyed = read_questions(a.questions or (source.get("questions_file") and str(Path(source["questions_file"]).expanduser())))
     # Keys are for the judges: what the readers read, and the packet id, hold the questions without them.
     questions = [{"id": q["id"], "question": q["question"]} for q in keyed]
     if a.ask_relations and all(q["id"] != RELATION_ID for q in questions):
-        questions.append({"id": RELATION_ID, "question": RELATION_QUESTION})
+        questions.append({"id": RELATION_ID, "question": RELATION_QUESTION_ZH if chinese else RELATION_QUESTION})
     first = rendered[0]["text"].lower()
     copyable = [q["id"] for q in keyed if any(k.lower() in first for k in q.get("keys") or [])]
-    venue = a.venue or source.get("venue") or "a journal"
+    venue = a.venue or source.get("venue") or ("its target venue" if chinese else "a journal")
     directed_block = "".join(f'- "{q["id"]}": {q["question"]}\n' for q in questions)
     directed_keys = "".join(f", {q['id']}" for q in questions)
     out = Path(a.out)
@@ -549,7 +637,8 @@ def main(argv=None):
     prompts = {}
     for pid, persona in PERSONAS.items():
         text = INSTRUCTIONS.format(persona=persona, venue=venue, directed_block=directed_block, refs_note=refs_note,
-                                   directed_keys=directed_keys, manuscript=manuscript, packet_id=packet_id)
+                                   directed_keys=directed_keys, manuscript=manuscript, packet_id=packet_id,
+                                   opening=OPENING["zh" if chinese else "en"])
         (out / f"prompt_{pid}.txt").write_text(text, encoding="utf-8")
         prompts[pid] = {"file": f"prompt_{pid}.txt", "sha1": sha(text)}
     packet = {"schema": 1, "packet_id": packet_id, "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -561,12 +650,19 @@ def main(argv=None):
                              "aux": str(Path(a.aux).resolve()) if a.aux else None, "aux_older_than_source": stale_aux},
               "repetition": repetition(rendered, source.get("paragraph_sections")),
               "question_keys": {q["id"]: q["keys"] for q in keyed if q.get("keys")}, "copyable_questions": copyable}
+    if chinese:
+        # Words counted by whitespace are runs of Chinese between two marks: a 14,000-character text read as 286 words.
+        packet.update({"language": "zh", "size": {"characters": sum(len(units(r["text"])) for r in rendered)}})
     (out / "packet.json").write_text(json.dumps(packet, ensure_ascii=False, indent=1), encoding="utf-8")
-    (out / "blank_reader.json").write_text(json.dumps(blank_reader(rendered, questions, packet_id), ensure_ascii=False,
-                                                      indent=1), encoding="utf-8")
-    words = sum(len(r["text"].split()) for r in rendered)
-    print(f"packet: {len(rendered)} paragraphs, {words} words, {len(questions)} directed question(s), "
-          f"{len(PERSONAS)} personas -> {out}")
+    (out / "blank_reader.json").write_text(json.dumps(blank_reader(rendered, questions, packet_id, chinese),
+                                                      ensure_ascii=False, indent=1), encoding="utf-8")
+    if chinese:
+        print(f"packet: {len(rendered)} paragraphs, {packet['size']['characters']} characters (a Latin word or number "
+              f"counted as one), {len(questions)} directed question(s), {len(PERSONAS)} personas -> {out}")
+    else:
+        words = sum(len(r["text"].split()) for r in rendered)
+        print(f"packet: {len(rendered)} paragraphs, {words} words, {len(questions)} directed question(s), "
+              f"{len(PERSONAS)} personas -> {out}")
     over = source.get("scope_override")
     if over:
         print(f"  --sections {','.join(source['sections'])} is not the workspace's readers scope "

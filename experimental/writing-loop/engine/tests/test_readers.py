@@ -2,6 +2,7 @@
 readers check's run. Fixtures are synthetic: a made-up bridge survey, no real manuscript text."""
 import json
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -796,6 +797,140 @@ class RelationTurnsTest(unittest.TestCase):
             self.assertIn("--workspace", got["not_recorded"])
             r = script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d)
             self.assertIn("没记进循环", r.stdout.strip().splitlines()[-1])
+
+
+# A Chinese abstract, synthetic: river gauges again, six sentences, the third and fourth the turn readers quote.
+ZH_ABSTRACT = ("河流水位计在使用多年后会出现漂移。以往研究认为，漂移只影响少数站点。"
+               "我们在十条河流上比较了校准前后的读数，发现漂移普遍存在。一种低成本的方法是每季度重新校准全部水位计。"
+               "然而，这种做法会掩盖漂移本身。因此，水位计应当记录漂移量，而不是只记录校准后的读数。\n")
+ZH_TURN = "“我们在十条河流上比较了”和“一种低成本的方法是”"
+
+
+def audit_module(name, filename):
+    """A script of the audit skill as a module: AWT_AUDIT_DIR when a red check is testing a mutated copy."""
+    import importlib.util
+    d = Path(os.environ.get("AWT_AUDIT_DIR") or K.ENGINE_ROOT / ".claude" / "skills" / "audit" / "scripts")
+    spec = importlib.util.spec_from_file_location(name, d / filename)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class ChineseManuscriptTest(unittest.TestCase):
+    """A Chinese manuscript: personas that fit it, the size in characters, a prompt that asks for characters, not
+    words, and quotes of 8-12 characters placed where the readers stopped. Synthetic text only."""
+
+    def build(self, root, name, text, *extra):
+        f = Path(root) / name
+        f.write_text(text, encoding="utf-8")
+        out = Path(root) / (name + ".packet")
+        r = script("build-reader-packet.py", "--text", f, "--out", out, *extra)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return out, json.loads((out / "packet.json").read_text(encoding="utf-8")), r.stdout
+
+    def test_a_personas_file_sets_the_readers_with_text_or_a_workspace_and_changes_the_packet_id(self):
+        with TempDir() as root:
+            tsv = Path(root) / "personas.tsv"
+            tsv.write_text("# id<TAB>persona\nR1\ta hydrologist who reads Chinese and English\n"
+                           "R3\ta water engineer at a regional agency\n", encoding="utf-8")
+            _, plain, _ = self.build(root, "a.txt", ABSTRACT)
+            out, packet, _ = self.build(root, "b.txt", ABSTRACT, "--personas", tsv)
+            self.assertEqual(packet["personas"], {"R1": "a hydrologist who reads Chinese and English",
+                                                  "R3": "a water engineer at a regional agency"})
+            self.assertEqual(sorted(p.name for p in out.glob("prompt_*.txt")), ["prompt_R1.txt", "prompt_R3.txt"])
+            self.assertIn("Persona: a water engineer at a regional agency.",
+                          (out / "prompt_R3.txt").read_text(encoding="utf-8"))
+            self.assertEqual(packet["source"]["personas_file"], str(tsv.resolve()))
+            self.assertNotEqual(packet["packet_id"], plain["packet_id"], "the personas are part of the packet id")
+            js = Path(root) / "personas.json"
+            js.write_text(json.dumps({"R1": "一位水文学者", "R2": "一位期刊编辑"}, ensure_ascii=False), encoding="utf-8")
+            _, packet, _ = self.build(root, "c.txt", ABSTRACT, "--personas", js)
+            self.assertEqual(packet["personas"], {"R1": "一位水文学者", "R2": "一位期刊编辑"})
+            # The workspace's own personas give way to the file named on the command line.
+            repo, ws = setup(root)
+            cfg = C.load(ws)
+            cfg.setdefault("target", {}).setdefault("readers", {})["personas"] = {"R9": "a workspace persona"}
+            C.save(ws, cfg)
+            wout = Path(root) / "ws.packet"
+            r = script("build-reader-packet.py", "--workspace", ws, "--out", wout, "--personas", tsv)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(sorted(json.loads((wout / "packet.json").read_text(encoding="utf-8"))["personas"]),
+                             ["R1", "R3"])
+            for bad in ("R1 no tab here\n", "", "R-1\ta persona\n"):
+                (Path(root) / "bad.tsv").write_text(bad, encoding="utf-8")
+                r = script("build-reader-packet.py", "--text", Path(root) / "a.txt", "--out", Path(root) / "bad",
+                           "--personas", Path(root) / "bad.tsv")
+                self.assertEqual(r.returncode, 2, (bad, r.stdout, r.stderr))
+
+    def test_a_chinese_manuscript_gets_chinese_personas_a_neutral_venue_and_its_size_in_characters(self):
+        with TempDir() as root:
+            out, packet, stdout = self.build(root, "zh.txt", ZH_ABSTRACT, "--ask-relations")
+            self.assertEqual(packet["personas"], {"R1": "一位该领域的中文研究者，日常阅读中文学术论著",
+                                                  "R2": "一位为该书稿或刊物审稿的资深中文审稿人"})
+            prompt = (out / "prompt_R1.txt").read_text(encoding="utf-8")
+            self.assertIn("Persona: 一位该领域的中文研究者", prompt)
+            self.assertIn('"reread": the first 8-12 characters (verbatim)', prompt)
+            self.assertNotIn("4-6 words", prompt)
+            self.assertNotIn("journal", prompt)
+            self.assertIn("8-12 characters", next(q["question"] for q in packet["questions"]
+                                                  if q["id"] == "relation_guessed"))
+            chars = len(re.findall("[一-鿿]", ZH_ABSTRACT))
+            self.assertIn(f"1 paragraphs, {chars} characters", stdout)
+            self.assertEqual(packet["size"], {"characters": chars})
+            blank = json.loads((out / "blank_reader.json").read_text(encoding="utf-8"))
+            self.assertEqual(blank["remember"][0], "河流水位计在使用多年后会出现漂移。")
+            # The venue a workspace or --venue names still flows through.
+            out, _, _ = self.build(root, "zh2.txt", ZH_ABSTRACT, "--venue", "《水文》")
+            self.assertIn("submitted to 《水文》", (out / "prompt_R2.txt").read_text(encoding="utf-8"))
+            # An English manuscript keeps the English personas, the journal and the words (a guard, not the fix).
+            out, packet, stdout = self.build(root, "en.txt", ABSTRACT)
+            prompt = (out / "prompt_R1.txt").read_text(encoding="utf-8")
+            self.assertIn("first language is not English", prompt)
+            self.assertIn("submitted to a journal", prompt)
+            self.assertIn('"reread": the first 4-6 words (verbatim)', prompt)
+            self.assertIn(f"1 paragraphs, {len(ABSTRACT.split())} words", stdout)
+            self.assertNotIn("size", packet)
+
+    def test_chinese_quotes_of_eight_to_twelve_characters_are_placed_at_their_turn(self):
+        answers = {"R1_small_1": ZH_TURN, "R1_small_2": ZH_TURN,
+                   "R1_large_1": "「我们在十条河流上比较」→「一种低成本的方法」",
+                   "R2_small_1": ["我们在十条河流上比较了", "一种低成本的方法是"],   # a list, unquoted
+                   "R2_large_1": "“这一句并不在摘要里面”"}
+        with TempDir() as root:
+            root = Path(root)
+            (root / "zh.txt").write_text(ZH_ABSTRACT, encoding="utf-8")
+            out = root / "packet"
+            r = script("build-reader-packet.py", "--text", root / "zh.txt", "--out", out, "--ask-relations")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            packet = json.loads((out / "packet.json").read_text(encoding="utf-8"))
+            d = panel(root, packet)
+            for f in d.glob("*.json"):
+                o = json.loads(f.read_text(encoding="utf-8"))
+                o["relation_guessed"] = answers.get(f.stem, "none")
+                f.write_text(json.dumps(o, ensure_ascii=False), encoding="utf-8")
+            r = script("tally-readers.py", "--packet", out / "packet.json", "--outputs", d, "--json")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            rel = json.loads(r.stdout)["tally"]["relations"]
+            self.assertEqual(rel["unplaced"], ["R2_large_1"])
+            self.assertEqual([(t["from"], t["to"], len(t["readers"]), t["flag"], t["most"]) for t in rel["turns"]],
+                             [([1, 3], [1, 4], 4, True, True)])
+            self.assertEqual((rel["turns"][0]["from_text"], rel["turns"][0]["to_text"]),
+                             ("我们在十条河流上比较了校…", "一种低成本的方法是每季度…"))
+
+    def test_the_readers_skill_and_the_audits_call_the_same_text_chinese(self):
+        # The detector is copied into the readers skill, which an install puts where the audit skill may not be; this
+        # holds the copy to the original.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("brp", SCRIPTS / "build-reader-packet.py")
+        brp = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(brp)
+        zh = audit_module("chinese_prose", "chinese-prose.py")
+        cases = [ZH_ABSTRACT, ABSTRACT, "使用LiDAR、GPS-2、RTK和GNSS设备进行测量",
+                 "CIDOC概念参考模型（CIDOC Conceptual Reference Model, CIDOC CRM）",
+                 "The term 非物质文化遗产 (intangible cultural heritage) is used here.",
+                 "日本語の文章はひらがなを含む。", "二〇二三年", "", "Schema.org"]
+        self.assertEqual([brp.is_chinese(c) for c in cases], [zh.is_chinese(c) for c in cases])
+        self.assertEqual([brp.is_chinese(c) for c in cases], [True, False, True, True, False, False, True, False, False])
 
 
 if __name__ == "__main__":

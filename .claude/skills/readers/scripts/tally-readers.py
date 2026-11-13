@@ -101,6 +101,14 @@ WRITING_KINDS = [
 # The directed question build-reader-packet.py --ask-relations adds. Its quotes are located in the packet's paragraphs.
 RELATION_ID = "relation_guessed"
 QUOTE = re.compile(r"[\"\u201c]([^\"\u201d]{12,}?)[\"\u201d]")
+# A Chinese reader quotes the first 8-12 characters (build-reader-packet.py asks for that), in “”, 「」, 『』 or "", so
+# a quote of six characters or more is one; and spaces carry nothing between Han characters, nor does a numeric
+# citation marker (^［9, 10］^) the packet's text still has. An answer with no Han character is read as before.
+HAN_RANGE = "\u3007\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
+HAN = re.compile(f"[{HAN_RANGE}]")
+ZH_QUOTE = re.compile("[\"\u201c\u300c\u300e]([^\"\u201d\u300d\u300f]{6,}?)[\"\u201d\u300d\u300f]")
+ZH_CITATION = re.compile(r"\^?[［\[]\s*\d+(?:\s*[-–—~～,，、]\s*\d+)*\s*[］\]]\^?")
+ZH_OPENING = 12   # characters of a Chinese sentence shown where an English one shows six words
 LIMITS = [
     "Readers are sub-agents told to ignore what they can see beyond the text; they are not readers who never knew. "
     "Each reports the outside knowledge it used.",
@@ -318,11 +326,14 @@ def tally(packet, readers):
 
 
 def _norm(text):
+    if HAN.search(str(text)):
+        t = re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", ZH_CITATION.sub("", str(text)).lower())).strip()
+        return re.sub(f"(?<=[{HAN_RANGE}]) | (?=[{HAN_RANGE}])", "", t)
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", str(text).lower())).strip()
 
 
 # A sentence ends at . ! ? before the next one's capital (or at 。！？); an abbreviation or an initial ends none.
-SENT_END = re.compile(r"[.!?][\"\u201d\u2019)\]]*\s+(?=[\"\u201c(\[]?[A-Z0-9])|[\u3002\uff01\uff1f]\s*")
+SENT_END = re.compile(r"[.!?][\"\u201d\u2019)\]]*\s+(?=[\"\u201c(\[]?[A-Z0-9])|[\u3002\uff01\uff1f][\u201d\u2019\u300d\u300f\uff09]*\s*")
 NOT_END = re.compile(r"(?:\b(?:e\.g|i\.e|cf|vs|al|etc|Fig|Figs|Sec|Eq|Tab|No|approx|resp)|\b[A-Z])\.[\"\u201d\u2019)\]]*\s*$")
 
 
@@ -344,14 +355,24 @@ def _quotes(answer):
     if isinstance(answer, list):
         out = []
         for x in answer:
+            if HAN.search(str(x)):
+                found = ZH_QUOTE.findall(str(x))
+                bare = str(x).strip().strip("\"'\u201c\u201d\u300c\u300d\u300e\u300f")
+                out += found or ([bare] if len(bare) >= 6 else [])
+                continue
             found = QUOTE.findall(str(x))
             bare = str(x).strip().strip("\"'\u201c\u201d")
             out += found or ([bare] if len(bare) >= 12 else [])
         return out
+    if HAN.search(str(answer)):
+        return ZH_QUOTE.findall(str(answer))
     return QUOTE.findall(str(answer))
 
 
 def _opening(sentence, words=6):
+    if HAN.search(sentence):
+        s = sentence.strip()
+        return s[:ZH_OPENING] + ("…" if len(s) > ZH_OPENING else "")
     w = sentence.split()
     return " ".join(w[:words]) + ("…" if len(w) > words else "")
 

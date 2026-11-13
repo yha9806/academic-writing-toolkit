@@ -79,6 +79,17 @@ flagged as duplicating it, with the other place named; a verbatim copy is found 
 sentence the base already had as unchanged, and a move keeps the count. These need the whole draft, so the --pairs
 form does not run them. The report counts each apart.
 
+Chinese input. A sentence in which Han characters make up at least half of the units is read the Chinese way, by
+chinese-prose.py beside this script (its docstring has the rules and every word list): sentences end at 。！？, length
+is in characters with a Latin word or number counted as one, ， 、 ： ； —— （ are the English reading's commas, colons,
+semicolons, dashes and parentheses, and clauses, prepositional phrases, adverbs, modifiers (the attributive 的) and
+linking openers come from closed word lists, not a parser. A threshold in words is converted to characters at 1.6 per
+word (three words are five characters, a 31-word ceiling is 50); none is calibrated for Chinese. With --baseline a
+run whose sentences are mostly Chinese is held to the corpus's Chinese sentences only (a corpus with too few of them
+is refused), and a sentence in the run's other language to that language's default ceilings; an English run reads the
+corpus exactly as before. The limits line then says what the Chinese reading measures and what it does not. Text with
+no Han character never reaches that module: the English reading is unchanged.
+
 Exit: 0 no changed sentence is flagged (including no change at all, reported as such); 1 at least one flagged;
 2 nothing to compare (no prose in the target or the base, an empty or malformed pairs file, a baseline too small
 to give percentiles) or an argument it does not recognise.
@@ -207,6 +218,44 @@ def die(msg):
     sys.exit(2)
 
 
+# Chinese input is read by chinese-prose.py, loaded the first time a text holds a Han character: English text never
+# reaches it. HAN_CHAR repeats the module's HAN_RANGE so that the test needs no module.
+ZH = None
+# Set while an English run reads its venue corpus: the corpus is read exactly as it was before the Chinese reading,
+# Chinese sentences in it included, so that an English run's percentiles do not move.
+ENGLISH_ONLY = False
+HAN_CHAR = re.compile("[\u3007\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+ZH_END = re.compile("[\u3002\uff01\uff1f]")
+
+
+def zh():
+    global ZH
+    if ZH is None:
+        path = HERE / "chinese-prose.py"
+        if not path.is_file():
+            die(f"the Chinese reading is not beside this script ({path}); Chinese input cannot be read without it")
+        spec = importlib.util.spec_from_file_location("chinese_prose", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        ZH = mod
+    return ZH
+
+
+def is_zh(s):
+    """A sentence or text read the Chinese way: Han characters at least half of its units."""
+    return not ENGLISH_ONLY and bool(s) and bool(HAN_CHAR.search(s)) and zh().is_chinese(s)
+
+
+def tokens(s):
+    """What two versions of a sentence are aligned on: words, or for Chinese the units (characters, Latin words)."""
+    return zh().units(s) if is_zh(s) else s.split()
+
+
+def long_enough(s, words):
+    """At least `words` words, or for Chinese the characters they convert to."""
+    return zh().length(s) >= zh().zh_units(words) if is_zh(s) else len(s.split()) >= words
+
+
 def fingerprint():
     path = HERE / "audit-prose-fingerprint.py"
     if not path.is_file():
@@ -297,10 +346,17 @@ def read_text(fp, path):
 
 
 def sentence_units(text):
-    """[(unit, sentence)]: a unit is what a blank line, a heading or a list item closes, a paragraph in prose."""
+    """[(unit, sentence)]: a unit is what a blank line, a heading or a list item closes, a paragraph in prose. A unit
+    with Chinese in it (a 。！？, or Han characters for half its units) is split the Chinese way; a piece of it that is
+    not Chinese is still split by SPLIT."""
     text = ABBREV.sub(lambda m: m.group(1), re.sub(r"\s+", " ", text or ""))
-    return [(n, s.strip()) for n, unit in enumerate(text.split(BREAK.strip())) for s in SPLIT.split(unit.strip())
-            if len(s.split()) >= 3]
+    out = []
+    for n, unit in enumerate(text.split(BREAK.strip())):
+        if not ENGLISH_ONLY and HAN_CHAR.search(unit) and (ZH_END.search(unit) or zh().is_chinese(unit)):
+            out += [(n, s) for s in zh().sentences(unit, SPLIT) if long_enough(s, 3)]
+            continue
+        out += [(n, s.strip()) for s in SPLIT.split(unit.strip()) if len(s.split()) >= 3]
+    return out
 
 
 def sentences(text):
@@ -314,6 +370,8 @@ def _words(s):
 
 
 def clause_tokens(s):
+    if is_zh(s):
+        return zh().clause_tokens(s)
     toks = [m.group(1).lower() for m in SUB.finditer(s)]
     for m in TEMPORAL_PREP.finditer(s):
         w = m.group(0).split()[0].lower()
@@ -324,6 +382,8 @@ def clause_tokens(s):
 
 
 def adverb_tokens(s):
+    if is_zh(s):
+        return zh().adverb_tokens(s)
     out = []
     words = _words(s)
     for i, w in enumerate(words):
@@ -336,6 +396,8 @@ def adverb_tokens(s):
 
 
 def modifier_tokens(s):
+    if is_zh(s):
+        return zh().modifier_tokens(s)
     out = []
     for m in PARTICIPLE_AFTER_NOUN.finditer(s):
         if m.group(1).lower() not in BE_HAVE:
@@ -354,6 +416,8 @@ def modifier_tokens(s):
 def worded_parentheses(s):
     """Parentheses holding a lowercase word: an aside ("(roughly)", "(both historians)"), not a number, a symbol or an
     abbreviation being defined ("(CC)")."""
+    if is_zh(s):
+        return zh().worded_parentheses(s)
     return sum(1 for inner in PAREN_WORDED.findall(s) if re.search(r"\b[a-z]{3,}\b", inner))
 
 
@@ -371,12 +435,16 @@ MID_LINK = re.compile(r",\s+(?:however|therefore|thus|hence|moreover|furthermore
 
 def links(s):
     """The linking adverbials unlinked() takes out, lower-cased, in order."""
+    if is_zh(s):
+        return zh().links(s)
     m = FP.LINKING_OPENER.match(s) if FP else None
     found = [m.group(0).strip(" ,\"'\u201c\u2018").lower()] if m else []
     return found + [x.group(0).strip(" ,").lower() for x in MID_LINK.finditer(s)]
 
 
 def unlinked(s):
+    if is_zh(s):
+        return zh().unlinked(s)
     m = FP.LINKING_OPENER.match(s) if FP else None
     if m:
         rest = s[m.end():].lstrip(" ,")
@@ -391,6 +459,8 @@ DIGIT_GROUP_COMMA = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
 
 
 def features(s):
+    if is_zh(s):
+        return zh().features(s)
     return {
         "words": len(s.split()),
         "clauses": len(clause_tokens(s)),
@@ -449,6 +519,8 @@ def norm(s):
 
 
 def content(s):
+    if is_zh(s):
+        return zh().content(s)
     return {w.lower() for w in _words(s) if len(w) >= 3 and w.lower() not in STOPWORDS | SUB_WORDS}
 
 
@@ -472,11 +544,11 @@ def pair_changes(target, base):
             if norm(s) in base_all:
                 continue
             best, score = None, 0.0
-            words = s.split()
+            words = tokens(s)
             for pf, ps in sorted(pool, key=lambda x: x[0] != f):   # prefer the same file, then anywhere
                 if (pf, ps) in used:
                     continue
-                r = difflib.SequenceMatcher(None, words, ps.split(), autojunk=False).ratio()
+                r = difflib.SequenceMatcher(None, words, tokens(ps), autojunk=False).ratio()
                 if r > score:
                     best, score = (pf, ps), r
             if best and score >= MATCH_MIN:
@@ -659,15 +731,17 @@ REF_LEFTOVER = re.compile(r"\(\s*(?:see\s+)?(?:(?:supplementary\s+)?(?:sections?
 
 
 def same_key(s):
+    if is_zh(s):
+        return zh().key(s)
     return re.sub(r"[^a-z0-9]", "", REF_LEFTOVER.sub("", s).lower())
 
 
 def duplicated(changes, target, base):
     """({(file, new sentence): [{where, sentence}]} for changed or added sentences that match another sentence of the
     draft, [(file, sentence, [{where, sentence}])] for sentences the draft holds more often than the base did)."""
-    tpos = [(f, s) for f, ss in target.items() for s in ss if len(s.split()) >= DUP_MIN_WORDS]
+    tpos = [(f, s) for f, ss in target.items() for s in ss if long_enough(s, DUP_MIN_WORDS)]
     tkeys = Counter(same_key(s) for _, s in tpos)
-    bkeys = Counter(same_key(s) for ss in base.values() for s in ss if len(s.split()) >= DUP_MIN_WORDS)
+    bkeys = Counter(same_key(s) for ss in base.values() for s in ss if long_enough(s, DUP_MIN_WORDS))
 
     def others(f, s):
         k, out, skipped = same_key(s), [], False
@@ -684,12 +758,12 @@ def duplicated(changes, target, base):
     for f, _, news in changes:
         for s in news:
             changed_keys.add(same_key(s))
-            if len(s.split()) >= DUP_MIN_WORDS and tkeys[same_key(s)] >= 2:
+            if long_enough(s, DUP_MIN_WORDS) and tkeys[same_key(s)] >= 2:
                 in_changes[(f, s)] = others(f, s)
     copies = []
     # the copy is reported where the file gained the sentence, not where it already stood
     tfile = Counter((f, same_key(s)) for f, s in tpos)
-    bfile = Counter((f, same_key(s)) for f, ss in base.items() for s in ss if len(s.split()) >= DUP_MIN_WORDS)
+    bfile = Counter((f, same_key(s)) for f, ss in base.items() for s in ss if long_enough(s, DUP_MIN_WORDS))
     for k, n in tkeys.items():
         if n >= 2 and n > bkeys.get(k, 0) and k not in changed_keys:
             at = [(f, s) for f, s in tpos if same_key(s) == k]
@@ -706,7 +780,13 @@ NEAR_RATIO = 0.8
 NEAR_MIN_WORDS = 8
 
 
+def near_min(s):
+    return zh().zh_units(NEAR_MIN_WORDS) if is_zh(s) else NEAR_MIN_WORDS
+
+
 def wording(s):
+    if is_zh(s):
+        return zh().wording(s)
     return re.findall(r"[a-z0-9]+", REF_LEFTOVER.sub("", s).lower())
 
 
@@ -714,12 +794,12 @@ def near_repeats(changes, target):
     """{(file, new sentence): [{where, sentence, ratio}]} for changed or added sentences worded like another sentence of
     the draft (NEAR_RATIO or more) without being the same; a sentence that is the same is duplicates_elsewhere."""
     draft = [(f, t, same_key(t), wording(t)) for f, ts in target.items() for t in ts]
-    draft = [d for d in draft if len(d[3]) >= NEAR_MIN_WORDS]
+    draft = [d for d in draft if len(d[3]) >= near_min(d[1])]
     out = {}
     for f, _, news in changes:
         for s in news:
             w = wording(s)
-            if len(w) < NEAR_MIN_WORDS:
+            if len(w) < near_min(s):
                 continue
             m = difflib.SequenceMatcher(None, autojunk=False)
             m.set_seq2(w)
@@ -849,7 +929,7 @@ def read_pairs(path):
     return rows
 
 
-def _venue_key(baseline):
+def _venue_key(baseline, chinese=False):
     """What the venue's distribution depends on: the corpus files (name, size, modification time) and the code that
     measures them (this script and the fingerprint audit it reads prose with)."""
     import hashlib
@@ -859,31 +939,49 @@ def _venue_key(baseline):
     for f in sorted(p for p in Path(baseline).rglob("*") if p.is_file()):
         st = f.stat()
         h.update(f"{f.relative_to(baseline)}\0{st.st_size}\0{st.st_mtime_ns}\0".encode("utf-8"))
+    if chinese:
+        h.update(b"zh\0")
     return h.hexdigest()
 
 
-def venue_distribution(fp, baseline, cache=None):
+def venue_distribution(fp, baseline, cache=None, chinese=False):
     """The venue's sentences, measured. Reading a corpus of PDFs takes seconds; with --venue-cache the columns are kept
-    and reused while neither the corpus nor this code has changed."""
-    key = _venue_key(baseline) if cache else None
+    and reused while neither the corpus nor this code has changed. chinese: the corpus's Chinese documents and Chinese
+    sentences only, with the English length limits converted to characters."""
+    key = _venue_key(baseline, chinese) if cache else None
     if cache:
         try:
             got = json.loads(Path(cache).read_text(encoding="utf-8"))
             if got.get("key") == key:
                 return {"documents": got["documents"], "sentences": got["sentences"], "columns": got["columns"],
-                        "cached": True}
+                        "cached": True, **({"language": "zh"} if chinese else {})}
         except (OSError, ValueError, KeyError):
             pass
-    docs = fp.collect(Path(baseline))
+    global ENGLISH_ONLY
+    ENGLISH_ONLY = not chinese
+    try:
+        return _venue_columns(fp, baseline, cache, chinese, key)
+    finally:
+        ENGLISH_ONLY = False
+
+
+def _venue_columns(fp, baseline, cache, chinese, key):
+    docs = fp.collect(Path(baseline)) if not chinese else _chinese_documents(fp, Path(baseline))
     kept, sents = 0, []
+    lo, hi = (zh().zh_units(5), zh().zh_units(120)) if chinese else (5, 120)
     for _, text, _ in docs:
-        if hasattr(fp, "word_share") and fp.word_share(text) < getattr(fp, "MIN_WORD_SHARE", 0.3):
+        if not chinese and hasattr(fp, "word_share") and fp.word_share(text) < getattr(fp, "MIN_WORD_SHARE", 0.3):
             continue
-        ss = [s for s in sentences(text) if 5 <= len(s.split()) <= 120]
+        ss = ([s for s in sentences(text) if 5 <= len(s.split()) <= 120] if not chinese else
+              [s for s in sentences(text) if is_zh(s) and lo <= zh().length(s) <= hi])
         if ss:
             kept += 1
             sents.extend(ss)
     if kept < MIN_VENUE_DOCUMENTS or len(sents) < MIN_VENUE_SENTENCES:
+        if chinese:
+            die(f"the rewrites are Chinese and the baseline {baseline} gave {len(sents)} Chinese sentences from {kept} "
+                f"Chinese documents; percentiles need at least {MIN_VENUE_SENTENCES} Chinese sentences from "
+                f"{MIN_VENUE_DOCUMENTS} documents (an English corpus measures words, not characters)")
         die(f"the baseline {baseline} gave {len(sents)} sentences from {kept} documents; percentiles need at least "
             f"{MIN_VENUE_SENTENCES} sentences from {MIN_VENUE_DOCUMENTS} documents")
     cols = {k: sorted(features(s)[k] for s in sents) for k in FEATURES}
@@ -891,7 +989,19 @@ def venue_distribution(fp, baseline, cache=None):
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
         Path(cache).write_text(json.dumps({"key": key, "documents": kept, "sentences": len(sents), "columns": cols}),
                                encoding="utf-8")
-    return {"documents": kept, "sentences": len(sents), "columns": cols}
+    return {"documents": kept, "sentences": len(sents), "columns": cols, **({"language": "zh"} if chinese else {})}
+
+
+def _chinese_documents(fp, baseline):
+    """(name, prose, suffix) for each Chinese document of a corpus: fp.collect keeps a document by its whitespace
+    words, which Chinese prose does not have. Its floor of 400 words becomes 640 characters."""
+    out = []
+    for p in sorted(baseline.rglob("*")):
+        if p.is_file() and (p.suffix.lower() in fp.TEXT_SUFFIXES or p.suffix.lower() == ".pdf"):
+            t = fp.load(p)
+            if t and is_zh(t) and zh().length(t) >= zh().zh_units(400):
+                out.append((str(p.relative_to(baseline)), t, p.suffix.lower()))
+    return out
 
 
 def percentile(col, x):
@@ -912,12 +1022,22 @@ DENSITY = ("clauses", "commas", "prepositions", "adverbs", "modifiers")
 DEFAULT_CEILING = {"words": 31, "clauses": 1, "commas": 2, "prepositions": 3, "adverbs": 1, "modifiers": 3}
 
 
+def default_ceiling(chinese):
+    """The ceilings for an added sentence without a venue: for Chinese the word ceiling in characters, the counts as
+    they are. Neither is calibrated for Chinese."""
+    return {**DEFAULT_CEILING, "words": zh().zh_units(DEFAULT_CEILING["words"])} if chinese else DEFAULT_CEILING
+
+
 # ---------------------------------------------------------------- judging
 
 def judge(olds, news, venue):
     """One group: the old sentences (none for an addition) and the new ones."""
     kind = ("added" if not olds else "split" if len(news) > 1 and len(olds) == 1
             else "merged" if len(olds) > 1 else "revised")
+    chinese = any(is_zh(x) for x in list(olds) + list(news))
+    if venue and venue.get("language", "en") != ("zh" if chinese else "en"):
+        venue = None   # a venue read in the other language measures another unit
+    longer = zh().zh_units(LONGER_WORDS) if chinese else LONGER_WORDS
     raw_news, old_text = news, olds
     links_added = sorted((Counter(t for x in news for t in links(x)) - Counter(t for x in olds for t in links(x))).elements())
     olds, news = [unlinked(x) for x in olds], [unlinked(x) for x in news]
@@ -925,7 +1045,7 @@ def judge(olds, news, venue):
     fo = summed(olds) if olds else None
     flags, added = [], {}
     if fo:
-        if fn["words"] - fo["words"] >= LONGER_WORDS:
+        if fn["words"] - fo["words"] >= longer:
             flags.append("longer")
         punct = ("commas", "colons", "semicolons", "dashes")
         # A comma that replaces a semicolon or a colon is not added punctuation.
@@ -963,7 +1083,8 @@ def judge(olds, news, venue):
         added = {k: v for k, v in added.items() if v}
     pct, dense_hits = {}, set()
     pct_used = ADDITION_PCT if fo is None else VENUE_PCT
-    ceiling = ({k: at(venue["columns"][k], pct_used) for k in ("words",) + DENSITY} if venue else DEFAULT_CEILING)
+    ceiling = ({k: at(venue["columns"][k], pct_used) for k in ("words",) + DENSITY} if venue
+               else default_ceiling(chinese))
     # Without a venue, only additions are held to the default ceilings: a revision is already judged against the
     # sentence it replaced.
     if venue or fo is None:
@@ -1045,7 +1166,12 @@ def main():
     draft = [s for ss in target.values() for s in ss] if not a.pairs else []
     dups, copies = duplicated(changes, target, base) if not a.pairs else ({}, [])
     nears = near_repeats(changes, target) if not a.pairs else {}
-    venue = venue_distribution(fp, a.baseline, a.venue_cache) if a.baseline else None
+    # A run with a Chinese sentence in it states the Chinese limits; a run mostly of Chinese sentences reads the
+    # venue's Chinese sentences, and its English ones are held to the English default ceilings (and the reverse).
+    read = [s for _, olds, news in changes for s in list(olds) + list(news)] + [o for _, o in removed]
+    zh_read = sum(1 for s in read if is_zh(s))
+    chinese, venue_zh = zh_read > 0, 2 * zh_read > len(read)
+    venue = venue_distribution(fp, a.baseline, a.venue_cache, venue_zh) if a.baseline else None
     results = []
     for where, olds, news in changes:
         r = judge(olds, news, venue)
@@ -1107,8 +1233,16 @@ def main():
                      "repeats_elsewhere": sum(1 for r in results if "repeats_elsewhere" in r["flags"]),
                      "multiple_without_count": sum(1 for r in results if "multiple_without_count" in r["flags"]),
                      "bound_in_ledger": sum(1 for r in results if "bound_in_ledger" in r["flags"])})
-    unjudged = kinds["added"] if venue is None else 0   # judged against DEFAULT_CEILING, not a venue
+    # judged against the default ceilings, not a venue: every addition without one, and with one, the additions in
+    # the other language
+    unjudged = sum(1 for r in results if r["kind"] == "added"
+                   and (venue is None or is_zh(r["new"]) != (venue.get("language") == "zh")))
     linked = Counter(t for r in results for t in r.get("links_added", []))
+    limits = LIMITS
+    if chinese:
+        english = [s for s in read if not is_zh(s)]
+        limits = zh().LIMITS_SENTENCES + (f"; for the {len(english)} English sentence(s) of this input, " + LIMITS
+                                          if english else "")
     out = {"schema_version": 2, "compared": compared, "changed": len(results) - removed_flagged, "flagged": len(flagged),
            "ledgers_missing": MISSING_LEDGERS,
            "added_without_venue": unjudged,
@@ -1117,7 +1251,7 @@ def main():
                       "p90": {k: at(venue["columns"][k], VENUE_PCT) for k in ("words",) + DENSITY},
                       "p75": {k: at(venue["columns"][k], ADDITION_PCT) for k in ("words",) + DENSITY}}
                      if venue else None),
-           "limits": LIMITS,
+           "limits": limits,
            "verdicts": verdict_table(results) if verdicts else None,
            "sentences": results,
            "issues": [{"where": r["where"], "flags": r["flags"], "added": r["added"], "new": r["new"],
@@ -1129,6 +1263,10 @@ def main():
                        **({"multiple": r["multiple"]} if r.get("multiple") else {}),
                        **({"ledger_rows": r["ledger_rows"]} if r.get("ledger_rows") else {})}
                       for r in flagged]}
+    if chinese:
+        out["language"] = "zh" if venue_zh else "mixed"
+        if out["venue"] and venue_zh:
+            out["venue"]["language"] = "zh"
     if a.json:
         print(json.dumps(out, ensure_ascii=False, indent=1))
     else:
@@ -1139,6 +1277,10 @@ def main():
             print(f"venue: {venue['sentences']} sentences from {venue['documents']} documents; p90 "
                   + ", ".join(f"{k} {v}" for k, v in out["venue"]["p90"].items())
                   + "; added sentences held to p75 " + ", ".join(f"{k} {v}" for k, v in out["venue"]["p75"].items()))
+        elif unjudged and chinese:
+            print(f"{unjudged} added sentence(s) held to default ceilings, not to a venue, converted to characters and "
+                  "uncalibrated for Chinese: give --baseline with a Chinese corpus ("
+                  + ", ".join(f"{'chars' if k == 'words' else k} {v}" for k, v in default_ceiling(True).items()) + ")")
         elif unjudged:
             print(f"{unjudged} added sentence(s) held to default ceilings, not to a venue: give --baseline "
                   + "(" + ", ".join(f"{k} {v}" for k, v in DEFAULT_CEILING.items()) + ")")
@@ -1152,7 +1294,8 @@ def main():
                     print(f"  a later sentence still says '{h['phrase']}': {h['sentence']}")
                 continue
             fo, fn = r["features_old"], r["features_new"]
-            size = f"{fo['words']}->{fn['words']} words" if fo else f"{fn['words']} words, {r['kind']}"
+            unit = "chars" if is_zh(r["new"] or r["old"] or "") else "words"
+            size = f"{fo['words']}->{fn['words']} {unit}" if fo else f"{fn['words']} {unit}, {r['kind']}"
             extra = "; ".join(f"{k}: {', '.join(v)}" for k, v in r["added"].items())
             print(f"\n[{r['where']}] {r['kind']}: {', '.join(r['flags'])}  ({size})" + (f"  [{extra}]" if extra else ""))
             if r["old"]:
@@ -1179,7 +1322,7 @@ def main():
                   + ", ".join(f"{k} x{v}" for k, v in sorted(linked.items())) + ")")
         if MISSING_LEDGERS:
             print(f"\nclaim ledger not found, so edits to bound sentences were not named: {', '.join(MISSING_LEDGERS)}")
-        print(f"\n{LIMITS}")
+        print(f"\n{limits}")
     sys.exit(1 if flagged else 0)
 
 

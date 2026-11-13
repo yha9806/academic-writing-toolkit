@@ -29,6 +29,15 @@ Output: each metric with the baseline's min / median / max and the target's perc
 outside the baseline's range. These are measurements, not targets: edit a sentence because it is hard to read,
 not to move a number.
 
+A Chinese target (Han characters half of its units, or a quarter with Chinese punctuation) is read the Chinese way,
+by chinese-prose.py beside this script, and only against the baseline's Chinese documents: sentences end at 。！？,
+lengths are in characters with a Latin word or number counted as one, the rates are per 100 characters
+(sub_per_100c, comma_per_100c, dash_per_100c), clauses are that module's subordinate-clause markers (a word list, not
+a parser) and commas are ， 、 and ,. Two measures are added: unpunct_run_mean and unpunct_run_max, the mean and the
+longest run of characters between two punctuation marks. The English length limits (4 to 120 words, long at 35) are
+converted at 1.6 characters per word and are uncalibrated for Chinese; the report's limits line says so. An English
+target is read as before.
+
 Exit: 0 inside the range on every metric; 1 at least one outside; 2 nothing to measure (no target prose, fewer
 baseline documents than --min-baseline, the fingerprint reader missing) or an argument it does not recognise.
 """
@@ -71,6 +80,67 @@ def spans(text):
     return [s.strip() for s in SPLIT.split(text)]
 
 
+ZH = None
+ZH_KEYS = ["median_len", "long_share", "sub_per_100c", "sub_per_comma", "comma_per_100c", "dash_per_100c",
+           "opens_with_sub", "length_lag1", "unpunct_run_mean", "unpunct_run_max"]
+
+
+def zh():
+    """The Chinese reading (chinese-prose.py), shared with the changed-sentence audit. Loaded only for Chinese text."""
+    global ZH
+    if ZH is None:
+        path = HERE / "chinese-prose.py"
+        if not path.is_file():
+            die(f"the Chinese reading is not beside this script ({path}); Chinese prose cannot be read without it")
+        spec = importlib.util.spec_from_file_location("chinese_prose", path)
+        ZH = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ZH)
+    return ZH
+
+
+def is_zh(text):
+    return bool(text) and bool(re.search("[\u3007\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]", text)) and \
+        zh().is_chinese(text)
+
+
+def zh_spans(text):
+    """Chinese sentences, each paragraph's English pieces split as English ones."""
+    return zh().sentences(text, SPLIT)
+
+
+def zh_range(n):
+    """Whether a Chinese sentence of n characters is kept: the English 4 to 120 words, converted."""
+    return zh().zh_units(4) <= n <= zh().zh_units(120)
+
+
+def measure_zh(text):
+    """The same measures for a Chinese document, per 100 characters, with the unpunctuated runs; None when the text
+    is not Chinese or has too few Chinese sentences."""
+    if not is_zh(text):
+        return None
+    z = zh()
+    raw = zh_spans(text)
+    lengths = [(z.length(s) if is_zh(s) and zh_range(z.length(s)) else None) for s in raw]
+    sents = [s for s, n in zip(raw, lengths) if n is not None]
+    if len(sents) < MIN_SENTENCES:
+        return None
+    chars = sum(z.length(s) for s in sents)
+    sub = sum(len(z.clause_tokens(s)) for s in sents)
+    commas = sum(z.commas(s) for s in sents)
+    runs = [n for s in sents for n in z.runs(s)]
+    return {"sentences": len(sents), "words": chars,
+            "median_len": statistics.median(z.length(s) for s in sents),
+            "long_share": sum(z.length(s) for s in sents if z.length(s) >= z.zh_units(35)) / chars,
+            "sub_per_100c": 100 * sub / chars,
+            "sub_per_comma": sub / max(1, commas),
+            "comma_per_100c": 100 * commas / chars,
+            "dash_per_100c": 100 * sum(z.dashes(s) for s in sents) / chars,
+            "opens_with_sub": sum(z.opener(s) for s in sents) / len(sents),
+            "length_lag1": lag1(lengths),
+            "unpunct_run_mean": statistics.mean(runs) if runs else None,
+            "unpunct_run_max": max(runs) if runs else None}
+
+
 def lag1(lengths):
     """Only adjacent sentences both kept count: a dropped span breaks the chain rather than joining its neighbours."""
     kept = [v for v in lengths if v is not None]
@@ -85,7 +155,9 @@ def lag1(lengths):
     return num / den
 
 
-def measure(text):
+def measure(text, chinese=False):
+    if chinese:
+        return measure_zh(text)
     raw = spans(text)
     lengths = [(len(s.split()) if 4 <= len(s.split()) <= 120 else None) for s in raw]
     sents = [s for s, n in zip(raw, lengths) if n is not None]
@@ -138,7 +210,8 @@ def main(argv=None):
     if not base.is_dir():
         die(f"baseline is not a directory: {base}")
     whole, parts = read_target(load, target)
-    tm = measure(whole)
+    chinese = is_zh(whole)
+    tm = measure(whole, chinese)
     if tm is None:
         die(f"fewer than {MIN_SENTENCES} measurable sentences in the target: nothing measured is not a pass")
     rows, skipped, excluded = [], [], []
@@ -148,13 +221,15 @@ def main(argv=None):
         if any(fnmatch.fnmatch(p.name, g) for g in a.exclude):
             excluded.append(p.name)
             continue
-        m = measure(load(p) or "")
+        m = measure(load(p) or "", chinese)
         (rows.append({"doc": p.name, **m}) if m else skipped.append(p.name))
     if len(rows) < a.min_baseline:
         die(f"{len(rows)} baseline document(s) measurable (skipped {len(skipped)}, excluded {len(excluded)}); "
-            f"no percentile below {a.min_baseline}")
+            f"no percentile below {a.min_baseline}"
+            + ("; the target is Chinese, so only Chinese baseline documents are read" if chinese else ""))
     metrics, outliers, edges = {}, [], []
-    for k in KEYS:
+    keys = ZH_KEYS if chinese else KEYS
+    for k in keys:
         vals = sorted(r[k] for r in rows if r[k] is not None)
         v = tm[k]
         if v is None or not vals:
@@ -172,7 +247,7 @@ def main(argv=None):
             edges.append(k)
     per_file = {}
     for name, t in parts.items():
-        m = measure(t)
+        m = measure(t, chinese)
         if m:
             per_file[name] = {"short": False, **{k: m[k] for k in ("sentences", "median_len", "sub_per_comma",
                                                                     "opens_with_sub")}}
@@ -180,7 +255,8 @@ def main(argv=None):
             # Below the sentence floor: listed and marked, not dropped, so an unmeasured file is not mistaken for
             # one that was never read.
             per_file[name] = {"short": True,
-                              "sentences": sum(1 for s in spans(t) if 4 <= len(s.split()) <= 120)}
+                              "sentences": sum(1 for s in spans(t) if 4 <= len(s.split()) <= 120) if not chinese
+                              else sum(1 for s in zh_spans(t) if is_zh(s) and zh_range(zh().length(s)))}
     # Where the structure is densest. Descriptive, like the rest of per_file: the baseline's range is built from
     # whole papers and a paper's value is an average of its sections, so no single section is an outlier on its own.
     judged = {n: f for n, f in per_file.items() if not f["short"] and f.get("sub_per_comma") is not None}
@@ -192,11 +268,15 @@ def main(argv=None):
               "per_file": per_file, "densest": densest,
               "baseline_documents": len(rows), "baseline_skipped": skipped, "baseline_excluded": excluded,
               "metrics": metrics, "outliers": outliers, "edge": edges}
+    if chinese:
+        report.update({"language": "zh", "unit": "characters (a Latin word or number counts as one)",
+                       "limits": zh().LIMITS_STRUCTURE})
     if a.json:
         print(json.dumps(report, ensure_ascii=False, indent=1))
     else:
-        print(f"target: {target} ({tm['sentences']} sentences, {tm['words']} words)   baseline: {len(rows)} documents")
-        for k in KEYS:
+        print(f"target: {target} ({tm['sentences']} sentences, {tm['words']} {'characters' if chinese else 'words'})"
+              f"   baseline: {len(rows)} documents")
+        for k in keys:
             m = metrics[k]
             if "min" in m:
                 flag = "  *" if m["outside"] else ("  ~" if m["edge"] else "")
@@ -217,6 +297,8 @@ def main(argv=None):
                       f"{m['opens_with_sub']:>8.3f}")
             if densest:
                 print(f"  densest (clauses per comma): {densest['file']} {densest['value']:.3f} (descriptive)")
+        if chinese:
+            print(report["limits"])
     return 1 if outliers else 0
 
 

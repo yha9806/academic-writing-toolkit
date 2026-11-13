@@ -276,6 +276,14 @@ writes nothing. Nothing to examine exits 2.
    it, and re-run until nothing is flagged or each remaining flag is one you
    can defend. Show the author the rewrites only after that.
 
+   Chinese sentences are read the Chinese way (`scripts/chinese-prose.py`, shared
+   with the structure audit): sentences end at 。！？, length is in characters,
+   ， 、 ： ； —— （ count as the punctuation above, and clauses, prepositional
+   phrases, adverbs and modifiers come from word lists, not a parser. The
+   thresholds are converted from words at 1.6 characters per word and are
+   uncalibrated for Chinese; `--baseline` needs a Chinese corpus. The `limits`
+   line says what is and is not measured; quote it with the results.
+
    Keep the file after the author has read it, with two more columns:
    `verdict` (accepted, or rejected; revised counts as rejected; empty while
    not judged) and `reason`. Run the audit on it again and it sets the flags

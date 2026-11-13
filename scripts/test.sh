@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test.sh — runs the regression test suite (257 automated tests, labelled T2-T275: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
+# scripts/test.sh — runs the regression test suite (264 automated tests, labelled T2-T282: T2-T18 toolkit + T19-T32 citation/env + T33-T44 public toolkit features + T45-T49 reference metadata + T50 canonical skills tree + T54-T58 release governance + T59 docs consistency + T60 Markdown BibTeX + T61-T63 productization + T64-T72 thesis control + T73 lost-in-conversation bench + T74-T111 revision escalation and human gates + T112-T115 argument and clean-room review governance + T116-T124 project-intent control + T125-T126 verify-refs parser + T127-T128 prose fingerprint + T129-T130 claim positioning + T131-T134 estimator alignment + T137 lightweight author control + T138 Harvard/Markdown claim positioning + T139-T140 and T203 fingerprint baseline precondition + T142-T147 claim ledger + T148-T153 commit gate + T154-T157 fails-closed registry + T158-T162 review findings + T163-T168 and T198-T202 number ledger + T169-T171 audits that name what they did not read + T172-T174 claim-positioning precision + T175-T177 venue baseline construction + T178-T183 session scan + T184 the header's own count + T185-T187 the public-content audit reports what it read + T188-T189 the scripts/ audits fail closed and the docs' skill count is derived + T190 every path the README's structure block names exists + T191-T193 writing loop, experimental + T194-T195 method credits in the full claim-ledger scan + T204-T210 and T214-T215 changed-sentence audit + T216-T218 prose view, spelling consistency and citation reconciliation for LaTeX drafts + T219 fingerprint drops environment names + T220 fingerprint per-file peaks + T211-T213 venue topic and contribution type + T196-T197 a venue name containing an ampersand + T230-T238, T247, T250 and T252 generated copies rerun against their generators + T239-T246, T248, T249, T251, T253 and T274 figure and table reviews + T254-T255 a supplement's ledgers and files + T256-T257 links between sentences + T258 the edge of the baseline + T259-T267 a found snippet is not a read one, and claims with no \cite + T268 paragraph openers + T269 a number that ends a sentence + T270 speculation is a hedge + T271 method word forms share one source + T272 a number set as 4{,}120 reads as 4,120 + T273 a digit-group comma is not a comma + T275 a bare % in a pairs cell is a percent sign + T276-T282 Chinese input to the sentence audits) for academic-writing-toolkit. Tests whose body reaches into archive/skills/ run only with AWT_TEST_RETIRED=1.
 # Self-contained; saves and restores any state it mutates.
 # Exit 0 if all tests pass, 1 if any fail. CI-suitable.
 # Note: pipefail is intentionally NOT enabled. Several tests assert that a
@@ -3977,6 +3977,191 @@ import json, sys
 d = json.load(sys.stdin)
 assert d['changed'] == 0, [(r['where'], r['new']) for r in d['sentences']]
 "
+}
+
+# --- T276-T282: Chinese input to the sentence audits -------------------------------
+# Chinese prose has no spaces between words and ends its sentences with 。！？. Read as English, a Chinese sentence was
+# one "word", below the three-word floor, so the old side of a rewrite vanished and the rewrite was judged as an
+# addition (36 of 40 changed sentences on one real round), and ，、：；（）—— were not punctuation at all.
+test_T276() {
+    # A revision that adds a 由于 clause and two commas is a revision: longer by its characters, with the clause, the
+    # commas and the subordinate opener named. Lengths are in characters.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'a\t研究团队在三个村落记录了口述史。\t由于经费有限，研究团队在三个村落记录了口述史，并整理了全部录音。\n' >> "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1 (flagged)"; return 1; }
+    printf '%s' "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+r = d['sentences'][0]
+assert r['kind'] == 'revised', r['kind']
+assert (r['features_old']['words'], r['features_new']['words']) == (15, 29), (r['features_old'], r['features_new'])
+assert (r['features_old']['commas'], r['features_new']['commas']) == (0, 2), r['features_new']
+assert {'longer', 'comma', 'clause', 'opener'} <= set(r['flags']), r['flags']
+assert r['added']['clauses'] == ['由于'], r['added']
+assert d.get('language') == 'zh', d.get('language')
+"
+}
+
+test_T277() {
+    # A rewrite that only swaps one term for another is a revision with nothing flagged: one character longer is not
+    # longer, and no punctuation, clause or modifier was added.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'b\t该项目使用三维扫描记录了庙宇壁画的颜色。\t该项目使用多光谱成像记录了庙宇壁画的颜色。\n' >> "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 0 ] || { echo "exit $code, expected 0 (nothing flagged)"; return 1; }
+    printf '%s' "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+r = d['sentences'][0]
+assert r['kind'] == 'revised' and r['flags'] == [], (r['kind'], r['flags'])
+assert (r['features_old']['words'], r['features_new']['words']) == (19, 20), (r['features_old'], r['features_new'])
+"
+}
+
+test_T278() {
+    # An added sentence with a full-width colon and semicolon is flagged for both, and the report's limits line says
+    # what the Chinese reading measures, that its lists are word lists and that its thresholds are uncalibrated.
+    local tmp out code text
+    tmp=$(mktemp -d) || return 1
+    printf 'id\told\tnew\n' > "$tmp/pairs.tsv"
+    printf 'c\t\t调查覆盖两类遗产：一类是传统技艺；另一类是口头传统。\n' >> "$tmp/pairs.tsv"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --json 2>/dev/null)
+    code=$?
+    text=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" 2>/dev/null)
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "exit $code, expected 1 (flagged)"; return 1; }
+    printf '%s' "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+r = d['sentences'][0]
+assert r['kind'] == 'added', r['kind']
+assert (r['features_new']['colons'], r['features_new']['semicolons']) == (1, 1), r['features_new']
+assert {'colon', 'semicolon'} <= set(r['flags']), r['flags']
+assert 'Chinese input' in d['limits'] and 'uncalibrated' in d['limits'] and 'not by a word segmenter or a parser' in d['limits'], d['limits']
+" || return 1
+    grep -q "^Chinese input" <<<"$text" || { echo "the printed limits line does not name Chinese input"; return 1; }
+    grep -q "chars 50" <<<"$text" || { echo "the default ceiling is not given in characters"; return 1; }
+}
+
+test_T279() {
+    # A three-sentence paragraph whose middle sentence is split in two, read as a draft against its base: three
+    # sentences before, four after, and one change, a split of one old sentence into two pieces.
+    local tmp out code
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/base" "$tmp/cur"
+    printf '研究团队在三个村落记录了口述史。访谈对象包括手艺人、学徒和地方文化干部，访谈在2023年夏季完成并全部转写。所有录音都存入了县档案馆。\n' > "$tmp/base/ch.md"
+    printf '研究团队在三个村落记录了口述史。访谈对象包括手艺人、学徒和地方文化干部。访谈在2023年夏季完成并全部转写。所有录音都存入了县档案馆。\n' > "$tmp/cur/ch.md"
+    out=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --target "$tmp/cur" --base "$tmp/base" --json 2>/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 0 ] || { echo "exit $code, expected 0 (a split that adds nothing)"; echo "$out" | head -20; return 1; }
+    printf '%s' "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+c = d['compared']
+assert (c['base_sentences'], c['target_sentences']) == (3, 4), c
+assert (c['changed'], c['split'], c['removed']) == (1, 1, 0), c
+r = d['sentences'][0]
+assert r['kind'] == 'split' and r['pieces'] == 2 and r['olds'] == 1, r
+assert r['flags'] == [], r['flags']
+"
+}
+
+test_T280() {
+    # Sentences end at 。！？ with any closing quotation mark after them; a terminator inside a bracket that goes on
+    # does not end one; numeric citation markers are not the sentence's punctuation; an unbalanced quotation mark does
+    # not fuse the rest of the paragraph.
+    python3 - <<'PYEOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sc", ".claude/skills/audit/scripts/audit-sentence-changes.py")
+sc = importlib.util.module_from_spec(spec); sys.argv = ["x"]; spec.loader.exec_module(sc)
+sc.FP = sc.fingerprint()
+text = ("已有研究把这种做法称为“活态传承”^［9, 10］^。有学者认为：“技艺离开社区就会失传。”"
+        "这一判断（见表3。下同）影响了后来的政策。")
+got = sc.sentences(text)
+assert got == ["已有研究把这种做法称为“活态传承”。", "有学者认为：“技艺离开社区就会失传。”",
+               "这一判断（见表3。下同）影响了后来的政策。"], got
+f = sc.features(got[0])
+assert (f["commas"], f["parentheses"], f["words"]) == (0, 0, 15), f
+got = sc.sentences("他说“第一句没有收尾。第二句在这里。第三句也在这里。")
+assert len(got) == 3, got
+PYEOF
+}
+
+test_T281() {
+    # The structure audit reads a Chinese draft against Chinese documents: rates per 100 characters, clauses per
+    # Chinese comma, the longest run without punctuation, and its limits. A draft that opens every sentence with a
+    # condition is outside a plain baseline; against an English baseline it is refused, not compared.
+    local tmp out code err
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/zh" "$tmp/en"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib
+d = pathlib.Path(sys.argv[1])
+plain = ("这座桥承载两条车道，桥面在春季更换过。工程师测量了每一跨的荷载，并每周记录读数。调查覆盖全县四十座桥梁。"
+         "每份报告都写明检查员、日期和读数所用的仪表。")
+cond = ("如果跨度较长且交通繁忙，荷载就会上升。当桥面潮湿时，仪表读数偏高。如果读数偏高，检查员就会复查。"
+        "由于季节不同，读数是否稳定也不同。")
+english = ("The bridge carries two lanes over the river, and the deck was replaced in the spring. Engineers measured "
+           "the load on each span, and they logged the readings every week. The survey covers forty bridges in the "
+           "county. Each report names the inspector, the date and the gauge that was read. ")
+for i in range(20):
+    (d / "zh" / ("paper%02d.txt" % i)).write_text((plain * 12).replace("四十", "四十%d" % i), encoding="utf-8")
+    (d / "en" / ("paper%02d.txt" % i)).write_text(english * 12, encoding="utf-8")
+(d / "draft.txt").write_text(cond * 10, encoding="utf-8")
+PYEOF
+    out=$(python3 .claude/skills/audit/scripts/audit-prose-structure.py --target "$tmp/draft.txt" --baseline "$tmp/zh" --json 2>/dev/null)
+    code=$?
+    err=$(python3 .claude/skills/audit/scripts/audit-prose-structure.py --target "$tmp/draft.txt" --baseline "$tmp/en" 2>&1 >/dev/null)
+    local code2=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 1 ] || { echo "Chinese baseline: exit $code, expected 1"; return 1; }
+    printf '%s' "$out" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+assert d['language'] == 'zh' and d['baseline_documents'] == 20, (d.get('language'), d['baseline_documents'])
+assert d['target_sentences'] == 40, d['target_sentences']
+assert 'opens_with_sub' in d['outliers'] and 'sub_per_100c' in d['outliers'], d['outliers']
+m = d['metrics']
+assert m['opens_with_sub']['value'] == 1.0 and m['opens_with_sub']['max'] == 0.0, m['opens_with_sub']
+assert m['unpunct_run_max']['value'] == 11 and m['unpunct_run_max']['max'] == 12, m['unpunct_run_max']
+assert 'sub_per_100w' not in m and 'uncalibrated' in d['limits'], sorted(m)
+"  || return 1
+    [ "$code2" -eq 2 ] || { echo "English baseline: exit $code2, expected 2"; return 1; }
+    grep -q "Chinese" <<<"$err" || { echo "the refusal does not say a Chinese draft needs a Chinese baseline: $err"; return 1; }
+}
+
+test_T282() {
+    # Chinese rewrites held to an English venue corpus would compare characters with words. The venue is read for
+    # Chinese sentences only, and a corpus with too few of them is refused (exit 2), never used.
+    local tmp code err
+    tmp=$(mktemp -d) || return 1
+    mkdir -p "$tmp/venue"
+    python3 - "$tmp" <<'PYEOF'
+import sys, pathlib, itertools
+d = pathlib.Path(sys.argv[1])
+words = ["".join(c) for c in itertools.product("abcdefg", repeat=3)]
+for i in range(6):
+    sents = ["The %s stage kept the %s rank in the pool today." % (w, w)
+             for w in (words[(i * 200 + j) % len(words)] for j in range(200))]
+    (d / "venue" / ("doc%d.txt" % i)).write_text(" ".join(sents))
+(d / "pairs.tsv").write_text("id\told\tnew\na\t研究团队在三个村落记录了口述史。\t研究团队在三个村落记录了口述史，并整理了全部录音。\n",
+                             encoding="utf-8")
+PYEOF
+    err=$(python3 .claude/skills/audit/scripts/audit-sentence-changes.py --pairs "$tmp/pairs.tsv" --baseline "$tmp/venue" --json 2>&1 >/dev/null)
+    code=$?
+    rm -rf "$tmp"
+    [ "$code" -eq 2 ] || { echo "exit $code, expected 2"; return 1; }
+    grep -q "Chinese sentences" <<<"$err" || { echo "the refusal does not name Chinese sentences: $err"; return 1; }
 }
 
 # --- T254-T255: a supplement's ledgers and files --------------------------------
@@ -8014,6 +8199,13 @@ run_test "T272 a number set as 4{,}120 reads as 4,120, and \\, is a space, not a
 run_test "T273 the comma inside 4,120 groups digits and is not counted as a comma" test_T273
 run_test "T274 float reviews: what a figure draws is set out by the elements at each end, and an end that reaches none is marked" test_T274
 run_test "T275 changed-sentence audit: a bare % in a pairs cell is a percent sign, not a comment that cuts the rest" test_T275
+run_test "T276 changed-sentence audit, Chinese: a revision that adds a 由于 clause and two commas is a revision, flagged for both" test_T276
+run_test "T277 changed-sentence audit, Chinese: a rewrite that only swaps a term is a revision with nothing flagged" test_T277
+run_test "T278 changed-sentence audit, Chinese: an added sentence with ：and ；is flagged, and the limits line says what is measured" test_T278
+run_test "T279 changed-sentence audit, Chinese: a sentence split in two within a three-sentence paragraph is one split" test_T279
+run_test "T280 changed-sentence audit, Chinese: sentences end at 。！？ past quotes and brackets, citation markers removed" test_T280
+run_test "T281 structure audit, Chinese: measured per 100 characters against a Chinese baseline, refused against an English one" test_T281
+run_test "T282 changed-sentence audit, Chinese: an English venue corpus is refused, not compared in another unit" test_T282
 
 header ""
 if [[ "$RUN_RETIRED" == "1" ]]; then

@@ -50,6 +50,11 @@ report.
    have draws readers' complaints: in one panel most of "what got in the way" was about it. Math shows its symbols;
    a command with no symbol keeps its backslash and the build names it.
 
+   `--personas <file>` (one `id<TAB>persona` per line, or a JSON object) sets the readers with either form; it
+   overrides the workspace's personas and is part of the packet id. A Chinese manuscript with no personas given gets
+   Chinese-reading personas, a prompt that asks for the first 8-12 characters of a sentence instead of 4-6 words, a
+   venue named neutrally unless `--venue` or the workspace names one, and its size in characters.
+
    While the loop is still indexing a commit, the build refuses (exit 2): wait for `loop update` to finish. A
    `--sections` other than the workspace's `target.readers.sections` builds a targeted comparison: the build says how
    many of the configured sentences it reads, and the tally does not record it as the readers check's run. To change
